@@ -1,0 +1,104 @@
+from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field
+
+Score = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+Text = Annotated[str, Field(min_length=1, max_length=4000)]
+Level = Literal['A2', 'B1', 'B2', 'C1']
+Dimension = Literal['main_idea', 'details', 'vocabulary', 'inference']
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+class Difficulty(StrictModel):
+    speech_rate: float = Field(default=.75, ge=.6, le=1.15)
+    duration_seconds: int = Field(default=45, ge=30, le=90)
+    vocabulary_level: Level = 'B1'
+    information_density: int = Field(default=1, ge=1, le=3)
+    speaker_count: Literal[1] = 1
+    accent_complexity: Literal[1] = 1
+    background_noise: Literal[0] = 0
+
+class ListeningProfile(StrictModel):
+    overall: Score = .7
+    main_idea: Score = .7
+    details: Score = .7
+    vocabulary: Score = .7
+    inference: Score = .7
+    natural_speed: Score | None = None
+
+class LearnerProfile(StrictModel):
+    name: str = Field(default='Listener', min_length=1, max_length=80)
+    target_language: Literal['en'] = 'en'
+    goal: str = Field(default='Understand everyday English', min_length=1, max_length=500)
+    interests: list[str] = Field(default_factory=lambda: ['technology'])
+    listening_profile: ListeningProfile = Field(default_factory=ListeningProfile)
+    difficulty: Difficulty = Field(default_factory=Difficulty)
+    focus: Dimension = 'details'
+    completed_attempts: int = 0
+
+class Question(StrictModel):
+    question: Text
+    expected_information: list[Text] = Field(min_length=1, max_length=5)
+
+class VocabularyItem(StrictModel):
+    phrase: Text
+    meaning_in_context: Text
+
+class ExerciseContent(StrictModel):
+    title: Text
+    topic: Text
+    script: str = Field(min_length=80, max_length=5000)
+    target_duration_seconds: int = Field(ge=30, le=90)
+    vocabulary_level: Level
+    speech_rate: float = Field(ge=.6, le=1.15)
+    information_density: int = Field(ge=1, le=3)
+    main_idea: Text
+    important_details: list[Text] = Field(min_length=3, max_length=8)
+    inference_points: list[Text] = Field(min_length=1, max_length=3)
+    vocabulary_items: list[VocabularyItem] = Field(min_length=2, max_length=5)
+    questions: list[Question] = Field(min_length=1, max_length=3)
+
+class UnitJudgment(StrictModel):
+    dimension: Dimension
+    index: int = Field(ge=0)
+    status: Literal['understood', 'partial', 'missed', 'misunderstood']
+    evidence: str = Field(max_length=1000)
+
+class EvaluationJudgments(StrictModel):
+    units: list[UnitJudgment] = Field(min_length=1, max_length=30)
+    feedback: str = Field(min_length=1, max_length=600)
+    transcription_concern: bool
+    concern_reason: str = Field(max_length=500)
+
+class Evaluation(StrictModel):
+    main_idea: Score
+    details: Score
+    vocabulary: Score
+    inference: Score
+    overall: Score
+    understood: list[str]
+    missed: list[str]
+    misunderstood: list[str]
+    feedback: str
+    units: list[UnitJudgment]
+
+class Transcription(StrictModel):
+    text: str = Field(max_length=8000)
+    confidence: Score | None = None
+    uncertainty: list[str] = Field(default_factory=list)
+    source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
+
+class Adaptation(StrictModel):
+    previous_score: Score
+    decision: Literal['harder', 'same', 'easier']
+    changed_variable: str | None
+    old_value: float | int | str | None
+    new_value: float | int | str | None
+    reason: str
+    focus: Dimension
+    old_difficulty: Difficulty
+    new_difficulty: Difficulty
+    teacher_decision: Literal['harder', 'same', 'easier'] | None = None
+    policy_version: str = 'v0.1'
+    edge_low: Score
+    edge_high: Score

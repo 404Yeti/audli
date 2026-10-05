@@ -1,0 +1,74 @@
+import logging
+import pytest
+from pydantic import ValidationError
+from app.config import Settings
+from app.diagnostics import operation, report_failure
+from app.models import Transcription
+
+
+def test_development_logs_type_message_traceback_operation_but_not_secrets_or_audio(caplog, monkeypatch):
+    key = 'test-sensitive-credential'
+    monkeypatch.setenv('AUDLI_TEST_SECRET', 'other-sensitive-secret')
+    settings = Settings(OPENAI_API_KEY=key, environment='development', _env_file=None)
+    with caplog.at_level(logging.ERROR, logger='audli'):
+        with pytest.raises(ValueError):
+            with operation(settings, 'ExerciseGenerator.generate'):
+                raise ValueError("duration mismatch; key=" + key + "; Authorization=Bearer credential\n"
+                                 "payload=b'private user audio'; other-sensitive-secret")
+    output = caplog.text
+    assert 'builtins.ValueError' in output
+    assert 'duration mismatch' in output
+    assert 'Traceback' in output
+    assert 'ExerciseGenerator.generate' in output
+    assert 'test_diagnostics.py' in output
+    for sensitive in (key, 'Bearer credential', 'private user audio', 'other-sensitive-secret'):
+        assert sensitive not in output
+
+
+def test_production_logs_operation_and_type_only(caplog):
+    with caplog.at_level(logging.ERROR, logger='audli'):
+        report_failure(Settings(environment='production', _env_file=None), 'SpeechService.speech', ValueError('private detail'))
+    assert 'SpeechService.speech' in caplog.text and 'builtins.ValueError' in caplog.text
+    assert 'private detail' not in caplog.text and 'Traceback' not in caplog.text
+
+
+def test_validation_diagnostics_do_not_dump_input(caplog):
+    with caplog.at_level(logging.ERROR, logger='audli'):
+        try:
+            Transcription.model_validate({'text': {'audio': 'sensitive raw input'}})
+        except ValidationError as exc:
+            report_failure(Settings(_env_file=None), 'OpenAI.responses.parse', exc)
+    assert 'string_type' in caplog.text
+    assert 'sensitive raw input' not in caplog.text
+
+
+def test_http_error_keeps_client_response_generic_while_development_logs_reason(client, caplog):
+    client.provider.fail = True
+    with caplog.at_level(logging.ERROR, logger='audli'):
+        result = client.post('/api/exercises')
+    assert result.status_code == 503
+    assert 'provider payload' not in result.text
+    assert 'SpeechService.speech' in caplog.text
+    assert 'Traceback' in caplog.text
+
+
+def test_named_secret_values_are_redacted_even_when_not_configured(caplog):
+    with caplog.at_level(logging.ERROR, logger='audli'):
+        report_failure(Settings(_env_file=None), 'OpenAI.responses.parse',
+            ValueError('password=temporary-credential; access_token="temporary-token"; sk-proj-***masked-suffix'))
+    for value in ('temporary-credential', 'temporary-token', 'masked-suffix'):
+        assert value not in caplog.text
+
+
+def test_literal_validation_diagnostics_do_not_disclose_allowed_learner_quotes(caplog):
+    from typing import Literal
+    from pydantic import create_model
+    model = create_model('PrivateEvidence', evidence=(Literal['private learner statement'], ...))
+    with caplog.at_level(logging.ERROR, logger='audli'):
+        try:
+            model.model_validate({'evidence': 'invented response'})
+        except ValidationError as exc:
+            report_failure(Settings(_env_file=None), 'ComprehensionEvaluator.evaluate', exc)
+    assert 'literal_error' in caplog.text
+    assert 'private learner statement' not in caplog.text
+    assert 'invented response' not in caplog.text

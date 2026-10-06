@@ -27,7 +27,9 @@ def test_development_logs_type_message_traceback_operation_but_not_secrets_or_au
 
 def test_production_logs_operation_and_type_only(caplog):
     with caplog.at_level(logging.ERROR, logger='audli'):
-        report_failure(Settings(environment='production', _env_file=None), 'SpeechService.speech', ValueError('private detail'))
+        report_failure(Settings(environment='production', persistence='postgres',
+            database_url='postgresql://test:test@localhost/test?sslmode=require',
+            learner_id='00000000-0000-0000-0000-000000000001', _env_file=None), 'SpeechService.speech', ValueError('private detail'))
     assert 'SpeechService.speech' in caplog.text and 'builtins.ValueError' in caplog.text
     assert 'private detail' not in caplog.text and 'Traceback' not in caplog.text
 

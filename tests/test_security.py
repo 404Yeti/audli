@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.config import Settings
 from app.main import create_app
 from app.security import LocalRequestGuard
+from app.repository import ProgressRepository
 from conftest import ASGIClient, FakeProvider
 
 
@@ -35,7 +36,10 @@ PRODUCTION_ORIGIN = 'https://audli-seven.vercel.app'
 def test_configured_origins_on_real_api(tmp_path, monkeypatch, origin, status):
     monkeypatch.setenv('AUDLI_ALLOWED_ORIGINS', f' {PRODUCTION_ORIGIN}, https://custom.example ')
     provider = FakeProvider()
-    app = create_app(Settings(data_dir=tmp_path, environment='production', _env_file=None), provider)
+    settings = Settings(data_dir=tmp_path, environment='production', persistence='postgres',
+        database_url='postgresql://test:test@localhost/test?sslmode=require',
+        learner_id='00000000-0000-0000-0000-000000000001', _env_file=None)
+    app = create_app(settings, provider, repository=ProgressRepository(tmp_path / 'audli.sqlite3'))
     client = ASGIClient(app, provider)
     response = client.put('/api/profile', headers={'origin': origin}, json={'name': 'Learner', 'goal': 'Listen better'})
     assert response.status_code == status, response.text

@@ -3,8 +3,20 @@ import io
 import math
 import struct
 import wave
+import os
+import tempfile
 import pytest
 import httpx
+
+# Isolate collection-time app startup too, before app.main imports its default app.
+# Tests must never inherit production persistence/ownership from a shell or .env.
+_bootstrap_data = tempfile.TemporaryDirectory(prefix='audli-test-bootstrap-')
+os.environ.update({
+    'AUDLI_ENVIRONMENT': 'development', 'AUDLI_PERSISTENCE': 'sqlite',
+    'AUDLI_DATABASE_URL': '', 'AUDLI_LEARNER_ID': '',
+    'AUDLI_ALLOWED_ORIGINS': '', 'AUDLI_DATA_DIR': _bootstrap_data.name,
+})
+
 from app.config import Settings
 from app.main import create_app
 from app.models import LearnerProfile, Transcription, EvaluationJudgments

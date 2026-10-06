@@ -1,5 +1,7 @@
 import asyncio
 import json
+from tempfile import NamedTemporaryFile
+from pathlib import Path
 from contextlib import asynccontextmanager
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, UploadFile, Request
@@ -11,7 +13,7 @@ from app.config import Settings
 from app.diagnostics import operation, report_failure
 from app.evaluation import score_judgments
 from app.models import ExerciseContent, StrictModel, Transcription
-from app.repository import ProgressRepository
+from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
 from app.security import LocalRequestGuard
@@ -25,18 +27,22 @@ class Confirmation(StrictModel):
     confirmed: bool
 
 
-def create_app(settings: Settings | None = None, provider: AIProvider | None = None):
+def create_app(settings: Settings | None = None, provider: AIProvider | None = None,
+               repository: SQLProgressRepository | None = None):
     settings = settings or Settings()
-    repo = ProgressRepository(settings.data_dir / 'audli.sqlite3')
+    repo = repository or create_repository(settings)
     audio_dir = settings.data_dir / 'exercise_audio'
     audio_dir.mkdir(parents=True, exist_ok=True)
     lock = asyncio.Lock()
 
     @asynccontextmanager
     async def lifespan(app):
-        yield
-        if hasattr(provider, 'client'):
-            await provider.client.close()
+        try:
+            yield
+        finally:
+            repo.close()
+            if hasattr(provider, 'client'):
+                await provider.client.close()
 
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
@@ -81,6 +87,22 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return {'id': row['id'], 'difficulty': json.loads(row['difficulty']),
                 'audio_url': f"/api/exercises/{row['id']}/audio", 'completed_attempt_id': repo.completed(row['id'])}
 
+    def restore_audio(name):
+        path = audio_dir / name
+        if not path.exists():
+            data = repo.audio_blob(name)
+            if data is not None:
+                temporary = None
+                try:
+                    with NamedTemporaryFile(dir=audio_dir, delete=False) as output:
+                        temporary = output.name
+                        output.write(data)
+                    Path(temporary).replace(path)
+                finally:
+                    if temporary is not None:
+                        Path(temporary).unlink(missing_ok=True)
+        return path
+
     @app.get('/api/health')
     async def health():
         return {'status': 'ok', 'provider': settings.provider}
@@ -98,6 +120,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             profile.name, profile.goal = body.name.strip(), body.goal.strip()
             if not profile.name or not profile.goal:
                 raise HTTPException(422, 'Enter your name and listening goal.')
+            profile.onboarding_status = 'profile_saved'
             repo.save_profile(profile)
             return profile
 
@@ -130,7 +153,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             path = audio_dir / audio_name
             path.write_bytes(audio)
             try:
-                repo.save_exercise(exercise_id, content, profile.difficulty, audio_name)
+                repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio)
             except Exception:
                 path.unlink(missing_ok=True)
                 raise
@@ -139,9 +162,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     @app.get('/api/exercises/{exercise_id}/audio')
     async def audio(exercise_id: str):
         row = exercise_or_404(exercise_id)
-        path = audio_dir / row['audio_name']
+        path = restore_audio(row['audio_name'])
         if not path.exists():
-            raise HTTPException(404, 'Audio file missing. Restore local data or start a fresh session.')
+            raise HTTPException(404, 'Audio file missing. Restore the audio backup or retry.')
         return FileResponse(path, media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg', filename='audli-listening'+path.suffix)
 
     @app.post('/api/exercises/{exercise_id}/attempts')
@@ -216,7 +239,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def history():
         return repo.history()
 
-    register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404)
+    register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
     return app
 
 app = create_app()

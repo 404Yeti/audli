@@ -24,7 +24,7 @@ class CueRequest(StrictModel):
     cue_id: str = Field(min_length=1, max_length=80)
 
 
-def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404):
+def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio):
     def audio_cache_id(cue_id, text):
         # Old evaluator-report audio must never replay as terminal feedback.
         return ('feedback-v0.2.1-' + sha256(text.encode()).hexdigest()[:16]
@@ -158,7 +158,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             text = cue(exercise_id, body.cue_id)
             cache_id = audio_cache_id(body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
-            if not name or not (audio_dir / name).exists():
+            if not name or not restore_audio(name).exists():
                 with operation(settings, 'SpeechService.coach_audio'):
                     data = await ai().speak(text)
                     kind = 'wav' if settings.provider == 'demo' else 'mp3'
@@ -167,7 +167,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 path = audio_dir / name
                 path.write_bytes(data)
                 try:
-                    repo.save_coach_audio(exercise_id, cache_id, name)
+                    repo.save_coach_audio(exercise_id, cache_id, name, audio=data)
                 except Exception:
                     path.unlink(missing_ok=True)
                     raise
@@ -178,8 +178,8 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
         exercise_or_404(exercise_id)
         text = cue(exercise_id, cue_id)  # Enforce gating even for guessed URLs.
         name = repo.coach_audio(exercise_id, audio_cache_id(cue_id, text))
-        if not name or not (audio_dir / name).exists():
+        if not name or not restore_audio(name).exists():
             raise HTTPException(404, 'Coaching audio not generated yet. Please retry.')
-        path = audio_dir / name
+        path = restore_audio(name)
         return FileResponse(path, media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg',
                             filename='audli-coach' + path.suffix)

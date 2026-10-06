@@ -2,7 +2,7 @@
 Audli is an adaptive English listening-comprehension tutor. Train your ears.
 
 ## Architecture
-Next.js/TypeScript client; FastAPI/Pydantic API; SQLite local persistence behind a repository. PostgreSQL reference schema lives in docs. Provider-specific generation, evaluation, speech and transcription live in app/services. Application code owns state, scores, adaptation and history.
+Next.js/TypeScript client; FastAPI/Pydantic API; shared repository with SQLite for local/test persistence and Supabase/Postgres for production. Versioned PostgreSQL schema and setup live in docs/postgres.sql and docs/PERSISTENCE.md. Provider-specific generation, evaluation, speech and transcription live in app/services. Application code owns state, scores, adaptation and history.
 
 ## Product rules
 - AUDIO FIRST, TEXT SECOND. Never expose scripts or expected answers before a successfully evaluated spoken attempt. Enforce this on the server, including debug endpoints.

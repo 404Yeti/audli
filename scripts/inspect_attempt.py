@@ -2,12 +2,12 @@
 import argparse
 import json
 from app.config import Settings
-from app.repository import ProgressRepository
+from app.repository import create_repository
 
 parser=argparse.ArgumentParser()
 parser.add_argument('attempt_id')
 args=parser.parse_args()
-repo=ProgressRepository(Settings().data_dir/'audli.sqlite3')
+repo=create_repository(Settings())
 attempt=repo.attempt(args.attempt_id)
 if not attempt or attempt['status']!='evaluated':
     raise SystemExit('Only completed evaluated attempts can be inspected.')

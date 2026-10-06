@@ -1,4 +1,5 @@
 from typing import Annotated, Literal
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 Score = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
@@ -31,10 +32,21 @@ class LearnerProfile(StrictModel):
     target_language: Literal['en'] = 'en'
     goal: str = Field(default='Understand everyday English', min_length=1, max_length=500)
     interests: list[str] = Field(default_factory=lambda: ['technology'])
+    target_situations: list[str] = Field(default_factory=list, max_length=30)
+    onboarding_status: Literal['not_started', 'in_progress', 'profile_saved', 'complete'] = 'not_started'
+    initial_listening_profile: ListeningProfile | None = None
     listening_profile: ListeningProfile = Field(default_factory=ListeningProfile)
     difficulty: Difficulty = Field(default_factory=Difficulty)
     focus: Dimension = 'details'
     completed_attempts: int = 0
+
+class TrainingSession(StrictModel):
+    id: str
+    learner_id: str
+    status: Literal['active', 'completed']
+    started_at: datetime
+    completed_at: datetime | None = None
+    starting_difficulty: Difficulty
 
 class Question(StrictModel):
     question: Text

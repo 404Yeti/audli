@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import traceback
+from sqlalchemy.engine import make_url
 from contextlib import contextmanager
 from pydantic import ValidationError
 from app.config import Settings
@@ -14,11 +15,17 @@ def redact(text: str, settings: Settings) -> str:
                if value and re.search(r'(api.?key|token|password|secret|authorization)', name, re.I)]
     if settings.openai_api_key:
         secrets.append(settings.openai_api_key.get_secret_value())
+    if settings.database_url:
+        secrets.append(settings.database_url.get_secret_value())
+        password = make_url(settings.database_url.get_secret_value()).password
+        if password:
+            secrets.append(password)
     for secret in sorted(set(secrets), key=len, reverse=True):
         text = text.replace(secret, '[REDACTED]')
     text = re.sub(r'(?i)(authorization\s*[=:]\s*)[^\n]+', r'\1[REDACTED]', text)
     text = re.sub(r'(?i)\bBearer\s+[^\s\"\',;]+', 'Bearer [REDACTED]', text)
     text = re.sub(r'\bsk-[A-Za-z0-9_*-]+', '[REDACTED]', text)
+    text = re.sub(r'(?i)postgres(?:ql)?(?:\+psycopg)?://[^\s\"\']+', '[DATABASE URL REDACTED]', text)
     text = re.sub(
         r'''(?i)((?:api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)''',
         r'\1[REDACTED]', text)

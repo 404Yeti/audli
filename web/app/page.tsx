@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useEffectEvent, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from 'react';
 import { AudliLogo, VoiceSession, MicrophoneControl, PrimaryButton, LessonCard, FeedbackCard, LoadingState, RecoveryState, HomeNavigation } from '../components/lesson';
 import { shouldAutoRecord, feedbackOutcome, microphonePermission } from '../lib/session';
-import { api } from '../lib/api';
+import { LessonLifetime, type LessonOperation } from '../lib/api';
+import { AuthGate } from '../components/auth-gate';
 import { captureRecording, recordingDiagnostic, recordingPreview, previewSource, recordingUpload, type RecordingPreview } from '../lib/recording';
 import { conversationReducer, canRespond, scoreLabel, type ConversationPhase } from '../lib/conversation';
 
@@ -18,9 +19,12 @@ type Conversation = { state: ConversationPhase; cue_id: string | null; prompt: s
 const labels: Record<string, string> = { main_idea: 'Main idea', details: 'Details', vocabulary: 'Vocabulary understanding', inference: 'Inference' };
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-export default function Audli() {
+export default function AudliPage() { return <AuthGate><Audli/></AuthGate>; }
+
+function Audli() {
   const [screen, setScreen] = useState<'home' | 'introduction' | 'lesson'>('home');
-  const introductionSpeech = useRef<SpeechSynthesisUtterance | null>(null);
+  const introductionOperation = useRef<LessonOperation | null>(null);
+  const playbackOperation = useRef<LessonOperation | null>(null);
   const [introductionError, setIntroductionError] = useState('');
   const usingAudioFile = useRef(false);
   const microphoneGranted = useRef(false);
@@ -47,13 +51,19 @@ export default function Audli() {
   const [coachError, setCoachError] = useState('');
   const [coachSpeaking, setCoachSpeaking] = useState(false);
   const [coachRetry, setCoachRetry] = useState(0);
+  const [lessonAudio, setLessonAudio] = useState<{ id: string; url: string } | null>(null);
+  const [lessonAudioRetry, setLessonAudioRetry] = useState(0);
   const capture = useRef<ReturnType<typeof captureRecording> | null>(null);
-  const mounted = useRef(false);
+  const lifetime = useRef<LessonLifetime | null>(null);
+  const recordingOperation = useRef<LessonOperation | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoUploaded = useRef<Blob | null>(null);
   const listeningAudio = useRef<HTMLAudioElement | null>(null);
   const recordingAudio = useRef<HTMLAudioElement | null>(null);
   const coachAudio = useRef<HTMLAudioElement | null>(null);
+  const bindListeningAudio = useCallback((node: HTMLAudioElement | null) => { if (!node) listeningAudio.current?.pause(); listeningAudio.current = node; }, []);
+  const bindCoachAudio = useCallback((node: HTMLAudioElement | null) => { if (!node) coachAudio.current?.pause(); coachAudio.current = node; }, []);
+  const bindRecordingAudio = useCallback((node: HTMLAudioElement | null) => { if (!node) recordingAudio.current?.pause(); recordingAudio.current = node; }, []);
   const flowRef = useRef(flow.phase); flowRef.current = flow.phase;
   const completedPlayback = useRef(false);
   const recording = flow.phase === 'RECORDING';
@@ -67,21 +77,26 @@ export default function Audli() {
     setAttempt(data.pending_attempt);
     setText(data.pending_attempt?.confirmed_text ?? data.pending_attempt?.transcription.text ?? '');
   }
-  async function load() {
-    const [data, current] = await Promise.all([api<{ profile: Profile; provider: string }>('/profile'), api<Exercise | null>('/exercises/current')]);
-    if (!mounted.current) return;
+  async function load(operation: LessonOperation) {
+    const [data, current] = await operation.wait(() => Promise.all([operation.api<{ profile: Profile; provider: string }>('/profile'), operation.api<Exercise | null>('/exercises/current')]));
+    operation.assertCurrent();
     setProfile(data.profile); setMode(data.provider); setName(data.profile.name); setGoal(data.profile.goal);
     exerciseRef.current = current; setExercise(current);
-    if (current) applyConversation(await api<Conversation>(`/exercises/${current.id}/conversation`));
+    if (current) {
+      const state = await operation.api<Conversation>(`/exercises/${current.id}/conversation`);
+      operation.assertCurrent(); applyConversation(state);
+    }
   }
   const loadFromEffect = useEffectEvent(load);
   const transcribeFromEffect = useEffectEvent(transcribe);
   useEffect(() => {
-    mounted.current = true;
+    const owner = new LessonLifetime();
+    lifetime.current = owner;
     // Initial state is restored from the external API, after its promises resolve.
+    const operation = owner.begin();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadFromEffect().catch(e => setError(e.message)).finally(() => setBusy(''));
-    return () => { mounted.current = false; if (timer.current) clearInterval(timer.current); capture.current?.dispose(); capture.current = null; window.speechSynthesis?.cancel(); };
+    loadFromEffect(operation).catch(e => { if (operation.current) setError(e.message); }).finally(() => { if (operation.current) setBusy(''); operation.release(); });
+    return () => { owner.close(); if (timer.current) clearInterval(timer.current); capture.current?.dispose(); capture.current = null; window.speechSynthesis?.cancel(); };
   }, []);
   useEffect(() => {
     // Preview state follows the lifetime of this external object URL.
@@ -94,15 +109,27 @@ export default function Audli() {
     } catch { setPreview(null); setError('Preview could not be created. You can still try transcription.'); }
   }, [blob]);
   useEffect(() => {
+    if (!exercise?.audio_url) return;
+    const operation = lifetime.current!.begin();
+    let owned: string | undefined;
+    void operation.audio(exercise.audio_url).then(url => {
+      if (!operation.current) { URL.revokeObjectURL(url); return; }
+      owned = url; setLessonAudio({ id: exercise.id, url });
+    }).catch(() => { if (operation.current) setError('The listening clip could not play. Retry playback below.'); });
+    return () => { operation.cancel(); if (owned) URL.revokeObjectURL(owned); };
+  }, [exercise?.id, exercise?.audio_url, lessonAudioRetry]);
+  useEffect(() => {
     // Reset playback UI when ownership moves to a different server cue.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCoach(null); setCoachError(''); setCoachSpeaking(false);
     if (screen !== 'lesson' || !exercise || !conversation?.cue_id || !cueKey) return;
-    let cancelled = false;
-    api<{ audio_url: string }>(`/exercises/${exercise.id}/coach-audio`, json('POST', { cue_id: conversation.cue_id }))
-      .then(data => { if (!cancelled && data.audio_url?.trim()) setCoach({ key: cueKey, url: data.audio_url }); })
-      .catch(() => { if (!cancelled) setCoachError('Audli’s voice is unavailable. You can read the message and continue, or retry audio.'); });
-    return () => { cancelled = true; };
+    const operation = lifetime.current!.begin();
+    let owned: string | undefined;
+    operation.api<{ audio_url: string }>(`/exercises/${exercise.id}/coach-audio`, json('POST', { cue_id: conversation.cue_id }))
+      .then(data => operation.audio(data.audio_url))
+      .then(url => { if (!operation.current) { URL.revokeObjectURL(url); return; } owned = url; setCoach({ key: cueKey, url }); })
+      .catch(() => { if (operation.current) setCoachError('Audli’s voice is unavailable. You can read the message and continue, or retry audio.'); });
+    return () => { operation.cancel(); if (owned) URL.revokeObjectURL(owned); };
   }, [cueKey, coachRetry, screen, exercise, conversation?.cue_id]);
   useEffect(() => {
     if (blob && flow.phase === 'REVIEWING_RECORDING' && autoUploaded.current !== blob) {
@@ -111,55 +138,66 @@ export default function Audli() {
     }
   }, [blob, flow.phase]);
 
-  async function run(message: string, action: () => Promise<void>) {
+  async function run(message: string, action: (operation: LessonOperation) => Promise<void>) {
+    if (!lifetime.current?.current) return;
+    const operation = lifetime.current!.begin();
     setError(''); setBusy(message);
-    try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.'); }
-    finally { setBusy(''); }
+    try { await action(operation); } catch (e) { if (operation.current) setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.'); }
+    finally { if (operation.current) setBusy(''); operation.release(); }
   }
   async function next() {
-    await run('Preparing your listening clip…', async () => {
-      if (!microphoneGranted.current && !usingAudioFile.current) { await microphonePermission(navigator.mediaDevices); microphoneGranted.current = true; }
-      if (!exercise) await api('/profile', json('PUT', { name, goal }));
-      const nextExercise = await api<Exercise>('/exercises', { method: 'POST' });
+    await run('Preparing your listening clip…', async operation => {
+      if (!microphoneGranted.current && !usingAudioFile.current) { await operation.wait(() => microphonePermission(navigator.mediaDevices)); operation.assertCurrent(); microphoneGranted.current = true; }
+      if (!exercise) await operation.api('/profile', json('PUT', { name, goal }));
+      operation.assertCurrent();
+      const nextExercise = await operation.api<Exercise>('/exercises', { method: 'POST' });
+      operation.assertCurrent();
       setScreen('introduction'); speakIntroduction(); autoRecordedCue.current = null; exerciseRef.current = nextExercise; setExercise(nextExercise); setConversation(null); dispatch({ type: 'reset' });
       setTranscript(null); setAttempt(null); setBlob(null); setText(''); completedPlayback.current = false;
-      applyConversation(await api<Conversation>(`/exercises/${nextExercise.id}/conversation`));
-      const data = await api<{ profile: Profile; provider: string }>('/profile'); setProfile(data.profile);
+      const state = await operation.api<Conversation>(`/exercises/${nextExercise.id}/conversation`);
+      operation.assertCurrent(); applyConversation(state);
+      const data = await operation.api<{ profile: Profile; provider: string }>('/profile'); operation.assertCurrent(); setProfile(data.profile);
     });
   }
   async function listened() {
     if (!exercise || recording || !!busy || flow.phase !== 'LISTENING') return;
-    await run('Audli is getting ready…', async () => {
-      applyConversation(await api<Conversation>(`/exercises/${exercise.id}/conversation/listened`, { method: 'POST' }));
+    await run('Audli is getting ready…', async operation => {
+      const state = await operation.api<Conversation>(`/exercises/${exercise.id}/conversation/listened`, { method: 'POST' });
+      operation.assertCurrent(); applyConversation(state);
     });
   }
 
   function speakIntroduction() {
+    if (!lifetime.current?.current) return;
+    introductionOperation.current?.cancel();
+    const operation = lifetime.current!.begin();
+    introductionOperation.current = operation;
     setIntroductionError('');
-    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') { setIntroductionError('Voice playback is unavailable. Read the introduction and continue.'); return; }
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') { setIntroductionError('Voice playback is unavailable. Read the introduction and continue.'); operation.release(); return; }
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance('Let’s train your ears. Listen to one clear English speaker. Then tell Audli what you understood in your own words.');
     speech.lang = 'en-US';
-    introductionSpeech.current = speech;
-    speech.onstart = () => setCoachSpeaking(true);
-    speech.onend = () => setCoachSpeaking(false);
-    speech.onerror = () => { setCoachSpeaking(false); setIntroductionError('Voice playback failed. Read the introduction, or replay it.'); };
+    speech.onstart = () => { if (operation.current) setCoachSpeaking(true); };
+    speech.onend = () => { if (operation.current) setCoachSpeaking(false); operation.release(); };
+    speech.onerror = () => { if (!operation.current) return; setCoachSpeaking(false); operation.release(); setIntroductionError('Voice playback failed. Read the introduction, or replay it.'); };
     window.speechSynthesis.speak(speech);
   }
 
   async function begin() {
-    await run('Checking your microphone…', async () => {
-      await microphonePermission(navigator.mediaDevices); microphoneGranted.current = true; usingAudioFile.current = false;
+    await run('Checking your microphone…', async operation => {
+      await operation.wait(() => microphonePermission(navigator.mediaDevices)); operation.assertCurrent(); microphoneGranted.current = true; usingAudioFile.current = false;
       if (exercise) { setScreen(flow.phase === 'LISTENING' ? 'introduction' : 'lesson'); if (flow.phase === 'LISTENING') speakIntroduction(); }
     });
 
   }
   function cancelRecording() {
+    recordingOperation.current?.cancel(); recordingOperation.current = null; setBusy('');
     capture.current?.dispose(); capture.current = null;
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
     dispatch({ type: 'phase', phase: flow.awaiting }); setElapsed(0);
   }
   function cueEnded() {
+    if (!lifetime.current?.current) return;
     setCoachSpeaking(false);
     if (result) { feedbackEnded(); return; }
     if (shouldAutoRecord(flowRef.current, cueKey, autoRecordedCue.current, !!result)) {
@@ -167,31 +205,47 @@ export default function Audli() {
       void startRecording();
     }
   }
+  function cancelPlayback() {
+    introductionOperation.current?.cancel(); playbackOperation.current?.cancel();
+    window.speechSynthesis?.cancel();
+    coachAudio.current?.pause(); listeningAudio.current?.pause(); recordingAudio.current?.pause();
+  }
+  function playAudio(element: HTMLAudioElement | null, failure: () => void) {
+    if (!element || !lifetime.current?.current) return;
+    playbackOperation.current?.cancel();
+    const operation = lifetime.current!.begin();
+    playbackOperation.current = operation;
+    void operation.wait(() => element.play(), () => element.pause())
+      .catch(() => { if (operation.current) failure(); })
+      .finally(() => operation.release());
+  }
   function stop() { capture.current?.stop(); }
   async function startRecording() {
-    if (requestingMic.current || busy || !canRespond(flowRef.current) || flowRef.current === 'RECORDING') return;
+    if (!lifetime.current?.current || requestingMic.current || busy || !canRespond(flowRef.current) || flowRef.current === 'RECORDING') return;
     requestingMic.current = true;
-    await run('Opening your microphone…', async () => {
+    await run('Opening your microphone…', async operation => {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('Recording needs localhost or HTTPS and a supported browser. You can upload a recording below.');
-      window.speechSynthesis?.cancel(); listeningAudio.current?.pause(); recordingAudio.current?.pause(); coachAudio.current?.pause();
+      recordingOperation.current = operation;
+      cancelPlayback();
       let input: MediaStream;
-      try { input = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      try { input = await operation.wait(() => navigator.mediaDevices.getUserMedia({ audio: true }), stream => stream.getTracks().forEach(track => track.stop())); }
       catch { throw new Error('Microphone access was denied or unavailable. Allow access in your browser and retry, or upload a spoken recording.'); }
+      operation.assertCurrent(() => input.getTracks().forEach(track => track.stop()));
       microphoneGranted.current = true;
-      if (!mounted.current) { input.getTracks().forEach(track => track.stop()); return; }
       capture.current?.dispose();
       const finish = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
       const session = captureRecording(input, captured => {
-        if (!mounted.current || capture.current !== session) return;
+        if (!operation.current || capture.current !== session) return;
         finish(); setBlob(captured); setAttempt(null); setText(''); dispatch({ type: 'phase', phase: 'REVIEWING_RECORDING' });
       }, message => {
-        if (!mounted.current || capture.current !== session) return;
+        if (!operation.current || capture.current !== session) return;
         finish(); dispatch({ type: 'phase', phase: flow.awaiting }); setError(message);
       });
       capture.current = session;
       setBlob(null); setAttempt(null); setText(''); setElapsed(0); dispatch({ type: 'phase', phase: 'RECORDING' });
       const started = Date.now();
       timer.current = setInterval(() => {
+        if (!operation.current) { session.dispose(); finish(); return; }
         const seconds = Math.floor((Date.now()-started)/1000); setElapsed(seconds);
         if (seconds >= 119) session.stop();
       }, 250);
@@ -199,53 +253,58 @@ export default function Audli() {
     requestingMic.current = false;
   }
   async function transcribe() {
-    if (!blob || !exercise || recording) return;
+    if (!lifetime.current?.current || !blob || !exercise || recording) return;
     const captured = blob; const exerciseId = exercise.id;
     dispatch({ type: 'phase', phase: 'TRANSCRIBING' });
-    await run('Audli is listening to your response…', async () => {
+    await run('Audli is listening to your response…', async operation => {
       try {
         const form = recordingUpload(captured);
         recordingDiagnostic('transcription_upload_started', { uploadSize: captured.size, mimeType: captured.type });
-        const data = await api<Attempt>(`/exercises/${exerciseId}/attempts`, { method: 'POST', body: form },
+        const data = await operation.api<Attempt>(`/exercises/${exerciseId}/attempts`, { method: 'POST', body: form },
           status => recordingDiagnostic('transcription_response', { status }));
+        operation.assertCurrent();
         if (!data || typeof data.id !== 'string' || typeof data.transcription?.text !== 'string' || !Array.isArray(data.transcription.uncertainty)) throw new Error('Invalid transcription response. Please retry.');
         if (!data.transcription.text.trim()) setError('We didn’t hear anything. Check your microphone and record again.');
         setAttempt(data); setText(data.transcription.text); dispatch({ type: 'phase', phase: 'REVIEWING_TRANSCRIPT' });
         setBlob(current => current === captured ? null : current);
         recordingDiagnostic('transcription_completed');
       } catch (error) {
+        if (!operation.current) throw error;
         dispatch({ type: 'phase', phase: 'REVIEWING_RECORDING' });
         recordingDiagnostic('transcription_failed', { recordingRetained: true }); throw error;
       }
     });
   }
   async function assess() {
-    if (!attempt || !exercise) return;
+    if (!lifetime.current?.current || !attempt || !exercise) return;
     dispatch({ type: 'phase', phase: flow.awaiting === 'AWAITING_FOLLOWUP' ? 'ASSESSING_FOLLOWUP' : 'ASSESSING' });
-    await run('Audli is thinking about what you heard…', async () => {
+    await run('Audli is thinking about what you heard…', async operation => {
       let assessmentSaved = false;
       try {
         recordingDiagnostic('evaluation_started');
-        const data = await api<Conversation>(`/attempts/${attempt.id}/assess`, json('POST', {
+        const data = await operation.api<Conversation>(`/attempts/${attempt.id}/assess`, json('POST', {
           text, confirmed: true, followup_id: conversation?.active_followup?.id ?? null }),
           status => recordingDiagnostic('evaluation_response', { status }));
+        operation.assertCurrent();
         applyConversation(data); assessmentSaved = true;
-        const updated = await api<{ profile: Profile; provider: string }>('/profile'); setProfile(updated.profile);
-      } catch (error) { if (!assessmentSaved) dispatch({ type: 'phase', phase: 'REVIEWING_TRANSCRIPT' }); throw error; }
+        const updated = await operation.api<{ profile: Profile; provider: string }>('/profile'); operation.assertCurrent(); setProfile(updated.profile);
+      } catch (error) { if (operation.current && !assessmentSaved) dispatch({ type: 'phase', phase: 'REVIEWING_TRANSCRIPT' }); throw error; }
     });
   }
   function feedbackEnded() {
+    if (!lifetime.current?.current) return;
     setCoachSpeaking(false);
     if (!result || !exercise) return;
     const id = exercise.id;
     dispatch({ type: 'phase', phase: 'READY_FOR_NEXT' });
-    api<Conversation>(`/exercises/${id}/conversation/ready`, { method: 'POST' }).then(data => {
-      if (mounted.current && exerciseRef.current?.id === id) applyConversation(data);
-    }).catch(() => { /* Assessment is already durable; continue remains available. */ });
+    const operation = lifetime.current!.begin();
+    operation.api<Conversation>(`/exercises/${id}/conversation/ready`, { method: 'POST' }).then(data => {
+      if (operation.current && exerciseRef.current?.id === id) applyConversation(data);
+    }).catch(() => { /* Assessment is already durable; continue remains available. */ }).finally(() => operation.release());
   }
 
   return <main>
-    <header>{screen !== 'home' && <button className="back" disabled={recording || !!busy} onClick={() => { window.speechSynthesis?.cancel(); coachAudio.current?.pause(); listeningAudio.current?.pause(); setScreen('home'); }}>←<span className="sr-only">Back to Home</span></button>}<strong className="wordmark">audli</strong><span className="language">{screen === 'home' ? 'TODAY' : 'LISTENING PRACTICE'}</span></header>
+    <header>{screen !== 'home' && <button className="back" disabled={recording || !!busy} onClick={() => { cancelPlayback(); setScreen('home'); }}>←<span className="sr-only">Back to Home</span></button>}<strong className="wordmark">audli</strong><span className="language">{screen === 'home' ? 'TODAY' : 'LISTENING PRACTICE'}</span></header>
     {screen === 'home' && <><div className="greeting"><div><h1>Hello{name ? ', ' + name : ''}</h1><p>Ready for a little focused listening?</p></div><AudliLogo small/></div>
       <LessonCard duration={exercise?.difficulty.duration_seconds ?? profile?.difficulty.duration_seconds}><PrimaryButton disabled={!!busy || !profile} onClick={exercise ? begin : () => document.getElementById('name')?.focus()}>{exercise ? 'Start training →' : 'Set up your practice →'}</PrimaryButton></LessonCard>
       <aside className="why"><strong>Why this lesson?</strong><p>{profile?.goal ? 'Practice for ' + profile.goal : 'Clear English that adapts to what you understand.'}</p></aside>
@@ -261,16 +320,16 @@ export default function Audli() {
     </form></section>}
     {exercise && screen !== 'home' && <section className="card">
       <VoiceSession state={recording ? 'Recording' : busy ? 'Thinking' : coachSpeaking ? 'Speaking' : result ? 'Success' : attempt ? 'Review' : screen === 'introduction' ? 'Idle' : 'Listening'}/>
-      {screen === 'introduction' && <div className="introduction"><h2>Let’s train your ears.</h2><p>Listen to one clear English speaker. Then tell Audli what you understood in your own words.</p><button className="secondary" onClick={speakIntroduction}>Hear Audli’s introduction</button>{introductionError && <p role="status" className="hint">{introductionError}</p>}<PrimaryButton onClick={() => { window.speechSynthesis?.cancel(); setCoachSpeaking(false); setScreen('lesson'); listeningAudio.current?.play().catch(() => setError('Playback could not start. Tap play to listen.')); }}>Listen to the lesson →</PrimaryButton></div>}
+      {screen === 'introduction' && <div className="introduction"><h2>Let’s train your ears.</h2><p>Listen to one clear English speaker. Then tell Audli what you understood in your own words.</p><button className="secondary" onClick={speakIntroduction}>Hear Audli’s introduction</button>{introductionError && <p role="status" className="hint">{introductionError}</p>}<PrimaryButton onClick={() => { cancelPlayback(); setCoachSpeaking(false); setScreen('lesson'); playAudio(listeningAudio.current, () => setError('Playback could not start. Tap play to listen.')); }}>Listen to the lesson →</PrimaryButton></div>}
       <div hidden={screen === 'introduction'}>
       <p className="eyebrow" role="status">{coachSpeaking ? 'AUDLI IS SPEAKING' : recording ? 'AUDLI IS LISTENING' : result ? 'LET’S KEEP LISTENING' : conversation?.active_followup ? 'ONE QUICK QUESTION' : 'YOUR LISTENING PRACTICE'}</p>
       {!result && <><h2>{flow.phase === 'LISTENING' ? 'Listen carefully.' : 'Your turn.'}</h2><p>You can replay the clip. The transcript stays hidden while we listen together.</p>
-        <div className="audio-panel"><strong>Your English listening clip</strong>{exercise.audio_url?.trim() && <audio ref={listeningAudio} key={exercise.id} controls={!recording} src={exercise.audio_url} preload="none" aria-label="Play listening exercise" onEnded={() => { completedPlayback.current = true; void listened(); }} onPlay={() => { if (flowRef.current === 'RECORDING') { listeningAudio.current?.pause(); return; } coachAudio.current?.pause(); }} onError={() => setError('The listening clip could not play. Retry playback below.')} />}</div>
-        <p className="hint">AI-generated voice.</p>{error.includes('clip could not') && <button className="secondary" onClick={() => { listeningAudio.current?.load(); listeningAudio.current?.play().catch(() => setError('Playback could not start. Tap play to listen.')); }}>Retry playback</button>}
+        <div className="audio-panel"><strong>Your English listening clip</strong>{exercise.audio_url?.trim() && <audio ref={bindListeningAudio} key={exercise.id} controls={!recording} src={lessonAudio?.id === exercise.id ? lessonAudio.url : undefined} preload="none" aria-label="Play listening exercise" onEnded={() => { completedPlayback.current = true; void listened(); }} onPlay={() => { if (flowRef.current === 'RECORDING') { listeningAudio.current?.pause(); return; } coachAudio.current?.pause(); }} onError={() => setError('The listening clip could not play. Retry playback below.')} />}</div>
+        <p className="hint">AI-generated voice.</p>{error.includes('clip could not') && <button className="secondary" onClick={() => setLessonAudioRetry(value => value + 1)}>Retry playback</button>}
       </>}
       {conversation?.prompt && <div className="review"><>{result || conversation.active_followup ? <FeedbackCard terminal={!!result} outcome={result ? feedbackOutcome(result.evaluation.insufficient_evidence, result.evaluation.misunderstood) : 'Gap'}><p>{conversation.prompt}</p></FeedbackCard> : <div className="prompt"><h3>Your turn.</h3><p>{conversation.prompt}</p></div>}</>
-        {coachUrl && <audio ref={coachAudio} key={cueKey} controls src={coachUrl} aria-label="Hear Audli’s message"
-          onCanPlay={() => { if (!['AWAITING_SUMMARY', 'AWAITING_FOLLOWUP', 'GIVING_FEEDBACK', 'READY_FOR_NEXT'].includes(flowRef.current) || (listeningAudio.current && !listeningAudio.current.paused)) return; coachAudio.current?.play().catch(() => setCoachError('Tap play to hear Audli.')); }}
+        {coachUrl && <audio ref={bindCoachAudio} key={cueKey} controls src={coachUrl} aria-label="Hear Audli’s message"
+          onCanPlay={() => { if (!['AWAITING_SUMMARY', 'AWAITING_FOLLOWUP', 'GIVING_FEEDBACK', 'READY_FOR_NEXT'].includes(flowRef.current) || (listeningAudio.current && !listeningAudio.current.paused)) return; playAudio(coachAudio.current, () => setCoachError('Tap play to hear Audli.')); }}
           onPlay={() => { if (flowRef.current === 'RECORDING') { coachAudio.current?.pause(); return; } listeningAudio.current?.pause(); recordingAudio.current?.pause(); setCoachSpeaking(true); }} onPause={() => setCoachSpeaking(false)}
           onEnded={cueEnded} onError={() => setCoachError('Audio playback failed. The message and your progress are safe; read it or retry audio.')}/>}
         {coachError && <p className="hint">{coachError} <button className="secondary" disabled={!!busy} onClick={() => setCoachRetry(value => value+1)}>Retry audio</button></p>}
@@ -280,7 +339,7 @@ export default function Audli() {
         <MicrophoneControl recording={recording} processing={['TRANSCRIBING','ASSESSING','ASSESSING_FOLLOWUP'].includes(flow.phase)} retry={!!error} disabled={!!busy || !canRespond(flow.phase)} elapsed={elapsed} onStart={startRecording} onFinish={stop} onCancel={cancelRecording}/>
         <p className="hint">After Audli’s prompt, recording starts automatically. Finish when you’re done. Grammar doesn’t affect understanding.</p>
         {canRespond(flow.phase) && !recording && !attempt && <details className="upload"><summary>Use an existing spoken recording</summary><label htmlFor="upload">Your response (2–120 seconds, up to 12 MB)</label><input id="upload" type="file" accept="audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/ogg" disabled={!!busy} onChange={e => { const file=e.target.files?.[0]; if (file) { setBlob(file); setAttempt(null); dispatch({ type: 'phase', phase: 'REVIEWING_RECORDING' }); } }}/></details>}
-        {blob && !recording && <div className="review"><h3>Your recording</h3>{recordingUrl && <audio ref={recordingAudio} controls src={recordingUrl} aria-label="Review your recording" onPlay={() => { if (flowRef.current === 'RECORDING') { recordingAudio.current?.pause(); return; } coachAudio.current?.pause(); }}/> }<button className="secondary" disabled={!!busy} onClick={transcribe}>Retry transcription</button></div>}
+        {blob && !recording && <div className="review"><h3>Your recording</h3>{recordingUrl && <audio ref={bindRecordingAudio} controls src={recordingUrl} aria-label="Review your recording" onPlay={() => { if (flowRef.current === 'RECORDING') { recordingAudio.current?.pause(); return; } coachAudio.current?.pause(); }}/> }<button className="secondary" disabled={!!busy} onClick={transcribe}>Retry transcription</button></div>}
         {attempt && <div className="review"><h3>Did I hear you correctly?</h3>{attempt.transcription.uncertainty.map((u, i) => <p className="notice" key={i}>{u}</p>)}<label htmlFor="summary">Your response</label><textarea id="summary" value={text} maxLength={8000} onChange={e => setText(e.target.value)}/><p className="hint">Correct recognition errors to match what you said.</p><button className="primary" onClick={assess} disabled={!!busy || !text.trim()}>That’s what I said <span aria-hidden="true">→</span></button></div>}
       </>}
       {result && <>
@@ -291,7 +350,7 @@ export default function Audli() {
           {(['understood', 'insufficient_evidence', 'misunderstood', 'missed'] as const).map(key => (result.evaluation[key]?.length ?? 0) > 0 && <div key={key}><h3>{key === 'insufficient_evidence' ? 'Still unknown' : key.replaceAll('_', ' ')}</h3><ul>{result.evaluation[key]?.map((item, i) => <li key={i}>{item}</li>)}</ul></div>)}
           <p className="hint">{result.adaptation.reason}</p>
         </details>
-        {!transcript ? <button className="secondary" disabled={!!busy} onClick={() => run('Opening transcript…', async () => setTranscript(await api<{ title: string; script: string }>(`/exercises/${exercise.id}/transcript`)))}>Show transcript</button> : <div className="transcript"><h3>{transcript.title}</h3><p>{transcript.script}</p></div>}
+        {!transcript ? <button className="secondary" disabled={!!busy} onClick={() => run('Opening transcript…', async operation => { const data = await operation.api<{ title: string; script: string }>(`/exercises/${exercise.id}/transcript`); operation.assertCurrent(); setTranscript(data); })}>Show transcript</button> : <div className="transcript"><h3>{transcript.title}</h3><p>{transcript.script}</p></div>}
       </>}
       </div>
     </section>}

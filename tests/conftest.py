@@ -15,6 +15,7 @@ os.environ.update({
     'AUDLI_ENVIRONMENT': 'development', 'AUDLI_PERSISTENCE': 'sqlite',
     'AUDLI_DATABASE_URL': '', 'AUDLI_LEARNER_ID': '',
     'AUDLI_ALLOWED_ORIGINS': '', 'AUDLI_DATA_DIR': _bootstrap_data.name,
+    'AUDLI_AUTH_MODE': 'local', 'AUDLI_SUPABASE_URL': '', 'AUDLI_SUPABASE_PUBLISHABLE_KEY': '',
 })
 
 from app.config import Settings

@@ -113,13 +113,14 @@ def initialize_sqlite(repo):
 
 class ProgressRepository(SQLProgressRepository):
     """Compatible local adapter; existing ProgressRepository(Path) callers still work."""
-    def __init__(self, path: Path, learner_id: str = 'local'):
+    def __init__(self, path: Path, learner_id: str | None = 'local'):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         super().__init__(sqlite_engine(self.path), learner_id)
         try:
             initialize_sqlite(self)
-            self.initialize_learner()
+            if self.learner_id is not None:
+                self.initialize_learner()
         except Exception:
             self.close()
             raise
@@ -138,7 +139,7 @@ class ProgressRepository(SQLProgressRepository):
 
 
 class PostgresRepository(SQLProgressRepository):
-    def __init__(self, database_url: str, learner_id: str):
+    def __init__(self, database_url: str, learner_id: str | None = None):
         engine = None
         try:
             engine = create_engine(make_url(database_url).set(drivername='postgresql+psycopg'),
@@ -154,7 +155,8 @@ class PostgresRepository(SQLProgressRepository):
                     names = {column['name'] for column in inspector.get_columns(table.name)}
                     if not set(table.columns.keys()).issubset(names):
                         raise ValueError('Schema is incomplete')
-            self.initialize_learner()
+            if self.learner_id is not None:
+                self.initialize_learner()
         except Exception:
             if engine is not None:
                 engine.dispose()
@@ -162,6 +164,7 @@ class PostgresRepository(SQLProgressRepository):
 
 
 def create_repository(settings):
+    learner_id = None if settings.auth_mode == 'supabase' else str(settings.learner_id) if settings.learner_id else 'local'
     if settings.persistence == 'postgres':
-        return PostgresRepository(settings.database_url.get_secret_value(), str(settings.learner_id))
-    return ProgressRepository(settings.data_dir / 'audli.sqlite3', str(settings.learner_id) if settings.learner_id else 'local')
+        return PostgresRepository(settings.database_url.get_secret_value(), learner_id)
+    return ProgressRepository(settings.data_dir / 'audli.sqlite3', learner_id)

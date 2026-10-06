@@ -2,6 +2,7 @@
 import argparse
 import sqlite3
 from pathlib import Path
+from uuid import UUID
 from sqlalchemy import select, update
 from app.config import Settings
 from app.repository import ProgressRepository, create_repository
@@ -55,6 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('sqlite_path', type=Path)
     parser.add_argument('--source-learner-id', default='local')
+    parser.add_argument('--target-learner-id', type=UUID, help='Administrator-selected, verified Supabase account UUID; required in Supabase Auth mode')
     args = parser.parse_args()
     target = None
     try:
@@ -62,7 +64,10 @@ if __name__ == '__main__':
         if settings.persistence != 'postgres':
             raise ValueError('Import target must be Postgres')
         target = create_repository(settings)
-        count = import_learner(args.sqlite_path, target, args.source_learner_id)
+        if settings.auth_mode == 'supabase' and args.target_learner_id is None:
+            raise ValueError('Supabase imports require an explicit verified target account UUID')
+        scoped = target.for_learner(str(args.target_learner_id)) if args.target_learner_id else target
+        count = import_learner(args.sqlite_path, scoped, args.source_learner_id)
         print(f'Learner import committed; {count} completed assessments retained.')
     except Exception:
         raise SystemExit('Import failed; target progress was not overwritten. Check source, target configuration, schema and learner ownership. Credentials were not logged.') from None

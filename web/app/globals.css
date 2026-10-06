@@ -110,3 +110,5 @@ footer span { display: block; margin-top: 8px; font-size: 10px; }
 
 .static-mark { position: absolute; top: -6px; left: 15px; transform: scale(.59); transform-origin: top left; }
 .bottom-nav button:disabled { opacity: 1; }
+.account-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 390px; margin: 12px auto 0; padding: 0 24px; font-size: 12px; }
+.account-controls span { overflow-wrap: anywhere; }

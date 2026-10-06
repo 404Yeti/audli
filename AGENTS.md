@@ -11,7 +11,7 @@ Next.js/TypeScript client; FastAPI/Pydantic API; shared repository with SQLite f
 - Change at most one primary difficulty variable. Maintaining difficulty within the learning edge or at bounds is valid. Persist explainable decisions.
 - Original English only, one clear speaker. No external media, agents, payments, gamification or advanced difficulty dimensions.
 - No client secrets. Validate audio size, type, signature, decodability and duration. Delete learner audio after transcription; no raw audio logging.
-- Local single-user prototype. Public deployment requires authentication and access controls.
+- Local shared identity is development-only. Production requires server-verified Supabase Auth identity and request-scoped ownership; never trust browser learner UUIDs. Public deployment requires authentication and access controls.
 
 ## Testing and conventions
 Use strict typed schemas, small pure domain functions, explicit transactions and provider interfaces. Tests must cover .54/.55/.69/.70/.84/.85 boundaries, one-variable changes, bounds, state updates, schema rejection, uncertainty and transcript gates. Evaluator fixtures must include poor grammar with correct meaning. Mock tests establish plumbing, not actual evaluator accuracy.

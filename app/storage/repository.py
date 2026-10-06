@@ -60,9 +60,15 @@ class SQLProgressRepository:
     Domain snapshots keep existing API formats. Relational columns/projections are
     written in the same transaction and support history, ownership and future policy.
     """
-    def __init__(self, engine, learner_id: str):
+    def __init__(self, engine, learner_id: str | None):
         self.engine = engine
         self.learner_id = learner_id
+
+    def for_learner(self, learner_id: str):
+        """A new request scope; never mutate the pool owner's identity or dispose it."""
+        scoped = SQLProgressRepository(self.engine, learner_id)
+        scoped.initialize_learner()
+        return scoped
 
     def close(self):
         self.engine.dispose()
@@ -137,6 +143,7 @@ class SQLProgressRepository:
     def save_exercise(self, exercise_id, content, difficulty, audio_name, audio=None):
         session_id = str(uuid4())
         with self.transaction() as db:
+            self.check_audio_owner(db, audio_name)
             profile = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id).with_for_update()).mappings().one()
             if profile['data']['difficulty'] != difficulty.model_dump():
                 raise ValueError('Learner difficulty changed; retry exercise generation')
@@ -306,19 +313,28 @@ class SQLProgressRepository:
     def save_audio(self, db, audio_name, data):
         if not data:
             raise ValueError('Empty generated audio')
+        self.check_audio_owner(db, audio_name)
+        self.upsert(db, s.audio_assets, dict(audio_name=audio_name, user_id=self.learner_id, data=data, created_at=utcnow()), ['audio_name'])
+
+    def check_audio_owner(self, db, audio_name):
         prior = db.execute(select(s.audio_assets.c.user_id).where(s.audio_assets.c.audio_name == audio_name)).scalar_one_or_none()
         if prior is not None and prior != self.learner_id:
             raise ValueError('Audio belongs to another learner')
-        self.upsert(db, s.audio_assets, dict(audio_name=audio_name, user_id=self.learner_id, data=data, created_at=utcnow()), ['audio_name'])
 
     def audio_blob(self, audio_name):
         with self.engine.connect() as db:
             return db.execute(select(s.audio_assets.c.data).where(and_(s.audio_assets.c.audio_name == audio_name,
                 s.audio_assets.c.user_id == self.learner_id))).scalar_one_or_none()
 
+    def owns_audio(self, audio_name):
+        with self.engine.connect() as db:
+            return db.execute(select(s.audio_assets.c.audio_name).where(and_(
+                s.audio_assets.c.audio_name == audio_name, s.audio_assets.c.user_id == self.learner_id))).first() is not None
+
     def save_coach_audio(self, exercise_id, cue_id, audio_name, audio=None):
         with self.transaction() as db:
             self.owned_exercise(db, exercise_id)
+            self.check_audio_owner(db, audio_name)
             self.upsert(db, s.coach_audio, dict(exercise_id=exercise_id, cue_id=cue_id, audio_name=audio_name), ['exercise_id', 'cue_id'])
             if audio is not None:
                 self.save_audio(db, audio_name, audio)

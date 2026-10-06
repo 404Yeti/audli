@@ -1,14 +1,14 @@
 # Persistent learner state (AUD-13)
 
-AUD-12 is the production-origin fix. Persistence is tracked as AUD-13, which remains In Progress pending manual Supabase/Render verification and owner approval.
+AUD-12 is the production-origin fix. AUD-13 persistence was production verified by the owner. AUD-14 now supplies authenticated ownership; see [authentication setup and manual verification](AUTHENTICATION.md).
 
 ## Architecture
 
-Application/domain code still owns evidence validation, scoring, bounded follow-ups, adaptation, transcript gates and terminal coaching. `app/repository.py` remains the boundary. `SQLProgressRepository` shares operations across SQLite (`ProgressRepository(Path)`) and Postgres (`PostgresRepository`) using SQLAlchemy Core and psycopg. No Supabase SDK, browser database client, service-role key, or authentication is implemented.
+Application/domain code still owns evidence validation, scoring, bounded follow-ups, adaptation, transcript gates and terminal coaching. `app/repository.py` remains the boundary. `SQLProgressRepository` shares operations across SQLite (`ProgressRepository(Path)`) and Postgres (`PostgresRepository`) using SQLAlchemy Core and psycopg. Storage uses no Supabase SDK or service-role key. Supabase Auth is separate from storage; see [AUD-14](AUTHENTICATION.md).
 
 Production requires Postgres; malformed/missing configuration, an unsupported/incomplete schema, or an unavailable database fails startup with a credential-free error. There is no SQLite fallback. The bounded pool checks connections before use; database sessions use UTC, statement/lock timeouts and disabled prepared statements. Keep the existing **single API worker**: conversational/provider checkpoints still use an application lock. Final completion and generation also use database locks/checks to prevent duplicate/stale writes.
 
-Every repository operation scopes ownership to an application-controlled learner ID. Authentication can later supply this scope from a verified identity. **Current browsers all share the configured learner. Origin checks are not authentication.** This is a controlled private alpha, not an authenticated multi-user product.
+Every repository operation scopes ownership to a verified account UUID in Supabase Auth mode. Each protected request gets an independent scope over the shared pool; production rejects the old shared AUDLI_LEARNER_ID. Origin checks remain browser write protection, not authentication. Local development may explicitly use the local learner.
 
 ## Schema and retained state
 
@@ -54,24 +54,29 @@ Production backend values:
 AUDLI_ENVIRONMENT=production
 AUDLI_PERSISTENCE=postgres
 AUDLI_DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<URL_ENCODED_DB_PASSWORD>@<SESSION_POOLER_HOST>:5432/postgres?sslmode=require
-AUDLI_LEARNER_ID=<ONE_STABLE_UUID_GENERATED_ONCE>
+AUDLI_AUTH_MODE=supabase
+AUDLI_SUPABASE_URL=https://<PROJECT_REF>.supabase.co
+AUDLI_SUPABASE_PUBLISHABLE_KEY=sb_publishable_<PUBLIC_KEY>
+# Remove AUDLI_LEARNER_ID in production.
 AUDLI_ALLOWED_ORIGINS=https://audli-seven.vercel.app
 ```
 
-Replace every placeholder. Accepted URI schemes are `postgres://`, `postgresql://` and `postgresql+psycopg://`; host/database/username/password are required. Production requires `sslmode=require`, `verify-ca` or `verify-full`. `require` encrypts transport; prefer `verify-full` with the trusted Supabase CA. For a Render certificate secret file, add `sslrootcert=/etc/secrets/<certificate-file>` to the URI. Keep `AUDLI_LEARNER_ID` unchanged across deploys: a new UUID selects another learner, not the previous profile.
+Replace every placeholder. Accepted URI schemes are `postgres://`, `postgresql://` and `postgresql+psycopg://`; host/database/username/password are required. Production requires `sslmode=require`, `verify-ca` or `verify-full`. `require` encrypts transport; prefer `verify-full` with the trusted Supabase CA. For a Render certificate secret file, add `sslrootcert=/etc/secrets/<certificate-file>` to the URI. Authenticated account UUIDs are stable across deploys. Supabase mode rejects a configured AUDLI_LEARNER_ID; old temporary data remains private until a reviewed operator transfer.
 
-All credentials stay backend-only. Do not use `NEXT_PUBLIC_*` or put secrets in Git, frontend code, logs, shell history or Linear. No Supabase API-key/service-role variables are required. Existing OpenAI/provider settings remain unchanged.
+All privileged database/OpenAI credentials stay backend-only; the Auth project URL/publishable key are intentionally public. Never place privileged credentials in `NEXT_PUBLIC_*` or put secrets in Git, frontend code, logs, shell history or Linear. Supabase Auth requires a publishable key, documented separately; no service-role key is required. Existing OpenAI/provider settings remain unchanged.
 
 ## Exact Supabase and Render steps
+
+These steps initialize a fresh installation. The AUD-13 production project already has Migration 001: for AUD-14, follow [authentication setup](AUTHENTICATION.md) without reapplying the baseline.
 
 1. Create a dedicated Supabase project; retain its database password securely. Keep this database separate from unrelated application tables.
 2. In **Connect**, copy the **Session pooler** PostgreSQL URI (port 5432), using its actual user/host and URL-encoding the password. Session pooling supports IPv4 and suits the persistent backend; direct connections require compatible network access. See [Supabase connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres).
 3. Append `?sslmode=require`, or `&sslmode=require` if a query already exists. Alternatively configure certificate verification with `verify-full` and the trusted CA.
 4. In Supabase **SQL Editor**, execute the complete `docs/postgres.sql` once as database owner. Alternatively, configure the backend environment above and run `.venv/bin/python -m scripts.migrate_postgres`; use `python -m scripts.migrate_postgres` inside the container. The command prints applied/already-applied without the URI.
 5. Confirm `SELECT version, applied_at FROM schema_migrations;` returns version 1. Confirm tables/indexes and RLS. Migration enables RLS without browser policies and revokes table privileges from PUBLIC and Supabase `anon`/`authenticated`; the backend owner retains access. Do not grant browser access to scripts or learner records.
-6. Generate a learner UUID once: `python3 -c 'import uuid; print(uuid.uuid4())'`. Save it in private backend configuration. It is not a browser identity or authentication credential.
-7. In Render's backend **Environment**, set the five production values above. Retain `OPENAI_API_KEY`, provider/model settings and `AUDLI_DATA_DIR` (a cache in Postgres mode). Install updated `requirements.txt` in the build. The Docker image includes the schema/migration command.
-8. Redeploy with this code. Leave Vercel's `BACKEND_URL=https://audli-api.onrender.com` and the existing proxy unchanged. No frontend database configuration is needed.
+6. Configure Supabase Auth and confirmed accounts using [AUD-14 setup](AUTHENTICATION.md). Do not set a shared production learner UUID.
+7. In Render's backend **Environment**, set the production persistence/auth values above. Retain `OPENAI_API_KEY`, provider/model settings and `AUDLI_DATA_DIR` (a cache in Postgres mode). Install updated `requirements.txt` in the build. The Docker image includes the schema/migration command.
+8. Redeploy with this code. Leave Vercel's `BACKEND_URL=https://audli-api.onrender.com` and the existing proxy unchanged. No frontend database credentials are needed; add the public Auth project URL/publishable key described in [AUD-14](AUTHENTICATION.md).
 9. Use Vercel to verify setup → introduction/listening → recording/recognition → evidence-aware follow-up → spoken feedback → adaptation → transcript unlock → Keep going. Confirm uncertain/failed attempts leave difficulty unchanged and failed feedback audio preserves assessment.
 10. Restart/redeploy Render. Verify the same profile/difficulty, current exercise/conversation and history reload; playback must work with a fresh cache. Complete another activity and confirm persisted difficulty is used. Inspect session timestamps, evidence and adaptation reason in SQL Editor, without exposing private learner text.
 
@@ -83,10 +88,10 @@ Local SQLite upgrades additively on first use. The adapter creates a consistent 
 
 Historical completion timestamps use the persisted adaptation-event time, rather than the earlier recording time. Newly introduced projection timestamps with no original historical counterpart represent migration time; they must not be treated as proof of when an old question was issued.
 
-Before a production transfer, stop training writes and take a consistent copy of the existing SQLite database **and generated `exercise_audio/` files before an ephemeral restart**. Preserve their layout: `audli.sqlite3` beside `exercise_audio/`. Initialize Postgres and configure the target stable UUID, then run:
+Before a production transfer, stop training writes and take a consistent copy of the existing SQLite database **and generated `exercise_audio/` files before an ephemeral restart**. Preserve their layout: `audli.sqlite3` beside `exercise_audio/`. Initialize Postgres and verify the target authenticated account UUID, then run:
 
 ```bash
-.venv/bin/python -m scripts.import_sqlite /private/backup/audli.sqlite3
+.venv/bin/python -m scripts.import_sqlite /private/backup/audli.sqlite3 --target-learner-id <VERIFIED_ACCOUNT_UUID>
 ```
 
 The source is upgraded locally if needed. State/history/checkpoints and available generated audio are copied in one target transaction. The target must have a default empty profile and no exercises; existing progress is not overwritten/merged. Use `--source-learner-id <id>` for a scoped SQLite learner. Selecting Postgres alone does not transfer data. Already-lost audio cannot be recovered. Verify the import before deleting backups.
@@ -115,11 +120,11 @@ AUDLI_TEST_POSTGRES_URL=<DISPOSABLE_LOCAL_CLUSTER_URI> .venv/bin/pytest -q tests
 
 Never use production Supabase credentials here. Tests create/drop `audli_test_*` databases and a temporary untrusted role. Coverage includes native Postgres types/migrations, restart/cache recovery, evidence history, atomic/duplicate/concurrent completion, stale adaptation, ownership, import refusal and RLS denial. Mock AI tests establish plumbing, not evaluator accuracy.
 
-Remaining work: verified authenticated learner ownership and API access controls; daily eligibility/timezone policy and a 5–10 minute session budget; full spoken onboarding; retention/export/deletion policy, backups/restores, generated-audio capacity and operational monitoring. Provider checkpoints still assume one API worker, and Keep going remains unrestricted.
+Remaining work after AUD-14 manual authentication verification: daily eligibility/timezone policy and a 5–10 minute session budget; full spoken onboarding; retention/export/deletion policy, backups/restores, generated-audio capacity and operational monitoring. Provider checkpoints still assume one API worker, and Keep going remains unrestricted.
 
-Recommended next issue: **authenticated learner ownership and backend access controls**, before multi-learner rollout. Daily-session orchestration and spoken onboarding can then use this persisted state.
+Recommended next issues: **AUD-15 spoken onboarding** and **AUD-16 controlled daily sessions**, after AUD-14 review/verification. Daily-session orchestration and spoken onboarding can then use this persisted state.
 
-## Verification recorded on 2026-10-06
+## AUD-13 historical verification recorded on 2026-10-06
 
 | Check | Result |
 | --- | --- |
@@ -129,7 +134,7 @@ Recommended next issue: **authenticated learner ownership and backend access con
 | Frontend helpers | 25 passed |
 | Frontend lint, production build, standalone typecheck | Passed |
 | Python compilation; `git diff --check` | Passed |
-| Hosted Supabase / Render restart / real browser learning loop | Pending manual verification |
+| Hosted Supabase / Render restart / real browser learning loop | Subsequently verified by the owner; AUD-14 Auth verification remains pending |
 
 The first sandboxed full run stalled in an existing audio subprocess test and was stopped. The complete retry outside the sandbox passed. PostgreSQL socket access also required an unsandboxed test run; the disposable server was stopped after verification. No live Supabase or paid AI tests were run, and no production environment was changed.
 

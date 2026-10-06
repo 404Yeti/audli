@@ -10,5 +10,5 @@ export default defineConfig([
       '@next/next/no-img-element': 'off',
     },
   },
-  globalIgnores(['.next/**', 'next-env.d.ts', 'playwright-report/**', 'test-results/**']),
+  globalIgnores(['.next/**', '.next-browser-tests/**', 'next-env.d.ts', 'playwright-report/**', 'test-results/**']),
 ]);

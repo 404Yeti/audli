@@ -114,17 +114,20 @@ The live check uses an isolated temporary database and is excluded from normal t
 
 ## Vercel frontend / Render API configuration
 
-Set `BACKEND_URL=https://audli-api.onrender.com` in Vercel and rebuild the frontend so Next.js proxies `/api/*` to Render. Set these backend environment variables in Render and restart/redeploy the API:
+Set `BACKEND_URL=https://audli-api.onrender.com`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel, following [authentication setup](docs/AUTHENTICATION.md), and rebuild so Next.js proxies `/api/*` to Render. Use the same Supabase project/publishable key on both services. Set these backend environment variables in Render and restart/redeploy the API:
 
 ```dotenv
 AUDLI_ENVIRONMENT=production
 AUDLI_PERSISTENCE=postgres
 AUDLI_DATABASE_URL=<BACKEND_ONLY_SUPABASE_POSTGRES_URI_WITH_SSL>
-AUDLI_LEARNER_ID=<STABLE_LEARNER_UUID>
+AUDLI_AUTH_MODE=supabase
+AUDLI_SUPABASE_URL=https://<PROJECT_REF>.supabase.co
+AUDLI_SUPABASE_PUBLISHABLE_KEY=sb_publishable_<PUBLIC_KEY>
+# Remove AUDLI_LEARNER_ID in production.
 AUDLI_ALLOWED_ORIGINS=https://audli-seven.vercel.app
 ```
 
-Initialize the versioned schema before starting Postgres mode. Production refuses SQLite and invalid/missing database configuration. Follow the [exact Supabase/Render and optional SQLite import steps](docs/PERSISTENCE.md). All current browsers share one configured learner until authentication is added; daily limits and spoken onboarding remain future work.
+Initialize the versioned schema before starting Postgres mode. Production refuses SQLite and invalid/missing database configuration. Follow the [exact Supabase/Render and optional SQLite import steps](docs/PERSISTENCE.md). Each authenticated browser uses its own verified account identity through Supabase Auth; daily limits and spoken onboarding remain future work.
 
 `AUDLI_ALLOWED_ORIGINS` defaults to empty. Add future frontend/custom-domain origins as a comma-separated list, for example `https://audli-seven.vercel.app,https://audli.example.com`. Each entry must be an HTTP(S) origin with no credentials, path (including trailing slash), query, fragment or wildcard. Invalid entries fail startup. Comparison uses exact scheme, hostname and port; default ports are equivalent. Similar hostnames, subdomains, different schemes and non-default ports are not implicitly allowed.
 
@@ -134,8 +137,10 @@ After deployment, use the Vercel frontend to save onboarding and start a lesson;
 
 ## Prototype limits
 
-Single test learner, no authentication or access controls. Browser writes require a loopback origin or an explicitly configured origin; this does not make the prototype safe for unrestricted public use. Hosted/mobile-device access still needs explicit access controls and HTTPS. Keep `data/` private; deleting it after stopping the server resets SQLite state, but does not reset a Postgres learner. Do not reuse real learner data in demo mode.
+Local development uses one test learner. Production requires Supabase Auth and verified per-user repository scopes; see [authentication configuration and verification](docs/AUTHENTICATION.md). Browser writes require a loopback origin or an explicitly configured origin; this does not make the prototype safe for unrestricted public use. Hosted/mobile-device access still needs explicit access controls and HTTPS. Keep `data/` private; deleting it after stopping the server resets SQLite state, but does not reset a Postgres learner. Do not reuse real learner data in demo mode.
 
 There is no verbal goal extraction, teacher dashboard, payments, pronunciation grading, external media or complex assessment framework. Clip duration is approximate; speed is requested numerically, not inferred from the waveform. LLM comprehension quality and STT fairness still need human/teacher validation; fixture regressions are an initial check, not proof of learning efficacy.
 
 Implementation follows the official [structured-output](https://developers.openai.com/api/docs/guides/structured-outputs), [transcription](https://developers.openai.com/api/docs/guides/speech-to-text) and [speech-generation](https://developers.openai.com/api/docs/guides/text-to-speech) documentation. See [validation status](docs/VALIDATION.md), [engineering rules](AGENTS.md) and [implementation plan and risks](docs/PLAN.md).
+
+Authenticated production setup, legacy learner transfer, environment values and manual isolation checks are documented in [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md). Migration 001 remains unchanged; AUD-14 requires no new database migration.

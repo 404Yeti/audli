@@ -5,6 +5,8 @@ __pycache__/
 data/
 web/node_modules/
 web/.next/
+web/.next-browser-tests/
+web/.env.local
 web/*.tsbuildinfo
 
 web/test-results/

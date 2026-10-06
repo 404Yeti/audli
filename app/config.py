@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     persistence: Literal['sqlite', 'postgres'] = 'sqlite'
     database_url: SecretStr | None = None
     learner_id: UUID | None = None
+    auth_mode: Literal['local', 'supabase'] = 'local'
+    supabase_url: str = ''
+    supabase_publishable_key: SecretStr | None = None
     provider: Literal['openai', 'demo'] = 'openai'
     llm_model: str = 'gpt-4.1-mini'
     transcription_model: str = 'gpt-4o-mini-transcribe'
@@ -51,9 +54,21 @@ class Settings(BaseSettings):
             raise ValueError('Expected low_score < edge_low < edge_high')
         if self.environment == 'production' and self.persistence != 'postgres':
             raise ValueError('Production requires AUDLI_PERSISTENCE=postgres; SQLite is for local development/tests')
+        if self.environment == 'production' and self.auth_mode != 'supabase':
+            raise ValueError('Production requires AUDLI_AUTH_MODE=supabase; local identity is development-only')
+        if self.auth_mode == 'supabase':
+            if self.learner_id is not None:
+                raise ValueError('Remove AUDLI_LEARNER_ID: Supabase Auth supplies the learner identity')
+            try:
+                if parse_browser_origin(self.supabase_url)[0] != 'https':
+                    raise ValueError()
+            except ValueError:
+                raise ValueError('AUDLI_SUPABASE_URL must be an exact HTTPS project origin') from None
+            if not self.supabase_publishable_key or not self.supabase_publishable_key.get_secret_value().startswith('sb_publishable_'):
+                raise ValueError('AUDLI_SUPABASE_PUBLISHABLE_KEY requires a Supabase publishable key (never a secret/service-role key)')
         if self.persistence == 'postgres':
-            if not self.database_url or not self.learner_id:
-                raise ValueError('Postgres requires AUDLI_DATABASE_URL and a stable AUDLI_LEARNER_ID UUID')
+            if not self.database_url or (self.auth_mode == 'local' and not self.learner_id):
+                raise ValueError('Postgres requires AUDLI_DATABASE_URL; local mode also requires AUDLI_LEARNER_ID')
             try:
                 url = make_url(self.database_url.get_secret_value())
                 valid = (url.drivername in ('postgres', 'postgresql', 'postgresql+psycopg')

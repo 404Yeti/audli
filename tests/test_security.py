@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+import httpx
 from pydantic import ValidationError
 
 from app.config import Settings
@@ -38,11 +39,17 @@ def test_configured_origins_on_real_api(tmp_path, monkeypatch, origin, status):
     provider = FakeProvider()
     settings = Settings(data_dir=tmp_path, environment='production', persistence='postgres',
         database_url='postgresql://test:test@localhost/test?sslmode=require',
-        learner_id='00000000-0000-0000-0000-000000000001', _env_file=None)
-    app = create_app(settings, provider, repository=ProgressRepository(tmp_path / 'audli.sqlite3'))
+        auth_mode='supabase', supabase_url='https://test.supabase.co',
+        supabase_publishable_key='sb_publishable_fixture', _env_file=None)
+    auth_client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200,
+        json={'id': '00000000-0000-0000-0000-000000000001', 'email_confirmed_at': '2026-10-06T00:00:00Z'})))
+    repository = ProgressRepository(tmp_path / 'audli.sqlite3', None)
+    app = create_app(settings, provider, repository=repository, auth_client=auth_client)
     client = ASGIClient(app, provider)
-    response = client.put('/api/profile', headers={'origin': origin}, json={'name': 'Learner', 'goal': 'Listen better'})
+    response = client.put('/api/profile', headers={'origin': origin, 'Authorization': 'Bearer fixture-token'}, json={'name': 'Learner', 'goal': 'Listen better'})
     assert response.status_code == status, response.text
+    repository.close()
+    asyncio.run(auth_client.aclose())
 
 
 def test_external_origin_is_not_enabled_by_default(client):

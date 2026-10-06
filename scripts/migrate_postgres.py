@@ -29,4 +29,4 @@ if __name__ == '__main__':
     try:
         print('Postgres migration 001 applied.' if migrate(Settings()) else 'Postgres migration 001 already applied.')
     except Exception:
-        raise SystemExit('Postgres migration could not run. Check AUDLI_PERSISTENCE, AUDLI_DATABASE_URL, AUDLI_LEARNER_ID and database/schema access.') from None
+        raise SystemExit('Postgres migration could not run. Check persistence/auth configuration, AUDLI_DATABASE_URL and database/schema access.') from None

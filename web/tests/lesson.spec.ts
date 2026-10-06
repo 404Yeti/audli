@@ -30,6 +30,7 @@ async function setup(page: Page, denied = false) {
   const conversation = () => ({ state:phase, cue_id:cue, prompt: cue === 'feedback' ? 'You caught the main idea. We’ll keep the next clip at this pace.' : cue === 'followup' ? 'Why did the time change?' : cue ? 'Tell me what you understood.' : null, active_followup:cue === 'followup' ? {id:'followup',question:'Why did the time change?'} : null, pending_attempt:null, followups_asked:turn, result });
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
     if (path.endsWith('/profile')) return route.fulfill({json:{profile:{name:'Robert',goal:'work conversations',completed_attempts:0,difficulty},provider:'openai'}});
     if (path.endsWith('/current') || path === '/api/exercises') return route.fulfill({json:{id:'clip',audio_url:'/api/listening-audio',difficulty,completed_attempt_id:null}});
     if (path.endsWith('/conversation/listened')) { phase='AWAITING_SUMMARY';cue='summary';return route.fulfill({json:conversation()}); }

@@ -17,6 +17,7 @@ from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
 from app.security import LocalRequestGuard
+from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
 
 class Onboarding(StrictModel):
     name: str = Field(min_length=1, max_length=80)
@@ -28,9 +29,11 @@ class Confirmation(StrictModel):
 
 
 def create_app(settings: Settings | None = None, provider: AIProvider | None = None,
-               repository: SQLProgressRepository | None = None):
+               repository: SQLProgressRepository | None = None, auth_client=None):
     settings = settings or Settings()
-    repo = repository or create_repository(settings)
+    database = repository or create_repository(settings)
+    identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
+    repo = RequestRepository(database if identity is None else None)
     audio_dir = settings.data_dir / 'exercise_audio'
     audio_dir.mkdir(parents=True, exist_ok=True)
     lock = asyncio.Lock()
@@ -40,13 +43,17 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         try:
             yield
         finally:
-            repo.close()
+            database.close()
+            if identity is not None:
+                await identity.close()
             if hasattr(provider, 'client'):
                 await provider.client.close()
 
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    if identity is not None:
+        app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
-    app.state.repository = repo
+    app.state.repository = database
 
     def ai():
         nonlocal provider
@@ -88,6 +95,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'audio_url': f"/api/exercises/{row['id']}/audio", 'completed_attempt_id': repo.completed(row['id'])}
 
     def restore_audio(name):
+        if not repo.owns_audio(name):
+            raise HTTPException(404, 'Audio not found.')
         path = audio_dir / name
         if not path.exists():
             data = repo.audio_blob(name)
@@ -107,6 +116,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def health():
         return {'status': 'ok', 'provider': settings.provider}
 
+    @app.get('/api/auth/config')
+    async def auth_config():
+        return {'mode': settings.auth_mode}
+
     @app.get('/api/profile')
     async def profile():
         return {'profile': repo.profile(), 'provider': settings.provider}
@@ -116,7 +129,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         async with lock:
             profile = repo.profile()
             if repo.current_exercise():
-                raise HTTPException(409, 'Onboarding is complete for this local learner.')
+                raise HTTPException(409, 'Your profile is already set up.')
             profile.name, profile.goal = body.name.strip(), body.goal.strip()
             if not profile.name or not profile.goal:
                 raise HTTPException(422, 'Enter your name and listening goal.')

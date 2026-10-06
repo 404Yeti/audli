@@ -40,3 +40,37 @@ docker compose up --build
 - Validate the complete spoken message: at most three sentences and configured 30–50 word maximum; no questions, requests for evidence or numerical metrics.
 - Unknown units never supply corrections. Unsafe/oversized correction labels use a complete safe alternative, not truncated prose.
 - Version terminal-audio caches so previous evaluator-report audio cannot replay.
+
+
+## Linear project management
+
+Linear is the source of truth for project work.
+
+Before using Linear:
+- Confirm the Linear MCP server is available.
+- If Linear is unavailable, continue the development task but report that Linear could not be updated.
+- Never claim an issue was created, updated, or completed unless the Linear operation actually succeeded.
+
+When starting a development task:
+1. Search Linear for an existing issue that matches the task.
+2. If an appropriate issue exists, use it rather than creating a duplicate.
+3. If no issue exists and the work is substantial enough to track, create an issue in the appropriate Linear project.
+4. Move the issue to In Progress when implementation begins.
+
+During implementation:
+- Keep the Linear issue aligned with material scope changes.
+- Do not create issues for trivial fixes discovered while completing the current issue.
+- Create a new issue for substantial newly discovered work that should be handled separately.
+- Include the Linear issue identifier in the branch/commit/PR where practical.
+
+When finishing:
+1. Run the required tests and verification.
+2. Do not mark the issue Done if verification fails.
+3. Add a concise Linear comment summarizing:
+   - what changed
+   - important files/components changed
+   - tests/verification performed
+   - any remaining limitations or follow-up work
+4. Mark the issue Done only after the implementation and verification are complete.
+
+Never mark an issue Done merely because code was written.

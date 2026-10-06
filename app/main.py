@@ -13,6 +13,7 @@ from app.evaluation import score_judgments
 from app.models import ExerciseContent, StrictModel, Transcription
 from app.repository import ProgressRepository
 from app.services.provider import AIProvider
+from app.conversation_api import register_conversation_routes
 from app.security import LocalRequestGuard
 
 class Onboarding(StrictModel):
@@ -156,6 +157,11 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             finally:
                 await audio.close()
             attempt_id = repo.add_attempt(exercise_id, transcription)
+            conversation = repo.conversation(exercise_id)
+            if conversation:
+                conversation.pending_attempt_id, conversation.pending_text = attempt_id, None
+                conversation.state = 'AWAITING_FOLLOWUP' if conversation.active_followup else 'AWAITING_SUMMARY'
+                repo.save_conversation(conversation)
             return {'id': attempt_id, 'transcription': transcription}
 
     @app.post('/api/attempts/{attempt_id}/evaluate')
@@ -167,6 +173,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             previous = repo.result(attempt_id)
             if previous:
                 return previous
+            if repo.conversation(attempt['exercise_id']):
+                raise HTTPException(409, 'Finish the current spoken assessment, including its follow-ups.')
             if not body.confirmed:
                 raise HTTPException(422, 'Confirm what you said before evaluating.')
             if len(body.text.strip().split()) < 3:
@@ -208,6 +216,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def history():
         return repo.history()
 
+    register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404)
     return app
 
 app = create_app()

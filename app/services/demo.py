@@ -1,6 +1,6 @@
 import asyncio
 from app.evaluation import expected_units
-from app.models import ExerciseContent, EvaluationJudgments, Transcription
+from app.models import ExerciseContent, EvaluationJudgments, Transcription, EvidenceAssessment
 
 SCRIPT = ('On Monday, Maya and her team launched an update to their office scheduling app. '
           'Soon, several customers said they could not save new appointments. The team discovered '
@@ -22,8 +22,11 @@ class DemoProvider:
             questions=[{'question': 'What went wrong and what did the team do?', 'expected_information': ['database migration', 'rolled back']}])
 
     async def speech(self, exercise):
-        process = await asyncio.create_subprocess_exec('espeak', '--stdout', '-s', str(round(150*exercise.speech_rate)),
-            exercise.script, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        return await self.speak(exercise.script, exercise.speech_rate)
+
+    async def speak(self, text, speech_rate=.9):
+        process = await asyncio.create_subprocess_exec('espeak', '--stdout', '-s', str(round(150*speech_rate)),
+            text, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         audio, _ = await process.communicate()
         if process.returncode:
             raise ValueError('espeak failed')
@@ -37,4 +40,10 @@ class DemoProvider:
         return EvaluationJudgments(units=[{'dimension': dim, 'index': i, 'status': 'partial', 'evidence': transcript}
             for dim, units in expected_units(exercise).items() for i in range(len(units))],
             feedback='Demo result only: every unit receives a fixed partial score. Use OpenAI mode to evaluate comprehension.',
+            transcription_concern=False, concern_reason='')
+
+    async def assess(self, exercise, turns):
+        return EvidenceAssessment(units=[{'dimension': dim, 'index': i, 'status': 'partially_demonstrated',
+            'evidence': turns[0].text[:1000], 'question': ''} for dim, units in expected_units(exercise).items()
+            for i in range(len(units))], feedback='Demo feedback only. Real comprehension needs the OpenAI provider.',
             transcription_concern=False, concern_reason='')

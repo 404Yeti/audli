@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
-from app.models import ExerciseContent, LearnerProfile, Transcription
+from app.models import ExerciseContent, LearnerProfile, Transcription, Conversation
 
 SCHEMA = '''
 PRAGMA foreign_keys=ON;
@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS exercises (id TEXT PRIMARY KEY, user_id TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, exercise_id TEXT NOT NULL REFERENCES exercises(id), transcription TEXT NOT NULL, confirmed_text TEXT, status TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE UNIQUE INDEX IF NOT EXISTS one_evaluation_per_exercise ON attempts(exercise_id) WHERE status='evaluated';
 CREATE TABLE IF NOT EXISTS evaluation_results (attempt_id TEXT PRIMARY KEY REFERENCES attempts(id), data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS conversations (exercise_id TEXT PRIMARY KEY REFERENCES exercises(id), data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS coach_audio (exercise_id TEXT NOT NULL REFERENCES exercises(id), cue_id TEXT NOT NULL, audio_name TEXT NOT NULL, PRIMARY KEY(exercise_id,cue_id));
 CREATE TABLE IF NOT EXISTS adaptation_events (id TEXT PRIMARY KEY, attempt_id TEXT UNIQUE NOT NULL REFERENCES attempts(id), data TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 '''
 
@@ -82,7 +84,7 @@ class ProgressRepository:
             event = db.execute('SELECT data FROM adaptation_events WHERE attempt_id=?', (attempt_id,)).fetchone()
             return {'evaluation': json.loads(evaluation[0]), 'adaptation': json.loads(event[0])} if evaluation else None
 
-    def complete(self, attempt_id, text, evaluation, event, profile):
+    def complete(self, attempt_id, text, evaluation, event, profile, conversation=None):
         with self.connect() as db:
             # Atomic compare-and-set, even if a second process races this instance.
             db.execute('BEGIN IMMEDIATE')
@@ -94,8 +96,35 @@ class ProgressRepository:
             db.execute('INSERT INTO evaluation_results VALUES (?,?)', (attempt_id, evaluation.model_dump_json()))
             db.execute('INSERT INTO adaptation_events(id,attempt_id,data) VALUES (?,?,?)', (str(uuid4()), attempt_id, event.model_dump_json()))
             db.execute('UPDATE learner_profiles SET data=? WHERE user_id=?', (profile.model_dump_json(), 'local'))
+            if conversation is not None:
+                db.execute('INSERT OR REPLACE INTO conversations VALUES (?,?)',
+                           (conversation.exercise_id, conversation.model_dump_json()))
 
     def history(self):
         with self.connect() as db:
             rows = db.execute('SELECT a.id,a.exercise_id,a.created_at,e.data AS evaluation,v.data AS adaptation FROM attempts a JOIN evaluation_results e ON e.attempt_id=a.id JOIN adaptation_events v ON v.attempt_id=a.id ORDER BY a.rowid').fetchall()
             return [{**dict(r), 'evaluation': json.loads(r['evaluation']), 'adaptation': json.loads(r['adaptation'])} for r in rows]
+
+    def conversation(self, exercise_id):
+        with self.connect() as db:
+            row = db.execute('SELECT data FROM conversations WHERE exercise_id=?', (exercise_id,)).fetchone()
+            return Conversation.model_validate_json(row['data']) if row else None
+
+    def save_conversation(self, conversation):
+        with self.connect() as db:
+            db.execute('INSERT OR REPLACE INTO conversations VALUES (?,?)',
+                       (conversation.exercise_id, conversation.model_dump_json()))
+
+    def confirm_text(self, attempt_id, text):
+        with self.connect() as db:
+            db.execute('UPDATE attempts SET confirmed_text=? WHERE id=?', (text, attempt_id))
+
+    def coach_audio(self, exercise_id, cue_id):
+        with self.connect() as db:
+            row = db.execute('SELECT audio_name FROM coach_audio WHERE exercise_id=? AND cue_id=?',
+                             (exercise_id, cue_id)).fetchone()
+            return row['audio_name'] if row else None
+
+    def save_coach_audio(self, exercise_id, cue_id, audio_name):
+        with self.connect() as db:
+            db.execute('INSERT OR REPLACE INTO coach_audio VALUES (?,?,?)', (exercise_id, cue_id, audio_name))

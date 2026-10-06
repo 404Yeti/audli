@@ -1,6 +1,6 @@
 # Audli — Train your ears.
 
-Audli V0.1 is an adaptive English listening-comprehension prototype. The loop is **listen → spoken summary → transcription → comprehension feedback → one-variable adaptation → another clip**. It grades understanding, not speaking grammar.
+Audli V0.2.1 is an adaptive English listening companion. The committed `v0.1` release remains unchanged. The loop is **listen → spoken summary → transcription → comprehension feedback → one-variable adaptation → another clip**. It grades understanding, not speaking grammar.
 
 ## Run locally
 
@@ -40,22 +40,25 @@ Open http://localhost:3000. Both published ports bind to loopback. Docker Deskto
 
 Set `AUDLI_PROVIDER=demo` and use a separate `AUDLI_DATA_DIR=data/demo` if switching modes. Docker includes `espeak`; native demo requires it installed on your machine (e.g. `sudo apt-get install espeak`). Demo reads an original sample using synthetic speech, accepts a real recording, asks you to type what you said, and returns **fixed partial scores**. It does not perform STT or measure comprehension, and its fixed script does not implement content-level adaptation. Use OpenAI mode to validate the product hypothesis.
 
-## Use the loop
+## Use the spoken loop
 
-1. Enter a name and listening goal. Typed onboarding keeps V0.1 small.
-2. Generate a clip and play it through. The browser receives no transcript, revealing title, questions or expected answers.
-3. Tap to start/stop recording (2–120 seconds). Existing spoken recordings can also be uploaded.
-4. Transcribe, then check/correct recognition errors to match what you actually said. Confirm before evaluation. Poor grammar is acceptable.
-5. Review scores, understood/missed/misunderstood units and feedback. Show transcript is available only after a successful evaluation.
-6. Continue. The next clip uses the persisted new difficulty. The first three successful attempts establish a simple baseline; later scores use exponential smoothing.
+1. Enter your name and listening goal, then play the generated clip. Its transcript is hidden.
+2. Audli speaks: “Tell me what you understood.” Record your answer by tapping start and stop.
+3. Recording transcribes automatically. Briefly check/correct speech-recognition errors and confirm “That’s what I said.”
+4. If evidence is uncertain, Audli asks up to two short spoken follow-ups. Respond by voice and check recognition again.
+5. Hear conversational feedback and the next step. “See details” contains secondary evidence metrics. “Show transcript” becomes available only when assessment is complete.
+6. Choose “Keep going” for the next exercise. Adaptation uses the final evidence from every turn.
 
-If generation/transcription/evaluation fails, retry the step. Existing progress is preserved. Reload resumes the current clip or completed feedback. A transcription awaiting review is not resumed after reload: record again. Unreliable evaluator transcription flags produce no score or adaptation. Unknown/low STT confidence prompts review; learner confirmation is an explicit manual resolution, not a claim that provider confidence improved.
+Missing evidence is unknown, not a confirmed zero. Fully evidenced assessments retain the V0.1 deterministic policy; incomplete final evidence keeps difficulty stable with a recorded reason. See [V0.2 architecture, scoring, risks and Chrome acceptance checklist](docs/V0.2.md) and the [V0.2.1 conversational feedback fix](docs/V0.2.1.md).
+
+Recoverable failures preserve recognized answers and issued questions across reload. Learner audio remains local until uploaded and is never persisted by the backend; an unsent browser recording cannot survive a page reload. Spoken feedback audio can fail independently without losing assessment or progress. If autoplay is blocked, use the audio controls; accessible text always remains available.
 
 ## Architecture and rubric
 
 - `app/models.py`: strict structured schemas and bounds.
 - `app/services/provider.py`: replaceable generation, speech, transcription and evaluation interface; OpenAI SDK lives only in its implementation.
-- `app/evaluation.py`: scores every expected information unit, rejecting missing/duplicate judgments and cited evidence absent from the learner transcript. Understood = 1, partial = .5, missed/misunderstood = 0. Category scores are means. Overall weights: main idea .35, details .40, vocabulary .15, inference .10. Vocabulary means contextual meaning, never exact wording.
+- `app/conversation.py` / `app/conversation_api.py`: V0.2 evidence scoring, bounded follow-ups, recoverable conversation state and spoken cues.
+- `app/evaluation.py`: legacy V0.1 scoring of every expected information unit, rejecting missing/duplicate judgments and cited evidence absent from the learner transcript. Understood = 1, partial = .5, missed/misunderstood = 0. Category scores are means. Overall weights: main idea .35, details .40, vocabulary .15, inference .10. Vocabulary means contextual meaning, never exact wording.
 - `app/adaptive.py`: pure deterministic policy. At/above edge high: increase slightly; in edge band: keep difficulty and focus the weakest category; below edge low: reduce one variable, more clearly below low-score threshold. Bounds can cause no change. Each event records thresholds, previous score, harder/same/easier, old/new values, full old/new difficulty, weakest dimension and reason.
 - `app/repository.py`: SQLite transactions persist users, profiles, exercises, attempts, evaluation results and adaptation events. A unique index prevents multiple evaluations of the same exercise. `docs/postgres.sql` is a reference for a future PostgreSQL/Supabase repository, not a configured integration.
 - `web/app/page.tsx`: responsive audio-first flow using MediaRecorder; `next.config.ts` proxies to FastAPI.
@@ -69,6 +72,8 @@ Transcription confidence is the exponential mean token log probability when supp
 ```bash
 .venv/bin/pytest -q
 node --experimental-strip-types tests/frontend.test.mjs
+node --experimental-strip-types tests/recording.test.mjs
+node --experimental-strip-types tests/conversation.test.mjs
 cd web && npm run typecheck && npm run build
 ```
 
@@ -107,7 +112,7 @@ pytest -q tests/live_generation.py -s
 
 The live check uses an isolated temporary database and is excluded from normal test discovery. See [the diagnosed generation failure and fix](docs/GENERATION_FIX.md).
 
-## Limits of V0.1
+## Prototype limits
 
 Single local/test learner, no authentication or public deployment. Loopback-only use protects the local state; browser write requests from non-local origins are rejected. Hosted/mobile-device access needs explicit access controls and HTTPS. Keep `data/` private; deleting it after stopping the server starts a fresh local profile. Do not reuse real learner data in demo mode.
 

@@ -55,8 +55,18 @@ class ASGIClient:
 
     def request(self, method, path, **kwargs):
         async def perform():
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app, raise_app_exceptions=False), base_url='http://testserver') as client:
-                return await client.request(method, path, **kwargs)
+            async def poll_worker_results():
+                # FileResponse uses AnyIO worker threads. Restricted environments can
+                # lose their socket-based loop wakeup; a timer keeps completed work moving.
+                while True:
+                    await asyncio.sleep(.01)
+            poller = asyncio.create_task(poll_worker_results())
+            try:
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app, raise_app_exceptions=False), base_url='http://testserver') as client:
+                    return await client.request(method, path, **kwargs)
+            finally:
+                poller.cancel()
+                await asyncio.gather(poller, return_exceptions=True)
         return asyncio.run(perform())
 
     def get(self, path, **kwargs):

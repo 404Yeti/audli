@@ -439,3 +439,64 @@ def test_exhausted_script_repair_returns_503_without_changing_completed_progress
             assert repo.completed(previous['id']) == attempt['id']
     asyncio.run(run_provider(handler, check))
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize('status', ['demonstrated', 'partially_demonstrated', 'misunderstood', 'insufficient_evidence'])
+def test_v2_sdk_schema_grounded_evidence_and_unknown_are_distinct(exercise, status):
+    from app.models import ConversationTurn
+    from app.conversation import final_evaluation, validate_evidence
+    transcript = 'They went back to the previous version and waited until Friday.'
+    def handler(request):
+        data = json.loads(request.content)
+        supplied = json.loads(data['input'][1]['content'])
+        assert supplied['turns'][0]['learner_response'] == transcript
+        assert 'semantic paraphrases' in data['input'][0]['content']
+        assert 'INSUFFICIENT_EVIDENCE' in data['input'][0]['content']
+        schema = data['text']['format']['schema']
+        assert schema['$defs']['UnknownEvidence']['properties']['evidence']['const'] == ''
+        slots = {f'{dim}_{i}': {'status': 'demonstrated', 'evidence': transcript, 'question': ''}
+                 for dim, units in expected_units(exercise).items() for i in range(len(units))}
+        slots['inference_0'] = {'status': status, 'evidence': '' if status == 'insufficient_evidence' else transcript,
+                                'question': 'Why do you think Maya chose to wait?' if status == 'insufficient_evidence' else ''}
+        return response({'units': slots, 'feedback': 'You caught the main idea.',
+                         'transcription_concern': False, 'concern_reason': ''})
+    async def check(provider):
+        result = await provider.assess(exercise, [ConversationTurn(attempt_id='initial', text=transcript)])
+        validate_evidence(exercise, result, [transcript])
+        final = final_evaluation(exercise, result)
+        assert final.inference == {'demonstrated': 1, 'partially_demonstrated': .5,
+                                   'misunderstood': 0, 'insufficient_evidence': None}[status]
+    asyncio.run(run_provider(handler, check))
+
+
+def test_v2_vocabulary_paraphrase_and_followup_turns_use_learner_evidence_only(exercise):
+    from app.models import ConversationTurn, Followup
+    from app.conversation import final_evaluation, validate_evidence
+    phone = ExerciseContent.model_validate({**exercise.model_dump(), 'script': 'Maya bought a refurbished phone. It was used but repaired and tested. '
+        'She chose it because it cost less, and she needed a dependable phone for work. She kept her old phone as a backup.',
+        'main_idea': 'Maya chose a repaired used phone for work and kept a spare.',
+        'important_details': ['The phone had been repaired and tested.', 'It cost less.', 'She kept her old phone.'],
+        'inference_points': ['Keeping a spare reduces the risk of being unreachable.'],
+        'vocabulary_items': [{'phrase': 'refurbished', 'meaning_in_context': 'used but repaired and tested'},
+                             {'phrase': 'backup', 'meaning_in_context': 'a spare phone'}]})
+    summary = 'She bought a used phone that had been fixed. It cost less, for work, and she kept a spare phone.'
+    clarification = 'So she could still be reached if the new phone stopped working.'
+    question = Followup(id='question', dimension='inference', index=0, question='Why did she keep her old phone?')
+    turns = [ConversationTurn(attempt_id='summary', text=summary),
+             ConversationTurn(attempt_id='answer', text=clarification, followup=question)]
+    def handler(request):
+        data = json.loads(request.content)
+        supplied = json.loads(data['input'][1]['content'])
+        assert len(supplied['turns']) == 2
+        assert supplied['turns'][1]['question'] == question.question
+        assert question.question not in supplied['evidence_options']
+        slots = {f'{dim}_{i}': {'status': 'demonstrated', 'evidence': clarification if dim == 'inference' else summary,
+                              'question': ''} for dim, units in expected_units(phone).items() for i in range(len(units))}
+        return response({'units': slots, 'feedback': 'Exactly. You understood that part too.',
+                         'transcription_concern': False, 'concern_reason': ''})
+    async def check(provider):
+        result = await provider.assess(phone, turns)
+        validate_evidence(phone, result, [summary, clarification])
+        assert final_evaluation(phone, result).overall == 1
+        assert 'refurbished' not in summary
+    asyncio.run(run_provider(handler, check))

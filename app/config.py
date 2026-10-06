@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     min_transcription_confidence: float = Field(default=.65, ge=0, le=1)
     max_audio_bytes: int = 12 * 1024 * 1024
     max_recording_seconds: int = 120
+    max_feedback_words: int = Field(default=50, ge=30, le=50)
 
     @model_validator(mode='after')
     def thresholds(self):

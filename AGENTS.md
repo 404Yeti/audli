@@ -24,3 +24,19 @@ python3 -m venv .venv
 cd web && npm install && npm run dev
 cd web && npm run build
 docker compose up --build
+
+## V0.2 spoken evidence loop
+- Keep the v0.1 tag unchanged; reuse its generation repair, audio validation and recording helpers.
+- Insufficient evidence is unknown, never a confirmed zero. Persist it separately from misunderstanding.
+- Ask at most two voice follow-ups, only for insufficient evidence; choose progression in application code.
+- Adapt only after the final assessment. If evidence remains incomplete, keep difficulty stable and audit why.
+- Persist conversation turns/checkpoints. TTS failure must never roll back a completed assessment.
+- Keep transcript gates in the backend; legacy evaluation cannot bypass an active V0.2 conversation.
+- Spoken cues also have accessible text and replay controls; detailed metrics stay secondary.
+
+## V0.2.1 terminal feedback
+- Follow-up questions, evaluator notes and final feedback are separate conversational acts.
+- Never speak evaluator notes directly. Compose terminal feedback from final evidence and the deterministic adaptation event.
+- Validate the complete spoken message: at most three sentences and configured 30–50 word maximum; no questions, requests for evidence or numerical metrics.
+- Unknown units never supply corrections. Unsafe/oversized correction labels use a complete safe alternative, not truncated prose.
+- Version terminal-audio caches so previous evaluator-report audio cannot replay.

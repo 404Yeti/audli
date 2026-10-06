@@ -89,7 +89,7 @@ class Transcription(StrictModel):
     source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
 
 class Adaptation(StrictModel):
-    previous_score: Score
+    previous_score: Score | None
     decision: Literal['harder', 'same', 'easier']
     changed_variable: str | None
     old_value: float | int | str | None
@@ -102,3 +102,57 @@ class Adaptation(StrictModel):
     policy_version: str = 'v0.1'
     edge_low: Score
     edge_high: Score
+
+# V0.2 schemas are separate so existing V0.1 results retain their original meaning.
+EvidenceStatus = Literal['demonstrated', 'partially_demonstrated', 'misunderstood', 'insufficient_evidence']
+ConversationState = Literal['LISTENING', 'AWAITING_SUMMARY', 'ASSESSING', 'AWAITING_FOLLOWUP',
+                            'ASSESSING_FOLLOWUP', 'GIVING_FEEDBACK', 'READY_FOR_NEXT']
+
+class EvidenceUnit(StrictModel):
+    dimension: Dimension
+    index: int = Field(ge=0)
+    status: EvidenceStatus
+    evidence: str = Field(max_length=1000)
+    question: str = Field(max_length=200)
+
+class EvidenceAssessment(StrictModel):
+    units: list[EvidenceUnit] = Field(min_length=1, max_length=30)
+    feedback: str = Field(min_length=1, max_length=600)
+    transcription_concern: bool
+    concern_reason: str = Field(max_length=500)
+
+class Followup(StrictModel):
+    id: str
+    dimension: Dimension
+    index: int = Field(ge=0)
+    question: str = Field(min_length=1, max_length=200)
+
+class ConversationTurn(StrictModel):
+    attempt_id: str
+    text: str = Field(min_length=1, max_length=8000)
+    followup: Followup | None = None
+
+class Conversation(StrictModel):
+    exercise_id: str
+    state: ConversationState = 'AWAITING_SUMMARY'
+    turns: list[ConversationTurn] = Field(default_factory=list)
+    assessment: EvidenceAssessment | None = None
+    followups: list[Followup] = Field(default_factory=list, max_length=2)
+    active_followup: Followup | None = None
+    pending_attempt_id: str | None = None
+    pending_text: str | None = None
+
+class EvidenceEvaluation(StrictModel):
+    version: Literal['v0.2'] = 'v0.2'
+    main_idea: Score | None
+    details: Score | None
+    vocabulary: Score | None
+    inference: Score | None
+    overall: Score | None
+    coverage: Score
+    dimensions: dict[Dimension, EvidenceStatus]
+    units: list[EvidenceUnit]
+    understood: list[str]
+    insufficient_evidence: list[str]
+    misunderstood: list[str]
+    feedback: str

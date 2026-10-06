@@ -112,9 +112,24 @@ pytest -q tests/live_generation.py -s
 
 The live check uses an isolated temporary database and is excluded from normal test discovery. See [the diagnosed generation failure and fix](docs/GENERATION_FIX.md).
 
+## Vercel frontend / Render API configuration
+
+Set `BACKEND_URL=https://audli-api.onrender.com` in Vercel and rebuild the frontend so Next.js proxies `/api/*` to Render. Set these backend environment variables in Render and restart/redeploy the API:
+
+```dotenv
+AUDLI_ENVIRONMENT=production
+AUDLI_ALLOWED_ORIGINS=https://audli-seven.vercel.app
+```
+
+`AUDLI_ALLOWED_ORIGINS` defaults to empty. Add future frontend/custom-domain origins as a comma-separated list, for example `https://audli-seven.vercel.app,https://audli.example.com`. Each entry must be an HTTP(S) origin with no credentials, path (including trailing slash), query, fragment or wildcard. Invalid entries fail startup. Comparison uses exact scheme, hostname and port; default ports are equivalent. Similar hostnames, subdomains, different schemes and non-default ports are not implicitly allowed.
+
+HTTP(S) origins on `localhost`, `127.0.0.1` and `[::1]` with any port remain accepted in every environment for local development/testing. Requests without an Origin header remain accepted for server clients. The guard still limits JSON bodies to 40,000 bytes and attempt uploads to the configured audio size plus 65,536 bytes, including streamed bodies. No CORS middleware is configured or needed for the same-origin Next.js proxy; this setting does not enable direct cross-origin browser API calls.
+
+After deployment, use the Vercel frontend to save onboarding and start a lesson; verify these requests no longer return the origin-related 403. Verify an unconfigured Origin still receives 403. The allowlist is a browser write-request protection, not authentication: non-browser clients can omit or forge Origin, and read routes are not origin-gated.
+
 ## Prototype limits
 
-Single local/test learner, no authentication or public deployment. Loopback-only use protects the local state; browser write requests from non-local origins are rejected. Hosted/mobile-device access needs explicit access controls and HTTPS. Keep `data/` private; deleting it after stopping the server starts a fresh local profile. Do not reuse real learner data in demo mode.
+Single test learner, no authentication or access controls. Browser writes require a loopback origin or an explicitly configured origin; this does not make the prototype safe for unrestricted public use. Hosted/mobile-device access still needs explicit access controls and HTTPS. Keep `data/` private; deleting it after stopping the server starts a fresh local profile. Do not reuse real learner data in demo mode.
 
 There is no verbal goal extraction, teacher dashboard, payments, pronunciation grading, external media or complex assessment framework. Clip duration is approximate; speed is requested numerically, not inferred from the waveform. LLM comprehension quality and STT fairness still need human/teacher validation; fixture regressions are an initial check, not proof of learning efficacy.
 

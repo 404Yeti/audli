@@ -39,7 +39,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             await provider.client.close()
 
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes)
+    app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.repository = repo
 
     def ai():

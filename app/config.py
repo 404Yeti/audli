@@ -1,12 +1,14 @@
 from pathlib import Path
 from typing import Literal
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from app.security import parse_browser_origin
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='AUDLI_', env_file='.env', extra='ignore')
     openai_api_key: SecretStr | None = Field(default=None, validation_alias='OPENAI_API_KEY')
     environment: Literal['development', 'production'] = 'development'
+    allowed_origins: str = ''
     provider: Literal['openai', 'demo'] = 'openai'
     llm_model: str = 'gpt-4.1-mini'
     transcription_model: str = 'gpt-4o-mini-transcribe'
@@ -20,6 +22,18 @@ class Settings(BaseSettings):
     max_audio_bytes: int = 12 * 1024 * 1024
     max_recording_seconds: int = 120
     max_feedback_words: int = Field(default=50, ge=30, le=50)
+
+    @field_validator('allowed_origins')
+    @classmethod
+    def validate_allowed_origins(cls, value: str) -> str:
+        origins = [origin.strip() for origin in value.split(',') if origin.strip()]
+        for origin in origins:
+            parse_browser_origin(origin)
+        return ','.join(origins)
+
+    @property
+    def browser_origins(self) -> tuple[str, ...]:
+        return tuple(self.allowed_origins.split(',')) if self.allowed_origins else ()
 
     @model_validator(mode='after')
     def thresholds(self):

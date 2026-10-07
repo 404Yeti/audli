@@ -4,6 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } 
 import { AudliLogo, VoiceSession, MicrophoneControl, PrimaryButton, LessonCard, FeedbackCard, LoadingState, RecoveryState, HomeNavigation } from '../components/lesson';
 import { shouldAutoRecord, feedbackOutcome, microphonePermission } from '../lib/session';
 import { LessonLifetime, type LessonOperation } from '../lib/api';
+import { SpokenOnboarding } from '../components/onboarding';
 import { AuthGate } from '../components/auth-gate';
 import { captureRecording, recordingDiagnostic, recordingPreview, previewSource, recordingUpload, type RecordingPreview } from '../lib/recording';
 import { conversationReducer, canRespond, scoreLabel, type ConversationPhase } from '../lib/conversation';
@@ -19,10 +20,49 @@ type Conversation = { state: ConversationPhase; cue_id: string | null; prompt: s
 const labels: Record<string, string> = { main_idea: 'Main idea', details: 'Details', vocabulary: 'Vocabulary understanding', inference: 'Inference' };
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-export default function AudliPage() { return <AuthGate><Audli/></AuthGate>; }
+export default function AudliPage() { return <AuthGate><ApplicationFlow/></AuthGate>; }
 
-function Audli() {
-  const [screen, setScreen] = useState<'home' | 'introduction' | 'lesson'>('home');
+function ApplicationFlow() {
+  const [destination, setDestination] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [firstSession, setFirstSession] = useState(false);
+  const owner = useRef<LessonLifetime | null>(null);
+  async function load(operation: LessonOperation) {
+    const data = await operation.api<{ destination: string }>('/profile');
+    operation.assertCurrent();
+    if (!['onboarding', 'session_ready'].includes(data.destination)) throw new Error('Audli could not restore your application state. Please retry.');
+    setDestination(data.destination); setError('');
+  }
+  const initialLoad = useEffectEvent(load);
+  useEffect(() => {
+    const lifetime = new LessonLifetime(); owner.current = lifetime;
+    const operation = lifetime.begin();
+    // State is restored only after the server response resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void initialLoad(operation).catch(e => { if (operation.current) setError(e.message); }).finally(() => operation.release());
+    return () => lifetime.close();
+  }, []);
+  async function retry() {
+    if (!owner.current?.current) return;
+    const operation = owner.current.begin();
+    try { await load(operation); } catch (e) { if (operation.current) setError(e instanceof Error ? e.message : 'Please retry.'); }
+    finally { operation.release(); }
+  }
+  async function startFirstSession() {
+    if (!owner.current?.current) return;
+    const operation = owner.current.begin();
+    try {
+      await operation.api('/exercises', { method: 'POST' });
+      operation.assertCurrent(); setFirstSession(true); setDestination('session_ready');
+    } finally { operation.release(); }
+  }
+  if (!destination) return <main>{error ? <RecoveryState>{error}<button onClick={retry}>Retry connection</button></RecoveryState> : <LoadingState>Loading your listening space…</LoadingState>}</main>;
+  if (destination === 'onboarding') return <SpokenOnboarding onComplete={startFirstSession}/>;
+  return <Audli firstSession={firstSession}/>;
+}
+
+function Audli({ firstSession = false }: { firstSession?: boolean }) {
+  const [screen, setScreen] = useState<'home' | 'introduction' | 'lesson'>(firstSession ? 'introduction' : 'home');
   const introductionOperation = useRef<LessonOperation | null>(null);
   const playbackOperation = useRef<LessonOperation | null>(null);
   const [introductionError, setIntroductionError] = useState('');
@@ -37,7 +77,6 @@ function Audli() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [flow, dispatch] = useReducer(conversationReducer, { phase: 'LISTENING', awaiting: 'AWAITING_SUMMARY' });
   const [name, setName] = useState('');
-  const [goal, setGoal] = useState('');
   const [busy, setBusy] = useState('Loading your listening space…');
   const [error, setError] = useState('');
   const [elapsed, setElapsed] = useState(0);
@@ -80,7 +119,7 @@ function Audli() {
   async function load(operation: LessonOperation) {
     const [data, current] = await operation.wait(() => Promise.all([operation.api<{ profile: Profile; provider: string }>('/profile'), operation.api<Exercise | null>('/exercises/current')]));
     operation.assertCurrent();
-    setProfile(data.profile); setMode(data.provider); setName(data.profile.name); setGoal(data.profile.goal);
+    setProfile(data.profile); setMode(data.provider); setName(data.profile.name);
     exerciseRef.current = current; setExercise(current);
     if (current) {
       const state = await operation.api<Conversation>(`/exercises/${current.id}/conversation`);
@@ -148,7 +187,6 @@ function Audli() {
   async function next() {
     await run('Preparing your listening clip…', async operation => {
       if (!microphoneGranted.current && !usingAudioFile.current) { await operation.wait(() => microphonePermission(navigator.mediaDevices)); operation.assertCurrent(); microphoneGranted.current = true; }
-      if (!exercise) await operation.api('/profile', json('PUT', { name, goal }));
       operation.assertCurrent();
       const nextExercise = await operation.api<Exercise>('/exercises', { method: 'POST' });
       operation.assertCurrent();
@@ -306,18 +344,13 @@ function Audli() {
   return <main>
     <header>{screen !== 'home' && <button className="back" disabled={recording || !!busy} onClick={() => { cancelPlayback(); setScreen('home'); }}>←<span className="sr-only">Back to Home</span></button>}<strong className="wordmark">audli</strong><span className="language">{screen === 'home' ? 'TODAY' : 'LISTENING PRACTICE'}</span></header>
     {screen === 'home' && <><div className="greeting"><div><h1>Hello{name ? ', ' + name : ''}</h1><p>Ready for a little focused listening?</p></div><AudliLogo small/></div>
-      <LessonCard duration={exercise?.difficulty.duration_seconds ?? profile?.difficulty.duration_seconds}><PrimaryButton disabled={!!busy || !profile} onClick={exercise ? begin : () => document.getElementById('name')?.focus()}>{exercise ? 'Start training →' : 'Set up your practice →'}</PrimaryButton></LessonCard>
+      <LessonCard duration={exercise?.difficulty.duration_seconds ?? profile?.difficulty.duration_seconds}><PrimaryButton disabled={!!busy || !profile} onClick={exercise && !exercise.completed_attempt_id ? begin : next}>Start training →</PrimaryButton></LessonCard>
       <aside className="why"><strong>Why this lesson?</strong><p>{profile?.goal ? 'Practice for ' + profile.goal : 'Clear English that adapts to what you understand.'}</p></aside>
-      {error.includes('Microphone') && <button className="secondary" disabled={!!busy || !name.trim() || !goal.trim()} onClick={() => { usingAudioFile.current = true; if (exercise) setScreen(flow.phase === 'LISTENING' ? 'introduction' : 'lesson'); else void next(); }}>Continue with an audio file</button>}
+      {error.includes('Microphone') && <button className="secondary" disabled={!!busy} onClick={() => { usingAudioFile.current = true; if (exercise) setScreen(flow.phase === 'LISTENING' ? 'introduction' : 'lesson'); else void next(); }}>Continue with an audio file</button>}
     </>}
     {mode === 'demo' && <p className="notice">Demo mode uses synthetic comprehension evidence and manual transcription. Use OpenAI mode for learning assessment.</p>}
     {error && <RecoveryState>{error}{!profile && <button onClick={() => run('Connecting…', load)}>Retry connection</button>}</RecoveryState>}
     {busy && <LoadingState>{busy}</LoadingState>}
-    {profile && !exercise && <section className="card"><p className="eyebrow">LET’S FIND YOUR STARTING POINT</p><h2>Make yourself at home.</h2><form onSubmit={e => { e.preventDefault(); next(); }}>
-      <label htmlFor="name">What should we call you?</label><input id="name" maxLength={80} required value={name} onChange={e => setName(e.target.value)} placeholder="Your name"/>
-      <label htmlFor="goal">What do you want to improve your listening for?</label><textarea id="goal" maxLength={500} required value={goal} onChange={e => setGoal(e.target.value)} placeholder="For example, software engineering meetings"/>
-      <p className="hint">We’ll start with clear, slower English.</p><button className="primary" disabled={!!busy || !name.trim() || !goal.trim()}>Let’s listen <span aria-hidden="true">→</span></button>
-    </form></section>}
     {exercise && screen !== 'home' && <section className="card">
       <VoiceSession state={recording ? 'Recording' : busy ? 'Thinking' : coachSpeaking ? 'Speaking' : result ? 'Success' : attempt ? 'Review' : screen === 'introduction' ? 'Idle' : 'Listening'}/>
       {screen === 'introduction' && <div className="introduction"><h2>Let’s train your ears.</h2><p>Listen to one clear English speaker. Then tell Audli what you understood in your own words.</p><button className="secondary" onClick={speakIntroduction}>Hear Audli’s introduction</button>{introductionError && <p role="status" className="hint">{introductionError}</p>}<PrimaryButton onClick={() => { cancelPlayback(); setCoachSpeaking(false); setScreen('lesson'); playAudio(listeningAudio.current, () => setError('Playback could not start. Tap play to listen.')); }}>Listen to the lesson →</PrimaryButton></div>}

@@ -1,4 +1,5 @@
 from typing import Protocol
+from app.onboarding import ProfileExtraction
 from app.models import ExerciseContent, EvaluationJudgments, LearnerProfile, Transcription, EvidenceAssessment, ConversationTurn
 
 class AIProvider(Protocol):
@@ -9,3 +10,5 @@ class AIProvider(Protocol):
 
     async def speak(self, text: str, speech_rate: float = .9) -> bytes: ...
     async def assess(self, exercise: ExerciseContent, turns: list[ConversationTurn]) -> EvidenceAssessment: ...
+
+    async def extract_profile(self, stage: str, text: str) -> ProfileExtraction: ...

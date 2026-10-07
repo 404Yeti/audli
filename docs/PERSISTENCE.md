@@ -34,7 +34,7 @@ Today, one exercise is one session: generation creates it; final assessment comp
 
 `session_history()` returns UTC-aware timestamps and accepts explicit completion-time bounds (`completed_since`, `before`), rejecting naive datetimes. `session_exercises(session_id)` connects a session to attempt, evidence and adaptation history. No learner timezone/calendar day is inferred. Daily eligibility must later be defined and enforced transactionally on the server.
 
-Onboarding status supports `not_started`, `in_progress`, `profile_saved` and `complete`. Existing typed setup saves `profile_saved`, not full spoken-onboarding completion. The extended existing profile stores interests and target listening situations. The initial listening snapshot stays unknown until a fully evidenced completed assessment. Spoken elicitation, preferences confirmation and the initial assessment workflow remain separate work.
+Onboarding status supports `not_started`, `in_progress`, `profile_saved` and `complete`. Existing typed setup saves `profile_saved`, not full spoken-onboarding completion. The extended existing profile stores interests and target listening situations. The initial listening snapshot stays unknown until a fully evidenced completed assessment. AUD-15 now persists a versioned spoken-onboarding checkpoint inside the existing profile JSONB snapshot; no Migration 002 is needed. See [application lifecycle and acceptance procedure](APPLICATION_FLOW.md). Preferences confirmation explicitly completes onboarding; only real exercise evidence establishes the initial listening snapshot.
 
 ## Configuration
 

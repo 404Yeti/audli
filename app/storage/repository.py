@@ -104,7 +104,7 @@ class SQLProgressRepository:
     def profile(self):
         with self.engine.connect() as db:
             row = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id)).mappings().one()
-            return LearnerProfile(name=row['name'], target_language=row['target_language'], goal=row['goal'],
+            return LearnerProfile(onboarding=row['data'].get('onboarding', {}), name=row['name'], target_language=row['target_language'], goal=row['goal'],
                 interests=row['interests'], target_situations=row['target_situations'],
                 onboarding_status=row['onboarding_status'], initial_listening_profile=row['initial_listening_profile'],
                 listening_profile={key: row[key] for key in ('overall', 'main_idea', 'details', 'vocabulary', 'inference', 'natural_speed')},
@@ -114,6 +114,23 @@ class SQLProgressRepository:
     def save_profile(self, profile: LearnerProfile):
         with self.transaction() as db:
             db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id).values(**profile_values(profile)))
+
+    def save_onboarding(self, profile, expected_revision):
+        """Compare and save only preferences/checkpoint; preserve concurrent learning state."""
+        with self.transaction() as db:
+            row = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id)
+                .with_for_update()).mappings().one()
+            current = LearnerProfile.model_validate(row['data'])
+            if current.onboarding.revision != expected_revision:
+                raise ValueError('Onboarding changed. Reload your saved progress before continuing.')
+            if current.onboarding_status == 'complete':
+                raise ValueError('Onboarding is already complete.')
+            for field in ('name', 'target_language', 'goal', 'interests', 'target_situations', 'onboarding_status', 'onboarding'):
+                setattr(current, field, getattr(profile, field))
+            current.onboarding.revision = expected_revision + 1
+            db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id)
+                .values(**profile_values(current)))
+        return current
 
     def current_exercise(self):
         with self.engine.connect() as db:

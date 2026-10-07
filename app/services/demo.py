@@ -47,3 +47,15 @@ class DemoProvider:
             'evidence': turns[0].text[:1000], 'question': ''} for dim, units in expected_units(exercise).items()
             for i in range(len(units))], feedback='Demo feedback only. Real comprehension needs the OpenAI provider.',
             transcription_concern=False, concern_reason='')
+
+    async def extract_profile(self, stage, text):
+        # Synthetic development plumbing only, not natural-language extraction.
+        from app.onboarding import ProfileExtraction
+        values = dict(name=None, target_language=None, goal=None, target_situations=None, interests=None)
+        if stage == 'identity':
+            values.update(name=text.split(',')[0].strip()[:80], target_language='en' if 'english' in text.lower() else None)
+        elif stage == 'needs':
+            values.update(goal=text[:500], target_situations=[text[:160]])
+        else:
+            values['interests'] = [text[:160]]
+        return ProfileExtraction(**values)

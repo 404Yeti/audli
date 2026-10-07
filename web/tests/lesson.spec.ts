@@ -31,7 +31,7 @@ async function setup(page: Page, denied = false) {
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
-    if (path.endsWith('/profile')) return route.fulfill({json:{profile:{name:'Robert',goal:'work conversations',completed_attempts:0,difficulty},provider:'openai'}});
+    if (path.endsWith('/profile')) return route.fulfill({json:{destination:'session_ready',profile:{name:'Robert',goal:'work conversations',completed_attempts:0,difficulty},provider:'openai'}});
     if (path.endsWith('/current') || path === '/api/exercises') return route.fulfill({json:{id:'clip',audio_url:'/api/listening-audio',difficulty,completed_attempt_id:null}});
     if (path.endsWith('/conversation/listened')) { phase='AWAITING_SUMMARY';cue='summary';return route.fulfill({json:conversation()}); }
     if (path.endsWith('/conversation')) return route.fulfill({json:conversation()});

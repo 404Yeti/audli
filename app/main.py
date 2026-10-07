@@ -16,6 +16,8 @@ from app.models import ExerciseContent, StrictModel, Transcription
 from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
+from app.onboarding_api import register_onboarding_routes
+from app.onboarding import application_destination
 from app.security import LocalRequestGuard
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
 
@@ -122,13 +124,16 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @app.get('/api/profile')
     async def profile():
-        return {'profile': repo.profile(), 'provider': settings.provider}
+        profile = repo.profile()
+        return {'profile': profile, 'provider': settings.provider,
+                'destination': application_destination(profile)}
 
     @app.put('/api/profile')
     async def onboard(body: Onboarding):
         async with lock:
             profile = repo.profile()
-            if repo.current_exercise():
+            if (repo.current_exercise() or profile.onboarding.revision > 0
+                    or profile.onboarding_status in ('in_progress', 'complete')):
                 raise HTTPException(409, 'Your profile is already set up.')
             profile.name, profile.goal = body.name.strip(), body.goal.strip()
             if not profile.name or not profile.goal:
@@ -252,6 +257,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def history():
         return repo.history()
 
+    register_onboarding_routes(app, repo, ai, lock, settings)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
     return app
 

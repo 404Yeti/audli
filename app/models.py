@@ -20,12 +20,26 @@ class Difficulty(StrictModel):
     background_noise: Literal[0] = 0
 
 class ListeningProfile(StrictModel):
+    # Starting priors, not observed scores: initial_listening_profile is null
+    # until a fully evidenced exercise assessment establishes a baseline.
     overall: Score = .7
     main_idea: Score = .7
     details: Score = .7
     vocabulary: Score = .7
     inference: Score = .7
     natural_speed: Score | None = None
+
+class Transcription(StrictModel):
+    text: str = Field(max_length=8000)
+    confidence: Score | None = None
+    uncertainty: list[str] = Field(default_factory=list)
+    source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
+
+class OnboardingProgress(StrictModel):
+    version: Literal[1] = 1
+    stage: Literal['identity', 'needs', 'interests', 'review'] = 'identity'
+    revision: int = Field(default=0, ge=0)
+    pending: Transcription | None = None
 
 class LearnerProfile(StrictModel):
     name: str = Field(default='Listener', min_length=1, max_length=80)
@@ -34,6 +48,7 @@ class LearnerProfile(StrictModel):
     interests: list[str] = Field(default_factory=lambda: ['technology'])
     target_situations: list[str] = Field(default_factory=list, max_length=30)
     onboarding_status: Literal['not_started', 'in_progress', 'profile_saved', 'complete'] = 'not_started'
+    onboarding: OnboardingProgress = Field(default_factory=OnboardingProgress)
     initial_listening_profile: ListeningProfile | None = None
     listening_profile: ListeningProfile = Field(default_factory=ListeningProfile)
     difficulty: Difficulty = Field(default_factory=Difficulty)
@@ -93,12 +108,6 @@ class Evaluation(StrictModel):
     misunderstood: list[str]
     feedback: str
     units: list[UnitJudgment]
-
-class Transcription(StrictModel):
-    text: str = Field(max_length=8000)
-    confidence: Score | None = None
-    uncertainty: list[str] = Field(default_factory=list)
-    source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
 
 class Adaptation(StrictModel):
     previous_score: Score | None

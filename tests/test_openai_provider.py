@@ -35,7 +35,8 @@ async def run_provider(handler, operation):
 
 
 def test_generation_and_speech_use_adapted_difficulty(exercise):
-    profile = LearnerProfile()
+    profile = LearnerProfile(name='Maya', goal='Understand incident handovers',
+        interests=['astronomy'], target_situations=['technical discussions'])
     profile.difficulty.speech_rate = .8
     adapted = exercise.model_copy(update={'speech_rate': .8})
     requests = []
@@ -45,6 +46,10 @@ def test_generation_and_speech_use_adapted_difficulty(exercise):
         if request.url.path.endswith('/responses'):
             supplied = json.loads(data['input'][1]['content'])
             assert supplied['profile']['difficulty'] == profile.difficulty.model_dump()
+            assert supplied['profile']['goal'] == profile.goal
+            assert supplied['profile']['interests'] == profile.interests
+            assert supplied['profile']['target_situations'] == profile.target_situations
+            assert 'goal, interests and target listening situations' in data['input'][0]['content']
             assert supplied['approximate_word_count'] == 90
             assert data['store'] is False
             assert data['text']['format']['strict'] is True
@@ -500,3 +505,28 @@ def test_v2_vocabulary_paraphrase_and_followup_turns_use_learner_evidence_only(e
         assert final_evaluation(phone, result).overall == 1
         assert 'refurbished' not in summary
     asyncio.run(run_provider(handler, check))
+
+
+@pytest.mark.parametrize('stage,values', [
+    ('identity', {'name':'Maya', 'target_language':'en'}),
+    ('needs', {'goal':'Understand technical discussions', 'target_situations':['incident handovers']}),
+    ('interests', {'interests':['astronomy', 'cooking']}),
+])
+def test_spoken_preferences_use_strict_sdk_extraction_without_listening_scores(stage, values):
+    from app.onboarding import ProfileExtraction
+    payload = dict(name=None, target_language=None, goal=None, target_situations=None, interests=None) | values
+    answer = 'Me Maya. English for work understand people. I like science.'
+    def handler(request):
+        data = json.loads(request.content)
+        supplied = json.loads(data['input'][1]['content'])
+        assert supplied == {'stage':stage, 'answer':answer}
+        assert data['store'] is False
+        assert data['text']['format']['strict'] is True
+        schema = data['text']['format']['schema']
+        assert set(schema['properties']) == set(payload)
+        assert schema['additionalProperties'] is False
+        assert 'listening ability' in data['input'][0]['content']
+        return response(payload)
+    async def operation(provider):
+        assert await provider.extract_profile(stage, answer) == ProfileExtraction(**payload)
+    asyncio.run(run_provider(handler, operation))

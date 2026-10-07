@@ -1,6 +1,6 @@
 # Authenticated learner identity (AUD-14)
 
-AUD-13 production persistence was manually verified by the owner. AUD-14 adds account identity and isolation; it remains In Progress until review and manual production verification. No production settings or database are changed by implementation/tests.
+AUD-13 production persistence was manually verified by the owner. AUD-14 account identity and isolation passed controlled production acceptance on 2026-10-07 (final Linear production-verification comment). AUD-15 adds the lifecycle described in [APPLICATION_FLOW.md](APPLICATION_FLOW.md). Historical pending-verification notes below describe the earlier AUD-14 implementation stage. No production settings or database are changed by implementation/tests.
 
 ## Architecture and trust boundary
 
@@ -115,7 +115,7 @@ The browser SDK stores access/refresh credentials in local storage. Protect the 
 
 Each protected request incurs an Auth-network round trip; Auth outages fail closed. No token cache or offline fallback is introduced. A deleted/replaced account does not automatically delete or transfer its retained learner data. Account deletion/export/retention and password recovery UI are not implemented. Abuse controls/quotas and SMTP operational readiness are still needed before unrestricted public signup; auth alone does not cap OpenAI usage.
 
-One API worker and the existing application lock still govern provider/conversation checkpoints; authentication does not change those persistence/concurrency invariants. Spoken onboarding is AUD-15; daily eligibility, timezone policy and session budgets are AUD-16. Neither flow, daily lockout nor a UI redesign is implemented here.
+One API worker and the existing application lock still govern provider/conversation checkpoints; authentication does not change those persistence/concurrency invariants. Spoken onboarding and authenticated lifecycle are documented in [AUD-15 application flow](APPLICATION_FLOW.md); daily eligibility, timezone policy and session budgets remain AUD-16. No daily lockout or broad UI redesign is implemented.
 
 ## Local verification recorded on 2026-10-06
 

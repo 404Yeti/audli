@@ -1,544 +1,175 @@
 import { test, expect, type Page } from '@playwright/test';
+import { installVoice, promptWav, probe, endAudio } from './voice-fixture';
 
-const userId = '00000000-0000-0000-0000-000000000001';
-const user = { id: userId, email: 'learner@example.com', email_confirmed_at: '2026-10-06T00:00:00Z', app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: {}, aud: 'authenticated', created_at: '2026-10-06T00:00:00Z' };
-const token = [Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'), Buffer.from(JSON.stringify({ sub: userId, email: user.email, exp: Math.floor(Date.now()/1000)+3600, aud: 'authenticated', role: 'authenticated' })).toString('base64url'), 'mock-signature'].join('.');
-
-const userB = { ...user, id: '00000000-0000-0000-0000-000000000002', email: 'bob@example.com' };
-const tokenB = [token.split('.')[0], Buffer.from(JSON.stringify({ sub: userB.id, email: userB.email, exp: Math.floor(Date.now()/1000)+3600, aud: 'authenticated', role: 'authenticated' })).toString('base64url'), 'mock-signature-b'].join('.');
-
-async function setupAuth(page: Page, training = false) {
-  const requests: { path: string; authorization: string | undefined; method: string; body: string | null }[] = [];
-  let reject = false;
-  let listened = false;
-  await page.route('https://audli-auth-test.supabase.co/**', route => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith('/signup')) return route.fulfill({ json: user });
-    if (path.endsWith('/logout')) return route.fulfill({ status: 204 });
-    if (path.endsWith('/token')) {
-      const second = route.request().postDataJSON()?.email === userB.email;
-      return route.fulfill({ json: { access_token: second ? tokenB : token, refresh_token: 'mock-refresh-token', expires_in: 3600, token_type: 'bearer', user: second ? userB : user } });
-    }
-    return route.fulfill({ json: user });
+const userId='00000000-0000-0000-0000-000000000001';
+const user={id:userId,email:'learner@example.com',email_confirmed_at:'2026-10-06T00:00:00Z',app_metadata:{provider:'email',providers:['email']},user_metadata:{},aud:'authenticated',created_at:'2026-10-06T00:00:00Z'};
+const userB={...user,id:'00000000-0000-0000-0000-000000000002',email:'bob@example.com'};
+const tokenFor=(id:string)=>[Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),Buffer.from(JSON.stringify({sub:id,exp:Math.floor(Date.now()/1000)+3600,aud:'authenticated',role:'authenticated'})).toString('base64url'),'mock-signature'].join('.');
+const token=tokenFor(userId),tokenB=tokenFor(userB.id);
+type Request={path:string;authorization:string|undefined;method:string;body:string|null};
+async function setupAuth(page:Page,training=false){
+  const requests:Request[]=[];let reject=false,listened=false;
+  await page.route('https://audli-auth-test.supabase.co/**',route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path.endsWith('/signup'))return route.fulfill({json:user});
+    if(path.endsWith('/logout'))return route.fulfill({status:204});
+    if(path.endsWith('/token')){const second=route.request().postDataJSON()?.email===userB.email;return route.fulfill({json:{access_token:second?tokenB:token,refresh_token:'mock-refresh-token',expires_in:3600,token_type:'bearer',user:second?userB:user}});}
+    return route.fulfill({json:user});
   });
-  await page.route('**/api/**', route => {
-    const path = new URL(route.request().url()).pathname;
-    const authorization = route.request().headers()['authorization'];
-    if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'supabase' } });
-    requests.push({ path, authorization, method: route.request().method(), body: route.request().postData() });
-    if (reject || ![`Bearer ${token}`, `Bearer ${tokenB}`].includes(authorization ?? '')) return route.fulfill({ status: 401, json: { detail: 'Your session expired or is invalid. Please sign in again.' } });
-    if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: authorization === `Bearer ${tokenB}` ? 'Bob' : 'Alice', goal: 'Meetings', completed_attempts: 0, difficulty: { speech_rate: .75, duration_seconds: 45 } }, provider: 'openai' } });
-    if (path === '/api/exercises/current') return route.fulfill({ json: training && authorization !== `Bearer ${tokenB}` ? { id: 'clip', audio_url: '/api/exercises/clip/audio', difficulty: { duration_seconds: 45 }, completed_attempt_id: null } : null });
-    if (path === '/api/exercises') return route.fulfill({ json: { id: 'clip', audio_url: '/api/exercises/clip/audio', difficulty: { duration_seconds: 45 }, completed_attempt_id: null } });
-    if (path.endsWith('/conversation/listened')) listened = true;
-    if (path.endsWith('/conversation') || path.endsWith('/conversation/listened')) return route.fulfill({ json: { state: listened ? 'AWAITING_SUMMARY' : 'LISTENING', cue_id: listened ? 'summary' : null, prompt: listened ? 'Tell me what you understood.' : null, active_followup: null, pending_attempt: null, result: null } });
-    if (path.endsWith('/coach-audio')) return route.fulfill({ json: { audio_url: '/api/exercises/clip/coach-audio/summary' } });
-    if (path.endsWith('/audio') || path.endsWith('/coach-audio/summary')) return route.fulfill({ contentType: 'audio/wav', body: Buffer.alloc(44) });
-    return route.fulfill({ json: {} });
+  await page.route('**/api/**',route=>{
+    const path=new URL(route.request().url()).pathname,authorization=route.request().headers()['authorization'];
+    if(path==='/api/auth/config')return route.fulfill({json:{mode:'supabase'}});
+    requests.push({path,authorization,method:route.request().method(),body:route.request().postData()});
+    if(reject||![`Bearer ${token}`,`Bearer ${tokenB}`].includes(authorization??''))return route.fulfill({status:401,json:{detail:'Your session expired or is invalid. Please sign in again.'}});
+    if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:authorization===`Bearer ${tokenB}`?'Bob':'Alice',goal:'Meetings',completed_attempts:0},provider:'openai'}});
+    if(path==='/api/history')return route.fulfill({json:[]});
+    if(path==='/api/exercises/current')return route.fulfill({json:training&&authorization!==`Bearer ${tokenB}`?{id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null}:null});
+    if(path==='/api/exercises')return route.fulfill({json:{id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null}});
+    if(path.endsWith('/conversation/listened'))listened=true;
+    if(path.endsWith('/conversation')||path.endsWith('/conversation/listened'))return route.fulfill({json:{state:listened?'AWAITING_SUMMARY':'LISTENING',cue_id:listened?'summary':null,prompt:listened?'Tell me what you understood.':null,active_followup:null,pending_attempt:null,result:null}});
+    if(path.endsWith('/coach-audio'))return route.fulfill({json:{audio_url:'/api/exercises/clip/coach-audio/summary'}});
+    return route.fulfill({contentType:'audio/wav',body:promptWav()});
   });
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-  return { requests, expire() { reject = true; } };
+  await page.goto('/');await expect(page.getByRole('button',{name:'I already have an account'})).toBeVisible();await page.getByRole('button',{name:'I already have an account'}).click();
+  return {requests,expire(){reject=true;}};
 }
-async function signIn(page: Page, email = user.email) {
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByLabel('Password', { exact: true }).fill('test-password');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+async function showSignIn(page:Page){await expect(page.getByRole('button',{name:'Sign in',exact:true}).or(page.getByRole('button',{name:'I already have an account'}))).toBeVisible();if(await page.getByRole('button',{name:'I already have an account'}).count())await page.getByRole('button',{name:'I already have an account'}).click();}
+async function signIn(page:Page,email=user.email){await page.getByLabel('Email',{exact:true}).fill(email);await page.getByLabel('Password',{exact:true}).fill('test-password');await page.getByRole('button',{name:'Sign in',exact:true}).click();}
+async function signOut(page:Page){await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();await showSignIn(page);}
+async function externalLogout(page:Page){
+  // Actual SDK cross-tab lifecycle; no test access to application internals.
+  await page.evaluate(()=>{localStorage.removeItem('audli-auth-session');const channel=new BroadcastChannel('audli-auth-session');channel.postMessage({event:'SIGNED_OUT',session:null});channel.close();});
+  await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
 }
+async function switchToB(page:Page){await externalLogout(page);await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();}
+async function speaking(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Speaking');}
+async function listening(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Listening');}
 
-test('unauthenticated gate sends no learner requests; confirmed sign-in loads own state and logout clears it', async ({ page }) => {
-  const state = await setupAuth(page);
-  expect(state.requests).toEqual([]);
-  await signIn(page);
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toBeVisible();
-  expect(state.requests.length).toBeGreaterThan(0);
-  expect(state.requests.every(request => request.authorization === `Bearer ${token}`)).toBe(true);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toHaveCount(0);
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-  await signIn(page);
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toBeVisible();
+test('unauthenticated Landing is private; sign-in reload and logout preserve ownership',async({page})=>{
+  const fixture=await setupAuth(page);expect(fixture.requests).toEqual([]);await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();
+  expect(fixture.requests.every(x=>x.authorization===`Bearer ${token}`)).toBe(true);await page.reload();await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();await signOut(page);await expect(page.getByText('Alice',{exact:false})).toHaveCount(0);
+  await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();
 });
-
-test('signup asks for email confirmation and does not initialize learner state', async ({ page }) => {
-  const state = await setupAuth(page);
-  await page.getByRole('button', { name: 'Create an account', exact: true }).click();
-  await page.getByLabel('Email', { exact: true }).fill(user.email);
-  await page.getByLabel('Password', { exact: true }).fill('test-password');
-  await page.getByRole('button', { name: 'Sign up', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Check your email');
-  expect(state.requests).toEqual([]);
+test('signup requires email confirmation and initializes no learner',async({page})=>{
+  const fixture=await setupAuth(page);await page.getByRole('button',{name:'New to Audli? Create an account'}).click();await page.getByLabel('Email').fill(user.email);await page.getByLabel('Password').fill('test-password');await page.getByRole('button',{name:'Sign up',exact:true}).click();
+  await expect(page.getByRole('status')).toContainText('Check your email');expect(fixture.requests).toEqual([]);
 });
-
-test('invalid persisted session unmounts learner state and requires sign-in', async ({ page }) => {
-  const state = await setupAuth(page);
-  await signIn(page);
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toBeVisible();
-  state.expire();
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('session expired');
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toHaveCount(0);
+test('invalid persisted session fails closed and requires sign-in',async({page})=>{
+  const fixture=await setupAuth(page);await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();fixture.expire();await page.reload();await expect(page.getByRole('status')).toContainText('session expired');await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toHaveCount(0);
 });
-
-test('authentication connection failure fails closed with a retry', async ({ page }) => {
-  await page.route('**/api/auth/config', route => route.fulfill({ status: 502, contentType: 'text/html', body: 'Unavailable' }));
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Set up your practice' })).toHaveCount(0);
+test('auth connection failure exposes only recovery',async({page})=>{
+  await page.route('**/api/auth/config',route=>route.fulfill({status:502,contentType:'text/html',body:'Unavailable'}));await page.goto('/');await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible();await expect(page.getByRole('button',{name:'Start today’s session'})).toHaveCount(0);
 });
-
-test('logout stops an active microphone and prevents a discarded recording upload', async ({ page }) => {
-  await page.addInitScript(() => {
-    sessionStorage.setItem('stopped-tracks', '0');
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => ({ getTracks: () => [{ stop() { sessionStorage.setItem('stopped-tracks', String(Number(sessionStorage.getItem('stopped-tracks')) + 1)); } }] }) });
-    class Recorder {
-      static isTypeSupported() { return true; }
-      state = 'inactive'; mimeType = 'audio/webm';
-      ondataavailable: ((event: { data: Blob }) => void) | null = null;
-      onstop: (() => void) | null = null;
-      start() { this.state = 'recording'; }
-      stop() { this.state = 'inactive'; queueMicrotask(() => { this.ondataavailable?.({ data: new Blob(['discarded'], { type: this.mimeType }) }); this.onstop?.(); }); }
-    }
-    Object.defineProperty(window, 'MediaRecorder', { value: Recorder });
-    HTMLMediaElement.prototype.play = async function () {};
-    HTMLMediaElement.prototype.pause = function () {};
-  });
-  const state = await setupAuth(page, true);
-  await signIn(page);
-  await page.getByRole('button', { name: 'Start training' }).click();
-  await page.getByRole('button', { name: 'Listen to the lesson' }).click();
-  await page.getByLabel('Play listening exercise').evaluate(element => element.dispatchEvent(new Event('ended')));
-  await expect(page.getByLabel('Hear Audli’s message')).toBeVisible();
-  await page.getByLabel('Hear Audli’s message').evaluate(element => element.dispatchEvent(new Event('ended')));
-  await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeVisible();
-  const before = await page.evaluate(() => Number(sessionStorage.getItem('stopped-tracks')));
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => Number(sessionStorage.getItem('stopped-tracks')))).toBeGreaterThan(before);
-  expect(state.requests.some(request => request.path.endsWith('/attempts'))).toBe(false);
+test('failed remote logout still clears browser credentials',async({page})=>{
+  await setupAuth(page);await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();await page.route('https://audli-auth-test.supabase.co/auth/v1/logout**',route=>route.fulfill({status:500,json:{message:'Offline'}}));await signOut(page);await expect(page.getByRole('status')).toContainText('Signed out here');await page.reload();await expect(page.getByRole('button',{name:'I already have an account'})).toBeVisible();
 });
-
-test('failed remote logout still clears persisted browser credentials', async ({ page }) => {
-  await setupAuth(page);
-  await signIn(page);
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toBeVisible();
-  await page.route('https://audli-auth-test.supabase.co/auth/v1/logout**', route => route.fulfill({ status: 500, json: { message: 'Offline' } }));
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Signed out here');
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+test('token refresh continues the same account-bound session',async({page})=>{
+  await installVoice(page);const fixture=await setupAuth(page);await signIn(page);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
+  await page.evaluate(()=>{const session=JSON.parse(localStorage.getItem('audli-auth-session')!);session.expires_at=Math.floor(Date.now()/1000)-1;localStorage.setItem('audli-auth-session',JSON.stringify(session));});
+  const refreshed=page.waitForRequest(request=>request.url().includes('grant_type=refresh_token'));await page.getByRole('button',{name:'Start today’s session'}).click();await refreshed;await speaking(page);expect(fixture.requests.some(x=>x.path==='/api/exercises')).toBe(true);
 });
-
-test('refresh during a learner request keeps the same account and continues the lesson', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => ({ getTracks: () => [{ stop() {} }] }) });
-  });
-  const state = await setupAuth(page);
-  await signIn(page);
-  await expect(page.getByRole('heading', { name: 'Hello, Alice' })).toBeVisible();
-  await page.evaluate(() => {
-    const session = JSON.parse(localStorage.getItem('audli-auth-session')!);
-    session.expires_at = Math.floor(Date.now()/1000) - 1;
-    localStorage.setItem('audli-auth-session', JSON.stringify(session));
-  });
-  const refresh = page.waitForRequest(request => request.url().includes('grant_type=refresh_token'));
-  await page.getByRole('button', { name: 'Start training', exact: false }).click();
-  await refresh;
-  await expect(page.getByRole('heading', { name: 'Let’s train your ears.' })).toBeVisible();
-  expect(state.requests.some(request => request.path === '/api/exercises')).toBe(true);
+test('cross-tab logout stops active capture and never uploads the discarded answer',async({page})=>{
+  await installVoice(page);const fixture=await setupAuth(page,true);await signIn(page);await page.getByRole('button',{name:'Start today’s session'}).click();await speaking(page);await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);await listening(page);
+  const before=(await probe(page)).tracks;await externalLogout(page);expect((await probe(page)).tracks).toBeGreaterThan(before);expect(fixture.requests.some(x=>x.path.endsWith('/attempts'))).toBe(false);expect((await probe(page)).revoked).toEqual((await probe(page)).urls);
 });
-
-async function delayedMedia(page: Page, delayCall: number) {
-  await page.addInitScript(({ delayCall }) => {
-    const race = { calls: 0, stopped: 0, recorders: 0, release: undefined as (() => void) | undefined };
-    (window as unknown as { mediaRace: typeof race }).mediaRace = race;
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: () => {
-      race.calls++;
-      const stream = { getTracks: () => [{ stop() { race.stopped++; } }] };
-      return race.calls === delayCall ? new Promise(resolve => { race.release = () => resolve(stream); }) : Promise.resolve(stream);
-    } });
-    class Recorder {
-      static isTypeSupported() { return true; }
-      state = 'inactive'; mimeType = 'audio/webm';
-      constructor() { race.recorders++; }
-      start() { this.state = 'recording'; }
-      stop() { this.state = 'inactive'; }
-    }
-    Object.defineProperty(window, 'MediaRecorder', { value: Recorder });
-    HTMLMediaElement.prototype.play = async function () {};
-    HTMLMediaElement.prototype.pause = function () {};
-  }, { delayCall });
-}
-async function switchToB(page: Page) {
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
-  await signIn(page, userB.email);
-  await expect(page.getByRole('heading', { name: 'Hello, Bob' })).toBeVisible();
-}
-async function releaseMedia(page: Page) {
-  await page.evaluate(() => (window as unknown as { mediaRace: { release?: () => void } }).mediaRace.release?.());
-  await expect.poll(() => page.evaluate(() => (window as unknown as { mediaRace: { stopped: number } }).mediaRace.stopped)).toBeGreaterThan(0);
-  // Observe the network after promise/microtask continuations have had a chance to run.
-  await page.waitForTimeout(200);
-}
-
-test('pending setup permission cannot write A profile or start an exercise under B', async ({ page }) => {
-  await delayedMedia(page, 1);
-  const state = await setupAuth(page);
-  await signIn(page);
-  await page.getByRole('button', { name: 'Start training', exact: false }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { mediaRace: { calls: number } }).mediaRace.calls)).toBe(1);
-  await switchToB(page);
-  await releaseMedia(page);
-  expect(state.requests.filter(request => request.method !== 'GET')).toEqual([]);
-  await expect(page.getByRole('heading', { name: 'Hello, Bob' })).toBeVisible();
-});
-
-test('late exercise generation cannot continue conversation/profile/audio work after account switch', async ({ page }) => {
-  await delayedMedia(page, 99);
-  const state = await setupAuth(page);
-  let release: (() => Promise<void>) | undefined;
-  await page.route('**/api/exercises', async route => {
-    state.requests.push({ path: '/api/exercises', method: route.request().method(), authorization: route.request().headers()['authorization'], body: route.request().postData() });
-    await new Promise<void>(resolve => {
-      release = async () => { await route.fulfill({ json: { id: 'late-a', audio_url: '/api/exercises/late-a/audio', difficulty: {}, completed_attempt_id: null } }).catch(() => {}); resolve(); };
-    });
-  });
-  await signIn(page);
-  await page.getByRole('button', { name: 'Start training', exact: false }).click();
-  await expect.poll(() => !!release).toBe(true);
-  await switchToB(page);
-  const count = state.requests.length;
-  await release!();
-  await page.waitForTimeout(200);
-  expect(state.requests.length).toBe(count);
-  expect(state.requests.filter(request => request.authorization === `Bearer ${tokenB}` && request.method !== 'GET')).toEqual([]);
-  await expect(page.getByRole('heading', { name: 'Hello, Bob' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Let’s train your ears.' })).toHaveCount(0);
-});
-
-test('late recording acquisition releases tracks without creating a recorder or uploading under B', async ({ page }) => {
-  await delayedMedia(page, 2);
-  const state = await setupAuth(page, true);
-  await signIn(page);
-  await page.getByRole('button', { name: 'Start training' }).click();
-  await page.getByRole('button', { name: 'Listen to the lesson' }).click();
-  await page.getByLabel('Play listening exercise').evaluate(element => element.dispatchEvent(new Event('ended')));
-  await expect(page.getByLabel('Hear Audli’s message')).toBeVisible();
-  await page.getByLabel('Hear Audli’s message').evaluate(element => element.dispatchEvent(new Event('ended')));
-  await expect.poll(() => page.evaluate(() => (window as unknown as { mediaRace: { calls: number } }).mediaRace.calls)).toBe(2);
-  await switchToB(page);
-  await releaseMedia(page);
-  expect(await page.evaluate(() => (window as unknown as { mediaRace: { stopped: number; recorders: number } }).mediaRace)).toMatchObject({ stopped: 2, recorders: 0 });
-  expect(state.requests.some(request => request.path.endsWith('/attempts'))).toBe(false);
-  expect(state.requests.some(request => request.authorization === `Bearer ${tokenB}` && request.method !== 'GET')).toBe(false);
-});
-
-async function setupOnboarding(page: Page, legacy = false, audioMode: 'failure' | 'success' | 'race' = 'failure') {
-  await page.addInitScript(({ audioMode }) => {
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => ({ getTracks: () => [{ stop() {} }] }) });
-    class Recorder {
-      static isTypeSupported() { return true; }
-      state = 'inactive'; mimeType = 'audio/webm';
-      ondataavailable: ((event: { data: Blob }) => void) | null = null;
-      onstop: (() => void) | null = null;
-      start() { this.state = 'recording'; }
-      stop() { this.state = 'inactive'; queueMicrotask(() => { this.ondataavailable?.({ data: new Blob(['spoken preferences'], { type: this.mimeType }) }); this.onstop?.(); }); }
-    }
-    Object.defineProperty(window, 'MediaRecorder', { value: Recorder });
-    if (audioMode === 'failure') {
-      HTMLMediaElement.prototype.play = async function () {};
-      HTMLMediaElement.prototype.pause = function () {};
-    }
-  }, { audioMode });
-  const requests = await setupAuth(page);
-  const profile = { name: 'Listener', goal: 'Everyday English', target_language: 'en', interests: [] as string[], target_situations: [] as string[], onboarding_status: legacy ? 'profile_saved' : 'not_started', completed_attempts: 0, difficulty: { speech_rate: .75, duration_seconds: 45 } };
-  let stage = 'identity', revision = 0, pending: { text: string; uncertainty: string[] } | null = null;
-  let failTranscribe = false, failComplete = false, generated = false;
-  let releaseAudio: (() => void) | undefined;
-  const audioRevisions: number[] = [];
-  let conflicts = 0;
-  await page.route('**/api/exercises', route => { generated = true; return route.fulfill({ json: { id: 'first', audio_url: '/api/exercises/first/audio', difficulty: profile.difficulty, completed_attempt_id: null } }); });
-  await page.route('**/api/exercises/current', route => route.fulfill({ json: generated ? { id: 'first', audio_url: '/api/exercises/first/audio', difficulty: profile.difficulty, completed_attempt_id: null } : null }));
-  const snapshot = () => ({ profile, stage, revision, pending, prompt: stage === 'identity' ? 'What should I call you, and what language are you training?' : stage === 'needs' ? 'What situations matter to you?' : stage === 'interests' ? 'What topics do you enjoy?' : 'Check your listening preferences.', destination: profile.onboarding_status === 'complete' ? 'session_ready' : 'onboarding' });
-  await page.route('**/api/profile', async route => {
-    if (route.request().headers()['authorization'] === `Bearer ${tokenB}`) return route.fulfill({ json: { destination: 'session_ready', profile: { ...profile, name: 'Bob' }, provider: 'openai' } });
-    return route.fulfill({ json: { destination: snapshot().destination, profile, provider: 'openai' } });
-  });
-  await page.route('**/api/onboarding**', async route => {
-    const path = new URL(route.request().url()).pathname;
-    requests.requests.push({ path, method: route.request().method(), authorization: route.request().headers()['authorization'], body: route.request().postData() });
-    if (path.endsWith('/audio')) {
-      if (audioMode === 'failure') return route.fulfill({ status: 503, json: { detail: 'Voice unavailable' } });
-      const requested = route.request().postDataJSON().revision as number;
-      audioRevisions.push(requested);
-      if (audioMode === 'race' && requested === 0) await new Promise<void>(resolve => { releaseAudio = resolve; });
-      if (requested !== revision) { conflicts++; return route.fulfill({ status: 409, json: { detail: 'Onboarding changed. Reload saved progress.' } }); }
-      return route.fulfill({ contentType: 'audio/wav', body: promptWav() });
-    }
-    if (path.endsWith('/start')) { profile.onboarding_status = 'in_progress'; revision++; }
-    if (path.endsWith('/attempts')) {
-      if (failTranscribe) { failTranscribe = false; return route.fulfill({ status: 503, json: { detail: 'Transcription failed. Retry your recording.' } }); }
-      pending = { text: 'Maya English, work meetings and science', uncertainty: ['Check what I heard.'] }; revision++;
-    }
-    if (path.endsWith('/answer')) {
-      if (stage === 'identity') { profile.name = 'Maya'; stage = 'needs'; }
-      else if (stage === 'needs') { profile.goal = 'Understand meetings'; profile.target_situations = ['work meetings']; stage = 'interests'; }
-      else { profile.interests = ['science']; stage = 'review'; profile.onboarding_status = 'profile_saved'; }
-      pending = null; revision++;
-    }
-    if (path.endsWith('/complete')) {
-      profile.onboarding_status = 'complete'; revision++;
-      if (failComplete) { failComplete = false; return route.fulfill({ status: 503, json: { detail: 'Response interrupted. Progress is safe.' } }); }
-    }
-    return route.fulfill({ json: snapshot() });
-  });
-  await signIn(page);
-  await expect(page.getByRole('button', { name: 'Let’s talk', exact: true })).toBeVisible();
-  return { requests: requests.requests, audioRevisions, get conflicts() { return conflicts; }, get revision() { return revision; }, get audioPending() { return !!releaseAudio; }, releaseAudio() { releaseAudio?.(); }, failTranscription() { failTranscribe = true; }, interruptCompletion() { failComplete = true; } };
-}
-async function onboardingAnswer(page: Page) {
-  await page.getByRole('button', { name: 'Record answer', exact: true }).click();
-  await page.getByRole('button', { name: 'Finish answer', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Did I hear you correctly?' })).toBeVisible();
-}
-
-test('spoken onboarding resumes recognition and stages across refresh and logout, then opens first lesson', async ({ page }) => {
-  const state = await setupOnboarding(page);
-  await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-  await onboardingAnswer(page);
-  await page.reload();
-  await expect(page.getByLabel('Your spoken answer')).toHaveValue('Maya English, work meetings and science');
-  await page.getByRole('button', { name: 'That’s what I said', exact: true }).click();
-  await page.reload();
-  await expect(page.getByText('What situations matter to you?', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click(); await signIn(page);
-  await expect(page.getByText('What situations matter to you?', { exact: true })).toBeVisible();
-  for (let i = 0; i < 2; i++) { await onboardingAnswer(page); await page.getByRole('button', { name: 'That’s what I said', exact: true }).click(); }
-  await expect(page.getByText('Interests: science', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'That’s right. Let’s train your ears.', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Let’s train your ears.' })).toBeVisible();
-  expect(state.requests.filter(r => r.path === '/api/onboarding/answer')).toHaveLength(3);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Hello, Maya' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Let’s make this yours.' })).toHaveCount(0);
-});
-
-test('onboarding transcription and interrupted completion recover without repeating stages', async ({ page }) => {
-  const state = await setupOnboarding(page);
-  await page.getByRole('button', { name: 'Let’s talk', exact: true }).click(); state.failTranscription();
-  await page.getByRole('button', { name: 'Record answer', exact: true }).click();
-  await page.getByRole('button', { name: 'Finish answer', exact: true }).click();
-  await expect(page.locator('main').getByRole('alert')).toContainText('Transcription failed');
-  await page.getByRole('button', { name: 'Retry transcription', exact: true }).click();
-  await page.getByRole('button', { name: 'That’s what I said', exact: true }).click();
-  for (let i = 0; i < 2; i++) { await onboardingAnswer(page); await page.getByRole('button', { name: 'That’s what I said', exact: true }).click(); }
-  state.interruptCompletion();
-  await page.getByRole('button', { name: 'That’s right. Let’s train your ears.', exact: true }).click();
-  await expect(page.locator('main').getByRole('alert')).toContainText('Response interrupted');
-  await page.getByRole('button', { name: 'Reload saved progress', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Let’s train your ears.' })).toBeVisible();
-  expect(state.requests.filter(r => r.path === '/api/onboarding/answer')).toHaveLength(3);
-});
-
-test('denied onboarding microphone and failed TTS retain recoverable actions', async ({ page }) => {
-  await setupOnboarding(page);
-  await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-  await page.evaluate(() => { Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => { throw new DOMException('Denied', 'NotAllowedError'); }, configurable: true }); });
-  await page.getByRole('button', { name: 'Record answer', exact: true }).click();
-  await expect(page.locator('main').getByRole('alert')).toContainText('Microphone access was denied');
-  await expect(page.getByRole('button', { name: 'Record answer', exact: true })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Retry audio', exact: true })).toBeVisible();
-});
-
-for (const delayed of ['microphone', 'transcription', 'answer'] as const) {
-  test(`account switch cancels delayed onboarding ${delayed}`, async ({ page }) => {
-    const state = await setupOnboarding(page);
-    await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-    let release: (() => Promise<void>) | undefined;
-    if (delayed === 'microphone') {
-      await page.evaluate(() => {
-        const race = { stopped: 0, release: undefined as (() => void) | undefined };
-        (window as unknown as { onboardingRace: typeof race }).onboardingRace = race;
-        Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: () => new Promise(resolve => { race.release = () => resolve({ getTracks: () => [{ stop() { race.stopped++; } }] }); }) });
-      });
-      await page.getByRole('button', { name: 'Record answer', exact: true }).click();
-      await expect(page.getByText('Opening your microphone…', { exact: true })).toBeVisible();
-    } else {
-      if (delayed === 'answer') await onboardingAnswer(page);
-      await page.route(`**/api/onboarding/${delayed === 'answer' ? 'answer' : 'attempts'}`, async route => {
-        state.requests.push({ path: new URL(route.request().url()).pathname, method: route.request().method(), authorization: route.request().headers()['authorization'], body: null });
-        await new Promise<void>(resolve => { release = async () => { await route.fulfill({ json: { stage: 'needs', revision: 3, pending: null, profile: { name: 'A private result' } } }).catch(() => {}); resolve(); }; });
-      });
-      if (delayed === 'answer') await page.getByRole('button', { name: 'That’s what I said', exact: true }).click();
-      else { await page.getByRole('button', { name: 'Record answer', exact: true }).click(); await page.getByRole('button', { name: 'Finish answer', exact: true }).click(); }
-      await expect.poll(() => !!release).toBe(true);
-    }
-    await switchToB(page); const count = state.requests.length;
-    if (delayed === 'microphone') {
-      await page.evaluate(() => (window as unknown as { onboardingRace: { release?: () => void } }).onboardingRace.release?.());
-      await expect.poll(() => page.evaluate(() => (window as unknown as { onboardingRace: { stopped: number } }).onboardingRace.stopped)).toBe(1);
-    } else await release!();
-    await page.waitForTimeout(200);
-    expect(state.requests.length).toBe(count);
-    expect(state.requests.filter(r => r.authorization === `Bearer ${tokenB}` && r.method !== 'GET')).toEqual([]);
-    await expect(page.getByRole('heading', { name: 'Hello, Bob' })).toBeVisible();
+for(const delayed of ['preflight','recording','generation'] as const){
+  test(`account switch discards delayed lesson ${delayed}`,async({page})=>{
+    await installVoice(page,{delayMedia:delayed==='preflight'?1:delayed==='recording'?2:undefined});const fixture=await setupAuth(page,delayed==='recording');let release:(()=>Promise<void>)|undefined;
+    if(delayed==='generation')await page.route('**/api/exercises',async route=>{fixture.requests.push({path:'/api/exercises',authorization:route.request().headers()['authorization'],method:'POST',body:null});await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{id:'private-A',audio_url:'/api/exercises/private-A/audio',completed_attempt_id:null}}).catch(()=>{});resolve();};});});
+    await signIn(page);await page.getByRole('button',{name:'Start today’s session'}).click();
+    if(delayed==='recording'){await speaking(page);await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);}
+    if(delayed==='generation')await expect.poll(()=>!!release).toBe(true);else await expect.poll(async()=>page.evaluate(() => typeof (window as unknown as {voiceProbe:{releaseMedia?:()=>void}}).voiceProbe.releaseMedia === 'function')).toBe(true);
+    await switchToB(page);const count=fixture.requests.length;
+    if(release)await release();else await page.evaluate(()=>(window as unknown as {voiceProbe:{releaseMedia?:()=>void}}).voiceProbe.releaseMedia?.());
+    await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.method!=='GET')).toEqual([]);expect((await probe(page)).recorders).toBe(0);
   });
 }
 
-
-test('existing profile_saved learner explicitly starts spoken onboarding', async ({ page }) => {
-  await setupOnboarding(page, true);
-  await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-  await onboardingAnswer(page);
-  await page.getByRole('button', { name: 'That’s what I said', exact: true }).click();
-  await expect(page.getByText('What situations matter to you?', { exact: true })).toBeVisible();
-});
-
-// Valid PCM lets Chromium load the successful TTS body and emit canplay.
-function promptWav() {
-  const samples = 8000 * 5;
-  const wav = Buffer.alloc(44 + samples * 2);
-  wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
-  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
-  wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32);
-  wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
-  return wav;
+async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>[1]={},legacy=false){
+  await installVoice(page,options);const fixture=await setupAuth(page);
+  const profile={name:'Listener',goal:'Everyday English',target_language:'en',interests:[] as string[],target_situations:[] as string[],onboarding_status:legacy?'profile_saved':'not_started',completed_attempts:0};
+  let stage='identity',revision=0,pending:{text:string;confidence:number;uncertainty:string[]}|null=null;
+  let failVoice=false,failUpload=false,failComplete=false,uncertain=false,delayAudio=false,releaseAudio:(()=>void)|undefined;
+  const revisions:number[]=[];
+  const snapshot=()=>({profile:{...profile},stage,revision,pending,prompt:stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
+  await page.route('**/api/profile',route=>route.fulfill({json:route.request().headers()['authorization']===`Bearer ${tokenB}`?{destination:'session_ready',profile:{...profile,name:'Bob'},provider:'openai'}:{destination:snapshot().destination,profile,provider:'openai'}}));
+  await page.route('**/api/onboarding**',async route=>{
+    const path=new URL(route.request().url()).pathname;fixture.requests.push({path,authorization:route.request().headers()['authorization'],method:route.request().method(),body:route.request().postData()});
+    if(path.endsWith('/audio')){const requested=route.request().postDataJSON().revision;revisions.push(requested);if(delayAudio){delayAudio=false;await new Promise<void>(resolve=>{releaseAudio=resolve;});}if(requested!==revision)return route.fulfill({status:409,json:{detail:'Onboarding changed'}});if(failVoice)return route.fulfill({status:503,json:{detail:'Voice unavailable'}});return route.fulfill({contentType:'audio/wav',body:promptWav()});}
+    if(path.endsWith('/start')&&profile.onboarding_status!=='in_progress'){profile.onboarding_status='in_progress';revision++;}
+    if(path.endsWith('/attempts')){if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Transcription failed. Recording is safe.'}});}pending={text:'Maya English work meetings and science',confidence:uncertain?.2:.95,uncertainty:uncertain?['unclear']:[]};uncertain=false;revision++;}
+    if(path.endsWith('/answer')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Stale revision'}});if(stage==='identity'){profile.name='Maya';stage='needs';}else if(stage==='needs'){profile.goal='Understand meetings';profile.target_situations=['work meetings'];stage='interests';}else{profile.interests=['science'];stage='review';profile.onboarding_status='profile_saved';}pending=null;revision++;}
+    if(path.endsWith('/complete')){if(profile.onboarding_status!=='complete'){profile.onboarding_status='complete';revision++;}if(failComplete){failComplete=false;return route.fulfill({status:503,json:{detail:'Response interrupted. Progress is safe.'}});}}
+    return route.fulfill({json:snapshot()});
+  });
+  await signIn(page);await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+  return {...fixture,revisions,snapshot,failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
 }
-type AudioProbe = { plays: string[]; pauses: string[]; urls: string[]; revoked: string[]; stopped: number; bodyPending: boolean; released: boolean; releaseBody?: () => void };
-async function instrumentOnboardingAudio(page: Page, delayBody = false) {
-  await page.addInitScript(({ delayBody }) => {
-    const probe: AudioProbe = { plays: [], pauses: [], urls: [], revoked: [], stopped: 0, bodyPending: false, released: false };
-    (window as unknown as { audioProbe: AudioProbe }).audioProbe = probe;
-    const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
-    URL.createObjectURL = body => { const url = create(body); probe.urls.push(url); return url; };
-    URL.revokeObjectURL = url => { probe.revoked.push(url); revoke(url); };
-    // Installed after setupOnboarding's media stubs, at page evaluation time.
-    const install = () => {
-      const play = HTMLMediaElement.prototype.play, pause = HTMLMediaElement.prototype.pause;
-      HTMLMediaElement.prototype.play = async function () { await play.call(this); probe.plays.push(this.src); };
-      HTMLMediaElement.prototype.pause = function () { probe.pauses.push(this.src); pause.call(this); };
-      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => ({ getTracks: () => [{ stop() { probe.stopped++; } }] }) });
-    };
-    window.addEventListener('DOMContentLoaded', install);
-    if (delayBody) {
-      const fetch = window.fetch.bind(window);
-      window.fetch = async (...args) => {
-        const response = await fetch(...args);
-        if (String(args[0]).endsWith('/api/onboarding/audio') && response.ok) {
-          const blob = response.blob.bind(response);
-          response.blob = async () => {
-            const body = await blob();
-            probe.bodyPending = true;
-            await new Promise<void>(resolve => { probe.releaseBody = resolve; });
-            probe.released = true; return body;
-          };
-        }
-        return response;
-      };
-    }
-  }, { delayBody });
-}
-async function audioProbe(page: Page) {
-  return page.evaluate(() => (window as unknown as { audioProbe: AudioProbe }).audioProbe);
-}
+async function onboardingTurn(page:Page){await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);}
+async function completeOnboarding(page:Page){await page.getByRole('button',{name:'Let’s talk',exact:true}).click();for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();}
 
-test('successful onboarding TTS survives rerenders and stops on recording cancellation and unmount', async ({ page }) => {
-  await instrumentOnboardingAudio(page);
-  const state = await setupOnboarding(page, false, 'success');
-  await expect.poll(async () => (await audioProbe(page)).plays.length).toBe(1);
-  await expect.poll(() => page.getByLabel('Hear onboarding prompt').evaluate(element => (element as HTMLAudioElement).paused)).toBe(false);
-  const initial = await audioProbe(page);
-  await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Record answer', exact: true })).toBeEnabled();
-  expect((await audioProbe(page)).pauses).toEqual(initial.pauses);
-  expect(await page.getByLabel('Hear onboarding prompt').evaluate(element => (element as HTMLAudioElement).paused)).toBe(false);
-  expect(state.audioRevisions).toEqual([0]);
-  await page.getByRole('button', { name: 'Record answer', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Cancel recording', exact: true })).toBeVisible();
-  expect((await audioProbe(page)).pauses).toContain(initial.plays[0]);
-  await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
-  expect((await audioProbe(page)).stopped).toBeGreaterThan(0);
-  await onboardingAnswer(page);
-  const beforeEdit = await audioProbe(page);
-  await page.getByLabel('Your spoken answer').fill('Maya, English');
-  expect((await audioProbe(page)).pauses).toEqual(beforeEdit.pauses);
-  expect(state.audioRevisions).toEqual([0]);
-  await page.getByRole('button', { name: 'That’s what I said', exact: true }).click();
-  await expect.poll(async () => (await audioProbe(page)).plays.length).toBe(2);
-  expect((await audioProbe(page)).revoked).toContain(initial.plays[0]);
-  const beforeLogout = await audioProbe(page);
-  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
-  const after = await audioProbe(page);
-  expect(after.pauses.length).toBeGreaterThan(beforeLogout.pauses.length);
-  expect(after.revoked).toEqual(after.urls);
-  await expect(page.getByLabel('Hear onboarding prompt')).toHaveCount(0);
+test('spoken onboarding progresses hands-free, persists profile, and completed learner skips it',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.clock.install();await completeOnboarding(page);expect(fixture.requests.filter(x=>x.path==='/api/onboarding/answer')).toHaveLength(3);expect(fixture.snapshot().profile.interests).toEqual(['science']);expect(fixture.requests.some(x=>x.path==='/api/exercises')).toBe(false);
+  await page.reload();await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toHaveCount(0);
 });
-
-test('stale initial TTS revision recovers once from the authoritative checkpoint', async ({ page }) => {
-  await instrumentOnboardingAudio(page);
-  const state = await setupOnboarding(page, false, 'race');
-  await expect.poll(() => state.audioPending).toBe(true);
-  await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-  await expect.poll(() => state.revision).toBe(1);
-  state.releaseAudio();
-  await expect.poll(async () => (await audioProbe(page)).plays.length).toBe(1);
-  expect(state.conflicts).toBe(1);
-  expect(state.audioRevisions).toEqual([0, 1]);
-  expect(state.requests.filter(r => r.path === '/api/onboarding' && r.method === 'GET')).toHaveLength(2);
-  await onboardingAnswer(page);
-  await page.getByLabel('Your spoken answer').fill('English');
-  expect(state.audioRevisions).toEqual([0, 1]);
-  expect((await audioProbe(page)).plays).toHaveLength(1);
-  await expect(page.getByRole('button', { name: 'Retry audio', exact: true })).toHaveCount(0);
+test('pending recognition resumes after refresh without duplicating completed onboarding stages',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.clock.install();await page.route('**/api/onboarding/answer',route=>route.fulfill({status:503,json:{detail:'Extraction unavailable'}}));
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await expect(page.locator('main').getByRole('alert')).toContainText('Extraction unavailable');
+  expect(fixture.snapshot().pending?.text).toBeTruthy();await page.unroute('**/api/onboarding/answer');await page.reload();await speaking(page);expect(fixture.snapshot().stage).toBe('needs');expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(1);await expect(page.locator('textarea')).toHaveCount(0);
 });
-
-test('account switch discards successful onboarding audio with delayed body resolution', async ({ page }) => {
-  await instrumentOnboardingAudio(page, true);
-  const state = await setupOnboarding(page, false, 'success');
-  await expect.poll(async () => (await audioProbe(page)).bodyPending).toBe(true);
-  await switchToB(page);
-  const count = state.requests.length;
-  await page.evaluate(() => (window as unknown as { audioProbe: AudioProbe }).audioProbe.releaseBody?.());
-  await expect.poll(async () => (await audioProbe(page)).released).toBe(true);
-  expect(state.requests.length).toBe(count);
-  expect(state.requests.filter(r => r.authorization === `Bearer ${tokenB}` && r.method !== 'GET')).toEqual([]);
-  const probe = await audioProbe(page);
-  expect(probe.plays).toEqual([]); expect(probe.urls).toEqual([]); expect(probe.revoked).toEqual([]);
-  await expect(page.getByLabel('Hear onboarding prompt')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Hello, Bob' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Let’s make this yours.' })).toHaveCount(0);
+test('logout/login resumes saved onboarding stage without repeating identity',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);expect(fixture.snapshot().stage).toBe('needs');await externalLogout(page);await signIn(page);await speaking(page);expect(fixture.snapshot().stage).toBe('needs');expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(1);
 });
+test('transcription and interrupted finalization retry preserve completed stages',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.failTranscription();fixture.interruptCompletion();await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await expect(page.locator('main').getByRole('alert')).toContainText('Recording is safe');const count=(await probe(page)).recorders;
+  await page.getByRole('button',{name:'Retry conversation'}).click();await speaking(page);await endAudio(page);await speaking(page);expect((await probe(page)).recorders).toBe(count);
+  for(let i=0;i<2;i++)await onboardingTurn(page);await endAudio(page);await expect(page.locator('main').getByRole('alert')).toContainText('Response interrupted');await page.getByRole('button',{name:'Retry conversation'}).click();await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(3);
+});
+test('onboarding microphone denial and TTS failure are recoverable without corrupting progress',async({page})=>{
+  const fixture=await setupOnboarding(page,{denied:true});fixture.failSpeech();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await expect(page.locator('main').getByRole('alert')).toContainText('voice is unavailable');fixture.restoreSpeech();await page.getByRole('button',{name:'Retry conversation'}).click();await speaking(page);await endAudio(page);await expect(page.locator('main').getByRole('alert')).toContainText('Denied');expect(fixture.snapshot().stage).toBe('identity');expect(fixture.snapshot().pending).toBeNull();
+});
+test('legacy profile_saved learner starts the same persisted spoken flow',async({page})=>{const fixture=await setupOnboarding(page,{},true);await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);expect(fixture.snapshot().stage).toBe('needs');});
 
-for (const delayed of ['completion', 'first generation'] as const) {
-  test(`account switch discards delayed onboarding ${delayed}`, async ({ page }) => {
-    const state = await setupOnboarding(page);
-    await page.getByRole('button', { name: 'Let’s talk', exact: true }).click();
-    for (let i = 0; i < 3; i++) { await onboardingAnswer(page); await page.getByRole('button', { name: 'That’s what I said', exact: true }).click(); }
-    await expect(page.getByText('Interests: science', { exact: true })).toBeVisible();
-    let release: (() => Promise<void>) | undefined;
-    const path = delayed === 'completion' ? '/api/onboarding/complete' : '/api/exercises';
-    await page.route(`**${path}`, async route => {
-      state.requests.push({ path, method: route.request().method(), authorization: route.request().headers()['authorization'], body: route.request().postData() });
-      await new Promise<void>(resolve => { release = async () => {
-        await route.fulfill({ json: delayed === 'completion' ? { destination: 'session_ready' } : { id: 'private-A', audio_url: '/api/exercises/private-A/audio', difficulty: {}, completed_attempt_id: null } }).catch(() => {});
-        resolve();
-      }; });
-    });
-    await page.getByRole('button', { name: 'That’s right. Let’s train your ears.', exact: true }).click();
-    await expect.poll(() => !!release).toBe(true);
-    expect(state.requests.findLast(r => r.path === path)?.authorization).toBe(`Bearer ${token}`);
-    await switchToB(page); const count = state.requests.length;
-    await release!(); await page.waitForTimeout(200);
-    expect(state.requests.length).toBe(count);
-    expect(state.requests.filter(r => r.authorization === `Bearer ${tokenB}` && r.method !== 'GET')).toEqual([]);
-    await expect(page.getByRole('heading', { name: 'Hello, Bob' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Let’s train your ears.' })).toHaveCount(0);
+test('successful real onboarding TTS survives ordinary rerenders and cleans up on End',async({page})=>{
+  const fixture=await setupOnboarding(page,{realPlayback:true});await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);const before=await probe(page);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'Stay here'}).click();expect((await probe(page)).pauses).toEqual(before.pauses);expect((await probe(page)).plays).toEqual(before.plays);expect(fixture.revisions).toEqual([1]);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();expect((await probe(page)).revoked).toEqual((await probe(page)).urls);expect((await probe(page)).pauses).toContain(before.plays[0]);
+});
+test('stale onboarding audio revision recovers once with authoritative checkpoint and never replays on rerender',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.delaySpeech();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await expect.poll(()=>fixture.audioPending).toBe(true);expect(fixture.snapshot().revision).toBe(1);fixture.advanceRevision();fixture.releaseAudio();await speaking(page);expect(fixture.revisions).toEqual([1,2]);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'Stay here'}).click();expect(fixture.revisions).toEqual([1,2]);expect((await probe(page)).plays).toHaveLength(1);
+});
+test('account switch during successful onboarding audio body discards body without creating A blob or using B credentials',async({page})=>{
+  const fixture=await setupOnboarding(page,{delayBody:'/api/onboarding/audio'});await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);await switchToB(page);const count=fixture.requests.length;
+  await page.evaluate(()=>(window as unknown as {voiceProbe:{releaseBody?:()=>void}}).voiceProbe.releaseBody?.());await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);expect((await probe(page)).plays).toEqual([]);expect((await probe(page)).urls).toEqual([]);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.method!=='GET')).toEqual([]);
+});
+test('account switch cancels a stale-audio checkpoint reload before it can retry with B credentials',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.delaySpeech();let recovering=false,release:(()=>Promise<void>)|undefined;
+  await page.route('**/api/onboarding',async route=>{if(!recovering)return route.fallback();fixture.requests.push({path:'/api/onboarding',authorization:route.request().headers()['authorization'],method:'GET',body:null});await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:fixture.snapshot()}).catch(()=>{});resolve();};});});
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await expect.poll(()=>fixture.audioPending).toBe(true);fixture.advanceRevision();recovering=true;fixture.releaseAudio();await expect.poll(()=>!!release).toBe(true);
+  await switchToB(page);const count=fixture.requests.length;await release!();await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);expect(fixture.revisions).toEqual([1]);expect((await probe(page)).urls).toEqual([]);
+});
+test('onboarding uncertain recognition automatically retries without a recognition form',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.uncertainNext();await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);
+  expect(fixture.snapshot().stage).toBe('identity');expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(0);await expect(page.locator('textarea')).toHaveCount(0);
+  await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);expect(fixture.snapshot().stage).toBe('needs');
+});
+test('account switch discards delayed successful exercise audio before playback',async({page})=>{
+  await installVoice(page,{delayBody:'/api/exercises/clip/audio'});const fixture=await setupAuth(page,true);await signIn(page);await page.getByRole('button',{name:'Start today’s session'}).click();await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
+  await switchToB(page);const count=fixture.requests.length;await page.evaluate(()=>(window as unknown as {voiceProbe:{releaseBody?:()=>void}}).voiceProbe.releaseBody?.());await page.waitForTimeout(150);
+  expect(fixture.requests.length).toBe(count);expect((await probe(page)).plays).toEqual([]);expect((await probe(page)).urls).toEqual([]);
+});
+for(const delayed of ['microphone','transcription','answer','completion','first generation'] as const){
+  test(`account switch cancels delayed onboarding ${delayed}`,async({page})=>{
+    const fixture=await setupOnboarding(page,{delayMedia:delayed==='microphone'?1:undefined});await page.clock.install();let release:(()=>Promise<void>)|undefined;
+    const path=delayed==='transcription'?'/api/onboarding/attempts':delayed==='answer'?'/api/onboarding/answer':delayed==='completion'?'/api/onboarding/complete':'/api/exercises';
+    if(delayed!=='microphone')await page.route('**'+path,async route=>{fixture.requests.push({path,authorization:route.request().headers()['authorization'],method:'POST',body:route.request().postData()});await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{stage:'needs',revision:99,destination:'session_ready',profile:{name:'A private result'},id:'A-private',audio_url:'/api/exercises/A-private/audio'}}).catch(()=>{});resolve();};});});
+    await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
+    if(delayed==='first generation'){for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();await page.getByRole('button',{name:'Start today’s session'}).click();}
+    else if(delayed==='completion'){for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);}
+    else{await speaking(page);await endAudio(page);if(delayed!=='microphone'){await listening(page);await page.clock.runFor(2700);}}
+    if(delayed==='microphone')await expect.poll(async()=>page.evaluate(() => typeof (window as unknown as {voiceProbe:{releaseMedia?:()=>void}}).voiceProbe.releaseMedia === 'function')).toBe(true);else await expect.poll(()=>!!release).toBe(true);
+    await switchToB(page);const count=fixture.requests.length;if(release)await release();else await page.evaluate(()=>(window as unknown as {voiceProbe:{releaseMedia?:()=>void}}).voiceProbe.releaseMedia?.());
+    await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.method!=='GET')).toEqual([]);await expect(page.getByText('A private result')).toHaveCount(0);
   });
 }

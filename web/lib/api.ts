@@ -96,6 +96,11 @@ export async function audioBlobUrl(url: string, signal?: AbortSignal, operation?
   return URL.createObjectURL(blob);
 }
 
+export class ApiError extends Error {
+  status: number;
+  uncertain: boolean;
+  constructor(message: string, status: number, uncertain = false) { super(message); this.status = status; this.uncertain = uncertain; }
+}
 export async function api<T>(url: string, init?: RequestInit, onResponse?: (status: number) => void, operation?: LessonOperation): Promise<T> {
   const response = await authenticatedFetch(`/api${url}`, init, operation);
   operation?.assertCurrent();
@@ -110,7 +115,8 @@ export async function api<T>(url: string, init?: RequestInit, onResponse?: (stat
   operation?.assertCurrent();
   if (!response.ok) {
     const detail = data && typeof data === 'object' && 'detail' in data ? data.detail : null;
-    throw new Error(typeof detail === 'string' ? detail : 'Please check your input and try again.');
+    throw new ApiError(typeof detail === 'string' ? detail : 'Please check your input and try again.', response.status,
+      !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true));
   }
   return data as T;
 }

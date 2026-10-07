@@ -4,7 +4,7 @@ from hashlib import sha256
 from uuid import uuid4
 from types import SimpleNamespace
 from fastapi import HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import Field
 from app.audio import sanitize_generated_audio
 from app.conversation import validate_evidence, choose_followup, final_evaluation, adapt_final
@@ -12,6 +12,8 @@ from app.feedback import final_feedback
 from app.models import EvidenceEvaluation, Evaluation
 from app.diagnostics import operation
 from app.models import StrictModel, Conversation, ConversationTurn, ExerciseContent
+from app.models import Transcription
+from app.recognition import reliable_recognition
 
 SUMMARY_PROMPT = 'Tell me what you understood. Use your own words; grammar does not matter.'
 
@@ -19,12 +21,21 @@ class TurnConfirmation(StrictModel):
     text: str = Field(min_length=1, max_length=8000)
     confirmed: bool
     followup_id: str | None = None
+    hands_free: bool = False
 
 class CueRequest(StrictModel):
     cue_id: str = Field(min_length=1, max_length=80)
 
 
 def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio):
+    @app.post('/api/recognition/retry-audio')
+    async def retry_audio():
+        # Protected by the same authenticated request boundary as every /api resource.
+        kind = 'wav' if settings.provider == 'demo' else 'mp3'
+        data = await sanitize_generated_audio(
+            await ai().speak("I didn't quite catch that. Could you say it again?"), kind)
+        return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
+
     def audio_cache_id(cue_id, text):
         # Old evaluator-report audio must never replay as terminal feedback.
         return ('feedback-v0.2.1-' + sha256(text.encode()).hexdigest()[:16]
@@ -101,6 +112,10 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 raise HTTPException(409, 'This exercise is already complete.')
             if not body.confirmed or not body.text.strip():
                 raise HTTPException(422, 'Check and confirm what you said first.')
+            recognized = Transcription.model_validate_json(attempt['transcription'])
+            if body.hands_free and (body.text.strip() != recognized.text.strip()
+                    or not reliable_recognition(recognized, settings.min_transcription_confidence)):
+                return JSONResponse(status_code=422, content={'detail': "I didn't quite catch that. Could you say it again?", 'uncertain': True})
             conversation = conversation or Conversation(exercise_id=exercise_id)
             question = conversation.active_followup
             if body.followup_id != (question.id if question else None):

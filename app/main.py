@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def profile():
         profile = repo.profile()
         return {'profile': profile, 'provider': settings.provider,
+                'recognition_min_confidence': settings.min_transcription_confidence,
                 'destination': application_destination(profile)}
 
     @app.put('/api/profile')

@@ -28,7 +28,7 @@ PROMPTS = {
     'identity': "Before we start, what should I call you, and what language do you want to train? Audli currently trains English listening.",
     'needs': "Why are you learning English, and what do you most want to understand better? Tell me about situations where listening is hardest or most important for you.",
     'interests': "What topics do you enjoy listening to? A few interests are enough, or say you have no preference.",
-    'review': "Here is what I heard about your listening goals. Check the details, then let's train your ears. Your first listening exercise will help us find your starting point.",
+    'review': "Your listening preferences are saved. You're ready to train your ears. Your first listening exercise will help us find your starting point.",
 }
 
 class Revision(StrictModel):
@@ -37,6 +37,7 @@ class Revision(StrictModel):
 class Answer(Revision):
     text: str = Field(min_length=1, max_length=8000)
     confirmed: Literal[True]
+    hands_free: bool = False
 
 
 def apply_extraction(profile, extraction):

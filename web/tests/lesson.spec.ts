@@ -1,181 +1,146 @@
 import { test, expect, type Page } from '@playwright/test';
+import { installVoice, promptWav, probe, endAudio } from './voice-fixture';
 
-const difficulty = { speech_rate: .75, duration_seconds: 45, vocabulary_level: 'simple', information_density: 2 };
-async function setup(page: Page, denied = false) {
-  await page.addInitScript(({ denied }) => {
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => {
-      if (denied) throw new DOMException('Denied', 'NotAllowedError');
-      return { getTracks: () => [{ stop() {} }] };
-    } });
-    class Recorder {
-      static isTypeSupported() { return true; }
-      state = 'inactive'; mimeType = 'audio/webm';
-      ondataavailable: ((event: {data: Blob}) => void) | null = null;
-      onstop: (() => void) | null = null;
-      start() { this.state = 'recording'; }
-      stop() {
-        this.state = 'inactive';
-        queueMicrotask(() => { this.ondataavailable?.({data:new Blob(['synthetic recording'],{type:this.mimeType})}); this.onstop?.(); });
-      }
+async function setup(page: Page, options: Parameters<typeof installVoice>[1] = {}) {
+  await installVoice(page,options);
+  let phase='LISTENING', cue:string|null=null, pending:object|null=null, result:object|null=null;
+  let turns=0, id=1, completed=false, failUpload=false, uncertain=false, loseUpload=false;
+  const requests:{path:string;body:unknown}[]=[];
+  const exercise=()=>({id:'clip'+id,audio_url:'/api/exercises/clip'+id+'/audio',completed_attempt_id:completed?'answer':null});
+  const state=()=>({state:phase,cue_id:cue,prompt:cue==='feedback'?'You caught the main idea. Next time, listen for the reasons.':cue==='followup'?'Why did the meeting time change?':cue?'Tell me what you understood.':null,active_followup:cue==='followup'?{id:'followup'}:null,pending_attempt:pending,result});
+  await page.route('**/api/**',route=>{
+    const path=new URL(route.request().url()).pathname; requests.push({path,body:route.request().postData()});
+    if(path==='/api/auth/config')return route.fulfill({json:{mode:'local'}});
+    if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:'Robert',goal:'work conversations',completed_attempts:completed?1:0},provider:'openai'}});
+    if(path==='/api/history')return route.fulfill({json:completed?[{id:'answer',exercise_id:'clip'+id,created_at:'2026-10-07T08:00:00Z',evaluation:{feedback:'You caught the main idea. Next time, listen for the reasons.'},adaptation:{focus:'details'}}]:[]});
+    if(path==='/api/exercises/current')return route.fulfill({json:exercise()});
+    if(path==='/api/exercises'){id++;phase='LISTENING';cue=null;pending=null;result=null;completed=false;turns=0;return route.fulfill({json:exercise()});}
+    if(path.endsWith('/conversation/listened')){phase='AWAITING_SUMMARY';cue='summary';return route.fulfill({json:state()});}
+    if(path.endsWith('/conversation'))return route.fulfill({json:state()});
+    if(path.endsWith('/coach-audio'))return route.fulfill({json:{audio_url:'/api/coach-voice'}});
+    if(path.endsWith('/attempts')){
+      if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Upload failed. Your recording is safe.'}});}
+      pending={id:'answer'+turns,transcription:{text:'The meeting time changed',confidence:uncertain?.2:.9,uncertainty:uncertain?['Uncertain']:[],source:'openai'}};uncertain=false;
+      if(loseUpload){loseUpload=false;return route.fulfill({status:503,json:{detail:'Response lost after recognition was saved.'}});}
+      return route.fulfill({json:pending});
     }
-    Object.defineProperty(window, 'MediaRecorder', {value:Recorder});
-    HTMLMediaElement.prototype.play = async function () {};
-    HTMLMediaElement.prototype.pause = function () {};
-  }, { denied });
-  let turn = 0;
-  let failUpload = false;
-  let phase = 'LISTENING';
-  let cue: string | null = null;
-  let result: object | null = null;
-  const conversation = () => ({ state:phase, cue_id:cue, prompt: cue === 'feedback' ? 'You caught the main idea. We’ll keep the next clip at this pace.' : cue === 'followup' ? 'Why did the time change?' : cue ? 'Tell me what you understood.' : null, active_followup:cue === 'followup' ? {id:'followup',question:'Why did the time change?'} : null, pending_attempt:null, followups_asked:turn, result });
-  await page.route('**/api/**', async route => {
-    const path = new URL(route.request().url()).pathname;
-    if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
-    if (path.endsWith('/profile')) return route.fulfill({json:{destination:'session_ready',profile:{name:'Robert',goal:'work conversations',completed_attempts:0,difficulty},provider:'openai'}});
-    if (path.endsWith('/current') || path === '/api/exercises') return route.fulfill({json:{id:'clip',audio_url:'/api/listening-audio',difficulty,completed_attempt_id:null}});
-    if (path.endsWith('/conversation/listened')) { phase='AWAITING_SUMMARY';cue='summary';return route.fulfill({json:conversation()}); }
-    if (path.endsWith('/conversation')) return route.fulfill({json:conversation()});
-    if (path.endsWith('/coach-audio')) return route.fulfill({json:{audio_url:'/api/coach-voice'}});
-    if (path.endsWith('/attempts')) {
-      if (failUpload) { failUpload=false;return route.fulfill({status:503,json:{detail:'Upload failed. Your recording is safe; retry.'}}); }
-      return route.fulfill({json:{id:'answer',transcription:{text:'The meeting time changed',confidence:.9,uncertainty:[],source:'openai'}}});
-    }
-    if (path.endsWith('/assess')) {
-      turn++;
-      if (turn === 1) { phase='AWAITING_FOLLOWUP';cue='followup'; }
-      else { phase='GIVING_FEEDBACK';cue='feedback';result={evaluation:{overall:null,main_idea:1,details:null,vocabulary:null,inference:null,feedback:'Safe feedback',understood:['main idea'],insufficient_evidence:['reason'],misunderstood:[]},adaptation:{reason:'Incomplete evidence keeps difficulty stable.'}}; }
-      return route.fulfill({json:conversation()});
-    }
-    if (path.endsWith('/ready')) { phase='READY_FOR_NEXT';return route.fulfill({json:conversation()}); }
-    if (path.endsWith('/transcript')) return route.fulfill({json:{title:'Original passage',script:'Only available after assessment.'}});
-    return route.fulfill({status:200,contentType:'audio/wav',body:Buffer.alloc(44)});
+    if(path.endsWith('/assess')){turns++;pending=null;if(turns===1){phase='AWAITING_FOLLOWUP';cue='followup';}else{phase='GIVING_FEEDBACK';cue='feedback';completed=true;result={evaluation:{feedback:'Safe final feedback'},adaptation:{reason:'Stable'}};}return route.fulfill({json:state()});}
+    if(path.endsWith('/ready')){phase='READY_FOR_NEXT';completed=true;return route.fulfill({json:state()});}
+    if(path.endsWith('/transcript'))return route.fulfill(completed?{json:{title:'Original passage',script:'Only after completed assessment.'}}:{status:403,json:{detail:'Complete assessment first.'}});
+    return route.fulfill({contentType:'audio/wav',body:promptWav()});
   });
-  await page.goto('/');
-  await expect(page.getByRole('button',{name:'Start training'})).toBeEnabled();
-  return { failNextUpload() { failUpload=true; } };
+  await page.goto('/'); await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
+  return {requests,failNextUpload(){failUpload=true;},loseNextUploadResponse(){loseUpload=true;},uncertainNext(){uncertain=true;}};
 }
-async function finishCue(page: Page) {
-  const audio = page.getByLabel('Hear Audli’s message');
-  await expect(audio).toBeVisible();
-  await audio.evaluate(el => el.dispatchEvent(new Event('ended')));
+async function state(page:Page,value:string){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state',value);}
+async function beginListening(page:Page){
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);await state(page,'Listening');
 }
-async function listen(page: Page) {
-  await page.getByRole('button',{name:'Start training'}).click();
-  await page.getByRole('button',{name:'Listen to the lesson'}).click();
-  await page.getByLabel('Play listening exercise').evaluate(el => el.dispatchEvent(new Event('ended')));
-  await finishCue(page);
-  await expect(page.getByRole('button',{name:'Finish',exact:true})).toBeVisible();
-}
-test('Home matches Figma geometry and contains only available navigation', async ({page}) => {
-  await setup(page);
-  await expect(page.locator('.lesson-card')).toHaveCSS('border-radius','26px');
-  const card = await page.locator('.lesson-card').boundingBox();
-  expect(card?.width).toBe(326);
-  expect(card?.height).toBe(342);
-  await expect(page.getByRole('button',{name:'Plan',exact:true})).toBeDisabled();
-  await expect(page.getByRole('button',{name:'Settings',exact:true})).toBeDisabled();
-  await expect(page.getByRole('button',{name:'Show transcript'})).toHaveCount(0);
-  await page.evaluate(() => document.fonts.ready);
-  const assets = await page.locator('main img').evaluateAll(images => images.map(image => ({src:(image as HTMLImageElement).getAttribute('src'),loaded:(image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0,width:image.getBoundingClientRect().width,height:image.getBoundingClientRect().height})));
-  expect(assets.every(asset => asset.loaded)).toBe(true);
-  expect(assets.find(asset => asset.src === '/audli/greeting.svg')?.width).toBeCloseTo(42.24,1);
-  expect(assets.filter(asset => asset.src !== '/audli/greeting.svg').every(asset => asset.width === 20 && asset.height === 20)).toBe(true);
-  await page.screenshot({path:'/tmp/audli-home.png',fullPage:true});
-  await page.setViewportSize({width:320,height:740});
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
-});
-test('automatic capture, retained upload retry, evidence follow-up, feedback and next', async ({page}) => {
-  const session = await setup(page);
-  await listen(page);
-  session.failNextUpload();
-  await page.getByRole('button',{name:'Finish',exact:true}).click();
-  await expect(page.locator('main').getByRole('alert')).toContainText('Upload failed');
-  await expect(page.getByLabel('Review your recording')).toBeVisible();
-  await page.getByRole('button',{name:'Retry transcription'}).click();
-  await page.getByRole('button',{name:'That’s what I said'}).click();
-  await expect(page.getByText('NOT ENOUGH EVIDENCE',{exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Show transcript'})).toHaveCount(0);
-  await finishCue(page);
-  await page.getByRole('button',{name:'Finish',exact:true}).click();
-  await page.getByRole('button',{name:'That’s what I said'}).click();
-  await expect(page.getByRole('button',{name:'Keep going'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Show transcript'})).toBeVisible();
-  await finishCue(page);
-  await page.getByRole('button',{name:'Keep going'}).click();
-  await expect(page.getByRole('heading',{name:'Let’s train your ears.'})).toBeVisible();
-});
-test('Cancel discards recording and cue replay cannot restart it', async ({page}) => {
-  await setup(page); await listen(page);
-  await page.getByRole('button',{name:'Cancel',exact:true}).click();
-  await finishCue(page);
-  await expect(page.getByRole('button',{name:'Finish',exact:true})).toHaveCount(0);
-  await expect(page.getByLabel('Review your recording')).toHaveCount(0);
-  await page.getByRole('button',{name:'Start recording',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Finish',exact:true})).toBeVisible();
-});
-test('denied microphone offers retry and spoken file fallback', async ({page}) => {
-  await setup(page,true);
-  await page.getByRole('button',{name:'Start training'}).click();
-  await expect(page.locator('main').getByRole('alert')).toContainText('Microphone access was denied');
-  await page.getByRole('button',{name:'Continue with an audio file'}).click();
-  await page.getByRole('button',{name:'Listen to the lesson'}).click();
-  await page.getByLabel('Play listening exercise').evaluate(el => el.dispatchEvent(new Event('ended')));
-  await expect(page.getByText('Use an existing spoken recording')).toBeVisible();
-});
-test('reduced motion keeps SVG pieces at rest', async ({page}) => {
-  await page.emulateMedia({reducedMotion:'reduce'});
-  await setup(page);
-  await page.getByRole('button',{name:'Start training'}).click();
-  await page.getByRole('button',{name:'Listen to the lesson'}).click();
-  await expect(page.locator('.piece.left')).toHaveCSS('transform','none');
-});
-test('119-second limit finishes and transcribes automatically', async ({page}) => {
-  await setup(page);
-  await page.clock.install();
-  await listen(page);
-  await page.clock.fastForward(119000);
-  await expect(page.getByRole('heading',{name:'Did I hear you correctly?'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Finish',exact:true})).toHaveCount(0);
-});
-test('empty recognition is unknown and cannot be confirmed', async ({page}) => {
-  await setup(page);
-  await page.route('**/api/exercises/clip/attempts', route => route.fulfill({json:{id:'empty',transcription:{text:'',confidence:null,uncertainty:['Too little recognized speech.'],source:'openai'}}}));
-  await listen(page);
-  await page.getByRole('button',{name:'Finish',exact:true}).click();
-  await expect(page.locator('main').getByRole('alert')).toContainText('We didn’t hear anything');
-  await expect(page.getByRole('button',{name:'That’s what I said'})).toBeDisabled();
-  await expect(page.getByRole('button',{name:'Show transcript'})).toHaveCount(0);
-});
-test('connection failure can be retried without replacing the lesson', async ({page}) => {
-  await setup(page);
-  await page.route('**/api/profile',route => route.fulfill({status:502,contentType:'text/html',body:'Unavailable'}));
-  await page.reload();
-  await expect(page.locator('main').getByRole('alert')).toContainText('could not reach the server');
-  await page.unroute('**/api/profile');
-  await page.getByRole('button',{name:'Retry connection'}).click();
-  await expect(page.getByRole('button',{name:'Start training'})).toBeEnabled();
-});
-test('failed cue audio preserves the issued question and manual microphone control', async ({page}) => {
-  await setup(page);
-  await page.route('**/api/exercises/clip/coach-audio',route => route.fulfill({status:503,json:{detail:'Voice unavailable'}}));
-  await page.getByRole('button',{name:'Start training'}).click();
-  await page.getByRole('button',{name:'Listen to the lesson'}).click();
-  await page.getByLabel('Play listening exercise').evaluate(el => el.dispatchEvent(new Event('ended')));
-  await expect(page.getByText('Audli’s voice is unavailable.',{exact:false})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Retry audio'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Start recording',exact:true})).toBeEnabled();
-  await page.getByRole('button',{name:'Start recording',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Finish',exact:true})).toBeVisible();
-});
+async function finishTurn(page:Page){await page.clock.runFor(2700);await state(page,'Speaking');}
 
-test('Figma recording motion runs through the shared loop with local SVG geometry', async ({page}) => {
-  await setup(page); await listen(page);
-  await page.waitForTimeout(700);
-  const first = await page.locator('.piece.left').evaluate(el => getComputedStyle(el).transform);
-  await page.waitForTimeout(1200);
-  const later = await page.locator('.piece.left').evaluate(el => getComputedStyle(el).transform);
-  expect(first).not.toBe(later);
-  await page.waitForTimeout(600);
-  expect(await page.locator('.piece.left img').evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(20);
-  await page.screenshot({path:'/tmp/audli-recording.png',fullPage:true});
+test('approved Home is mascot-centered with four working destinations and no metrics',async({page})=>{
+  await setup(page);await expect(page.getByRole('heading',{name:'Good to see you, Robert.'})).toBeVisible();
+  await expect(page.locator('.audli-mascot svg')).toBeVisible();await expect(page.getByRole('button',{name:'Read transcript'})).toHaveCount(0);
+  for(const [name,heading] of [['Review','What your ears are learning'],['Plan','Your listening plan'],['Settings','Settings']]){await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();}
+  await page.getByRole('button',{name:'Home',exact:true}).click();await page.setViewportSize({width:320,height:740});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(320);
+  await page.screenshot({path:'/tmp/aud17-home.png',fullPage:true});
+});
+test('normal session completes with zero clicks after Start and automatically handles a follow-up',async({page})=>{
+  const fixture=await setup(page,{autoPlayback:true});await page.clock.install();
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  await page.clock.fastForward(600000);
+  for(let i=0;i<16;i++){await page.clock.runFor(1000);await page.waitForTimeout(20);if(await page.getByRole('heading',{name:'Nice work today.'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Nice work today.'})).toBeVisible();
+  expect((await probe(page)).clicks).toBe(1);expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
+  expect(fixture.requests.some(x=>x.path.endsWith('/ready'))).toBe(true);await expect(page.locator('textarea')).toHaveCount(0);
+});
+test('Speaking Listening Thinking follow server cues and transcript stays gated through follow-up',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();let release:(()=>Promise<void>)|undefined;
+  await page.route('**/api/attempts/answer0/assess',async route=>{await new Promise<void>(resolve=>{release=async()=>{await route.fallback();resolve();};});});
+  await beginListening(page);await page.clock.runFor(2700);await state(page,'Thinking');await expect.poll(()=>!!release).toBe(true);
+  await expect(page.getByRole('button',{name:'Read transcript'})).toHaveCount(0);await release!();await state(page,'Speaking');
+  await endAudio(page);await state(page,'Listening');await finishTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
+  await expect(page.locator('.session-transcript')).not.toHaveAttribute('open','');
+  await page.locator('.session-transcript summary').click();await page.getByRole('button',{name:'Read transcript'}).click();await expect(page.getByText('Only after completed assessment.')).toBeVisible();
+});
+test('uncertain recognition speaks retry and listens again without exposing ASR or a form',async({page})=>{
+  const fixture=await setup(page);fixture.uncertainNext();await page.clock.install();await beginListening(page);await finishTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(0);expect(fixture.requests.some(x=>x.path==='/api/recognition/retry-audio')).toBe(true);
+  await expect(page.locator('textarea')).toHaveCount(0);await expect(page.getByText('The meeting time changed',{exact:true})).toHaveCount(0);
+  await endAudio(page);await state(page,'Listening');await finishTurn(page);expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(1);
+});
+test('Replay rewinds current speech without duplicate transitions or assessment',async({page})=>{
+  const fixture=await setup(page);await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  const before=await probe(page);await page.getByRole('button',{name:'↻ Replay'}).click();expect((await probe(page)).plays).toEqual(before.plays);
+  expect(fixture.requests.some(x=>x.path.endsWith('/conversation/listened'))).toBe(false);await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);
+});
+test('End confirms exit, stops capture, and never uploads a discarded response',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();await beginListening(page);
+  await page.getByRole('button',{name:'End',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();await page.getByRole('button',{name:'End session',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Start today’s session'})).toBeVisible();await page.clock.runFor(5000);
+  expect((await probe(page)).tracks).toBeGreaterThan(1);expect(fixture.requests.some(x=>x.path.endsWith('/attempts'))).toBe(false);
+  expect((await probe(page)).revoked).toEqual((await probe(page)).urls);
+});
+test('failed transcription retains the original recording for retry',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();await beginListening(page);fixture.failNextUpload();await page.clock.runFor(2700);
+  await expect(page.locator('main').getByRole('alert')).toContainText('recording is safe');const count=(await probe(page)).recorders;
+  await page.getByRole('button',{name:'Retry conversation'}).click();await state(page,'Speaking');await endAudio(page);await state(page,'Speaking');
+  expect((await probe(page)).recorders).toBe(count);expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(2);
+});
+test('119 second recording limit remains authoritative for continuous voice',async({page})=>{
+  const fixture=await setup(page,{continuousVoice:true});await page.clock.install();await beginListening(page);await page.clock.fastForward(119000);await state(page,'Speaking');
+  expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(1);
+});
+test('countdown tracks actual elapsed time and no zero is shown before server completion',async({page})=>{
+  await setup(page);await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  await expect(page.getByLabel('Session time remaining')).toHaveText('10 min left');await page.clock.fastForward(60000);await expect(page.getByLabel('Session time remaining')).toHaveText('9 min left');
+  await page.clock.fastForward(600000);await expect(page.getByLabel('Session time remaining')).toHaveText('Finishing this conversation');await expect(page.getByRole('heading',{name:'Nice work today.'})).toHaveCount(0);
+});
+test('refresh restores pending answer and original session timing without rerecording',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();await beginListening(page);
+  await page.route('**/api/attempts/answer0/assess',route=>route.fulfill({status:503,json:{detail:'Assessment unavailable'}}));
+  await page.clock.runFor(2700);await expect(page.locator('main').getByRole('alert')).toContainText('Assessment unavailable');await page.clock.fastForward(60000);
+  await page.unroute('**/api/attempts/answer0/assess');await page.reload();await state(page,'Speaking');await expect(page.getByLabel('Session time remaining')).toHaveText('9 min left');
+  expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(1);
+});
+test('denied microphone is recoverable and does not generate or start a session',async({page})=>{
+  const fixture=await setup(page,{denied:true});await page.getByRole('button',{name:'Start today’s session'}).click();await expect(page.locator('main').getByRole('alert')).toContainText('Microphone access was denied');
+  expect(fixture.requests.some(x=>x.path.endsWith('/conversation/listened'))).toBe(false);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
+});
+test('TTS failure leaves the server-issued question recoverable',async({page})=>{
+  const fixture=await setup(page);await page.route('**/api/exercises/clip1/coach-audio',route=>route.fulfill({status:503,json:{detail:'Voice unavailable'}}));
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');await endAudio(page);await expect(page.locator('main').getByRole('alert')).toContainText('Voice unavailable');
+  expect(fixture.requests.some(x=>x.path.endsWith('/assess'))).toBe(false);await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
+});
+test('reduced motion keeps static poses and understandable state labels',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});await setup(page);await expect(page.locator('.mascot-body')).toHaveCSS('animation-name','none');
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');await expect(page.getByRole('status')).toHaveText('Audli is speaking');await expect(page.locator('.sound-waves')).toHaveCSS('animation-name','none');
+});
+test('completed Review exposes only server-eligible transcript, with no score dashboard',async({page})=>{
+  await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);await endAudio(page);await state(page,'Listening');await finishTurn(page);await page.clock.fastForward(600000);await endAudio(page);
+  await expect(page.getByRole('heading',{name:'Nice work today.'})).toBeVisible();await page.getByRole('button',{name:'Review today'}).click();await page.getByRole('button',{name:'Read transcript'}).click();
+  await expect(page.getByText('Only after completed assessment.')).toBeVisible();await expect(page.getByText('Observed comprehension:',{exact:false})).toHaveCount(0);
+});
+test('persisted learner-confirmed correction survives resuming an interrupted assessment',async({page})=>{
+  await setup(page);let submitted:Record<string,unknown>|undefined;
+  await page.route('**/api/exercises/clip1/conversation',route=>route.fulfill({json:{state:'ASSESSING',cue_id:'summary',prompt:'Tell me what you understood.',active_followup:null,result:null,pending_attempt:{id:'saved',transcription:{text:'ASR mistake',confidence:.9,uncertainty:[]},confirmed_text:'The learner explicitly corrected this before interruption.'}}}));
+  await page.route('**/api/attempts/saved/assess',route=>{submitted=route.request().postDataJSON();return route.fulfill({status:503,json:{detail:'Provider unavailable'}});});
+  await page.getByRole('button',{name:'Start today’s session'}).click();await expect.poll(()=>submitted?.text).toBe('The learner explicitly corrected this before interruption.');expect(submitted?.hands_free).toBe(false);await expect(page.locator('textarea')).toHaveCount(0);
+});
+test('exit confirmation traps keyboard focus and Escape restores End focus',async({page})=>{
+  await setup(page);await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');await page.getByRole('button',{name:'End',exact:true}).click();
+  await expect(page.getByRole('button',{name:'End session',exact:true})).toBeFocused();await page.keyboard.press('Shift+Tab');await expect(page.getByRole('button',{name:'Stay here'})).toBeFocused();await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:'End session',exact:true})).toBeFocused();await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'End',exact:true})).toBeFocused();
+});
+test('lost transcription response resumes saved answer and records fresh audio for the follow-up',async({page})=>{
+  const fixture=await setup(page);fixture.loseNextUploadResponse();await page.clock.install();await beginListening(page);await page.clock.runFor(2700);await expect(page.locator('main').getByRole('alert')).toContainText('recognition was saved');
+  await page.getByRole('button',{name:'Retry conversation'}).click();await state(page,'Speaking');await endAudio(page);await state(page,'Listening');await finishTurn(page);
+  expect((await probe(page)).recorders).toBe(2);expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(2);expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
+});
+test('End cancels a delayed assessment continuation and discards late coaching',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();let release:(()=>Promise<void>)|undefined;
+  await page.route('**/api/attempts/answer0/assess',async route=>{await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{state:'GIVING_FEEDBACK',cue_id:'feedback',prompt:'Late coaching',result:{},pending_attempt:null,active_followup:null}}).catch(()=>{});resolve();};});});
+  await beginListening(page);await page.clock.runFor(2700);await expect.poll(()=>!!release).toBe(true);await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+  const count=fixture.requests.length;await release!();await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeVisible();await expect(page.getByText('Late coaching')).toHaveCount(0);expect((await probe(page)).revoked).toEqual((await probe(page)).urls);
 });

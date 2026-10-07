@@ -1,143 +1,101 @@
 'use client';
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
-import { authenticatedFetch, LessonLifetime, type LessonOperation } from '../lib/api';
-import { captureRecording, recordingUpload } from '../lib/recording';
-import { VoiceSession, LoadingState, RecoveryState, PrimaryButton } from './lesson';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { authenticatedFetch, type LessonOperation } from '../lib/api';
+import { useVoiceLifecycle } from '../lib/voice-lifecycle';
+import { reliableRecognition, type Recognition } from '../lib/hands-free';
+import { recordingUpload } from '../lib/recording';
+import { SessionShell } from './product-shell';
+import { AudliMascot } from './audli-mascot';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
-type State = { profile: Profile; stage: string; revision: number; prompt: string; destination: string; pending: { text: string; uncertainty: string[] } | null };
+type Checkpoint = { profile: Profile; stage: string; revision: number; prompt: string; destination: string; pending: Recognition | null };
 const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-export function SpokenOnboarding({ onComplete }: { onComplete: () => Promise<void> }) {
-  const [state, setState] = useState<State | null>(null);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState('Loading your conversation…');
+export function SpokenOnboarding({ onComplete }: { onComplete: (operation: LessonOperation) => Promise<void> }) {
+  const voice = useVoiceLifecycle();
+  const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null);
+  const [active, setActive] = useState(false);
   const [error, setError] = useState('');
-  const [recording, setRecording] = useState(false);
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [voice, setVoice] = useState<{ stage: string; url: string } | null>(null);
-  const [voiceError, setVoiceError] = useState('');
-  const [voiceRetry, setVoiceRetry] = useState(0);
-  const owner = useRef<LessonLifetime | null>(null);
-  const capture = useRef<ReturnType<typeof captureRecording> | null>(null);
-  const recordingOperation = useRef<LessonOperation | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audio = useRef<HTMLAudioElement | null>(null);
-  const attachAudio = useCallback((node: HTMLAudioElement | null) => {
-    if (audio.current !== node) audio.current?.pause();
-    audio.current = node;
-  }, []);
-  function apply(data: State) { setState(data); setText(data.pending?.text ?? ''); setBlob(null); }
-  async function run(message: string, action: (operation: LessonOperation) => Promise<void>) {
-    if (!owner.current?.current) return;
-    const operation = owner.current.begin(); setBusy(message); setError('');
-    try { await action(operation); }
-    catch (e) { if (operation.current) setError(e instanceof Error ? e.message : 'Please retry.'); }
-    finally { if (operation.current) setBusy(''); operation.release(); }
+  const [busy, setBusy] = useState(true);
+  const running = useRef(false);
+  const minimum = useRef(.65);
+  const retained = useRef<Blob | null>(null);
+  async function restore(operation: LessonOperation) {
+    const data = await operation.api<Checkpoint>('/onboarding');
+    const settings = await operation.api<{ recognition_min_confidence?: number }>('/profile');
+    operation.assertCurrent(); minimum.current = settings.recognition_min_confidence ?? .65;
+    setCheckpoint(data); setBusy(false);
+    if (data.destination === 'session_ready') await onComplete(operation);
+    else if (data.profile.onboarding_status === 'in_progress' || data.stage === 'review') void start();
   }
-  async function load(operation: LessonOperation) {
-    const data = await operation.api<State>('/onboarding'); operation.assertCurrent(); apply(data);
-    if (data.destination === 'session_ready') await operation.wait(onComplete);
-  }
-  const initialLoad = useEffectEvent(load);
+  const initialRestore = useEffectEvent(restore);
   useEffect(() => {
-    const lifetime = new LessonLifetime(); owner.current = lifetime;
-    const operation = lifetime.begin();
-    // State is restored only after the server response resolves.
+    const operation = voice.begin();
+    // Restored state is applied after the authenticated request resolves.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void initialLoad(operation).catch(e => { if (operation.current) setError(e.message); }).finally(() => { if (operation.current) setBusy(''); operation.release(); });
-    return () => { lifetime.close(); capture.current?.dispose(); if (timer.current) clearTimeout(timer.current); };
+    void initialRestore(operation).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.release());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const requestVoice = useEffectEvent(async (operation: LessonOperation) => {
-    if (!state) throw new Error('Prompt unavailable');
-    let response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio',
-      { ...json({ revision: state.revision }), signal: operation.signal }, operation));
+  async function promptAudio(operation: LessonOperation, data: Checkpoint): Promise<Checkpoint> {
+    voice.thinking();
+    let response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio', { ...json({ revision: data.revision }), signal: operation.signal }, operation));
     if (response.status === 409) {
-      // One recovery only, using a fresh server checkpoint rather than a guessed revision.
-      const checkpoint = await operation.api<State>('/onboarding');
-      operation.assertCurrent();
-      if (checkpoint.stage !== state.stage || checkpoint.destination === 'session_ready') {
-        apply(checkpoint);
-        if (checkpoint.destination === 'session_ready') await operation.wait(onComplete);
-        operation.cancel(); operation.assertCurrent();
-      }
-      response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio',
-        { ...json({ revision: checkpoint.revision }), signal: operation.signal }, operation));
+      // One retry, same account-bound operation, latest authoritative checkpoint.
+      const latest = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); setCheckpoint(latest);
+      if (latest.destination === 'session_ready' || latest.stage !== data.stage || latest.pending) return latest;
+      data = latest;
+      response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio', { ...json({ revision: latest.revision }), signal: operation.signal }, operation));
     }
-    if (!response.ok) throw new Error('Voice unavailable');
-    return operation.wait(() => response.blob());
-  });
-  const stage = state?.stage;
-  const destination = state?.destination;
-  useEffect(() => {
-    if (!stage || destination === 'session_ready') return;
-    const operation = owner.current!.begin(); let url: string | undefined;
-    void requestVoice(operation)
-      .then(body => { operation.assertCurrent(); url = URL.createObjectURL(body); setVoice({ stage, url }); setVoiceError(''); })
-      .catch(() => { if (operation.current) { setVoice(null); setVoiceError('Audli’s voice is unavailable. Read the prompt and continue, or retry audio.'); } });
-    return () => { operation.cancel(); if (url) URL.revokeObjectURL(url); };
-  }, [stage, destination, voiceRetry]);
-  async function upload(captured: Blob) {
-    if (!state) return;
-    await run('Audli is listening…', async operation => {
-      const form = recordingUpload(captured); form.append('revision', String(state.revision));
-      const data = await operation.api<State>('/onboarding/attempts', { method: 'POST', body: form });
-      operation.assertCurrent(); apply(data);
-    });
+    if (!response.ok) throw new Error('Audli’s voice is unavailable. Retry the conversation; your saved progress is safe.');
+    const body = await operation.wait(() => response.blob()); operation.assertCurrent();
+    await voice.speak(operation, URL.createObjectURL(body)); return data;
   }
-  function cancel() {
-    audio.current?.pause();
-    recordingOperation.current?.cancel(); capture.current?.dispose(); capture.current = null;
-    if (timer.current) clearTimeout(timer.current);
-    setRecording(false); setBusy('');
+  async function captureAnswer(operation: LessonOperation, data: Checkpoint): Promise<Checkpoint> {
+    if (!retained.current) retained.current = await voice.listen(operation);
+    operation.assertCurrent(); voice.thinking();
+    const form = recordingUpload(retained.current); form.append('revision', String(data.revision));
+    const latest = await operation.api<Checkpoint>('/onboarding/attempts', { method: 'POST', body: form });
+    operation.assertCurrent(); retained.current = null; setCheckpoint(latest); return latest;
   }
-  async function record() {
-    if (!owner.current?.current || busy || recording) return;
-    const operation = owner.current.begin(); recordingOperation.current = operation;
-    setError(''); setBusy('Opening your microphone…'); audio.current?.pause();
+  async function start() {
+    if (running.current) return;
+    const operation = voice.begin(); running.current = true; setActive(true); setError(''); setBusy(false);
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('Recording needs HTTPS or localhost and a supported browser.');
-      const stream = await operation.wait(() => navigator.mediaDevices.getUserMedia({ audio: true }), input => input.getTracks().forEach(track => track.stop()));
-      operation.assertCurrent(() => stream.getTracks().forEach(track => track.stop()));
-      const session = captureRecording(stream, captured => {
-        if (!operation.current) return;
-        if (timer.current) clearTimeout(timer.current);
-        setRecording(false); setBlob(captured); operation.release(); void upload(captured);
-      }, message => { if (operation.current) { setRecording(false); setError(message); } operation.release(); });
-      capture.current = session; setRecording(true); setBusy(''); setBlob(null);
-      timer.current = setTimeout(() => { if (operation.current) session.stop(); }, 119000);
-    } catch (e) {
-      if (operation.current) { setError(e instanceof Error && e.name !== 'NotAllowedError' ? e.message : 'Microphone access was denied. Allow access and retry, or upload a spoken recording.'); setBusy(''); }
-      operation.release();
-    }
+      let data = await operation.api<Checkpoint>('/onboarding');
+      if (data.destination !== 'session_ready' && (data.profile.onboarding_status === 'not_started'
+        || (data.profile.onboarding_status === 'profile_saved' && data.stage === 'identity'))) {
+        data = await operation.api<Checkpoint>('/onboarding/start', json({ revision: data.revision }));
+      }
+      operation.assertCurrent(); setCheckpoint(data);
+      let retries = 0;
+      while (operation.current) {
+        if (data.destination === 'session_ready') { await onComplete(operation); return; }
+        if (data.pending) {
+          // Pending recognition resumes without duplicating completed profile stages.
+          retained.current = null;
+          if (!reliableRecognition(data.pending, minimum.current)) {
+            if (++retries > 2) throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');
+            await voice.retrySpeech(operation); data = await captureAnswer(operation, data); continue;
+          }
+          voice.thinking();
+          data = await operation.api<Checkpoint>('/onboarding/answer', json({ revision: data.revision, text: data.pending.text, confirmed: true, hands_free: true }));
+          operation.assertCurrent(); setCheckpoint(data); retries = 0; continue;
+        }
+        const beforeStage = data.stage;
+        data = await promptAudio(operation, data); operation.assertCurrent(); setCheckpoint(data);
+        if (data.destination === 'session_ready' || data.pending || data.stage !== beforeStage) continue;
+        if (data.stage === 'review') {
+          data = await operation.api<Checkpoint>('/onboarding/complete', json({ revision: data.revision }));
+          operation.assertCurrent(); setCheckpoint(data); await onComplete(operation); return;
+        }
+        data = await captureAnswer(operation, data);
+      }
+    } catch (error) { if (operation.current) { setError((error as Error).message); setBusy(false); } }
+    finally { if (operation.current) running.current = false; operation.release(); }
   }
-  async function confirm() {
-    if (!state) return;
-    await run('Saving your listening preferences…', async operation => {
-      const data = await operation.api<State>('/onboarding/answer', json({ revision: state.revision, text, confirmed: true }));
-      operation.assertCurrent(); apply(data);
-    });
-  }
-  async function complete() {
-    if (!state) return;
-    await run('Let’s train your ears…', async operation => {
-      await operation.api<State>('/onboarding/complete', json({ revision: state.revision }));
-      operation.assertCurrent(); await operation.wait(onComplete);
-    });
-  }
-  return <main><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header>
-    <section className="card"><VoiceSession state={recording ? 'Recording' : busy ? 'Thinking' : 'Idle'}/>
-      <h1>Let’s make this yours.</h1><p>A short conversation about what you want to understand. Speaking fluency isn’t a listening test.</p>
-      {busy && <LoadingState>{busy}</LoadingState>}
-      {error && <RecoveryState>{error}<button className="secondary" disabled={!!busy || recording} onClick={() => run('Restoring saved progress…', load)}>Reload saved progress</button></RecoveryState>}
-      {state && <><p>{state.prompt}</p>{voice?.stage === state.stage && <audio key={voice.url} ref={attachAudio} controls src={voice.url} onCanPlay={() => { if (!owner.current?.current || recording) return; const operation = owner.current.begin(); const element = audio.current; if (element) void operation.wait(() => element.play(), () => element.pause()).catch(() => { if (operation.current) setVoiceError('Tap play to hear Audli.'); }).finally(() => operation.release()); }} aria-label="Hear onboarding prompt"/>}
-        {voiceError && <p role="status">{voiceError}<button className="secondary" disabled={!!busy} onClick={() => setVoiceRetry(v => v + 1)}>Retry audio</button></p>}
-        {(state.profile.onboarding_status === 'not_started' || (state.profile.onboarding_status === 'profile_saved' && state.stage === 'identity')) ? <PrimaryButton disabled={!!busy} onClick={() => run('Starting our conversation…', async operation => { const data = await operation.api<State>('/onboarding/start', json({ revision: state.revision })); operation.assertCurrent(); apply(data); })}>Let’s talk</PrimaryButton>
-        : state.stage === 'review' ? <><p><strong>{state.profile.name}</strong> · English</p><p>{state.profile.goal}</p><p>Listening situations: {state.profile.target_situations.join(', ')}</p><p>Interests: {state.profile.interests.join(', ')}</p><p>We’ll start with clear, slower English. Your listening profile is provisional until we hear evidence from a listening exercise.</p><PrimaryButton disabled={!!busy} onClick={complete}>That’s right. Let’s train your ears.</PrimaryButton><button className="secondary" disabled={!!busy} onClick={() => run('Reopening preferences…', async operation => { const data = await operation.api<State>('/onboarding/revise', json({ revision: state.revision })); operation.assertCurrent(); apply(data); })}>Correct my preferences</button></>
-        : <>{recording ? <><PrimaryButton onClick={() => capture.current?.stop()}>Finish answer</PrimaryButton><button className="secondary" onClick={cancel}>Cancel recording</button></> : state.pending ? <><h2>Did I hear you correctly?</h2>{state.pending.uncertainty.map((message, i) => <p key={i}>{message}</p>)}<label htmlFor="onboarding-answer">Your spoken answer</label><textarea id="onboarding-answer" value={text} maxLength={8000} onChange={e => setText(e.target.value)}/><PrimaryButton disabled={!!busy || !text.trim()} onClick={confirm}>That’s what I said</PrimaryButton><button className="secondary" disabled={!!busy} onClick={record}>Record again</button></> : <PrimaryButton disabled={!!busy} onClick={record}>Record answer</PrimaryButton>}
-        {blob && !recording && <button className="secondary" disabled={!!busy} onClick={() => upload(blob)}>Retry transcription</button>}
-        {!recording && <details><summary>Use a spoken recording</summary><input aria-label="Upload onboarding answer" type="file" accept="audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/ogg" disabled={!!busy} onChange={e => { const file = e.target.files?.[0]; if (file) { setBlob(file); void upload(file); } }}/></details>}</>}
-      </>}
-      {!state && !busy && <PrimaryButton onClick={() => run('Connecting…', load)}>Retry connection</PrimaryButton>}
-    </section><footer>Eyes optional. Ears essential.<span>Your microphone recording is discarded after transcription.</span></footer></main>;
+  function end() { voice.stop(); retained.current = null; running.current = false; setActive(false); setError(''); }
+  if (active) return <><SessionShell state={voice.state} activity={voice.activity} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
+    <p className="sr-only">{checkpoint?.prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start()}>Retry conversation</button></div>}
+  </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/></>;
+  return <main className="onboarding-ready"><header><strong className="wordmark">audli</strong></header><AudliMascot/><h1>Let’s make this yours.</h1><p>A short conversation about what you want to understand.</p><button className="primary" disabled={busy} onClick={() => void start()}>{checkpoint?.profile.onboarding_status === 'in_progress' ? 'Resume our conversation' : 'Let’s talk'}</button>{error && <div role="alert">{error}<button className="secondary" onClick={() => void start()}>Retry conversation</button></div>}<audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/><footer>Eyes optional. Ears essential.</footer></main>;
 }

@@ -1,159 +1,137 @@
-# Authenticated lifecycle and spoken onboarding (AUD-15)
+# Authenticated application flow and hands-free coaching (AUD-15 / AUD-17)
 
-Implementation is local and awaits security/architecture review. AUD-14 production acceptance passed on 2026-10-07; its final Linear comment is authoritative over older pending-verification notes. AUD-15 remains In Progress. No daily lockout (AUD-16), production changes, commits or deployments.
+AUD-17 implements the owner-approved written product-shell/session specification and the persisted Figma Mascot System (`TOyKOA5mrWAWI8WvvS7lvy`, nodes `7:23`–`7:80`). The other two Figma pages were lost by the connector; their absence is not a design brief. This implementation is local, uncommitted and awaits review. No hosted acceptance is claimed here. AUD-17 remains In Progress.
 
-## Before this change
+## Authoritative navigation
 
-AuthGate restored confirmed Supabase sessions and mounted a private lesson keyed to account/session generation. FastAPI verified every bearer token and initialized an account-scoped default profile. A new learner with no exercise saw a typed name/goal form. PUT /profile saved `profile_saved`; generation created a session/exercise and the introduction opened. Home restored the latest exercise and conversation for returning learners. Setup visibility depended on exercise existence, not onboarding completion. Onboarding had neither spoken stages nor explicit completion; existing lesson checkpoints were already durable.
-
-## Authoritative navigation contract
-
-`app.onboarding.application_destination(profile)` makes the routing decision. GET /profile and GET /onboarding return its `destination`. ApplicationFlow validates it and mounts either SpokenOnboarding or the existing Audli lesson. It never infers completion from a name, attempt count, local storage, exercise existence or token refresh.
+`app.onboarding.application_destination(profile)` remains the sole onboarding routing decision. ApplicationFlow loads GET /profile inside AuthGate and selects onboarding or the authenticated product shell. Names, exercise existence, browser timing and token refresh do not decide onboarding completion.
 
 ```mermaid
 flowchart TD
-  U[UNAUTHENTICATED] --> A[AUTHENTICATED]
-  A --> P[PROFILE LOADING]
-  P -->|incomplete| O[ONBOARDING]
-  P -->|complete| H[SESSION READY]
+  U[Landing / sign in / sign up] --> A[Authenticated]
+  A --> P[Profile loading]
+  P -->|onboarding incomplete| O[Spoken onboarding]
+  P -->|onboarding complete| H[Home / session ready]
   P --> E[Connection error]
   E -->|Retry| P
   O --> I[Identity and English preference]
   I --> N[Goal and listening situations]
   N --> T[Interests]
-  T --> R[Confirm structured profile]
-  R -->|Explicit completion| F[Generate first session]
-  R -->|Correct preferences| I
-  F --> L[LISTENING LOOP]
-  F --> G[Generation error]
-  G -->|Retry or reload| F
-  H -->|Start or resume| L
-  L --> C[SESSION COMPLETE]
-  C -->|Keep going| L
-  L -->|Home| H
-  O --> X[Permission / transcription / extraction error]
-  X -->|Retry current stage| O
-  O -->|Refresh / restart / login| P
-  L -->|Refresh / restart / login| P
+  T --> R[Spoken closing cue]
+  R -->|Explicit server completion request| H
+  H -->|Start today's session| S[Audli speaking]
+  S --> L[Listening / automatic recording]
+  L --> Q[Thinking / recognition and assessment]
+  Q -->|Targeted follow-up, at most two| S
+  Q -->|Uncertain recognition| Y[Spoken retry]
+  Y --> L
+  Q --> F[Final spoken coaching]
+  F --> B[Server READY_FOR_NEXT]
+  B -->|Time remains| S
+  B -->|Intended duration elapsed| C[Completed Home]
+  H --> V[Review / Plan / Settings]
+  C --> V
+  O --> X[Recoverable permission / transcription / extraction / audio error]
+  S --> X
+  L --> X
+  Q --> X
+  X -->|Retry from saved checkpoint| P
+  O -->|Refresh / login / backend restart| P
+  H -->|Refresh / login / backend restart| P
+  S -->|End confirmed| H
+  L -->|End confirmed| H
   A -->|Logout / rejected session| U
 ```
 
-Onboarding statuses use the existing allowed values:
+The landing and auth screens contain no learner data. Sign-up preserves confirmed-email behavior. The account/session-keyed private component and token provider are unchanged in responsibility. Settings exposes the existing local sign-out operation; logout immediately invalidates operations and unmounts private content before remote sign-out completes. Cross-tab sign-out/account change also cancels old work. Ordinary token refresh preserves the operation generation.
 
-| Status | Checkpoint | Primary action |
-| --- | --- | --- |
-| not_started | identity, revision 0 | Let's talk |
-| in_progress | identity, needs or interests | Record answer; finish; confirm recognition |
-| profile_saved | review | That's right. Let's train your ears. |
-| complete | review | Session ready / start training |
+## Spoken onboarding
 
-Every stage can hold one pending recognition (text, uncertainty, confidence/source), allowing recognition review after refresh/restart. Processing failures retain the current stage. A recorded browser blob survives a failed upload for retry during that page lifetime; an unuploaded recording cannot survive refresh and must be recorded again. Successfully confirmed answers discard the pending recognition and retain only extracted preferences. Audio generation errors expose prompt text, replay retry and the current primary action. Permission failures offer retry and spoken-file upload. Initial loading errors offer Retry connection. Revision conflicts offer Reload saved progress; completed stages are not replayed automatically.
+The existing persisted state machine is unchanged: `not_started` → `in_progress` (identity, needs, interests) → `profile_saved` (review) → `complete`. Three grouped spoken turns capture preferred name/English, reason/listening situations and interests. Application code still validates structured extraction and chooses stages. English is the only supported language. Speaking fluency never supplies listening evidence.
 
-Existing AUD-14 typed `profile_saved` learners have no spoken checkpoint: they explicitly start the identity stage, then capture the remaining preferences. Existing learning evidence/difficulty/history and the legacy account remain intact. Already `complete` learners never see onboarding. A learner can explicitly reopen the three preference stages before completion using Correct my preferences; this does not reset learning state. No completed-onboarding reset is offered.
+After Let's talk, `/onboarding/start` resolves before prompt audio is requested. This removes the old revision-0/start race. Every prompt audio request still includes its checkpoint revision. A 409 reloads the authoritative checkpoint using the **same LessonOperation**, then retries audio at most once if the stage is still appropriate. A changed stage, pending answer or completed profile takes its saved path instead. No optimistic concurrency protection is relaxed.
 
-## Short voice conversation
+Successful recognition is not shown in a form. The client submits its unedited text with `confirmed: true, hands_free: true`; the server checks the saved recognition, confidence and uncertainty before extraction. Recognition with uncertainty, null/low confidence or blank text receives a spoken retry and automatic listening. After two consecutive automatic recognition retries, recovery pauses with an actionable microphone/retry message. Failed extraction preserves pending recognition; retry/refresh restores that checkpoint without repeating completed stages. Malformed extraction and unsupported language remain recoverable 422 responses.
 
-Three grouped turns target roughly 3–5 minutes including recognition checks, with no timed requirement:
+The review stage now speaks a short closing statement, then makes the explicit, idempotent `/onboarding/complete` request. Completion returns to Home; the first listening session starts with Home's primary action. There is no routine recognition or profile-confirmation form. The existing review-only `/onboarding/revise` endpoint remains compatible, but a completed-profile editing feature is not invented. Legacy `profile_saved` learners without spoken progress still explicitly begin identity. No completed onboarding reset is offered.
 
-1. What should I call you, and what language do you want to train? Audli currently trains English listening.
-2. Why are you learning English, and what do you most want to understand better? Describe situations where listening is hardest or most important.
-3. What topics do you enjoy? A few interests, or no preference, are enough.
+## Hands-free session lifecycle
 
-Audli speaks using the existing provider `speak`; the learner records using existing capture/upload helpers; the API validates/deletes audio and transcribes using the existing provider. The learner confirms/corrects recognition before structured extraction. OpenAI returns a strict ProfileExtraction: nullable bounded name/language/goal and bounded lists of freely named situations/interests. Application code validates required fields for that stage, rejects unsupported languages and chooses progression. No preference becomes general topics. Missing/malformed extraction cannot advance the checkpoint; the learner can correct recognition or record again. Profile review shows what was extracted and offers explicit correction before completion.
+`useVoiceLifecycle` owns the presentation/audio state; the server conversation owns learning progression. Its account-bound LessonOperation spans the continuation through audio, recording, upload, assessment, follow-up and coaching. Pure visual components receive state and never choose evidence, follow-ups, scores or adaptation.
 
-English is the only supported target, consistent with AGENTS.md and the existing `Literal['en']`. Unsupported languages return a recoverable 422 instead of pretending to offer another language. Demo extraction/transcription is explicitly synthetic/manual; it does not establish real extraction quality.
+1. Start requests microphone permission, then loads/resumes the current authenticated exercise and conversation.
+2. LISTENING plays the private exercise automatically. Only its ended event requests `/conversation/listened`.
+3. AWAITING_SUMMARY/AWAITING_FOLLOWUP plays the issued coaching cue, then records automatically.
+4. The original MediaRecorder helper collects the final chunk before upload. Web Audio measures microphone RMS locally: at least 300ms of voice, at least two seconds of recording and an 1.8-second silence gap end a normal turn. No speech ends after 15 seconds; continuous sound remains capped at 119 seconds. This is turn detection, not a new ASR/evaluation provider. Tracks, analyser/source, timer and AudioContext are cleaned on completion/cancellation.
+5. The original recording Blob is retained only during a failed transcription request. Successful transcription releases it; server pending recognition supports reload/restart. No transcript textarea or routine confirmation appears.
+6. Reliable unedited recognition automatically requests assessment. Server ASR guards run before evaluator/checkpoint mutation; evaluator transcription concern still rejects without adaptation. The pending recognized answer remains available for retry. Previously learner-confirmed corrections are restored verbatim through the compatible manual API path. If a transcription response is lost after the server saved it, that pending checkpoint supersedes the retained upload Blob; a follow-up always records fresh audio.
+7. The server's follow-up or GIVING_FEEDBACK response determines the next spoken cue. Follow-ups automatically return to listening. Final coaching completes before `/conversation/ready`.
+8. At READY_FOR_NEXT, the client either generates another exercise using the authenticated persisted profile or returns to completed Home when the intended duration has elapsed. Adaptation still happens only in the existing final assessment transaction.
 
-## Persisted data and provisional listening state
+The intended duration is ten minutes (`SESSION_DURATION_MS`). The countdown uses actual elapsed wall-clock time and whole minutes. At expiry it says “Finishing this conversation”, never zero, while the current finite server conversation finishes. It cannot interrupt an assessment or claim completion early. Account/session-scoped sessionStorage stores only start time and active/paused/complete presentation status. Refresh restores timing when available and **always** reloads server conversation state. Clearing storage, switching devices or logging out does not lose learning checkpoints; a new Start resumes the server exercise with a new local timing window. This is pacing, not a new server session/eligibility model. AUD-16 daily enforcement is absent; completed Home retains an optional Start another session action.
 
-Existing relational name, target_language, goal, interests, target_situations and onboarding_status are reused. The existing profile `data` JSON/JSONB snapshot gains a version-1 typed `onboarding` object with stage, monotonically increasing revision and one nullable pending Transcription. Historical snapshots lacking the object default to identity/revision 0. No raw microphone bytes or full onboarding conversation history are retained. Pending recognized speech is sensitive data retained only until successful confirmation; a failed/interrupted stage retains that one checkpoint to support resume.
+Replay rewinds only currently playing audio. It does not create another request, restart recording or repeat a domain transition. End opens an accessible confirmation; confirming stops playback/recording, aborts operations, discards unuploaded audio and returns Home. Saved server progress remains. Late microphone acquisition stops its tracks; late successful audio bodies cannot create blob URLs after cancellation. Object URLs are revoked in playback cleanup. Stable object refs mean ordinary rerenders never pause or regenerate speech.
 
-The existing .7 listening values are algorithmic starting priors, not onboarding-derived scores. Existing slower B1 difficulty remains unchanged. `initial_listening_profile` stays null for a new learner until the existing fully evidenced final exercise assessment establishes it. Onboarding never calls evaluation/adaptation, changes attempt counts or fabricates a score. Existing learners retain their actual learning state.
+TTS/autoplay/network/microphone failures pause in a recoverable state with Retry conversation and accessible cue text. Retry reloads the server checkpoint, preserving final assessments and pending recognition. Native speech/codec/autoplay restrictions can require a user gesture on this exceptional path. Automatic turn detection requires a browser with MediaRecorder and Web Audio; unsupported browsers receive an actionable error rather than a misleading recording state. No realtime/WebRTC, custom ASR/TTS or new providers are introduced.
 
-**No Migration 002 is required.** The checkpoint fits the existing versioned JSONB domain snapshot; all queryable fields/status values already exist. save_onboarding reads the current account row with a database lock, compares revisions and writes preferences/checkpoint plus projections in one transaction while preserving current learning fields. SQLite uses BEGIN IMMEDIATE. A stale tab/request cannot overwrite a newer onboarding revision. Migration 001 and relational schema are unchanged (SHA-256 f6e51fc8983b97d32f775142b0a996c7ca8a68ca9be9ba81c0df8e544143b1cf). Startup schema validation still requires version 1; no production SQL is needed. Changes follow the existing single-worker provider checkpoint contract.
+## Product shell and mascot
 
-## API contract
+Home has one dominant Start today's session action, the living mascot and a concise listening description. Completed Home uses restrained success motion and Review today. Review shows recent persisted coaching observations and eligible transcripts; it does not show internal scores. Transcript requests remain server-gated. A collapsed secondary transcript appears in the active session only after a server final result; Review accesses completed history. Plan explains saved goals and the application's automatic learning approach without adaptation controls. Settings contains account, voice/playback, accessibility, privacy and help explanations. Floating Home / Review / Plan / Settings navigation is absent in focused sessions.
 
-All routes below require the same verified identity as existing private routes; none accepts learner identity.
+The mascot uses inline vector geometry from the approved Figma export: teal bridge, white opening, blue and coral ear pads; no eyes/mouth. Listening marks, thought dots, waves, restrained success marks and retry cue follow the supplied storyboard. CSS provides 3.5s breathing at 1–1.025 scale, attentive 2.5° listening, 3px thinking drift/dot rhythm, playback-driven speaking movement, a single 160ms success lift/squash and 3° retry pose. Listening marks react to detected microphone activity. Speaking motion follows actual successful playback lifetime; it does not analyse TTS amplitude. No GIF/video, spinner, confetti or gamification is used.
 
-| Method/path | Input | Behavior |
-| --- | --- | --- |
-| GET /api/profile | none | Existing profile/provider plus authoritative destination |
-| PUT /api/profile | existing name/goal | Retained compatibility endpoint; refuses any started spoken checkpoint, in_progress/complete or existing exercise; cannot complete spoken onboarding |
-| GET /api/onboarding | none | Profile, stage, revision, prompt, pending recognition, destination |
-| POST /api/onboarding/start | revision | Initializes not_started or legacy profile_saved without spoken progress; resumed/completed states return unchanged |
-| POST /api/onboarding/attempts | multipart audio + revision | Existing audio validation/transcription; saves one pending recognition without advancing stage |
-| POST /api/onboarding/answer | revision, text, confirmed=true | Requires a pending recorded answer; extracts/validates stage preferences; clears recognition and advances atomically |
-| POST /api/onboarding/revise | revision | Review only; explicitly reopens identity, retaining preferences/learning state |
-| POST /api/onboarding/complete | revision | Requires profile_saved/review; atomically sets complete; repeated completion returns current state without another mutation |
-| POST /api/onboarding/audio | revision | Current prompt through existing TTS/sanitization; returns private no-store audio bytes, with no durable cache or audio URL |
+System prefers-reduced-motion always disables animation; Settings can additionally reduce motion. Static poses, state text, focus rings, keyboard-operable navigation, cue text and a focus-contained/Escape-dismissable exit confirmation preserve comprehension without motion.
 
-Bad input/extraction is 422; changed or invalid stages are 409; provider/backend failures use existing credential-free 503 handling; missing/invalid auth is 401. Origin and upload/JSON body guards remain in force. Lesson generation/evaluation/conversation/transcript/audio endpoints keep their established behavior. Direct legacy API exercise generation is retained for compatibility; application navigation requires completed onboarding and only the dedicated completion route can set that status.
+## Minimal API additions
 
-## Frontend and first-session behavior
+All routes retain existing server-verified Supabase identity, request-scoped ownership, origin/body limits and no-store private responses. No endpoint accepts learner identity.
 
-ApplicationFlow inside AuthGate owns profile loading/retry and chooses one private screen. SpokenOnboarding uses the existing branding, mascot, card/buttons, accessible prompt text, private prompt audio, microphone capture and spoken-file fallback. Every asynchronous continuation uses LessonLifetime/LessonOperation. Prompt playback tries automatically and offers replay if autoplay is blocked. Its stable audio ref pauses only on replacement/unmount or intentional recording/cancellation, not ordinary rerenders. A stale prompt-audio revision triggers one authenticated checkpoint reload and one retry for the same stage; changed stages use the saved checkpoint. Successful same-stage audio is retained across recognition revisions rather than regenerated. All recovery remains inside the original account/session operation lifetime. Recording begins on the primary button and is bounded by the existing 119-second recorder limit. After transcription, raw browser blobs are released; failed upload blobs remain available for retry. All microphone tracks and playback stop on unmount/logout; prompt blob URLs are revoked on replacement/unmount. Late media acquisition releases tracks and cannot resume under a later account.
+- GET /api/profile additionally returns `recognition_min_confidence`, the existing configured threshold.
+- POST /api/onboarding/answer and POST /api/attempts/{id}/assess additionally accept optional `hands_free` (default false for compatible manual clients). Automatic text must match saved recognition and pass the confidence/uncertainty gate. Manual confirmation behavior remains compatible. Automatic assessment rejection uses existing 422/uncertain semantics; no evaluator is called and no learner state is changed.
+- POST /api/recognition/retry-audio speaks one fixed recovery phrase through the existing provider/sanitization boundary. It is authenticated, contains no learner content, retains no audio and cannot advance any checkpoint. Client automatic retries are bounded; public provider budgets remain deferred hardening.
+- Onboarding's closing prompt copy changes; completion, revision locks, persistence formats and all other contracts remain unchanged.
 
-After completion, generation runs immediately and opens the existing lesson introduction. If generation fails, retry invokes idempotent completion/generation; refresh reaches session-ready Home with Start training. Generation passes the whole newly persisted LearnerProfile to the existing provider. The OpenAI prompt now explicitly selects a scenario from goal/interests/target situations, while keeping exact difficulty and existing repair bounds. Demo material remains fixed. No new provider or voice infrastructure is introduced.
+## Persistence, security and configuration
 
-Returning users load the same authenticated profile and bypass onboarding entirely. Home starts a new clip when the latest exercise is complete or absent, or resumes an unfinished clip/conversation. Existing V0.2.1 assessment checkpoints, uncertain recognition handling, unknown evidence, bounded 0–2 follow-ups, terminal feedback composer, adaptation, transcript gates and secondary metrics are untouched.
+AUD-15's version-1 onboarding object remains in the existing profile JSON/JSONB snapshot. Atomic account-scoped revision comparisons/projections, SQLite BEGIN IMMEDIATE, PostgreSQL transactions, historical defaults and legacy learner compatibility are unchanged. No Migration 002 or production SQL is needed. Migration 001 SHA-256 remains `f6e51fc8983b97d32f775142b0a996c7ca8a68ca9be9ba81c0df8e544143b1cf`.
 
-## Security and deployment configuration
+The existing **single API worker** requirement remains. No changes to Supabase, Render, Vercel, .env, dependencies, schema, provider configuration or auth/persistence architecture are required. Browser session timing is never authorization. Requests already accepted by FastAPI may finish for their original account after cancellation; they cannot adopt another account's token. Audio remains private bearer-fetch content. PostgreSQL learner isolation/durability, transcript gates, demonstrated/misunderstood/insufficient-evidence semantics, zero-to-two follow-ups, final-feedback limits and deterministic one-variable adaptation are preserved.
 
-AUD-14 server verification, request-scoped account repository, ownership/404 behavior, unauthenticated 401, exact origins/body limits, auth/session generations, private bearer audio fetching, blob cleanup and Postgres durability remain the boundaries. Supabase session behavior is unchanged; ordinary SDK token refresh preserves the account/session generation ([Supabase sessions](https://supabase.com/docs/guides/auth/sessions)). No secrets, browser UUID authorization, client database access, service-role credentials, RLS policies or grants are added. Requests already accepted by FastAPI may finish for their original account after browser cancellation; they cannot use a later account's credentials.
+## Controlled acceptance after approved release
 
-Local: no new environment values/dependencies. Reuse development SQLite/local Auth or documented Supabase development Auth with a disposable database. OpenAI mode is required for actual speech recognition/extraction; Demo mode is manual/synthetic. Keep HTTPS/localhost for microphone access.
+1. Use separately confirmed test accounts A/B. Verify Landing sends no learner requests and unauthenticated retry/onboarding routes return 401. Confirm sign-in/signup/logout and token refresh still work; no infrastructure changes or SQL are needed.
+2. On A, start onboarding and speak the three grouped answers. After the initial gesture and browser microphone permission, finish without tapping. Verify preferred name, English, goal, free-form situations and interests in the authenticated profile; listening priors/counts must not change. Completion must enter Home.
+3. Refresh/logout/login after each stage and while a recognized answer is pending. Restart the backend and repeat. Completed stages must not repeat; completed learners skip onboarding. B must retain an independent profile/checkpoint.
+4. Start a real ten-minute session. Verify exercise → spoken cue → listening → processing → follow-up(s), if warranted → final coaching happens without clicks. Check silence turn ending in a quiet room and realistic pauses/background noise. Confirm the 119-second limit, whole-minute countdown and completion only after server coaching/READY_FOR_NEXT. Time can overrun while the final exercise completes.
+5. Check replay during speech, End/Stay with mouse and keyboard, focus containment and Escape. End during speech/recording/provider work must stop resources and discard browser continuations while preserving server progress.
+6. Verify uncertainty/no speech conversationally retries without an ASR form or learning-state change. Deny permission, block transcription/extraction/TTS requests and retry; saved recognition/assessment must remain. Repeated uncertainty must pause rather than loop indefinitely.
+7. Delay A's permission, audio body, checkpoint reload, extraction, completion and exercise generation; switch to B, then release. No A UI/audio/result may appear under B, no A continuation may use B's bearer token, and late media/URLs must be cleaned.
+8. Before final assessment, transcript requests remain 403. After completion, Review may load the eligible transcript; B's requests for A's exercise/audio/attempt remain 404. Verify at most two insufficient-evidence follow-ups, unknown remains unknown, misunderstood evidence receives correction, final coaching has no questions/metrics and deterministic adaptation changes at most one variable.
+9. Inspect mobile/desktop layouts and all six mascot states. Test OS reduced motion and Settings reduction. Verify Home/Review/Plan/Settings navigation and restored authenticated content after refresh.
+10. Repeat on real supported Chrome/Safari/mobile devices: browser speech playback, microphone codecs, Web Audio resumption and silence thresholds require actual acceptance. Record hosted outcomes in AUD-17; do not mark it Done from local mock tests alone.
 
-Supabase: no changes. Keep confirmed email/password Auth, anonymous sign-ins disabled, exact redirects, existing publishable key and denied browser table access.
+## Verification and deferred work
 
-Render: no changes. Keep existing production Postgres/Auth/OpenAI settings and one API worker. No migration, infrastructure modification or new service is required.
+Automated Auth/AI/media fixtures establish plumbing, isolation and state transitions, not real evaluator accuracy or natural spoken performance. AUD-15's prior verified baseline was backend 284, combined SQLite/PostgreSQL 125, onboarding 30, frontend helpers 38 and Chromium 32. AUD-17 results will be recorded after final checks.
 
-Vercel: no changes. Keep same-origin rewrite, public Supabase URL/publishable key and existing BACKEND_URL. Reviewed code releases would require ordinary backend/frontend deployment later; this implementation performs none.
+Deferred: public provider budgets/rate limits, TTS coalescing, broader browser/device acceptance, privacy retention/export/deletion, profile-editing product flow, multi-worker redesign and AUD-16 daily eligibility. No placeholder settings, new goals API, dashboard or adaptation algorithm is invented. Figma's missing shell pages are represented by the owner's explicit replacement specification, not an inferred redesign.
 
-## Exact owner production acceptance procedure after review/approved release
-
-1. Do not apply database SQL. Confirm schema_migrations still contains version 1 and baseline hash is unchanged. Preserve existing/legacy learner rows. Retain AUD-14 Auth/RLS/origin/settings and secrets.
-2. Release the reviewed backend/frontend code only after separate owner approval. Use a fresh confirmed test account A and separate confirmed account B in two browser profiles. Do not edit their database profiles to make onboarding work.
-3. Before sign-in, request GET /api/onboarding and POST /api/onboarding/start without bearer credentials: expect 401. Confirm public health/auth-config still work. Sign in as A; GET /profile must report onboarding and not_started; no lesson content/transcript should appear.
-4. Click Let's talk. Hear/replay the first prompt; record a name and English preference. Check recognized text, correct recognition if necessary, confirm. Verify stage needs, name/language saved, difficulty unchanged, completed_attempts unchanged and initial_listening_profile null.
-5. Record goal/listening situations naturally (use an uncategorized example such as incident handover discussions). Refresh before confirming recognition; verify the pending answer is restored. Confirm it; refresh again; verify interests is next and identity/needs are not repeated.
-6. Sign out during onboarding. Sign into B; it must have independent default onboarding. Sign back into A; verify the exact saved stage/preferences. Restart Render, then reload A; verify the same checkpoint with no manual database update.
-7. Finish interests and inspect profile review. Confirm goal, freely named situations and interests. Test Correct my preferences before completion if needed; it explicitly reopens preferences and leaves difficulty/history unchanged.
-8. Confirm That's right. Let's train your ears. Verify complete persisted and first exercise generated directly into introduction. If generation fails, retry; if the completion response is lost, reload saved progress. No duplicate completion or extra active exercise should occur. Inspect the backend-generated exercise privately after assessment to verify relevance to goal/interests/situations; never expose its script before assessment. Verify no fabricated onboarding score.
-9. Finish listening -> spoken summary -> recognition -> assessment -> meaningful insufficient-evidence follow-up(s), at most two -> final coaching -> adaptation -> session completion. Before final assessment transcript is 403; afterwards it is available. Unknown evidence is not a zero/correction; incomplete evidence keeps difficulty stable; one primary difficulty variable changes at most. Feedback has no questions/metrics, at most three sentences and the configured <=50-word cap. Failed coach TTS must preserve assessment.
-10. Reload, sign out/in, then use another device/browser profile for A. Verify onboarding is skipped and Home restored. Restart Render again; profile/history/difficulty/audio remain durable. Start training resumes an unfinished exercise or generates from current persisted difficulty. Keep going remains available; AUD-16 lockout is absent.
-11. With B's own token, request A's exercise audio, coaching audio, transcript, conversation and attempts: expect 404. Onboarding routes only operate on B regardless of supplied query/header UUID; extra learner_id in JSON must be 422. Verify A's preferences/stage unchanged.
-12. Use browser request throttling/blocking to delay A's microphone, onboarding upload and answer response separately; sign A out, sign B in, then release each. B must show only its own profile; no A continuation may write/generate under B's token; late streams stop and blobs are released. Sign out during active recording/playback; both must stop immediately.
-13. Deny microphone access; allow/retry or upload a valid spoken file. Simulate transcription/extraction/API/TTS failure through browser request blocking, without changing production configuration. Verify actionable recovery, saved stages unchanged, uncertain recognition review, and failed upload retry. Check malformed/unsupported-language answers do not advance. Check invalid audio 422, oversized upload/JSON 413 and unapproved Origin 403.
-14. Repeat POST /onboarding/complete after successful completion: unchanged complete state. Check A/B/legacy state after restart. Record the exact outcomes, real extraction/TTS quality and onboarding duration in AUD-15; leave it In Progress until separately approved and fully accepted.
-
-## Verification and limitations
-
-Automated tests mock Auth and AI; they establish state/security/storage plumbing, not actual natural-language extraction, comprehension evaluation or hosted deployment quality. Real OpenAI spoken extraction and 3–5 minute pacing require the owner acceptance above. No production calls were made. Browser coverage is Chromium; microphone/codec/autoplay behavior on other browsers remains manual. Preferences correction before completion reopens all three short stages intentionally. Unuploaded microphone blobs cannot survive refresh. No daily budget, account recovery UI, retention/export/deletion policy or wider public-alpha hardening is introduced.
-
-Final verification results are recorded below after the complete checks finish.
-
-### Final local verification, 2026-10-07
+### Final local verification — 2026-10-07
 
 | Check | Result |
 | --- | --- |
-| Complete backend suite, including real SDK/mock-HTTP extraction | 284 passed |
-| SQLite + PostgreSQL persistence/auth/onboarding suites | 125 passed on disposable PostgreSQL 18.6 |
-| Final onboarding suite after stale typed-setup guard | 30 passed across SQLite/PostgreSQL |
-| Existing frontend helper suites | 38 passed |
-| Complete Chromium browser suite | 27 passed |
-| Frontend lint, standalone typecheck and production build | Passed |
-| Python compilation (app/tests/scripts), git diff --check | Passed |
-| Migration 001 hash | Unchanged |
-| Hosted/real OpenAI onboarding acceptance | Pending owner acceptance after review |
+| Complete backend suite | 294 passed |
+| SQLite persistence/auth/onboarding/automatic-recognition cases | 83 passed |
+| Combined SQLite/PostgreSQL persistence/auth/onboarding/recognition | 137 passed |
+| Onboarding/recognition-specific SQLite/PostgreSQL | 42 passed |
+| Frontend helper suites | 42 passed |
+| Full Chromium suite | 45 passed |
+| Lint / standalone typecheck / production build | Passed |
+| Python compilation / git diff check | Passed |
+| Production dependency audit | 0 vulnerabilities |
+| Migration 001 | Byte-identical; no Migration 002 |
+| Hosted speech/device/production acceptance | Pending owner review and approved release |
 
-Initial sandboxed runs encountered an audio subprocess stall; complete unsandboxed runs passed. The first browser attempt overlapped the browser download; subsequent complete runs passed after installation. A Next.js startup timeout on the mounted drive was resolved on the diagnostic rerun. Generated Next route references were restored. The disposable Postgres cluster was stopped after verification; no production database/service was accessed.
+The Chromium suite includes click-free completion, automatic follow-up/retry, real PCM playback across ordinary rerenders, private delayed audio-body cancellation, stale-checkpoint recovery under the original operation, pending-answer resume, preserved prior learner corrections, lost transcription response followed by fresh follow-up capture, End cancellation during capture/assessment, transcript gating, reduced motion, elapsed timing, keyboard exit controls, token refresh and account-switch races through completion/generation. Synthetic provider/media tests do not establish real learner speech quality.
 
-Files changed: app/main.py, app/models.py, app/onboarding.py, app/onboarding_api.py, app/services/provider.py, app/services/demo.py, app/services/openai_provider.py, app/storage/repository.py; web/app/page.tsx, web/components/onboarding.tsx, web/tests/auth.spec.ts, web/tests/lesson.spec.ts; tests/test_onboarding.py, tests/test_openai_provider.py; docs/APPLICATION_FLOW.md, docs/AUTHENTICATION.md, docs/PERSISTENCE.md.
-
-### Security-review small-fix verification
-
-This pass fixes only the unstable audio callback ref and the start/initial-TTS revision race. Server revision checks, authentication, repository/schema and configuration are unchanged. No optional generation-context change was made. Existing TTS-failure browser coverage remains; successful cases use valid PCM and instrument Chromium's native playback. The four required regression areas have five cases, with completion and first-generation cancellation tested separately.
-
-Final checks: complete backend **284 passed**; SQLite persistence/auth/onboarding **73 passed**; persistence/auth/onboarding with disposable PostgreSQL **125 passed** (combined SQLite/PostgreSQL parametrizations); onboarding-specific SQLite/PostgreSQL **30 passed**; frontend helpers **38 passed**; final complete Chromium suite **32 passed**, including all five new regression cases. Production build and its TypeScript check passed; standalone typecheck, lint, Python compilation and diff checks passed. Production dependency audit: **0 vulnerabilities**. Migration 001 SHA-256 remains `f6e51fc8983b97d32f775142b0a996c7ca8a68ca9be9ba81c0df8e544143b1cf`; no Migration 002. Disposable PostgreSQL stopped; generated Next route references restored.
-
-The first new-test run exposed a delayed-body fixture issue: reading a network body only after logout exercised fetch abortion rather than a successful late body. The final fixture buffers a valid response before delaying its delivery, and both final complete Chromium runs passed. An initial sandboxed browser-server launch failed; approved external runs passed. Hosted/real OpenAI acceptance and previously deferred public-alpha hardening remain pending; no production actions or AUD-16 work were performed.
+Initial browser assertions needed adjustment for Next.js's separate alert element, Landing after logout and nonserializable function-valued race probes. An initial stale-bundle countdown check and restricted local PostgreSQL/socket runs failed; final complete browser and externally approved local PostgreSQL runs passed. No production system was accessed. The disposable PostgreSQL instance was stopped, generated Next references were restored, and generated/browser artifacts are excluded from the diff. No commit, push or deployment was performed.

@@ -1,9 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AudliMascot } from './audli-mascot';
 import { isAuthRetryableFetchError, type SupabaseClient, type Session } from '@supabase/supabase-js';
 import { authClient, authStorageKey, sessionIdentity } from '../lib/auth';
 import { api, currentAuthRevision, setAccessTokenProvider } from '../lib/api';
+
+const AccountContext = createContext<{ scope: string; email?: string; signOut?: () => Promise<void> }>({ scope: 'local' });
+export const useAccount = () => useContext(AccountContext);
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<'loading' | 'local' | 'supabase' | 'failed'>('loading');
@@ -11,6 +15,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [signup, setSignup] = useState(false);
+  const [landing, setLanding] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -117,6 +122,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAccessTokenProvider(async () => null);
     // Unmount private lesson state immediately, including microphone and playback.
     setSession(null);
+    try { sessionStorage.removeItem('audli-session:' + accountIdentity.current); } catch { /* Optional local timing only. */ }
     try {
       const { error } = await client.auth.signOut({ scope: 'local' });
       if (error) setMessage('Signed out here. Server logout was unavailable; close this browser tab if using a shared device.');
@@ -130,16 +136,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (mode === 'local') return children;
-  if (mode === 'supabase' && session) return <><div className="account-controls"><span>{session.user.email}</span><button className="secondary" disabled={busy} onClick={logout}>Sign out</button></div><div key={sessionIdentity(session)}>{children}</div></>;
-  return <main><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><section className="card">
+  if (mode === 'supabase' && session) return <AccountContext.Provider value={{ scope: sessionIdentity(session)!, email: session.user.email, signOut: logout }}><div key={sessionIdentity(session)}>{children}</div></AccountContext.Provider>;
+  if (mode === 'supabase' && ready && landing && !message) return <main className="landing"><strong className="wordmark">audli</strong><AudliMascot/><h1>Train your ears.</h1><p>AI listening practice that adapts to what you actually understand.</p><button className="primary" onClick={() => { setSignup(true); setLanding(false); }}>Start listening</button><button className="text-button" onClick={() => { setSignup(false); setLanding(false); }}>I already have an account</button><footer>Eyes optional. Ears essential.</footer></main>;
+  return <main className="auth-screen"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><section className="card">
     {mode === 'loading' || (mode === 'supabase' && !ready) ? <p role="status">Connecting to your account…</p> : <>
-      <h1>{signup ? 'Create your account' : 'Welcome to Audli'}</h1><p>Sign in to continue your own listening practice.</p>
+      <AudliMascot small/><h1>{signup ? 'Train your ears with Audli.' : 'Welcome back.'}</h1><p>{signup ? 'Create your account and start listening.' : 'Sign in and pick up where your ears left off.'}</p>
       {message && <p role="status">{message}</p>}
       {mode === 'failed' ? <button className="secondary" onClick={() => window.location.reload()}>Retry connection</button> : <form onSubmit={event => { event.preventDefault(); void authenticate(); }}>
         <label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} />
         <label htmlFor="password">Password</label><input id="password" type="password" autoComplete={signup ? 'new-password' : 'current-password'} required minLength={signup ? 8 : undefined} value={password} onChange={event => setPassword(event.target.value)} />
         <button className="primary" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Sign up' : 'Sign in'}</button>
-        <button type="button" className="secondary" disabled={busy} onClick={() => { setSignup(!signup); setMessage(''); }}>{signup ? 'Already have an account? Sign in' : 'Create an account'}</button>
+        <button type="button" className="text-button" disabled={busy} onClick={() => { setSignup(!signup); setMessage(''); }}>{signup ? 'Already have an account? Sign in' : 'New to Audli? Create an account'}</button>
       </form>}
     </>}
   </section></main>;

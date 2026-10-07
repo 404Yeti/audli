@@ -3,6 +3,7 @@ from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from app.audio import validate_upload, sanitize_generated_audio
 from app.models import Transcription
+from app.recognition import reliable_recognition
 from app.onboarding import PROMPTS, Revision, Answer, apply_extraction, application_destination
 
 
@@ -62,6 +63,9 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             profile = check(body.revision)
             if profile.onboarding.pending is None:
                 raise HTTPException(409, 'Record an answer before confirming recognition.')
+            if body.hands_free and (body.text.strip() != profile.onboarding.pending.text.strip()
+                    or not reliable_recognition(profile.onboarding.pending, settings.min_transcription_confidence)):
+                raise HTTPException(422, "I didn't quite catch that. Could you say it again?")
             if not body.text.strip():
                 raise HTTPException(422, 'Please check recognition or record again.')
             extraction = await ai().extract_profile(profile.onboarding.stage, body.text.strip())

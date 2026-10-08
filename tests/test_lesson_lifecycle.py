@@ -306,10 +306,17 @@ def test_postgres_upgrade_001_to_002_is_explicit_and_preserves_history(repositor
     with repo.engine.begin() as db:
         s.lesson_exercises.drop(db);s.lessons.drop(db)
         db.execute(s.versions.delete().where(s.versions.c.version==2))
-    with pytest.raises(RuntimeError,match='Postgres persistence could not start'):
+    legacy_tables = [table for table in s.metadata.sorted_tables if table not in (s.lessons, s.lesson_exercises, s.versions)]
+    def legacy_rows():
+        with repo.engine.connect() as db:
+            return {table.name: db.execute(select(table).order_by(*table.primary_key.columns)).mappings().all()
+                    for table in legacy_tables}
+    preserved = legacy_rows()
+    with pytest.raises(RuntimeError,match='Expected migrations 001 and 002'):
         PostgresRepository(url,owner)
     settings=Settings(persistence='postgres',database_url=url,learner_id=owner,_env_file=None)
     assert migrate(settings) is True and migrate(settings) is False
+    assert legacy_rows() == preserved  # Includes accounts, profiles, exercises, evidence, audio and history.
     upgraded=PostgresRepository(url,owner)
     assert upgraded.history()==before and upgraded.profile()==profile
     upgraded.close()

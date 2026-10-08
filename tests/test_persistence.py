@@ -332,6 +332,52 @@ def test_postgres_startup_failure_does_not_fallback_or_leak_credentials(monkeypa
     assert 'private-password' not in str(error.value) and error.value.__suppress_context__
 
 
+@pytest.mark.parametrize('stage,code,expected', [
+    ('connection', '28P01', 'Database authentication failed'),
+    ('connection', None, 'database connection'),
+    ('versions', '42501', 'Database role lacks required permissions'),
+    ('versions', '42P01', 'Required schema tables are missing'),
+    ('version_mismatch', None, 'python -m scripts.migrate_postgres'),
+    ('columns', None, 'required table and column validation'),
+    ('missing_column', None, 'Required schema columns are missing'),
+    ('learner', '42501', 'development learner initialization'),
+])
+def test_postgres_startup_diagnostics_are_specific_but_private(monkeypatch, stage, code, expected):
+    from unittest.mock import MagicMock
+    from app.storage import adapters
+    secret = 'postgresql://private-user:private-password@private-host/db private-learner-text'
+    failure = RuntimeError(secret)
+    failure.sqlstate = code
+    engine = MagicMock()
+    db = engine.connect.return_value.__enter__.return_value
+    db.execute.return_value.scalars.return_value.all.return_value = [1] if stage == 'version_mismatch' else [1, 2]
+    inspector = MagicMock()
+    inspector.get_columns.side_effect = lambda name: [{'name': column.name} for column in s.metadata.tables[name].columns]
+    monkeypatch.setattr(adapters, 'create_engine', lambda *args, **kwargs: engine)
+    monkeypatch.setattr(adapters, 'inspect', lambda db: inspector)
+    if stage == 'connection': engine.connect.side_effect = failure
+    if stage == 'versions': db.execute.side_effect = failure
+    if stage == 'columns': inspector.get_columns.side_effect = failure
+    if stage == 'missing_column': inspector.get_columns.side_effect = None; inspector.get_columns.return_value = []
+    if stage == 'learner': monkeypatch.setattr(PostgresRepository, 'initialize_learner', lambda self: (_ for _ in ()).throw(failure))
+    with pytest.raises(RuntimeError, match=expected) as error:
+        PostgresRepository(secret.split(' ')[0], str(uuid4()) if stage == 'learner' else None)
+    engine.dispose.assert_called_once()
+    assert error.value.__suppress_context__
+    assert all(value not in str(error.value) for value in ('private-user', 'private-password', 'private-host', 'private-learner-text'))
+
+
+def test_backend_image_contains_all_numbered_migrations():
+    import shlex
+    from app.storage.adapters import SCHEMA_VERSION
+    root = Path(__file__).parents[1]
+    copies = [shlex.split(line) for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ')]
+    packaged = {destination for instruction, *sources, destination in copies if all((root / source).exists() for source in sources)}
+    for version in range(1, SCHEMA_VERSION + 1):
+        path = 'docs/postgres.sql' if version == 1 else f'docs/postgres-{version:03}.sql'
+        assert path in packaged, f'Backend image is missing {path}; the migration runner cannot upgrade existing databases'
+
+
 def test_postgres_baseline_matches_schema_and_protects_browser_roles():
     assert (Path(__file__).parents[1] / 'docs/postgres.sql').read_text() == postgres_baseline()
     for table in s.metadata.sorted_tables:

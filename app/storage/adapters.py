@@ -145,26 +145,45 @@ class ProgressRepository(SQLProgressRepository):
 class PostgresRepository(SQLProgressRepository):
     def __init__(self, database_url: str, learner_id: str | None = None):
         engine = None
+        stage = 'engine configuration'
+        detail = 'Check database configuration and access.'
         try:
             engine = create_engine(make_url(database_url).set(drivername='postgresql+psycopg'),
                 pool_pre_ping=True, pool_size=3, max_overflow=0, pool_timeout=10,
                 connect_args={'connect_timeout': 10, 'prepare_threshold': None,
                     'options': '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000'})
             super().__init__(engine, learner_id)
+            stage = 'database connection'
             with engine.connect() as db:
+                stage = 'schema version validation'
                 if sorted(db.execute(select(s.versions.c.version)).scalars().all()) != list(range(1, SCHEMA_VERSION + 1)):
+                    detail = ('Expected migrations 001 and 002. Apply missing migrations with '
+                              'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')
+                stage = 'required table and column validation'
                 inspector = inspect(db)
                 for table in s.metadata.sorted_tables:
                     names = {column['name'] for column in inspector.get_columns(table.name)}
                     if not set(table.columns.keys()).issubset(names):
+                        detail = 'Required schema columns are missing; inspect the numbered migrations.'
                         raise ValueError('Schema is incomplete')
             if self.learner_id is not None:
+                stage = 'development learner initialization'
                 self.initialize_learner()
-        except Exception:
+        except Exception as exc:
             if engine is not None:
                 engine.dispose()
-            raise RuntimeError('Postgres persistence could not start. Check AUDLI_DATABASE_URL, database access, and apply migrations 001 and 002.') from None
+            # Only fixed diagnostics; driver messages/SQL/parameters may contain secrets or learner data.
+            code = getattr(getattr(exc, 'orig', exc), 'sqlstate', None)
+            detail = {
+                '28P01': 'Database authentication failed.', '28000': 'Database authorization failed.',
+                '42501': 'Database role lacks required permissions.',
+                '42P01': 'Required schema tables are missing; inspect migrations 001 and 002.',
+                '42703': 'Required schema columns are missing; inspect the numbered migrations.',
+                '3D000': 'Configured database does not exist.',
+                '57014': 'Database operation timed out or was cancelled.',
+            }.get(code, detail)
+            raise RuntimeError(f'Postgres persistence could not start during {stage}. {detail}') from None
 
 
 def create_repository(settings):

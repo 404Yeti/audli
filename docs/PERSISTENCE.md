@@ -67,13 +67,13 @@ All privileged database/OpenAI credentials stay backend-only; the Auth project U
 
 ## Exact Supabase and Render steps
 
-These steps initialize a fresh installation. The AUD-13 production project already has Migration 001: for AUD-14, follow [authentication setup](AUTHENTICATION.md) without reapplying the baseline.
+These steps initialize a fresh installation. Existing installations must apply only missing numbered migrations; never reapply Migration 001. For the AUD-22 version-1 upgrade, use the recovery procedure below.
 
 1. Create a dedicated Supabase project; retain its database password securely. Keep this database separate from unrelated application tables.
 2. In **Connect**, copy the **Session pooler** PostgreSQL URI (port 5432), using its actual user/host and URL-encoding the password. Session pooling supports IPv4 and suits the persistent backend; direct connections require compatible network access. See [Supabase connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres).
 3. Append `?sslmode=require`, or `&sslmode=require` if a query already exists. Alternatively configure certificate verification with `verify-full` and the trusted CA.
-4. In Supabase **SQL Editor**, execute the complete `docs/postgres.sql` once as database owner. Alternatively, configure the backend environment above and run `.venv/bin/python -m scripts.migrate_postgres`; use `python -m scripts.migrate_postgres` inside the container. The command prints applied/already-applied without the URI.
-5. Confirm `SELECT version, applied_at FROM schema_migrations;` returns version 1. Confirm tables/indexes and RLS. Migration enables RLS without browser policies and revokes table privileges from PUBLIC and Supabase `anon`/`authenticated`; the backend owner retains access. Do not grant browser access to scripts or learner records.
+4. In Supabase **SQL Editor**, execute the complete `docs/postgres.sql` then `docs/postgres-002.sql`, in order, as database owner. Alternatively, configure the backend environment above and run `.venv/bin/python -m scripts.migrate_postgres`; use `python -m scripts.migrate_postgres` inside the container. The command applies only missing migrations and prints applied/already-applied without the URI.
+5. Confirm `SELECT version, applied_at FROM schema_migrations ORDER BY version;` returns versions 1 and 2. Confirm tables/indexes and RLS. Migrations enable RLS without browser policies and revoke table privileges from PUBLIC and Supabase `anon`/`authenticated`; the backend owner retains access. Do not grant browser access to scripts or learner records.
 6. Configure Supabase Auth and confirmed accounts using [AUD-14 setup](AUTHENTICATION.md). Do not set a shared production learner UUID.
 7. In Render's backend **Environment**, set the production persistence/auth values above. Retain `OPENAI_API_KEY`, provider/model settings and `AUDLI_DATA_DIR` (a cache in Postgres mode). Install updated `requirements.txt` in the build. The Docker image includes the schema/migration command.
 8. Redeploy with this code. Leave Vercel's `BACKEND_URL=https://audli-api.onrender.com` and the existing proxy unchanged. No frontend database credentials are needed; add the public Auth project URL/publishable key described in [AUD-14](AUTHENTICATION.md).
@@ -146,3 +146,35 @@ Apply `docs/postgres-002.sql` after the unchanged Migration 001, using the backe
 `lesson_lifecycles` holds an owned, revisioned domain snapshot, active-time anchors, phase, pending personal recognition, review source, closing summary and completion. A partial unique index permits one active or paused lesson per learner. `lesson_exercises` associates owned exercise records with the whole lesson; the existing single-exercise `training_sessions` rows retain their original semantics for legacy compatibility. New history uses completed lesson membership; when no structured lesson exists, review can reference an actual completed legacy training session.
 
 Checkpoint writes use optimistic revision checks under the learner transaction lock. Preference extraction updates only interests alongside the checkpoint, preserving concurrent evaluation and deterministic adaptation. Exercise generation checks lesson phase, revision and timing again in the save transaction; delayed work cannot attach a new exercise after End or the closing budget. Both new tables enable PostgreSQL RLS and revoke access from PUBLIC, anon and authenticated; verified request-scoped repository ownership remains the API boundary. Generated lesson/acknowledgment audio uses the existing owned audio-assets cache. Personal microphone audio is discarded after transcription; no raw recording is persisted.
+
+## Render startup recovery after AUD-22
+
+Read-only inspection of the connected Audli Supabase project on 2026-10-08 found only schema version 1 and neither new lesson table. AUD-22 requires exactly versions 1 and 2, then all required table/column names; startup deliberately refuses version 1 and does not auto-migrate or fall back to SQLite. The old Dockerfile also omitted Migration 002, preventing the container's migration runner from applying it. The corrected image packages both SQL files. Existing version-1 production recovery can use SQL Editor without deploying this code change.
+
+Before any production write, obtain explicit owner approval for the complete existing `docs/postgres-002.sql` and confirm the selected Supabase project is the one used by Render. In SQL Editor, run only this read-only preflight:
+
+```sql
+SELECT version FROM public.schema_migrations ORDER BY version;
+SELECT to_regclass('public.lesson_lifecycles') AS lesson_lifecycles,
+       to_regclass('public.lesson_exercises') AS lesson_exercises;
+```
+
+If the result is version 1 only and both table names are null, execute the entire checked-in `docs/postgres-002.sql` as the database owner after approval. Do not rerun 001, manually insert version 2, or add `IF NOT EXISTS` to hide a partial/incompatible schema. Migration 002 is one transaction: create two new tables and their indexes/constraints, enable their RLS, revoke browser access, insert the version marker, then commit. It does not update/delete existing accounts, profiles, exercises, attempts, evidence, adaptation, audio or legacy session/history rows. A failure rolls back that migration.
+
+Alternatively, from an approved backend checkout or corrected container containing both SQL files, with the existing validated production environment loaded securely:
+
+```sh
+python -m scripts.migrate_postgres
+```
+
+For a local virtualenv use `.venv/bin/python -m scripts.migrate_postgres`. Do not paste database URLs into terminal commands or print environment values. The command checks the version ledger and applies only 002 for a version-1 database; an already current database is a no-op. Do not configure automatic migrations in the web startup command.
+
+After the approved migration, repeat the preflight: expect versions 1 and 2 and both table names present. Check RLS without reading learner data:
+
+```sql
+SELECT relname, relrowsecurity
+FROM pg_class
+WHERE oid IN ('public.lesson_lifecycles'::regclass, 'public.lesson_exercises'::regclass);
+```
+
+Then, only with approval, restart/redeploy Render and confirm startup and authenticated history/resume. If versions are already 1 and 2 but startup still fails, inspect the safe failure stage: engine configuration; database connection; schema version validation (including ledger access); required table/column validation; or development-only learner initialization. Fixed diagnostics distinguish authentication/permissions/missing schema/timeouts when the driver supplies a known SQLSTATE; raw driver messages, SQL parameters, URLs and learner data are omitted. Supabase MCP access does not prove Render's credentials, TLS or networking are working. Missing privileges, wrong database/search path, schema drift and connection limits can independently fail validation; never bypass it.

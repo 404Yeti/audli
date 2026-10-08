@@ -5,6 +5,8 @@ import { captureRecording } from './recording';
 import { turnDetector } from './hands-free';
 import { measureTurn, turnTiming } from './turn-timing';
 import type { MascotState } from '../components/audli-mascot';
+type AcknowledgmentCue = 'assessment' | 'followup' | 'reflection';
+const acknowledgmentText = { assessment: 'Okay, I heard you.', followup: 'Okay, I’ve heard that.', reflection: 'Let me keep that in mind.' };
 
 /** One account-bound lifetime owns playback, turn detection and all continuations. */
 export function useVoiceLifecycle() {
@@ -14,6 +16,8 @@ export function useVoiceLifecycle() {
   const owner = useRef<LessonLifetime | null>(null);
   const auth = useRef(currentAuthRevision());
   const turnStartedAt = useRef<number | null>(null);
+  const acknowledgment = useRef<Partial<Record<AcknowledgmentCue, Blob>>>({});
+  const acknowledgedTurns = useRef(new Set<string>());
   const disposeRecording = useRef<(() => void) | null>(null);
   const playback = useRef<{ operation: LessonOperation; failed: () => void } | null>(null);
   useEffect(() => {
@@ -77,6 +81,48 @@ export function useVoiceLifecycle() {
     });
     await speak(operation, url);
   }
+  async function lessonSpeech(operation: LessonOperation, lessonId: string, revision: number, action = 'audio') {
+    const response = await operation.wait(() => authenticatedFetch(`/api/lessons/${encodeURIComponent(lessonId)}/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }), signal: operation.signal,
+    }, operation));
+    if (!response.ok) throw new Error('Audli’s lesson voice is unavailable. Retry the conversation; your progress is saved.');
+    const body = await operation.wait(() => response.blob()); operation.assertCurrent();
+    await speak(operation, URL.createObjectURL(body));
+  }
+  async function prepareAcknowledgment(operation: LessonOperation, cue: AcknowledgmentCue = 'assessment') {
+    if (acknowledgment.current[cue]) return;
+    try {
+      const response = await operation.wait(() => authenticatedFetch('/api/recognition/acknowledgment-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cue }), signal: operation.signal }, operation));
+      if (response.ok) acknowledgment.current[cue] = await operation.wait(() => response.blob());
+    } catch { operation.assertCurrent(); } // Optional cue never blocks authoritative assessment.
+  }
+  async function acknowledged<T>(operation: LessonOperation, key: string, work: () => Promise<T>, cue: AcknowledgmentCue, onCue: (text: string) => void): Promise<T> {
+    let settled = false;
+    const task = work().then(value => { settled = true; return { ok: true as const, value }; }, error => { settled = true; return { ok: false as const, error }; });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await operation.wait(() => Promise.race([task, new Promise<void>(resolve => { timer = setTimeout(resolve, 1200); })]));
+    } finally { if (timer) clearTimeout(timer); }
+    let alreadyPlayed = acknowledgedTurns.current.has(key);
+    try { alreadyPlayed ||= sessionStorage.getItem('audli-cue:' + key) === 'played'; } catch { /* Optional cue memory. */ }
+    if (!settled && !alreadyPlayed) {
+      // Optional cue readiness must never hold up completed assessment/coaching.
+      await operation.wait(() => Promise.race([task, prepareAcknowledgment(operation, cue)]));
+      const blob = acknowledgment.current[cue];
+      if (!settled && blob) {
+        operation.assertCurrent(); acknowledgedTurns.current.add(key);
+        try { sessionStorage.setItem('audli-cue:' + key, 'played'); } catch { /* Optional cue memory. */ }
+        onCue(acknowledgmentText[cue]);
+        try { await speak(operation, URL.createObjectURL(blob)); }
+        catch { operation.assertCurrent(); }
+        if (operation.current) setState('Thinking');
+      }
+    }
+    // Attach the rejection handler immediately so a fast failure cannot go unhandled.
+    const result = await task; operation.assertCurrent();
+    if (!result.ok) throw result.error;
+    return result.value;
+  }
   async function retrySpeech(operation: LessonOperation) {
     setState('Retry');
     const response = await operation.wait(() => authenticatedFetch('/api/recognition/retry-audio', { method: 'POST', signal: operation.signal }, operation));
@@ -138,5 +184,5 @@ export function useVoiceLifecycle() {
     element.currentTime = 0;
     if (element.paused) void current.operation.wait(() => element.play(), () => element.pause()).catch(() => { if (current.operation.current) current.failed(); });
   }
-  return { state, activity, audio, begin, stop, speak, coachSpeech, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
+  return { state, activity, audio, begin, stop, speak, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
 }

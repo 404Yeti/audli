@@ -159,3 +159,31 @@ def test_unasked_unknown_detail_can_use_remaining_followup_budget(client, audio_
     assert final.json()['followups_asked'] == 2
     assert final.json()['result']['adaptation']['decision'] == 'same'
     validate_final_feedback(final.json()['prompt'])
+
+@pytest.mark.parametrize('label,tip',[
+    ('The delivery was postponed until Friday','changed plan'),
+    ('The discount reduced the final cost','original amount'),
+    ('The clay was shaped before it was fired','order of events'),
+])
+def test_specific_coaching_changes_and_deduplicates_advice(label,tip):
+    evaluation=SimpleNamespace(dimensions={'main_idea':'demonstrated','details':'misunderstood'},
+        insufficient_evidence=[],misunderstood=[label],understood=['Main idea'])
+    event=SimpleNamespace(focus='details')
+    first=final_feedback(evaluation,event)
+    assert label in first and tip in first and 'dates, times' not in first
+    from app.lesson import evidence_tip
+    repeated=final_feedback(evaluation,event,previous_advice=[evidence_tip(label,'details')])
+    assert label in repeated and tip not in repeated
+    validate_final_feedback(first);validate_final_feedback(repeated)
+
+
+def test_partial_evidence_is_not_described_as_a_confirmed_misunderstanding(exercise):
+    from app.conversation import final_evaluation
+    from app.models import ConversationTurn
+    evidence=assessment(exercise,[ConversationTurn(attempt_id='a',text='A spoken answer')])
+    evidence.units[1].status='partially_demonstrated'
+    evaluation=final_evaluation(exercise,evidence)
+    text=final_feedback(evaluation,SimpleNamespace(focus='details'),content=exercise)
+    assert 'One part to build on' in text and 'One correction' not in text
+    assert 'misunderstanding' not in text
+    validate_final_feedback(text)

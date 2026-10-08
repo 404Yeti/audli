@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ExerciseLessonFixture } from './lesson-fixture';
 import { installVoice, promptWav, probe, endAudio } from './voice-fixture';
 
 async function setup(page: Page, options: Parameters<typeof installVoice>[1] = {}) {
@@ -8,8 +9,10 @@ async function setup(page: Page, options: Parameters<typeof installVoice>[1] = {
   const requests:{path:string;body:unknown}[]=[];
   const exercise=()=>({id:'clip'+id,audio_url:'/api/exercises/clip'+id+'/audio',completed_attempt_id:completed?'answer':null});
   const state=()=>({state:phase,cue_id:cue,prompt:cue==='feedback'?'You caught the main idea. Next time, listen for the reasons.':cue==='followup'?'Why did the meeting time change?':cue?'Tell me what you understood.':null,active_followup:cue==='followup'?{id:'followup'}:null,pending_attempt:pending,result});
-  await page.route('**/api/**',route=>{
+  const lesson=new ExerciseLessonFixture(page,exercise,()=>{id++;phase='LISTENING';cue=null;pending=null;result=null;completed=false;turns=0;return exercise();});
+  await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname; requests.push({path,body:route.request().postData()});
+    if(await lesson.handle(route))return;
     if(path==='/api/auth/config')return route.fulfill({json:{mode:'local'}});
     if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:'Robert',goal:'work conversations',completed_attempts:completed?1:0},provider:'openai'}});
     if(path==='/api/history')return route.fulfill({json:completed?[{id:'answer',exercise_id:'clip'+id,created_at:'2026-10-07T08:00:00Z',evaluation:{feedback:'You caught the main idea. Next time, listen for the reasons.'},adaptation:{focus:'details'}}]:[]});
@@ -50,8 +53,8 @@ test('normal session completes with zero clicks after Start and automatically ha
   const fixture=await setup(page,{autoPlayback:true});await page.clock.install();
   await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
   await page.clock.fastForward(600000);
-  for(let i=0;i<16;i++){await page.clock.runFor(1000);await page.waitForTimeout(20);if(await page.getByRole('heading',{name:'Nice work today.'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Nice work today.'})).toBeVisible();
+  for(let i=0;i<16;i++){await page.clock.runFor(1000);await page.waitForTimeout(20);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
   expect((await probe(page)).clicks).toBe(1);expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
   expect(fixture.requests.some(x=>x.path.endsWith('/ready'))).toBe(true);await expect(page.locator('textarea')).toHaveCount(0);
 });
@@ -96,7 +99,7 @@ test('119 second recording limit remains authoritative for continuous voice',asy
 test('countdown tracks actual elapsed time and no zero is shown before server completion',async({page})=>{
   await setup(page);await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
   await expect(page.getByLabel('Session time remaining')).toHaveText('10 min left');await page.clock.fastForward(60000);await expect(page.getByLabel('Session time remaining')).toHaveText('9 min left');
-  await page.clock.fastForward(600000);await expect(page.getByLabel('Session time remaining')).toHaveText('Finishing this conversation');await expect(page.getByRole('heading',{name:'Nice work today.'})).toHaveCount(0);
+  await page.clock.fastForward(600000);await expect(page.getByLabel('Session time remaining')).toHaveText('Finishing this conversation');await expect(page.getByRole('heading',{name:'Lesson completed'})).toHaveCount(0);
 });
 test('refresh restores pending answer and original session timing without rerecording',async({page})=>{
   const fixture=await setup(page);await page.clock.install();await beginListening(page);
@@ -120,7 +123,7 @@ test('reduced motion keeps static poses and understandable state labels',async({
 });
 test('completed Review exposes only server-eligible transcript, with no score dashboard',async({page})=>{
   await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);await endAudio(page);await state(page,'Listening');await finishTurn(page);await page.clock.fastForward(600000);await endAudio(page);
-  await expect(page.getByRole('heading',{name:'Nice work today.'})).toBeVisible();await page.getByRole('button',{name:'Review today'}).click();await page.getByRole('button',{name:'Read transcript'}).click();
+  await expect.poll(async()=>(await probe(page)).plays.length).toBe(5);await endAudio(page);await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();await page.getByRole('button',{name:'Return Home'}).click();await page.getByRole('button',{name:'Review',exact:true}).click();await page.getByRole('button',{name:'Read transcript'}).click();
   await expect(page.getByText('Only after completed assessment.')).toBeVisible();await expect(page.getByText('Observed comprehension:',{exact:false})).toHaveCount(0);
 });
 test('persisted learner-confirmed correction survives resuming an interrupted assessment',async({page})=>{
@@ -204,7 +207,7 @@ test('confirmed End stays silent on return and restarts the clip before saved fo
   expect((await probe(page)).plays).toHaveLength(0);const before=fixture.requests.length;
   await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
   const returned=fixture.requests.slice(before);expect(returned.some(x=>x.path==='/api/exercises/clip1/audio')).toBe(true);
-  expect(returned.some(x=>x.path.endsWith('/coach-audio'))).toBe(false);expect(returned.some(x=>x.path==='/api/exercises')).toBe(false);
+  expect(returned.some(x=>x.path.endsWith('/coach-audio'))).toBe(false);expect(returned.some(x=>x.path==='/api/lessons/lesson/exercise')).toBe(false);
   await endAudio(page);await expect.poll(()=>fixture.requests.slice(before).filter(x=>x.path.endsWith('/coach-audio')).length).toBe(1);
   await state(page,'Speaking');expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(1);
 });
@@ -214,7 +217,7 @@ test('End after final evidence preserves completion and starts a new clip rather
   expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
   await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();const before=fixture.requests.length;
   await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
-  expect(fixture.requests.slice(before).filter(x=>x.path==='/api/exercises')).toHaveLength(1);
+  expect(fixture.requests.slice(before).filter(x=>x.path==='/api/lessons/lesson/exercise')).toHaveLength(1);
   expect(fixture.requests.slice(before).some(x=>x.path==='/api/exercises/clip2/audio')).toBe(true);
   expect(fixture.requests.slice(before).some(x=>x.path.endsWith('/coach-audio'))).toBe(false);
 });

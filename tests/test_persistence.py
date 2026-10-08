@@ -20,7 +20,7 @@ from app.config import Settings
 from app.main import create_app
 from app.repository import ProgressRepository, PostgresRepository
 from app.storage import schema as s
-from app.storage.migrations import postgres_baseline
+from app.storage.migrations import postgres_baseline, postgres_lesson_migration
 from app.models import Conversation, ConversationTurn, LearnerProfile, Transcription
 from app.conversation import final_evaluation, adapt_final
 from conftest import ASGIClient, FakeProvider
@@ -335,7 +335,7 @@ def test_postgres_startup_failure_does_not_fallback_or_leak_credentials(monkeypa
 def test_postgres_baseline_matches_schema_and_protects_browser_roles():
     assert (Path(__file__).parents[1] / 'docs/postgres.sql').read_text() == postgres_baseline()
     for table in s.metadata.sorted_tables:
-        assert f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;' in postgres_baseline()
+        assert f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;' in postgres_baseline() + postgres_lesson_migration()
 
 
 def test_import_retains_progress_and_refuses_overwrite(repository_factory, tmp_path, exercise):
@@ -365,7 +365,7 @@ def test_unsupported_schema_version_fails_without_resetting_state(repository_fac
     profile.name = 'Preserve me'
     repo.save_profile(profile)
     with repo.engine.begin() as db:
-        db.execute(s.versions.update().values(version=999))
+        db.execute(s.versions.update().where(s.versions.c.version == 2).values(version=999))
     with pytest.raises(RuntimeError):
         repository_factory()
     assert repo.profile().name == 'Preserve me'
@@ -376,14 +376,20 @@ def test_postgres_rls_blocks_an_untrusted_role(repository_factory):
     if repo.engine.dialect.name != 'postgresql':
         return
     role = 'audli_untrusted_' + uuid4().hex
+    from app.lesson import Lesson, now
+    at = now()
+    repo.create_lesson(Lesson(id=str(uuid4()), started_at=at, active_since=at, name='Private learner', focus='details'))
     with repo.engine.begin() as db:
         db.exec_driver_sql(f'CREATE ROLE {role} NOLOGIN')
         db.exec_driver_sql(f'GRANT USAGE ON SCHEMA public TO {role}')
         db.exec_driver_sql(f'GRANT SELECT ON learner_profiles TO {role}')
+        db.exec_driver_sql(f'GRANT SELECT ON lesson_lifecycles, lesson_exercises TO {role}')
     try:
         with repo.engine.begin() as db:
             db.exec_driver_sql(f'SET LOCAL ROLE {role}')
             assert db.exec_driver_sql('SELECT count(*) FROM learner_profiles').scalar_one() == 0
+            assert db.exec_driver_sql('SELECT count(*) FROM lesson_lifecycles').scalar_one() == 0
+            assert db.exec_driver_sql('SELECT count(*) FROM lesson_exercises').scalar_one() == 0
     finally:
         with repo.engine.begin() as db:
             db.exec_driver_sql(f'DROP OWNED BY {role}')

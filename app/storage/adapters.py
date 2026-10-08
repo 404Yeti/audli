@@ -15,7 +15,7 @@ from app.storage.repository import SQLProgressRepository, profile_values, utcnow
 from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def sqlite_engine(path):
@@ -39,9 +39,12 @@ def initialize_sqlite(repo):
     with repo.transaction() as db:
         existing = set(inspect(db).get_table_names())
         if 'schema_migrations' in existing:
-            if db.execute(select(s.versions.c.version)).scalars().all() != [SCHEMA_VERSION]:
+            versions = sorted(db.execute(select(s.versions.c.version)).scalars().all())
+            if versions not in ([1], [1, 2]):
                 raise RuntimeError('Unsupported SQLite schema version')
             s.metadata.create_all(db)
+            if versions == [1]:
+                db.execute(s.versions.insert().values(version=2, applied_at=utcnow()))
             return
         # Original tables keep their names/data. Add nullable projection columns,
         # then backfill before exposing the upgraded repository to application code.
@@ -105,7 +108,8 @@ def initialize_sqlite(repo):
                         repo.save_audio(db, row['audio_name'], path.read_bytes())
             finally:
                 repo.learner_id = original_learner
-        db.execute(s.versions.insert().values(version=SCHEMA_VERSION, applied_at=utcnow()))
+        for version in range(1, SCHEMA_VERSION + 1):
+            db.execute(s.versions.insert().values(version=version, applied_at=utcnow()))
         for table in s.metadata.sorted_tables:
             for index in table.indexes:
                 db.execute(CreateIndex(index, if_not_exists=True))
@@ -148,7 +152,7 @@ class PostgresRepository(SQLProgressRepository):
                     'options': '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000'})
             super().__init__(engine, learner_id)
             with engine.connect() as db:
-                if db.execute(select(s.versions.c.version)).scalars().all() != [SCHEMA_VERSION]:
+                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) != list(range(1, SCHEMA_VERSION + 1)):
                     raise ValueError('Schema version mismatch')
                 inspector = inspect(db)
                 for table in s.metadata.sorted_tables:
@@ -160,7 +164,7 @@ class PostgresRepository(SQLProgressRepository):
         except Exception:
             if engine is not None:
                 engine.dispose()
-            raise RuntimeError('Postgres persistence could not start. Check AUDLI_DATABASE_URL, database access, and apply docs/postgres.sql.') from None
+            raise RuntimeError('Postgres persistence could not start. Check AUDLI_DATABASE_URL, database access, and apply migrations 001 and 002.') from None
 
 
 def create_repository(settings):

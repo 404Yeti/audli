@@ -17,6 +17,7 @@ from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
 from app.onboarding_api import register_onboarding_routes
+from app.lesson_api import register_lesson_routes
 from app.onboarding import application_destination
 from app.security import LocalRequestGuard
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
@@ -92,8 +93,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return row
 
     def public_exercise(row):
-        # Strict allowlist. Even title/topic/questions can reveal answers.
+        from app.lesson import public_topic
+        # Scenario label only; scripts, titles, questions and answers stay gated.
         return {'id': row['id'], 'difficulty': json.loads(row['difficulty']),
+                'topic': public_topic(json.loads(row['content'])),
                 'audio_url': f"/api/exercises/{row['id']}/audio", 'completed_attempt_id': repo.completed(row['id'])}
 
     def restore_audio(name):
@@ -148,35 +151,46 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         row = repo.current_exercise()
         return public_exercise(row) if row else None
 
+    async def prepare_exercise(lesson=None):
+        current = repo.current_exercise()
+        if current and not repo.completed(current['id']):
+            if lesson is not None:
+                repo.attach_lesson_exercise(lesson, current['id'])
+            return public_exercise(current)
+        profile = repo.profile()
+        with operation(settings, 'ExerciseGenerator.generate'):
+            content = await ai().generate(profile)
+        d = profile.difficulty
+        if (content.speech_rate, content.target_duration_seconds, content.vocabulary_level, content.information_density) != (d.speech_rate, d.duration_seconds, d.vocabulary_level, d.information_density):
+            raise ValueError('Provider difficulty mismatch')
+        with operation(settings, 'SpeechService.speech'):
+            audio = await ai().speech(content)
+        if not audio:
+            raise ValueError('Empty generated audio')
+        exercise_id = str(uuid4())
+        kind = 'wav' if settings.provider == 'demo' else 'mp3'
+        with operation(settings, 'SpeechService.sanitize_generated_audio'):
+            audio = await sanitize_generated_audio(audio, kind)
+        audio_name = exercise_id + '.' + kind
+        path = audio_dir / audio_name
+        path.write_bytes(audio)
+        try:
+            repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio, lesson=lesson)
+        except Exception:
+            path.unlink(missing_ok=True)
+            raise
+        return public_exercise(repo.exercise(exercise_id))
+
+
     @app.post('/api/exercises')
     async def generate():
         async with lock:
-            current = repo.current_exercise()
-            if current and not repo.completed(current['id']):
-                return public_exercise(current)
-            profile = repo.profile()
-            with operation(settings, 'ExerciseGenerator.generate'):
-                content = await ai().generate(profile)
-            d = profile.difficulty
-            if (content.speech_rate, content.target_duration_seconds, content.vocabulary_level, content.information_density) != (d.speech_rate, d.duration_seconds, d.vocabulary_level, d.information_density):
-                raise ValueError('Provider difficulty mismatch')
-            with operation(settings, 'SpeechService.speech'):
-                audio = await ai().speech(content)
-            if not audio:
-                raise ValueError('Empty generated audio')
-            exercise_id = str(uuid4())
-            kind = 'wav' if settings.provider == 'demo' else 'mp3'
-            with operation(settings, 'SpeechService.sanitize_generated_audio'):
-                audio = await sanitize_generated_audio(audio, kind)
-            audio_name = exercise_id + '.' + kind
-            path = audio_dir / audio_name
-            path.write_bytes(audio)
-            try:
-                repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio)
-            except Exception:
-                path.unlink(missing_ok=True)
-                raise
-            return public_exercise(repo.exercise(exercise_id))
+            lesson = repo.lesson()
+            if lesson:
+                if lesson.status == 'active' and lesson.phase == 'EXERCISE' and lesson.exercise_id:
+                    return public_exercise(exercise_or_404(lesson.exercise_id))
+                raise HTTPException(409, 'Continue the structured lesson before preparing an exercise.')
+            return await prepare_exercise()
 
     @app.get('/api/exercises/{exercise_id}/audio')
     async def audio(exercise_id: str):
@@ -189,6 +203,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     @app.post('/api/exercises/{exercise_id}/attempts')
     async def transcribe(exercise_id: str, audio: UploadFile):
         async with timed_lock(settings, lock, 'turn.upload'):
+            lesson = repo.lesson()
+            if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
+                await audio.close()
+                raise HTTPException(409, 'Resume the active lesson exercise first.')
             exercise_or_404(exercise_id)
             current = repo.current_exercise()
             if current['id'] != exercise_id or repo.completed(exercise_id):
@@ -217,7 +235,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             previous = repo.result(attempt_id)
             if previous:
                 return previous
-            if repo.conversation(attempt['exercise_id']):
+            if repo.lesson() or repo.conversation(attempt['exercise_id']):
                 raise HTTPException(409, 'Finish the current spoken assessment, including its follow-ups.')
             if not body.confirmed:
                 raise HTTPException(422, 'Confirm what you said before evaluating.')
@@ -262,6 +280,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
+    register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise)
     return app
 
 app = create_app()

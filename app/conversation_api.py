@@ -9,6 +9,7 @@ from pydantic import Field
 from app.audio import sanitize_generated_audio
 from app.conversation import validate_evidence, choose_followup, final_evaluation, adapt_final
 from app.feedback import final_feedback
+from app.lesson import public_topic, evidence_gaps, evidence_tip
 from app.models import EvidenceEvaluation, Evaluation
 from app.diagnostics import operation, timed_lock
 from app.models import StrictModel, Conversation, ConversationTurn, ExerciseContent
@@ -41,6 +42,17 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
         return ('feedback-v0.2.1-' + sha256(text.encode()).hexdigest()[:16]
                 if cue_id == 'feedback' else cue_id)
 
+    def previous_advice(exercise_id):
+        lesson = repo.lesson_for_exercise(exercise_id)
+        if not lesson:
+            return []
+        tips = []
+        for item in repo.lesson_work(lesson.id):
+            if item['exercise_id'] == exercise_id:
+                break
+            tips.extend(evidence_tip(*gap) for gap in evidence_gaps(item['evaluation'], item['content']))
+        return tips
+
     def cue(exercise_id, cue_id):
         conversation = repo.conversation(exercise_id)
         completed = repo.completed(exercise_id)
@@ -50,7 +62,9 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             result = repo.result(completed)
             model = EvidenceEvaluation if result['evaluation'].get('version') == 'v0.2' else Evaluation
             evaluation = model.model_validate(result['evaluation'])
-            return final_feedback(evaluation, SimpleNamespace(**result['adaptation']), settings.max_feedback_words)
+            content = ExerciseContent.model_validate_json(exercise_or_404(exercise_id)['content'])
+            return final_feedback(evaluation, SimpleNamespace(**result['adaptation']), settings.max_feedback_words, content,
+                                  previous_advice(exercise_id))
         if not conversation:
             raise HTTPException(409, 'Listen to the clip first.')
         if cue_id == 'summary':
@@ -81,7 +95,8 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
         return {'state': state, 'cue_id': cue_id, 'prompt': prompt,
                 'active_followup': conversation.active_followup if conversation else None,
                 'followups_asked': len(conversation.followups) if conversation else 0,
-                'pending_attempt': pending, 'result': result}
+                'pending_attempt': pending, 'result': result,
+                'topic': public_topic(json.loads(exercise_or_404(exercise_id)['content']))}
 
     @app.get('/api/exercises/{exercise_id}/conversation')
     async def conversation_state(exercise_id: str):
@@ -110,6 +125,9 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 return public_conversation(exercise_id)  # Lost-response retry, no extra turn or adaptation.
             if repo.completed(exercise_id) or repo.current_exercise()['id'] != exercise_id:
                 raise HTTPException(409, 'This exercise is already complete.')
+            lesson = repo.lesson()
+            if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
+                raise HTTPException(409, 'Resume the active lesson before assessment.')
             if not body.confirmed or not body.text.strip():
                 raise HTTPException(422, 'Check and confirm what you said first.')
             recognized = Transcription.model_validate_json(attempt['transcription'])
@@ -146,7 +164,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             else:
                 evaluation = final_evaluation(content, assessment)
                 profile, event = adapt_final(repo.profile(), evaluation, settings)
-                evaluation.feedback = final_feedback(evaluation, event, settings.max_feedback_words)
+                evaluation.feedback = final_feedback(evaluation, event, settings.max_feedback_words, content, previous_advice(exercise_id))
                 conversation.active_followup = None
                 conversation.state = 'GIVING_FEEDBACK'
                 with operation(settings, 'ProgressRepository.complete_conversation'):

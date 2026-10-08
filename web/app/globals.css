@@ -189,8 +189,10 @@ dd .text-button { display: block; padding-left: 0; }
 .session-shell header .text-button { color: #5b697c; min-width: 56px; }
 .session-presence { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 340px; padding-bottom: clamp(0px, 3vh, 32px); }
 .session-presence .audli-mascot { width: clamp(240px, 38vw, 420px); max-width: min(74vw, 100%); margin: 24px auto 32px; }
-.state-label { color: #5b697c; font-size: 14px; font-weight: 500; margin: 0; min-height: 40px; padding: 8px 16px; border-radius: 20px; transition: color .28s ease, background-color .28s ease; }
+.state-label, .session-topic { display: inline-flex; align-items: center; justify-content: center; text-align: center; color: #5b697c; font-size: 14px; font-weight: 500; line-height: 22px; margin: 0; min-height: 40px; padding: 8px 16px; border: 1px solid transparent; border-radius: 20px; max-width: min(320px, 100%); overflow-wrap: anywhere; transition: color .28s ease, background-color .28s ease; }
 .session-shell[data-state="Listening"] .state-label { color: #087f73; background: #effbf8; }
+.session-shell[data-state="Speaking"] .state-label { color: #1d4ed8; background: var(--soft-blue); }
+.session-shell[data-state="Thinking"] .state-label { color: #854d0e; background: var(--soft-yellow); }
 .session-secondary { text-align: center; max-width: 480px; width: 100%; margin: 0 auto; }
 .session-transcript { font-size: 13px; text-align: left; }
 .session-transcript summary { text-align: center; color: #5b697c; border-radius: 14px; }
@@ -202,6 +204,19 @@ dd .text-button { display: block; padding-left: 0; }
 .session-controls .text-button { color: #5b697c; }
 .session-audio { display: none; }
 .session-error { color: #993e2d; font-size: 14px; line-height: 1.6; margin: 22px 0; }
+.lesson-completion { text-align: center; }
+.lesson-completion header { text-align: left; }
+.lesson-completion .audli-mascot { width: clamp(220px, 32vw, 300px); }
+.completion-encouragement { color: var(--muted); max-width: 360px; margin-inline: auto; }
+.lesson-completion .completion-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 28px auto 32px; max-width: 460px; text-align: left; }
+.completion-card { border: 1px solid #e6eeee; border-radius: 20px; padding: 20px; background: #f8fbfb; }
+.completion-card dt { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+.completion-card dd { margin: 0; color: var(--navy); font-size: 16px; line-height: 1.45; }
+.completion-card .completion-count { font-size: 32px; font-weight: 600; color: #0f766e; }
+.lesson-completion .audli-mascot[data-state="Success"] .mascot-body { animation: completion-arrive .65s ease-out 1, mascot-breathe 4s ease-in-out .65s infinite; }
+@keyframes completion-arrive { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.025,.985); } 100% { transform: translateY(0) scale(1); } }
+.session-topic { color: #475569; background: #f8fafc; border-color: var(--line); margin: 8px auto 12px; }
+@media (max-width: 420px) { .lesson-completion .completion-results { grid-template-columns: 1fr; } }
 .dialog-backdrop { position: fixed; inset: 0; background: #0f172a33; display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 10; }
 .exit-dialog { width: min(100%, 360px); background: white; padding: 28px; border-radius: 28px; box-shadow: 0 16px 60px #0f172a1a; }
 .exit-dialog h2 { font-size: 23px; }

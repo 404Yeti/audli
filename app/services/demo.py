@@ -10,6 +10,10 @@ SCRIPT = ('On Monday, Maya and her team launched an update to their office sched
           'database. The problem was fixed quickly, but Maya wants better checks to prevent it from happening again.')
 
 class DemoProvider:
+    async def respond_checkin(self, text):
+        from app.lesson import CheckinReply, social_response
+        return CheckinReply(text=social_response(text).removesuffix(' Let’s get our listening started.'))
+
     async def generate(self, profile):
         d = profile.difficulty
         return ExerciseContent(title='A postponed update', topic='technology', script=SCRIPT,

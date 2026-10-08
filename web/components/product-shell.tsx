@@ -18,12 +18,12 @@ export function SessionCountdown({ startedAt }: { startedAt: number }) {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   return <p className="session-countdown" aria-label="Session time remaining">{now - startedAt >= SESSION_DURATION_MS ? 'Finishing this conversation' : `${minutesRemaining(startedAt, now)} min left`}</p>;
 }
-export function SessionShell({ state, activity, label, startedAt, onEnd, onReplay, children }: { state: MascotState; activity: boolean; label?: string; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode }) {
+export function SessionShell({ state, activity, label, topic, startedAt, onEnd, onReplay, children }: { state: MascotState; activity: boolean; label?: string; topic?: string | null; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode }) {
   const [confirmExit, setConfirmExit] = useState(false);
   const endButton = useRef<HTMLButtonElement | null>(null);
   function stay() { setConfirmExit(false); endButton.current?.focus(); }
   return <main className="session-shell" data-state={state}><header><strong className="wordmark">audli</strong><button ref={endButton} className="text-button" onClick={() => setConfirmExit(true)}>End</button></header>
-    <div className="session-presence"><AudliMascot state={state} activity={activity}/><p className="state-label" role="status">{label ?? ({ Idle: 'Train your ears.', Speaking: 'Audli is speaking', Listening: 'Listening to you', Thinking: 'Thinking', Success: 'Nice work.', Retry: 'Let’s try that again.' })[state]}</p></div>
+    <div className="session-presence"><AudliMascot state={state} activity={activity}/>{topic && <p className="session-topic" role="note" aria-label="Exercise topic" aria-live="polite">Topic: {topic}</p>}<p className="state-label" role="status">{label ?? ({ Idle: 'Train your ears.', Speaking: 'Audli is speaking', Listening: 'Listening to you', Thinking: 'Thinking', Success: 'Nice work.', Retry: 'Let’s try that again.' })[state]}</p></div>
     <div className="session-secondary">{children}</div>
     <div className="session-bottom">{startedAt != null && <SessionCountdown startedAt={startedAt}/>}<div className="session-controls">{onReplay && <button className="text-button" onClick={onReplay}>↻ Replay</button>}</div></div>
     {confirmExit && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="exit-title" className="exit-dialog" onKeyDown={event => {

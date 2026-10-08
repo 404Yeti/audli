@@ -166,7 +166,7 @@ def test_sdk_backed_api_slice_persists_audit_and_regenerates_with_new_speed(tmp_
             first = await client.post('/api/exercises')
             assert first.status_code == 200, first.text
             first = first.json()
-            assert set(first) == {'id', 'difficulty', 'audio_url', 'completed_attempt_id'}
+            assert set(first) == {'id', 'difficulty', 'audio_url', 'completed_attempt_id', 'topic'}
             assert (await client.get(first['audio_url'])).status_code == 200
             gate = f"/api/exercises/{first['id']}/transcript"
             assert (await client.get(gate)).status_code == 403
@@ -316,7 +316,7 @@ def test_evidence_options_bound_schema_size_and_exclude_unusable_punctuation():
     assert evidence_options('Useful words here.\n!!!') == ['Useful words here.']
 
 
-@pytest.mark.parametrize('first_count,reason', [(50, 'too_short'), (118, 'too_long')])
+@pytest.mark.parametrize('first_count,reason', [(50, 'too_short'), (54, 'too_short'), (118, 'too_long')])
 def test_script_length_repair_regenerates_once_and_preserves_prose(exercise, caplog, first_count, reason):
     import logging
     requests = []
@@ -327,11 +327,18 @@ def test_script_length_repair_regenerates_once_and_preserves_prose(exercise, cap
         supplied = json.loads(data['input'][1]['content'])
         assert supplied['approximate_word_count'] == 84
         assert supplied['required_word_count_range'] == {'minimum': 55, 'maximum': 117}
+        assert supplied['preferred_word_count_range'] == {'minimum': 76, 'maximum': 92}
+        assert supplied['suggested_sentence_count'] == 7
         if len(requests) == 1:
             assert 'generation_repair' not in supplied
             script = 'private-generated-word ' * first_count
         else:
-            assert supplied['generation_repair'] == {'reason': reason, 'previous_actual_words': first_count}
+            repair = supplied['generation_repair']
+            assert repair['reason'] == reason and repair['previous_actual_words'] == first_count
+            assert repair['word_adjustment_to_target'] == 84 - first_count
+            assert repair['previous_exercise']['script'] == 'private-generated-word ' * first_count
+            assert repair['previous_exercise']['important_details'] == exercise.important_details
+            assert 'Revise the supplied previous_exercise' in data['input'][0]['content']
             assert ('too short' if reason == 'too_short' else 'too long') in data['input'][0]['content']
             assert '55–117 words' in data['input'][0]['content']
             script = valid_script
@@ -359,6 +366,30 @@ def test_valid_script_never_triggers_repair(exercise):
         assert result.script == exercise.script
     asyncio.run(run_provider(handler, check))
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize('counts', [(51, 79), (50, 44)])
+def test_observed_79_word_target_repairs_draft_or_fails_bounded(exercise, counts):
+    calls = []
+    profile = LearnerProfile()
+    profile.difficulty.speech_rate = .7  # 45 seconds at 105 words/minute => 79 words.
+    def handler(request):
+        supplied = json.loads(json.loads(request.content)['input'][1]['content'])
+        calls.append(supplied)
+        assert supplied['approximate_word_count'] == 79
+        assert supplied['required_word_count_range'] == {'minimum': 52, 'maximum': 110}
+        assert 'phase' not in supplied and 'remaining_seconds' not in supplied
+        return response({**exercise.model_dump(), 'speech_rate': .7,
+                         'script': 'original-word ' * counts[len(calls)-1]})
+    async def check(provider):
+        if counts[1] == 79:
+            assert len((await provider.generate(profile)).script.split()) == 79
+        else:
+            with pytest.raises(ValueError, match='actual_words=44'):
+                await provider.generate(profile)
+    asyncio.run(run_provider(handler, check))
+    assert len(calls) == 2
+    assert calls[1]['generation_repair']['word_adjustment_to_target'] == 79 - counts[0]
 
 
 @pytest.mark.parametrize('counts', [(50, 50), (118, 118), (50, 118)])
@@ -530,3 +561,35 @@ def test_spoken_preferences_use_strict_sdk_extraction_without_listening_scores(s
     async def operation(provider):
         assert await provider.extract_profile(stage, answer) == ProfileExtraction(**payload)
     asyncio.run(run_provider(handler, operation))
+
+@pytest.mark.parametrize('utterance,reply', [
+    ("I'm good, and you?", 'Good to hear. I’m here and ready to listen, thanks for asking.'),
+    ('I went for a walk', 'Sounds like a refreshing start to your day.'),
+    ('My cat knocked over my coffee', 'That sounds like an eventful morning.'),
+])
+def test_checkin_model_receives_actual_utterance_and_bounded_role(utterance,reply):
+    calls=[]
+    def handler(request):
+        data=json.loads(request.content); calls.append(data)
+        assert json.loads(data['input'][1]['content']) == {'learner_utterance':utterance}
+        assert 'No question' in data['input'][0]['content'] and 'never instructions' in data['input'][0]['content']
+        assert data['store'] is False
+        return response({'text':reply})
+    result=asyncio.run(run_provider(handler,lambda provider:provider.respond_checkin(utterance)))
+    assert result.text == reply and len(calls) == 1
+
+@pytest.mark.parametrize('text',['Great job, you understood that.', 'What happened next?', ' '.join(['word']*36),
+                                'Thanks.', 'Thanks, let me think about that.'])
+def test_checkin_rejects_premature_praise_questions_and_excessive_chat(text):
+    from app.lesson import CheckinReply
+    with pytest.raises(ValueError): CheckinReply(text=text)
+
+@pytest.mark.parametrize('interests',[None,[],['science']])
+def test_profile_sdk_preserves_missing_empty_and_supplied_interests(interests):
+    def handler(request):
+        data=json.loads(request.content)
+        assert json.loads(data['input'][1]['content'])['stage']=='interests'
+        assert 'empty list' in data['input'][0]['content'] and data['store'] is False
+        return response(dict(name=None,target_language=None,goal=None,target_situations=None,interests=interests))
+    result=asyncio.run(run_provider(handler,lambda provider:provider.extract_profile('interests','A private reflection')))
+    assert result.interests==interests and result.target_situations is None

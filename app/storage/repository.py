@@ -157,11 +157,20 @@ class SQLProgressRepository:
             raise ValueError('Attempt not found for this learner')
         return row
 
-    def save_exercise(self, exercise_id, content, difficulty, audio_name, audio=None):
+    def save_exercise(self, exercise_id, content, difficulty, audio_name, audio=None, lesson=None):
         session_id = str(uuid4())
         with self.transaction() as db:
             self.check_audio_owner(db, audio_name)
             profile = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id).with_for_update()).mappings().one()
+            open_lesson = db.execute(select(s.lessons).where(and_(s.lessons.c.user_id == self.learner_id,
+                s.lessons.c.status != 'completed')).with_for_update()).mappings().first()
+            if open_lesson:
+                from app.lesson import Lesson, closing_due
+                checkpoint = Lesson.model_validate(open_lesson['data'])
+                if (lesson is None or checkpoint.id != lesson.id or checkpoint.revision != lesson.revision
+                        or checkpoint.status != 'active' or checkpoint.phase != 'EXERCISE'
+                        or checkpoint.exercise_id or closing_due(checkpoint, utcnow())):
+                    raise ValueError('Lesson changed or closing is due; reload the lesson.')
             if profile['data']['difficulty'] != difficulty.model_dump():
                 raise ValueError('Learner difficulty changed; retry exercise generation')
             current = db.execute(select(s.exercises.c.id).where(s.exercises.c.user_id == self.learner_id)
@@ -178,6 +187,16 @@ class SQLProgressRepository:
                 audio_name=audio_name, created_at=utcnow()))
             if audio is not None:
                 self.save_audio(db, audio_name, audio)
+            if lesson is not None:
+                if open_lesson is None:
+                    raise ValueError('No active lesson')
+                db.execute(s.lesson_exercises.insert().values(exercise_id=exercise_id,
+                    lesson_id=lesson.id, user_id=self.learner_id))
+                updated = lesson.model_copy(deep=True)
+                updated.exercise_id = exercise_id
+                updated.revision += 1
+                db.execute(update(s.lessons).where(s.lessons.c.id == lesson.id).values(
+                    revision=updated.revision, data=updated.model_dump(mode='json')))
 
     def add_attempt(self, exercise_id, transcription: Transcription):
         attempt_id = str(uuid4())
@@ -355,3 +374,98 @@ class SQLProgressRepository:
             self.upsert(db, s.coach_audio, dict(exercise_id=exercise_id, cue_id=cue_id, audio_name=audio_name), ['exercise_id', 'cue_id'])
             if audio is not None:
                 self.save_audio(db, audio_name, audio)
+
+    def lesson(self, lesson_id=None, completed=False):
+        from app.lesson import Lesson
+        query = select(s.lessons).where(s.lessons.c.user_id == self.learner_id)
+        if lesson_id:
+            query = query.where(s.lessons.c.id == lesson_id)
+        else:
+            query = query.where(s.lessons.c.status == 'completed' if completed else s.lessons.c.status != 'completed')
+        with self.engine.connect() as db:
+            row = db.execute(query.order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
+            return Lesson.model_validate(row['data']) if row else None
+
+    def create_lesson(self, lesson):
+        with self.transaction() as db:
+            db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
+            if db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == self.learner_id,
+                    s.lessons.c.status != 'completed'))).first():
+                raise ValueError('Resume the existing lesson.')
+            db.execute(s.lessons.insert().values(id=lesson.id, user_id=self.learner_id,
+                status=lesson.status, revision=lesson.revision, started_at=lesson.started_at,
+                data=lesson.model_dump(mode='json')))
+
+    def save_lesson(self, lesson, expected_revision, interests=None):
+        """CAS checkpoint plus preferences in one transaction; never replace learning state."""
+        with self.transaction() as db:
+            profile = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id).with_for_update()).mappings().one()
+            lesson.revision = expected_revision + 1
+            changed = db.execute(update(s.lessons).where(and_(s.lessons.c.id == lesson.id,
+                s.lessons.c.user_id == self.learner_id, s.lessons.c.revision == expected_revision))
+                .values(status=lesson.status, revision=lesson.revision, data=lesson.model_dump(mode='json')))
+            if changed.rowcount != 1:
+                raise ValueError('Lesson changed. Reload the current checkpoint.')
+            if interests is not None:
+                current = LearnerProfile.model_validate(profile['data'])
+                current.interests = interests
+                db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id).values(**profile_values(current)))
+        return lesson
+
+    def lesson_work(self, lesson_id):
+        """Only completed owned evidence; pending scripts never cross the lesson API."""
+        with self.engine.connect() as db:
+            rows = db.execute(select(s.exercises.c.id.label('exercise_id'), s.exercises.c.content, s.evaluations.c.data.label('evaluation'))
+                .select_from(s.lesson_exercises.join(s.exercises).join(s.attempts).join(s.evaluations))
+                .where(and_(s.lesson_exercises.c.lesson_id == lesson_id,
+                    s.lesson_exercises.c.user_id == self.learner_id, s.exercises.c.user_id == self.learner_id,
+                    s.attempts.c.status == 'evaluated'))
+                .order_by(s.exercises.c.created_at)).mappings().all()
+            return [dict(row) for row in rows]
+
+    def lesson_for_exercise(self, exercise_id):
+        from app.lesson import Lesson
+        with self.engine.connect() as db:
+            data = db.execute(select(s.lessons.c.data).join(s.lesson_exercises)
+                .where(and_(s.lesson_exercises.c.exercise_id == exercise_id,
+                    s.lesson_exercises.c.user_id == self.learner_id,
+                    s.lessons.c.user_id == self.learner_id))).scalar_one_or_none()
+            return Lesson.model_validate(data) if data else None
+
+    def attach_lesson_exercise(self, lesson, exercise_id):
+        from app.lesson import closing_due
+        with self.transaction() as db:
+            db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
+            self.owned_exercise(db, exercise_id)
+            if closing_due(lesson, utcnow()):
+                raise ValueError('Closing is due.')
+            lesson.exercise_id = exercise_id
+            lesson.revision += 1
+            result = db.execute(update(s.lessons).where(and_(s.lessons.c.id == lesson.id,
+                s.lessons.c.user_id == self.learner_id, s.lessons.c.revision == lesson.revision - 1,
+                s.lessons.c.status == 'active')).values(revision=lesson.revision, data=lesson.model_dump(mode='json')))
+            if result.rowcount != 1:
+                raise ValueError('Lesson changed.')
+            db.execute(s.lesson_exercises.insert().values(lesson_id=lesson.id,
+                exercise_id=exercise_id, user_id=self.learner_id))
+
+    def previous_lesson(self):
+        from app.lesson import previous_copy
+        previous = self.lesson(completed=True)
+        if previous:
+            work = self.lesson_work(previous.id)
+            return previous_copy(work[-1]['content']['topic'], [item['evaluation'] for item in work]) if work else None
+        # Migration bridge: old training sessions are real, completed single-exercise sessions.
+        sessions = [item for item in self.session_history() if item.status == 'completed']
+        if not sessions:
+            return None
+        rows = self.session_exercises(sessions[0].id)
+        completed = [row for row in rows if self.completed(row['id'])]
+        if not completed:
+            return None
+        return previous_copy(json.loads(completed[-1]['content'])['topic'],
+            [self.result(self.completed(row['id']))['evaluation'] for row in completed])
+
+    def cache_lesson_audio(self, name, data):
+        with self.transaction() as db:
+            self.save_audio(db, name, data)

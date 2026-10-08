@@ -20,7 +20,7 @@ class ProfileExtraction(StrictModel):
     @field_validator('target_situations', 'interests')
     @classmethod
     def bounded_labels(cls, values):
-        if values is not None and (not values or any(not v.strip() or len(v) > 160 for v in values)):
+        if values is not None and any(not v.strip() or len(v) > 160 for v in values):
             raise ValueError('Invalid preference labels')
         return [v.strip() for v in values] if values is not None else None
 

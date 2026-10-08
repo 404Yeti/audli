@@ -119,3 +119,21 @@ for table, optional in (
     for column in table.columns:
         if column.name not in optional:
             column.nullable = False
+
+# Migration 002. Keep the original schema objects unchanged for baseline 001.
+lessons = Table('lesson_lifecycles', metadata,
+    Column('id', identifier, primary_key=True),
+    Column('user_id', identifier, ForeignKey('users.id'), nullable=False),
+    Column('status', String(12), nullable=False), Column('revision', Integer, nullable=False),
+    Column('started_at', timestamp, nullable=False), Column('data', document, nullable=False),
+    UniqueConstraint('id', 'user_id', name='lesson_owner_key'),
+    CheckConstraint("status IN ('active','paused','completed')", name='lesson_status_valid'),
+    CheckConstraint('revision >= 0', name='lesson_revision_valid'))
+lesson_exercises = Table('lesson_exercises', metadata,
+    Column('exercise_id', identifier, ForeignKey('exercises.id'), primary_key=True),
+    Column('lesson_id', identifier, nullable=False), Column('user_id', identifier, nullable=False),
+    ForeignKeyConstraint(['lesson_id', 'user_id'], ['lesson_lifecycles.id', 'lesson_lifecycles.user_id'], name='lesson_exercise_owner'))
+Index('lessons_by_learner_time', lessons.c.user_id, lessons.c.started_at)
+Index('one_open_lesson_per_learner', lessons.c.user_id, unique=True,
+    sqlite_where=lessons.c.status != 'completed', postgresql_where=lessons.c.status != 'completed')
+Index('exercises_by_lesson', lesson_exercises.c.lesson_id)

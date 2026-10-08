@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { ExerciseLessonFixture } from './lesson-fixture';
 import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 
 const userId='00000000-0000-0000-0000-000000000001';
@@ -16,11 +17,15 @@ async function setupAuth(page:Page,training=false){
     if(path.endsWith('/token')){const second=route.request().postDataJSON()?.email===userB.email;return route.fulfill({json:{access_token:second?tokenB:token,refresh_token:'mock-refresh-token',expires_in:3600,token_type:'bearer',user:second?userB:user}});}
     return route.fulfill({json:user});
   });
-  await page.route('**/api/**',route=>{
+  let generated=false;const clip=()=>({id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null});
+  const lesson=new ExerciseLessonFixture(page,()=>training||generated?clip():null,()=>{generated=true;return clip();});
+  await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname,authorization=route.request().headers()['authorization'];
     if(path==='/api/auth/config')return route.fulfill({json:{mode:'supabase'}});
     requests.push({path,authorization,method:route.request().method(),body:route.request().postData()});
     if(reject||![`Bearer ${token}`,`Bearer ${tokenB}`].includes(authorization??''))return route.fulfill({status:401,json:{detail:'Your session expired or is invalid. Please sign in again.'}});
+    if(path.startsWith('/api/lessons/') && authorization===`Bearer ${tokenB}` && path.endsWith('/current'))return route.fulfill({json:null});
+    if(await lesson.handle(route))return;
     if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:authorization===`Bearer ${tokenB}`?'Bob':'Alice',goal:'Meetings',completed_attempts:0},provider:'openai'}});
     if(path==='/api/history')return route.fulfill({json:[]});
     if(path==='/api/exercises/current')return route.fulfill({json:training&&authorization!==`Bearer ${tokenB}`?{id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null}:null});
@@ -66,7 +71,7 @@ test('failed remote logout still clears browser credentials',async({page})=>{
 test('token refresh continues the same account-bound session',async({page})=>{
   await installVoice(page);const fixture=await setupAuth(page);await signIn(page);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
   await page.evaluate(()=>{const session=JSON.parse(localStorage.getItem('audli-auth-session')!);session.expires_at=Math.floor(Date.now()/1000)-1;localStorage.setItem('audli-auth-session',JSON.stringify(session));});
-  const refreshed=page.waitForRequest(request=>request.url().includes('grant_type=refresh_token'));await page.getByRole('button',{name:'Start today’s session'}).click();await refreshed;await speaking(page);expect(fixture.requests.some(x=>x.path==='/api/exercises')).toBe(true);
+  const refreshed=page.waitForRequest(request=>request.url().includes('grant_type=refresh_token'));await page.getByRole('button',{name:'Start today’s session'}).click();await refreshed;await speaking(page);expect(fixture.requests.some(x=>x.path==='/api/lessons/lesson/exercise')).toBe(true);
 });
 test('cross-tab logout stops active capture and never uploads the discarded answer',async({page})=>{
   await installVoice(page);const fixture=await setupAuth(page,true);await signIn(page);await page.getByRole('button',{name:'Start today’s session'}).click();await speaking(page);await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);await listening(page);
@@ -75,7 +80,7 @@ test('cross-tab logout stops active capture and never uploads the discarded answ
 for(const delayed of ['preflight','recording','generation'] as const){
   test(`account switch discards delayed lesson ${delayed}`,async({page})=>{
     await installVoice(page,{delayMedia:delayed==='preflight'?1:delayed==='recording'?2:undefined});const fixture=await setupAuth(page,delayed==='recording');let release:(()=>Promise<void>)|undefined;
-    if(delayed==='generation')await page.route('**/api/exercises',async route=>{fixture.requests.push({path:'/api/exercises',authorization:route.request().headers()['authorization'],method:'POST',body:null});await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{id:'private-A',audio_url:'/api/exercises/private-A/audio',completed_attempt_id:null}}).catch(()=>{});resolve();};});});
+    if(delayed==='generation')await page.route('**/api/lessons/lesson/exercise',async route=>{fixture.requests.push({path:'/api/lessons/lesson/exercise',authorization:route.request().headers()['authorization'],method:'POST',body:null});await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{id:'private-A',audio_url:'/api/exercises/private-A/audio',completed_attempt_id:null}}).catch(()=>{});resolve();};});});
     await signIn(page);await page.getByRole('button',{name:'Start today’s session'}).click();
     if(delayed==='recording'){await speaking(page);await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);}
     if(delayed==='generation')await expect.poll(()=>!!release).toBe(true);else await expect.poll(async()=>page.evaluate(() => typeof (window as unknown as {voiceProbe:{releaseMedia?:()=>void}}).voiceProbe.releaseMedia === 'function')).toBe(true);
@@ -109,7 +114,7 @@ async function onboardingTurn(page:Page){await speaking(page);await endAudio(pag
 async function completeOnboarding(page:Page){await page.getByRole('button',{name:'Let’s talk',exact:true}).click();for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();}
 
 test('spoken onboarding progresses hands-free, persists profile, and completed learner skips it',async({page})=>{
-  const fixture=await setupOnboarding(page);await page.clock.install();await completeOnboarding(page);expect(fixture.requests.filter(x=>x.path==='/api/onboarding/answer')).toHaveLength(3);expect(fixture.snapshot().profile.interests).toEqual(['science']);expect(fixture.requests.some(x=>x.path==='/api/exercises')).toBe(false);
+  const fixture=await setupOnboarding(page);await page.clock.install();await completeOnboarding(page);expect(fixture.requests.filter(x=>x.path==='/api/onboarding/answer')).toHaveLength(3);expect(fixture.snapshot().profile.interests).toEqual(['science']);expect(fixture.requests.some(x=>x.path==='/api/lessons/lesson/exercise')).toBe(false);
   await page.reload();await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toHaveCount(0);
 });
 test('pending recognition resumes after refresh without duplicating completed onboarding stages',async({page})=>{
@@ -162,7 +167,7 @@ test('account switch discards delayed successful exercise audio before playback'
 for(const delayed of ['microphone','transcription','answer','completion','first generation'] as const){
   test(`account switch cancels delayed onboarding ${delayed}`,async({page})=>{
     const fixture=await setupOnboarding(page,{delayMedia:delayed==='microphone'?1:undefined});await page.clock.install();let release:(()=>Promise<void>)|undefined;
-    const path=delayed==='transcription'?'/api/onboarding/attempts':delayed==='answer'?'/api/onboarding/answer':delayed==='completion'?'/api/onboarding/complete':'/api/exercises';
+    const path=delayed==='transcription'?'/api/onboarding/attempts':delayed==='answer'?'/api/onboarding/answer':delayed==='completion'?'/api/onboarding/complete':'/api/lessons/lesson/exercise';
     if(delayed!=='microphone')await page.route('**'+path,async route=>{fixture.requests.push({path,authorization:route.request().headers()['authorization'],method:'POST',body:route.request().postData()});await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{stage:'needs',revision:99,destination:'session_ready',profile:{name:'A private result'},id:'A-private',audio_url:'/api/exercises/A-private/audio'}}).catch(()=>{});resolve();};});});
     await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
     if(delayed==='first generation'){for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();await page.getByRole('button',{name:'Start today’s session'}).click();}
@@ -211,4 +216,15 @@ test('account switch discards a successful inline coaching audio body before any
   await page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody?.());await page.waitForTimeout(100);
   const after=await probe(page);expect(after.urls).toEqual(before.urls);expect(after.revoked).toEqual(after.urls);expect(after.plays).toEqual(before.plays);expect(fixture.requests.length).toBe(requests);
   await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();await expect(page.locator('.session-shell')).toHaveCount(0);
+});
+
+test('account switch discards delayed welcome audio without personal recording or later-account continuation',async({page})=>{
+  await installVoice(page,{delayBody:'/lessons/greeting/audio'});const fixture=await setupAuth(page);await signIn(page);
+  await page.route('**/api/lessons/start',route=>route.fulfill({json:{id:'greeting',revision:0,status:'active',phase:'WELCOME',prompt:'Hi, Alice. How was your day?',pending:null,exercise:null,elapsed_seconds:0,remaining_seconds:600,focus:'details',exercises_completed:0,strength:null,encouragement:'Thanks for listening, Alice.'}}));
+  await page.route('**/api/lessons/greeting/audio',route=>route.fulfill({contentType:'audio/wav',body:promptWav()}));
+  await page.getByRole('button',{name:'Start today’s session'}).click();await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
+  const before=await probe(page);await switchToB(page);const count=fixture.requests.length;
+  await page.evaluate(()=>(window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody?.());await page.waitForTimeout(150);
+  const after=await probe(page);expect(after.plays).toEqual(before.plays);expect(after.urls).toEqual(before.urls);expect(after.recorders).toBe(0);
+  expect(fixture.requests.length).toBe(count);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.method!=='GET')).toEqual([]);
 });

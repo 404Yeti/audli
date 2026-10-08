@@ -10,7 +10,7 @@ def make_attempt(client,audio_bytes):
 
 def test_full_loop_and_privacy(client,audio_bytes):
     exercise=client.post('/api/exercises').json()
-    assert set(exercise)=={'id','difficulty','audio_url','completed_attempt_id'}
+    assert set(exercise)=={'id','difficulty','audio_url','completed_attempt_id','topic'}
     assert 'migration' not in str(exercise)
     assert client.get(exercise['audio_url']).status_code==200
     assert client.get(exercise['audio_url']).headers['cache-control']=='no-store'

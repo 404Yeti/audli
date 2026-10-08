@@ -2,7 +2,6 @@
 from pathlib import Path
 import psycopg
 from app.config import Settings
-from app.storage.adapters import SCHEMA_VERSION
 
 
 def migrate(settings: Settings):
@@ -12,21 +11,22 @@ def migrate(settings: Settings):
     try:
         with psycopg.connect(url, autocommit=True, connect_timeout=10) as db:
             exists = db.execute("SELECT to_regclass('public.schema_migrations')").fetchone()[0]
-            if exists:
-                versions = db.execute('SELECT version FROM schema_migrations ORDER BY version').fetchall()
-                if versions != [(SCHEMA_VERSION,)]:
-                    raise ValueError('Unsupported schema version')
-                return False
-            # No IF NOT EXISTS: unrelated/incompatible tables must not be silently adopted.
-            sql = (Path(__file__).resolve().parents[1] / 'docs' / 'postgres.sql').read_text()
-            db.execute(sql, prepare=False)
-            return True
+            versions = db.execute('SELECT version FROM schema_migrations ORDER BY version').fetchall() if exists else []
+            if versions not in ([], [(1,)], [(1,), (2,)]):
+                raise ValueError('Unsupported schema version')
+            changed = False
+            root = Path(__file__).resolve().parents[1] / 'docs'
+            for version, name in ((1, 'postgres.sql'), (2, 'postgres-002.sql')):
+                if (version,) not in versions:
+                    db.execute((root / name).read_text(), prepare=False)
+                    changed = True
+            return changed
     except Exception:
         raise RuntimeError('Postgres migration failed. Check backend database access and schema compatibility; credentials were not logged.') from None
 
 
 if __name__ == '__main__':
     try:
-        print('Postgres migration 001 applied.' if migrate(Settings()) else 'Postgres migration 001 already applied.')
+        print('Postgres migrations applied.' if migrate(Settings()) else 'Postgres migrations already applied.')
     except Exception:
         raise SystemExit('Postgres migration could not run. Check persistence/auth configuration, AUDLI_DATABASE_URL and database/schema access.') from None

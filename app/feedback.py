@@ -4,7 +4,6 @@ Compose from validated final evidence and the deterministic adaptation event.
 Never forward arbitrary evaluator prose to the spoken closing turn.
 """
 import re
-from app.conversation import next_message
 
 _REQUEST = re.compile(
     r"\b(could you|can you|would you|tell me|what does|what did|why do|"
@@ -22,7 +21,7 @@ def validate_final_feedback(text: str, maximum_words: int = 50) -> None:
         raise ValueError('Terminal feedback exceeds its sentence budget')
 
 
-def final_feedback(evaluation, event, maximum_words: int = 50) -> str:
+def final_feedback(evaluation, event, maximum_words: int = 50, content=None, previous_advice=()) -> str:
     """One observation, optionally one grounded correction, then the next action.
 
     Unknown units never enter the correction path. If a passage-specific label
@@ -39,18 +38,42 @@ def final_feedback(evaluation, event, maximum_words: int = 50) -> str:
         observation = 'Thanks for sharing what you understood.'
     else:
         observation = 'That was a challenging listen.'
-    transition = next_message(event)
-    if evaluation.misunderstood:
-        label = evaluation.misunderstood[0].strip().rstrip('.!')
-        candidate = f'{observation} One correction: {label}. {transition}'
+    from app.lesson import safe_label, evidence_gaps, evidence_tip
+    data = evaluation.model_dump() if hasattr(evaluation, 'model_dump') else vars(evaluation)
+    gaps = evidence_gaps(data, content.model_dump() if content else None)
+    specific = next((item for item in gaps if evidence_tip(*item) not in previous_advice), None)
+    transition = evidence_tip(*specific) if specific else 'We’ll build on this listening practice.'
+    if content is not None and main == 'demonstrated':
+        label = safe_label(content.main_idea)
+        if label:
+            candidate = f'You understood that {label[0].lower() + label[1:]}. {transition}'
+            try:
+                validate_final_feedback(candidate, maximum_words)
+                observation = candidate[:-len(transition)].strip()
+            except ValueError:
+                pass
+    if evaluation.misunderstood or gaps:
+        label = (specific or (gaps[0] if gaps else (evaluation.misunderstood[0].strip().rstrip('.!'), 'details')))[0]
+        framing = 'One correction' if any(safe_label(value) == label for value in evaluation.misunderstood) else 'One part to build on'
+        candidate = f'{observation} {framing}: {label}. {transition}'
         try:
             validate_final_feedback(candidate, maximum_words)
             return candidate
         except ValueError:
-            observation = 'Some of the meaning came through, but there was a misunderstanding.' if evaluation.understood else 'That was a challenging listen.'
+            observation = ('Some of the meaning came through, but there was a misunderstanding.' if evaluation.understood
+                           else 'That was a challenging listen.') if evaluation.misunderstood else 'Some meaning came through; there is more to practice.'
     elif dimensions and not unknown and all(
             status == 'demonstrated' for status in dimensions.values()):
         observation = 'Nice work. You caught the main idea and the important details.'
+        if content is not None:
+            label = next((safe_label(value) for value in content.important_details if safe_label(value)), None)
+            if label:
+                candidate = f'You caught the main idea and important details, including that {label[0].lower() + label[1:]}. {transition}'
+                try:
+                    validate_final_feedback(candidate, maximum_words)
+                    return candidate
+                except ValueError:
+                    pass
     text = f'{observation} {transition}'
     validate_final_feedback(text, maximum_words)
     return text

@@ -5,6 +5,9 @@ import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
 import { recordingUpload } from '../lib/recording';
 import { SessionShell } from './product-shell';
+import { useAccount } from './auth-gate';
+import { conversationIntent } from '../lib/conversation-intent';
+import { measureTurn, turnTiming } from '../lib/turn-timing';
 import { AudliMascot } from './audli-mascot';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
@@ -13,6 +16,7 @@ const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Cont
 
 export function SpokenOnboarding({ onComplete }: { onComplete: (operation: LessonOperation) => Promise<void> }) {
   const voice = useVoiceLifecycle();
+  const intent = conversationIntent(useAccount().scope, 'onboarding');
   const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null);
   const [active, setActive] = useState(false);
   const [error, setError] = useState('');
@@ -26,7 +30,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     operation.assertCurrent(); minimum.current = settings.recognition_min_confidence ?? .65;
     setCheckpoint(data); setBusy(false);
     if (data.destination === 'session_ready') await onComplete(operation);
-    else if (data.profile.onboarding_status === 'in_progress' || data.stage === 'review') void start();
+    else if (!intent.ended() && (data.profile.onboarding_status === 'in_progress' || data.stage === 'review')) void start();
   }
   const initialRestore = useEffectEvent(restore);
   useEffect(() => {
@@ -38,6 +42,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   }, []);
   async function promptAudio(operation: LessonOperation, data: Checkpoint): Promise<Checkpoint> {
     voice.thinking();
+    const started = performance.now();
     let response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio', { ...json({ revision: data.revision }), signal: operation.signal }, operation));
     if (response.status === 409) {
       // One retry, same account-bound operation, latest authoritative checkpoint.
@@ -48,13 +53,14 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     }
     if (!response.ok) throw new Error('Audli’s voice is unavailable. Retry the conversation; your saved progress is safe.');
     const body = await operation.wait(() => response.blob()); operation.assertCurrent();
+    turnTiming('tts_readiness', started);
     await voice.speak(operation, URL.createObjectURL(body)); return data;
   }
   async function captureAnswer(operation: LessonOperation, data: Checkpoint): Promise<Checkpoint> {
     if (!retained.current) retained.current = await voice.listen(operation);
     operation.assertCurrent(); voice.thinking();
     const form = recordingUpload(retained.current); form.append('revision', String(data.revision));
-    const latest = await operation.api<Checkpoint>('/onboarding/attempts', { method: 'POST', body: form });
+    const latest = await measureTurn('upload_transcription', () => operation.api<Checkpoint>('/onboarding/attempts', { method: 'POST', body: form }));
     operation.assertCurrent(); retained.current = null; setCheckpoint(latest); return latest;
   }
   async function start() {
@@ -66,7 +72,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
         || (data.profile.onboarding_status === 'profile_saved' && data.stage === 'identity'))) {
         data = await operation.api<Checkpoint>('/onboarding/start', json({ revision: data.revision }));
       }
-      operation.assertCurrent(); setCheckpoint(data);
+      operation.assertCurrent(); intent.start(); setCheckpoint(data);
       let retries = 0;
       while (operation.current) {
         if (data.destination === 'session_ready') { await onComplete(operation); return; }
@@ -78,7 +84,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
             await voice.retrySpeech(operation); data = await captureAnswer(operation, data); continue;
           }
           voice.thinking();
-          data = await operation.api<Checkpoint>('/onboarding/answer', json({ revision: data.revision, text: data.pending.text, confirmed: true, hands_free: true }));
+          data = await measureTurn('profile_extraction', () => operation.api<Checkpoint>('/onboarding/answer', json({ revision: data.revision, text: data.pending!.text, confirmed: true, hands_free: true })));
           operation.assertCurrent(); setCheckpoint(data); retries = 0; continue;
         }
         const beforeStage = data.stage;
@@ -93,7 +99,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     } catch (error) { if (operation.current) { setError((error as Error).message); setBusy(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
-  function end() { voice.stop(); retained.current = null; running.current = false; setActive(false); setError(''); }
+  function end() { voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{checkpoint?.prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start()}>Retry conversation</button></div>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/></>;

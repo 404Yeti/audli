@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { authenticatedFetch, currentAuthRevision, LessonLifetime, type LessonOperation } from './api';
 import { captureRecording } from './recording';
 import { turnDetector } from './hands-free';
+import { measureTurn, turnTiming } from './turn-timing';
 import type { MascotState } from '../components/audli-mascot';
 
 /** One account-bound lifetime owns playback, turn detection and all continuations. */
@@ -12,6 +13,7 @@ export function useVoiceLifecycle() {
   const audio = useRef<HTMLAudioElement | null>(null);
   const owner = useRef<LessonLifetime | null>(null);
   const auth = useRef(currentAuthRevision());
+  const turnStartedAt = useRef<number | null>(null);
   const disposeRecording = useRef<(() => void) | null>(null);
   const playback = useRef<{ operation: LessonOperation; failed: () => void } | null>(null);
   useEffect(() => {
@@ -27,7 +29,7 @@ export function useVoiceLifecycle() {
   function stop() {
     owner.current?.close(); disposeRecording.current?.(); audio.current?.pause();
     if (auth.current === currentAuthRevision()) owner.current = new LessonLifetime();
-    setState('Idle'); setActivity(false);
+    turnStartedAt.current = null; setState('Idle'); setActivity(false);
   }
   async function speak(operation: LessonOperation, url: string) {
     operation.assertCurrent(() => URL.revokeObjectURL(url));
@@ -46,14 +48,34 @@ export function useVoiceLifecycle() {
         element.addEventListener('play', playing); element.addEventListener('pause', paused); playback.current = { operation, failed };
         operation.signal.addEventListener('abort', cancelled, { once: true });
         element.src = url;
-        void operation.wait(() => element.play(), () => element.pause()).then(() => {
-          if (!settled && operation.current) { setState('Speaking'); setActivity(true); }
+        void operation.wait(() => measureTurn('playback_start', () => element.play()), () => element.pause()).then(() => {
+          if (!settled && operation.current) {
+            if (turnStartedAt.current != null) { turnTiming('turn_to_playback', turnStartedAt.current); turnStartedAt.current = null; }
+            setState('Speaking'); setActivity(true);
+          }
         }).catch(error => { if (!settled) { cleanup(); reject(error); } });
       }));
     } finally {
       element.pause(); element.removeAttribute('src'); URL.revokeObjectURL(url);
       if (operation.current) setActivity(false);
     }
+  }
+  async function coachSpeech(operation: LessonOperation, exerciseId: string, cueId: string | null) {
+    const url = await measureTurn('tts_readiness', async () => {
+      const response = await operation.wait(() => authenticatedFetch(`/api/exercises/${encodeURIComponent(exerciseId)}/coach-audio`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'audio/*' },
+        body: JSON.stringify({ cue_id: cueId }), signal: operation.signal,
+      }, operation));
+      if (!response.ok) {
+        const data: unknown = await operation.wait(() => response.json().catch(() => null));
+        operation.assertCurrent();
+        throw new Error(data && typeof data === 'object' && 'detail' in data && typeof data.detail === 'string'
+          ? data.detail : 'Audli’s voice is unavailable. Please retry audio.');
+      }
+      const body = await operation.wait(() => response.blob());
+      operation.assertCurrent(); return URL.createObjectURL(body);
+    });
+    await speak(operation, url);
   }
   async function retrySpeech(operation: LessonOperation) {
     setState('Retry');
@@ -73,7 +95,7 @@ export function useVoiceLifecycle() {
         let context: AudioContext | undefined, source: MediaStreamAudioSourceNode | undefined;
         let interval: ReturnType<typeof setInterval> | undefined;
         let capture: ReturnType<typeof captureRecording> | undefined;
-        let disposed = false;
+        let disposed = false, stoppedAt: number | null = null, lastVoiceAt = performance.now();
         const cleanup = () => {
           if (disposed) return; disposed = true;
           if (interval) clearInterval(interval);
@@ -89,7 +111,7 @@ export function useVoiceLifecycle() {
           const analyser = context.createAnalyser(); analyser.fftSize = 1024;
           source = context.createMediaStreamSource(input); source.connect(analyser);
           const samples = new Float32Array(analyser.fftSize);
-          capture = captureRecording(input, blob => { cleanup(); resolve(blob); }, message => { cleanup(); reject(new Error(message)); });
+          capture = captureRecording(input, blob => { if (stoppedAt != null) turnTiming('recording_finalization', stoppedAt); cleanup(); resolve(blob); }, message => { cleanup(); reject(new Error(message)); });
           const detect = turnDetector(Date.now());
           setState('Listening'); setActivity(false);
           void context.resume().catch(() => { cleanup(); reject(new Error('Microphone turn detection could not start. Please retry.')); });
@@ -98,7 +120,12 @@ export function useVoiceLifecycle() {
             analyser.getFloatTimeDomainData(samples);
             const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
             const turn = detect(Date.now(), rms); setActivity(turn.activity);
-            if (turn.end) { if (interval) clearInterval(interval); capture?.stop(); }
+            if (turn.activity) lastVoiceAt = performance.now();
+            if (turn.end) {
+              turnStartedAt.current = lastVoiceAt; turnTiming('silence_detection', lastVoiceAt); stoppedAt = performance.now();
+              setState('Thinking'); setActivity(false);
+              if (interval) clearInterval(interval); capture?.stop();
+            }
           }, 50);
         } catch (error) { cleanup(); reject(error); }
       }));
@@ -111,5 +138,5 @@ export function useVoiceLifecycle() {
     element.currentTime = 0;
     if (element.paused) void current.operation.wait(() => element.play(), () => element.pause()).catch(() => { if (current.operation.current) current.failed(); });
   }
-  return { state, activity, audio, begin, stop, speak, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
+  return { state, activity, audio, begin, stop, speak, coachSpeech, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
 }

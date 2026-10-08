@@ -8,6 +8,8 @@ import { ApiError, LessonLifetime, type LessonOperation } from '../lib/api';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, SESSION_DURATION_MS, type Recognition } from '../lib/hands-free';
 import { recordingUpload } from '../lib/recording';
+import { conversationIntent } from '../lib/conversation-intent';
+import { measureTurn } from '../lib/turn-timing';
 import { microphonePermission } from '../lib/session';
 import type { ConversationPhase } from '../lib/conversation';
 
@@ -65,11 +67,13 @@ function Product() {
   const [eligibleExercise, setEligibleExercise] = useState<string | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const current = useRef<Exercise | null>(null);
+  const needsIntroduction = useRef(false);
   const minimum = useRef(.65);
   const running = useRef(false);
   const retained = useRef<{ exercise: string; blob: Blob } | null>(null);
   const storageKey = 'audli-session:' + account.scope;
-  function saveTiming(start: number, status: 'active' | 'complete' | 'paused') {
+  const intent = conversationIntent(account.scope, 'lesson');
+  function saveTiming(start: number, status: 'active' | 'complete' | 'ended') {
     try { sessionStorage.setItem(storageKey, JSON.stringify({ startedAt: start, status })); } catch { /* Server checkpoints remain durable without timer storage. */ }
   }
   async function refresh(operation: LessonOperation) {
@@ -84,7 +88,7 @@ function Product() {
       const timing = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
       if (timing && Number.isFinite(timing.startedAt) && timing.startedAt > 0 && timing.startedAt <= Date.now()) {
         if (timing.status === 'complete' && current.current?.completed_attempt_id) { setCompleted(true); setStartedAt(timing.startedAt); }
-        else if (timing.status === 'active' && current.current) { setStartedAt(timing.startedAt); void start(timing.startedAt, false); }
+        else if (timing.status === 'active' && current.current && !intent.ended()) { setStartedAt(timing.startedAt); void start(timing.startedAt, false); }
       }
     } catch { /* Local timing never decides onboarding or assessment state. */ }
   }
@@ -104,26 +108,33 @@ function Product() {
   async function playCue(operation: LessonOperation, exercise: Exercise, state: Conversation) {
     voice.thinking();
     setPrompt(state.prompt ?? '');
-    const data = await operation.api<{ audio_url: string }>(`/exercises/${exercise.id}/coach-audio`, json({ cue_id: state.cue_id }));
-    await voice.speak(operation, await operation.audio(data.audio_url));
+    await voice.coachSpeech(operation, exercise.id, state.cue_id);
   }
   async function captureAnswer(operation: LessonOperation, exercise: Exercise): Promise<Attempt> {
     let blob = retained.current?.exercise === exercise.id ? retained.current.blob : null;
     if (!blob) { blob = await voice.listen(operation); operation.assertCurrent(); retained.current = { exercise: exercise.id, blob }; }
     voice.thinking();
-    const attempt = await operation.api<Attempt>(`/exercises/${exercise.id}/attempts`, { method: 'POST', body: recordingUpload(blob) });
+    const attempt = await measureTurn('upload_transcription', () => operation.api<Attempt>(`/exercises/${exercise.id}/attempts`, { method: 'POST', body: recordingUpload(blob!) }));
     operation.assertCurrent(); retained.current = null; return attempt;
   }
-  async function session(operation: LessonOperation, startTime: number) {
+  async function session(operation: LessonOperation, startTime: number, intentionalRestart = false) {
     let exercise = current.current ?? await operation.api<Exercise>('/exercises', { method: 'POST' });
     operation.assertCurrent(); current.current = exercise;
     let state = await operation.api<Conversation>(`/exercises/${exercise.id}/conversation`);
+    // Explicit End starts a fresh presentation of an unfinished clip, never a
+    // fragment of old coaching. Evidence/pending recognition remain authoritative.
+    if (intentionalRestart && state.state !== 'LISTENING' && !exercise.completed_attempt_id) {
+      await voice.speak(operation, await operation.audio(exercise.audio_url));
+      state = await operation.api<Conversation>(`/exercises/${exercise.id}/conversation`);
+      needsIntroduction.current = false;
+    }
     let retries = 0;
     while (operation.current) {
       setEligibleExercise(state.result ? exercise.id : null);
       if (state.state === 'LISTENING') {
         setPrompt('Listen carefully.');
         await voice.speak(operation, await operation.audio(exercise.audio_url));
+        needsIntroduction.current = false;
         state = await operation.api<Conversation>(`/exercises/${exercise.id}/conversation/listened`, { method: 'POST' });
       } else if (['AWAITING_SUMMARY','AWAITING_FOLLOWUP','ASSESSING','ASSESSING_FOLLOWUP'].includes(state.state)) {
         let attempt = state.pending_attempt;
@@ -140,7 +151,7 @@ function Product() {
           }
           voice.thinking();
           try {
-            state = await operation.api<Conversation>(`/attempts/${attempt.id}/assess`, json({ text: corrected ?? attempt.transcription.text, confirmed: true, hands_free: !corrected, followup_id: state.active_followup?.id ?? null }));
+            state = await measureTurn('assessment', () => operation.api<Conversation>(`/attempts/${attempt!.id}/assess`, json({ text: corrected ?? attempt!.transcription.text, confirmed: true, hands_free: !corrected, followup_id: state.active_followup?.id ?? null })));
             retries = 0; break;
           } catch (error) {
             if (!(error instanceof ApiError) || !error.uncertain) throw error;
@@ -172,14 +183,22 @@ function Product() {
     try {
       if (preflight) await operation.wait(() => microphonePermission(navigator.mediaDevices));
       microphoneReady = true;
-      operation.assertCurrent(); setStartedAt(startTime); saveTiming(startTime, 'active'); setActive(true); setCompleted(false); setBusy(false);
-      await session(operation, startTime);
+      operation.assertCurrent();
+      const intentionalRestart = intent.ended() || needsIntroduction.current;
+      if (intentionalRestart) {
+        current.current = await operation.api<Exercise | null>('/exercises/current');
+        if (current.current?.completed_attempt_id) current.current = null; // New exercise, saved evidence untouched.
+        operation.assertCurrent(); needsIntroduction.current = true; intent.start();
+      }
+      setStartedAt(startTime); saveTiming(startTime, 'active'); setActive(true); setCompleted(false); setBusy(false);
+      await session(operation, startTime, intentionalRestart);
     } catch (error) { if (operation.current) { setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
   function end() {
     voice.stop(); running.current = false; retained.current = null;
-    if (startedAt != null) saveTiming(startedAt, 'paused');
+    intent.end(); needsIntroduction.current = true;
+    if (startedAt != null) saveTiming(startedAt, 'ended');
     setActive(false); setBusy(false); setError(''); setPrompt(''); setDestination('Home');
   }
   async function reviewTranscript(exerciseId: string) {

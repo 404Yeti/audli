@@ -5,7 +5,8 @@ import os
 import re
 import traceback
 from sqlalchemy.engine import make_url
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
+from time import perf_counter
 from pydantic import ValidationError
 from app.config import Settings
 
@@ -68,8 +69,24 @@ def report_failure(settings: Settings, operation: str, exc: Exception):
 @contextmanager
 def operation(settings: Settings, name: str):
     """Log at the precise failure boundary and preserve the original exception."""
+    started = perf_counter()
     try:
         yield
     except Exception as exc:
         report_failure(settings, name, exc)
         raise
+    finally:
+        if settings.environment == 'development':
+            logger = logging.getLogger('uvicorn.error')
+            logger.info('Turn timing stage=%s elapsed_ms=%.1f', name, (perf_counter() - started) * 1000)
+
+
+@asynccontextmanager
+async def timed_lock(settings, lock, name):
+    """Same lock/cancellation semantics; measure queueing separately from work."""
+    with operation(settings, name + '.lock_wait'):
+        await lock.acquire()
+    try:
+        yield
+    finally:
+        lock.release()

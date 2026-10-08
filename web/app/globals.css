@@ -113,79 +113,99 @@ footer span { display: block; margin-top: 8px; font-size: 10px; }
 .account-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 390px; margin: 12px auto 0; padding: 0 24px; font-size: 12px; }
 .account-controls span { overflow-wrap: anywhere; }
 
-/* AUD-17: calm product shell, using the approved Mascot System palette. */
-body { background: #fff; font-size: 15px; }
-main { max-width: 520px; padding: 28px 28px 110px; }
-h1 { font-size: clamp(26px, 6vw, 34px); line-height: 1.2; letter-spacing: -.035em; margin-bottom: 16px; }
-.wordmark { font-size: 23px; letter-spacing: -.06em; }
-.audli-mascot { width: 240px; aspect-ratio: 172.8 / 151.2; margin: 24px auto; }
+/* Shared Audli shell: approved geometry, quiet composition and state-led motion. */
+body { background: #fff; font-size: 15px; line-height: 1.55; }
+main { max-width: 560px; padding: clamp(24px, 4vw, 40px) clamp(20px, 5vw, 40px) 120px; }
+header { height: 36px; margin-bottom: 24px; }
+h1 { font-size: clamp(27px, 4vw, 36px); line-height: 1.18; letter-spacing: -.035em; font-weight: 600; margin-bottom: 16px; text-wrap: balance; }
+h2 { letter-spacing: -.02em; }
+p { line-height: 1.6; }
+.wordmark { font-size: 24px; line-height: 1; letter-spacing: -.065em; font-weight: 700; color: var(--navy); }
+.language { font-size: 10px; letter-spacing: .12em; font-weight: 600; }
+button { transition: background-color .18s ease, color .18s ease, box-shadow .18s ease; }
+.primary { min-height: 56px; border-radius: 18px; font-size: 15px; letter-spacing: -.01em; }
+.text-button { color: var(--blue); background: transparent; font-size: 14px; border-radius: 14px; }
+.text-button:hover:not(:disabled) { background: var(--soft-blue); }
+.audli-mascot { width: clamp(220px, 36vw, 320px); max-width: 100%; aspect-ratio: 172.8 / 151.2; margin: 28px auto; }
 .audli-mascot.small { width: 120px; }
 .audli-mascot svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.mascot-body { transform-box: fill-box; transform-origin: center; }
+.mascot-pose, .mascot-body { transform-box: fill-box; transform-origin: center; }
+.mascot-pose { transform: rotate(0deg); transition: transform .36s cubic-bezier(.22,.61,.36,1); }
+.audli-mascot[data-state="Listening"] .mascot-pose { transform: rotate(-2.5deg); }
+.audli-mascot[data-state="Retry"] .mascot-pose { transform: rotate(3deg); }
 .audli-mascot[data-state="Idle"] .mascot-body { animation: mascot-breathe 3.5s ease-in-out infinite; }
-.audli-mascot[data-state="Listening"] .mascot-body { transform: rotate(-2.5deg); }
-.listening-marks { opacity: var(--voice-activity); transition: opacity .2s; }
 .audli-mascot[data-state="Thinking"] .mascot-body { animation: mascot-think 3s ease-in-out infinite; }
-.thought-dot { animation: thought-rhythm 1.8s ease-in-out infinite; }
-.audli-mascot[data-state="Speaking"][data-active="true"] .mascot-body { animation: mascot-breathe 1.8s ease-in-out infinite; }
-.sound-waves { transform-box: fill-box; transform-origin: center; }
-.audli-mascot[data-active="true"] .sound-waves { animation: sound-rhythm 1s ease-in-out infinite; }
+.audli-mascot[data-state="Speaking"][data-active="true"] .mascot-body { animation: mascot-breathe 2s ease-in-out infinite; }
 .audli-mascot[data-state="Success"] .mascot-body { animation: mascot-success .16s ease-out 1; }
-.audli-mascot[data-state="Retry"] .mascot-body { transform: rotate(3deg); }
+.mascot-cue { opacity: 0; transition: opacity .28s ease; }
+.mascot-cue[data-visible="true"] { opacity: 1; }
+.listening-marks[data-visible="true"] { opacity: calc(.65 + var(--voice-activity) * .35); }
+.thought-dot { opacity: .65; }
+.thinking-marks[data-visible="true"] .thought-dot { animation: thought-rhythm 1.8s ease-in-out infinite; }
+.sound-wave-motion { transform-box: fill-box; transform-origin: center; }
+.audli-mascot[data-state="Speaking"][data-active="true"] .sound-waves .sound-wave-motion,
+.audli-mascot[data-state="Listening"][data-active="true"] .listening-marks .sound-wave-motion { animation: sound-rhythm 1.4s ease-in-out infinite; }
 @keyframes mascot-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.025); } }
-@keyframes mascot-think { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes mascot-think { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @keyframes thought-rhythm { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
-@keyframes sound-rhythm { 0%,100% { opacity: .5; transform: scaleX(.98); } 50% { opacity: 1; transform: scaleX(1.025); } }
+@keyframes sound-rhythm { 0%,100% { opacity: .55; transform: scaleX(.98); } 50% { opacity: 1; transform: scaleX(1.025); } }
 @keyframes mascot-success { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.02,.98); } }
 .landing, .onboarding-ready, .restore-screen { text-align: center; display: flex; flex-direction: column; justify-content: center; }
 .landing .wordmark { align-self: flex-start; margin-bottom: auto; }
-.landing footer { margin-top: auto; padding-top: 50px; }
-.landing .audli-mascot { margin-top: 70px; }
-.landing h1 { font-size: 40px; }
+.landing footer { margin-top: auto; padding-top: 40px; letter-spacing: .01em; }
+.landing .audli-mascot { margin-top: clamp(40px, 8vh, 80px); margin-bottom: 32px; }
+.landing h1 { font-size: clamp(36px, 5vw, 46px); }
 .landing p { max-width: 330px; margin: 0 auto 20px; }
-.text-button { color: var(--blue); background: transparent; font-size: 14px; }
 .auth-screen { padding-top: 36px; }
 .auth-screen h1, .auth-screen .card > p { text-align: center; }
-.auth-screen input { min-height: 58px; background: #f8fafc; }
+.auth-screen .audli-mascot { margin-bottom: 32px; }
+.auth-screen input { min-height: 58px; background: #f8fafc; border-color: #dbe3ed; }
 .auth-screen form > .text-button { width: 100%; margin-top: 14px; }
 .product-shell { position: relative; }
-.home-view { text-align: center; padding-top: 32px; }
-.home-view h1 { font-size: 26px; }
-.home-view .audli-mascot { width: 220px; margin: 32px auto; }
-.home-view h2 { font-size: 21px; font-weight: 600; margin-bottom: 10px; }
-.home-support { font-size: 13px; margin: 24px 18px 0; }
+.home-view { text-align: center; padding-top: clamp(24px, 4vh, 44px); }
+.home-view h1 { font-size: clamp(26px, 3vw, 32px); }
+.home-view .audli-mascot { width: clamp(220px, 32vw, 300px); margin: clamp(24px, 4vh, 40px) auto; }
+.home-view h2 { font-size: 21px; font-weight: 600; margin-bottom: 8px; }
+.home-support { font-size: 13px; max-width: 340px; margin: 24px auto 0; }
 .next-session { font-weight: 600; color: var(--navy); }
-.bottom-nav { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(calc(100% - 40px), 420px); height: 68px; padding: 8px; margin: 0; border-radius: 24px; z-index: 5; box-shadow: 0 5px 24px #0f172a0c; }
-.bottom-nav button { flex: 1; width: auto; height: 50px; gap: 4px; border-radius: 16px; font-size: 11px; }
-.bottom-nav button[aria-current] { background: #eff6ff; color: var(--blue); }
+.bottom-nav { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(calc(100% - 40px), 420px); height: 72px; padding: 7px; margin: 0; border-radius: 25px; z-index: 5; border-color: #e8edf3; box-shadow: 0 6px 26px #0f172a0a; }
+.bottom-nav button { flex: 1; width: auto; height: 56px; gap: 5px; border-radius: 18px; font-size: 11px; font-weight: 500; color: #5b697c; }
+.bottom-nav button:hover { background: #f8fafc; }
+.bottom-nav button[aria-current] { background: #eff6ff; color: var(--blue); font-weight: 600; }
 .bottom-nav svg { width: 21px; height: 21px; }
-.shell-view { padding-top: 36px; }
-.shell-view h1 { font-size: 29px; }
-dt { color: var(--muted); font-size: 12px; font-weight: 600; margin-top: 26px; }
+.shell-view { padding-top: clamp(28px, 4vh, 44px); }
+.shell-view h1 { font-size: clamp(28px, 3vw, 34px); }
+dt { color: var(--muted); font-size: 12px; font-weight: 600; margin-top: 28px; letter-spacing: .02em; }
 dd { margin: 8px 0 0; color: var(--navy); line-height: 1.65; }
 dd .text-button { display: block; padding-left: 0; }
 .toggle { display: flex; align-items: center; gap: 12px; font-weight: 400; margin: 0; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--blue); }
-.review-observation { border-bottom: 1px solid #f1f5f9; padding: 24px 0; }
+.review-observation { border-bottom: 1px solid #f1f5f9; padding: 26px 0; }
 .review-observation h2 { font-size: 17px; margin-bottom: 10px; }
 .review-observation .text-button { padding-left: 0; }
 .review-transcript { white-space: pre-line; margin-top: 20px; }
-.session-shell { min-height: 100dvh; display: flex; flex-direction: column; position: relative; padding-bottom: max(28px, env(safe-area-inset-bottom)); }
-.session-presence { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 340px; }
-.session-presence .audli-mascot { width: min(260px, 74vw); margin-bottom: 36px; }
-.state-label { color: var(--muted); font-size: 15px; margin: 0; }
-.session-secondary { text-align: center; }
-.session-transcript { font-size: 12px; text-align: left; }
-.session-transcript summary { text-align: center; color: var(--muted); }
-.session-transcript p { white-space: pre-line; }
-.session-bottom { margin-top: auto; padding-top: 40px; text-align: center; }
-.session-countdown { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.session-shell { max-width: 960px; min-height: 100dvh; display: flex; flex-direction: column; position: relative; padding-bottom: max(28px, env(safe-area-inset-bottom)); }
+.session-shell header { flex-shrink: 0; }
+.session-shell header .text-button { color: #5b697c; min-width: 56px; }
+.session-presence { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 340px; padding-bottom: clamp(0px, 3vh, 32px); }
+.session-presence .audli-mascot { width: clamp(240px, 38vw, 420px); max-width: min(74vw, 100%); margin: 24px auto 32px; }
+.state-label { color: #5b697c; font-size: 14px; font-weight: 500; margin: 0; min-height: 40px; padding: 8px 16px; border-radius: 20px; transition: color .28s ease, background-color .28s ease; }
+.session-shell[data-state="Listening"] .state-label { color: #087f73; background: #effbf8; }
+.session-secondary { text-align: center; max-width: 480px; width: 100%; margin: 0 auto; }
+.session-transcript { font-size: 13px; text-align: left; }
+.session-transcript summary { text-align: center; color: #5b697c; border-radius: 14px; }
+.session-transcript summary:hover { background: #f8fafc; }
+.session-transcript p { white-space: pre-line; padding: 16px 0; }
+.session-bottom { margin-top: auto; padding-top: 24px; text-align: center; }
+.session-countdown { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .session-controls { min-height: 44px; }
+.session-controls .text-button { color: #5b697c; }
 .session-audio { display: none; }
 .session-error { color: #993e2d; font-size: 14px; line-height: 1.6; margin: 22px 0; }
 .dialog-backdrop { position: fixed; inset: 0; background: #0f172a33; display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 10; }
-.exit-dialog { width: min(100%, 360px); background: white; padding: 28px; border-radius: 28px; }
+.exit-dialog { width: min(100%, 360px); background: white; padding: 28px; border-radius: 28px; box-shadow: 0 16px 60px #0f172a1a; }
 .exit-dialog h2 { font-size: 23px; }
-[data-reduced-motion="true"] .audli-mascot * { animation: none !important; transition: none !important; }
+[data-reduced-motion="true"] *, [data-reduced-motion="true"] *::before, [data-reduced-motion="true"] *::after { animation: none !important; transition: none !important; }
 @media (min-width: 600px) { main { border: 0; margin: auto; border-radius: 0; min-height: 100dvh; } }
+@media (max-height: 740px) { .home-view { padding-top: 16px; } .home-view .audli-mascot { margin: 16px auto; width: 220px; } .session-presence .audli-mascot { width: min(260px, 62vw); margin: 12px auto 20px; } }
 @media (prefers-reduced-motion: reduce) { .audli-mascot * { animation: none !important; transition: none !important; } }

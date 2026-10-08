@@ -68,3 +68,42 @@ def test_retry_speech_is_authenticated_and_does_not_change_progress(accounts):
     assert response.status_code == 200 and response.headers['content-type'].startswith('audio/')
     assert a.get('/api/profile').json() == before
     assert b.get('/api/onboarding').json()['profile']['onboarding_status'] == 'not_started'
+
+
+def test_inline_coaching_audio_keeps_ownership_gates_and_existing_json_contract(accounts, audio_bytes):
+    a, b, _ = accounts
+    exercise = begin(a)
+    path = f"/api/exercises/{exercise['id']}/coach-audio"
+    calls = []
+    async def speak(text, speech_rate=.9):
+        calls.append(text)
+        return audio_bytes
+    a.provider.speak = speak
+    assert a.post(path, json={'cue_id':'feedback'}, headers={'Accept':'audio/*'}).status_code == 403
+    assert b.post(path, json={'cue_id':'summary'}, headers={'Accept':'audio/*'}).status_code == 404
+    assert a.post(path, json={'cue_id':'summary'}, headers={'Accept':'audio/*','Authorization':''}).status_code == 401
+    before = a.get('/api/profile').json()
+    inline = a.post(path, json={'cue_id':'summary'}, headers={'Accept':'audio/*'})
+    assert inline.status_code == 200 and inline.headers['content-type'].startswith('audio/')
+    assert inline.headers['cache-control'] == 'no-store'
+    legacy = a.post(path, json={'cue_id':'summary'})
+    assert set(legacy.json()) == {'audio_url'}
+    assert inline.content == a.get(legacy.json()['audio_url']).content
+    assert len(calls) == 1 and a.get('/api/profile').json() == before
+
+
+def test_inline_feedback_audio_failure_preserves_final_evidence_and_retry(client, audio_bytes):
+    from test_conversation import answer
+    scripted(client, [{}])
+    exercise = begin(client)
+    _, _, completed = answer(client, exercise, audio_bytes)
+    before = client.get('/api/profile').json()
+    path = f"/api/exercises/{exercise['id']}/coach-audio"
+    async def fail(text, speech_rate=.9): raise ValueError('Temporary speech failure')
+    client.provider.speak = fail
+    assert client.post(path, json={'cue_id':'feedback'}, headers={'Accept':'audio/*'}).status_code == 503
+    assert client.get('/api/profile').json() == before and len(client.get('/api/history').json()) == 1
+    assert client.get(f"/api/exercises/{exercise['id']}/conversation").json()['result'] == completed.json()['result']
+    async def speak(text, speech_rate=.9): return audio_bytes
+    client.provider.speak = speak
+    assert client.post(path, json={'cue_id':'feedback'}, headers={'Accept':'audio/*'}).status_code == 200

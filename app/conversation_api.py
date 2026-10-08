@@ -3,14 +3,14 @@ import json
 from hashlib import sha256
 from uuid import uuid4
 from types import SimpleNamespace
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import Field
 from app.audio import sanitize_generated_audio
 from app.conversation import validate_evidence, choose_followup, final_evaluation, adapt_final
 from app.feedback import final_feedback
 from app.models import EvidenceEvaluation, Evaluation
-from app.diagnostics import operation
+from app.diagnostics import operation, timed_lock
 from app.models import StrictModel, Conversation, ConversationTurn, ExerciseContent
 from app.models import Transcription
 from app.recognition import reliable_recognition
@@ -100,7 +100,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
 
     @app.post('/api/attempts/{attempt_id}/assess')
     async def assess(attempt_id: str, body: TurnConfirmation):
-        async with lock:
+        async with timed_lock(settings, lock, 'turn.assessment'):
             attempt = repo.attempt(attempt_id)
             if not attempt:
                 raise HTTPException(404, 'Attempt not found.')
@@ -167,17 +167,19 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             return public_conversation(exercise_id)
 
     @app.post('/api/exercises/{exercise_id}/coach-audio')
-    async def coach_audio(exercise_id: str, body: CueRequest):
-        async with lock:
+    async def coach_audio(exercise_id: str, body: CueRequest, request: Request):
+        async with timed_lock(settings, lock, 'turn.coach_audio'):
             exercise_or_404(exercise_id)
             text = cue(exercise_id, body.cue_id)
             cache_id = audio_cache_id(body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
             if not name or not restore_audio(name).exists():
                 with operation(settings, 'SpeechService.coach_audio'):
-                    data = await ai().speak(text)
+                    with operation(settings, 'turn.tts_provider'):
+                        data = await ai().speak(text)
                     kind = 'wav' if settings.provider == 'demo' else 'mp3'
-                    data = await sanitize_generated_audio(data, kind)
+                    with operation(settings, 'turn.tts_sanitization'):
+                        data = await sanitize_generated_audio(data, kind)
                 name = str(uuid4()) + '.' + kind
                 path = audio_dir / name
                 path.write_bytes(data)
@@ -186,6 +188,11 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 except Exception:
                     path.unlink(missing_ok=True)
                     raise
+            if request.headers.get('accept') == 'audio/*':
+                # Same owned, gated, sanitized and persisted cue; avoid a second
+                # authenticated request before playback. JSON clients stay compatible.
+                path = restore_audio(name)
+                return Response(path.read_bytes(), media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg')
             return {'audio_url': f'/api/exercises/{exercise_id}/coach-audio/{body.cue_id}'}
 
     @app.get('/api/exercises/{exercise_id}/coach-audio/{cue_id}')

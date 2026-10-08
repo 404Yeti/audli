@@ -22,7 +22,7 @@ export function SessionShell({ state, activity, label, startedAt, onEnd, onRepla
   const [confirmExit, setConfirmExit] = useState(false);
   const endButton = useRef<HTMLButtonElement | null>(null);
   function stay() { setConfirmExit(false); endButton.current?.focus(); }
-  return <main className="session-shell"><header><strong className="wordmark">audli</strong><button ref={endButton} className="text-button" onClick={() => setConfirmExit(true)}>End</button></header>
+  return <main className="session-shell" data-state={state}><header><strong className="wordmark">audli</strong><button ref={endButton} className="text-button" onClick={() => setConfirmExit(true)}>End</button></header>
     <div className="session-presence"><AudliMascot state={state} activity={activity}/><p className="state-label" role="status">{label ?? ({ Idle: 'Train your ears.', Speaking: 'Audli is speaking', Listening: 'Listening to you', Thinking: 'Thinking', Success: 'Nice work.', Retry: 'Let’s try that again.' })[state]}</p></div>
     <div className="session-secondary">{children}</div>
     <div className="session-bottom">{startedAt != null && <SessionCountdown startedAt={startedAt}/>}<div className="session-controls">{onReplay && <button className="text-button" onClick={onReplay}>↻ Replay</button>}</div></div>

@@ -10,7 +10,7 @@ from pydantic import Field
 from app.adaptive import adapt
 from app.audio import validate_upload, sanitize_generated_audio
 from app.config import Settings
-from app.diagnostics import operation, report_failure
+from app.diagnostics import operation, report_failure, timed_lock
 from app.evaluation import score_judgments
 from app.models import ExerciseContent, StrictModel, Transcription
 from app.repository import create_repository, SQLProgressRepository
@@ -188,14 +188,16 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @app.post('/api/exercises/{exercise_id}/attempts')
     async def transcribe(exercise_id: str, audio: UploadFile):
-        async with lock:
+        async with timed_lock(settings, lock, 'turn.upload'):
             exercise_or_404(exercise_id)
             current = repo.current_exercise()
             if current['id'] != exercise_id or repo.completed(exercise_id):
                 raise HTTPException(409, 'This exercise is already complete.')
             try:
-                data, filename = await validate_upload(audio, settings)
-                transcription = await ai().transcribe(data, filename)
+                with operation(settings, 'turn.upload_validation'):
+                    data, filename = await validate_upload(audio, settings)
+                with operation(settings, 'turn.transcription'):
+                    transcription = await ai().transcribe(data, filename)
             finally:
                 await audio.close()
             attempt_id = repo.add_attempt(exercise_id, transcription)

@@ -32,3 +32,37 @@ test('turn detector bounds silence and continuous speech, and ignores brief nois
   detect = turnDetector(0);
   assert.equal(detect(119000,.1).end,true);
 });
+
+test('explicit End survives same-account relogin but never crosses account boundaries', async () => {
+  const { conversationIntent } = await import('../web/lib/conversation-intent.ts');
+  const original = globalThis.localStorage;
+  const values = new Map();
+  globalThis.localStorage = { getItem:key=>values.get(key)??null, setItem:(key,value)=>values.set(key,value), removeItem:key=>values.delete(key) };
+  try {
+    const a = conversationIntent('account-a:session-1','lesson');
+    assert.equal(a.ended(),false);a.end();
+    assert.equal(conversationIntent('account-a:session-2','lesson').ended(),true);
+    assert.equal(conversationIntent('account-b:session-1','lesson').ended(),false);
+    assert.equal(conversationIntent('account-a:session-1','onboarding').ended(),false);
+    assert.deepEqual([...values.values()],['true']);
+    conversationIntent('account-a:session-2','lesson').start();assert.equal(a.ended(),false);
+  } finally { globalThis.localStorage = original; }
+});
+test('unavailable presentation storage conservatively prevents automatic speech', async () => {
+  const { conversationIntent } = await import('../web/lib/conversation-intent.ts');
+  const original = globalThis.localStorage;
+  globalThis.localStorage = { getItem(){throw Error('Storage denied');},setItem(){throw Error('Storage denied');},removeItem(){throw Error('Storage denied');} };
+  try { const intent=conversationIntent('account-a','onboarding');intent.end();assert.equal(intent.ended(),true);intent.start();assert.equal(intent.ended(),true); }
+  finally { globalThis.localStorage = original; }
+});
+test('fixed-stage timing preserves values/errors and emits nothing in production', async () => {
+  const { measureTurn } = await import('../web/lib/turn-timing.ts');
+  const original=console.debug,environment=process.env.NODE_ENV,logs=[];
+  console.debug=(...values)=>logs.push(values);
+  try {
+    process.env.NODE_ENV='production';assert.equal(await measureTurn('assessment',async()=>42),42);assert.deepEqual(logs,[]);
+    process.env.NODE_ENV='development';const abort=new DOMException('Cancelled','AbortError');
+    await assert.rejects(measureTurn('upload_transcription',async()=>{throw abort;}),error=>error===abort);
+    assert.deepEqual(Object.keys(logs[0][1]).sort(),['elapsedMs','stage']);assert.equal(logs[0][1].stage,'upload_transcription');assert.equal(typeof logs[0][1].elapsedMs,'number');
+  } finally { console.debug=original;if(environment===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=environment; }
+});

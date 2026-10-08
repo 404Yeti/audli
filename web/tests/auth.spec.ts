@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { installVoice, promptWav, probe, endAudio } from './voice-fixture';
+import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 
 const userId='00000000-0000-0000-0000-000000000001';
 const user={id:userId,email:'learner@example.com',email_confirmed_at:'2026-10-06T00:00:00Z',app_metadata:{provider:'email',providers:['email']},user_metadata:{},aud:'authenticated',created_at:'2026-10-06T00:00:00Z'};
@@ -27,7 +27,7 @@ async function setupAuth(page:Page,training=false){
     if(path==='/api/exercises')return route.fulfill({json:{id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null}});
     if(path.endsWith('/conversation/listened'))listened=true;
     if(path.endsWith('/conversation')||path.endsWith('/conversation/listened'))return route.fulfill({json:{state:listened?'AWAITING_SUMMARY':'LISTENING',cue_id:listened?'summary':null,prompt:listened?'Tell me what you understood.':null,active_followup:null,pending_attempt:null,result:null}});
-    if(path.endsWith('/coach-audio'))return route.fulfill({json:{audio_url:'/api/exercises/clip/coach-audio/summary'}});
+    if(path.endsWith('/coach-audio'))return route.fulfill({contentType:'audio/wav',body:promptWav()});
     return route.fulfill({contentType:'audio/wav',body:promptWav()});
   });
   await page.goto('/');await expect(page.getByRole('button',{name:'I already have an account'})).toBeVisible();await page.getByRole('button',{name:'I already have an account'}).click();
@@ -39,7 +39,7 @@ async function signOut(page:Page){await page.getByRole('button',{name:'Settings'
 async function externalLogout(page:Page){
   // Actual SDK cross-tab lifecycle; no test access to application internals.
   await page.evaluate(()=>{localStorage.removeItem('audli-auth-session');const channel=new BroadcastChannel('audli-auth-session');channel.postMessage({event:'SIGNED_OUT',session:null});channel.close();});
-  await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
+  await showSignIn(page);
 }
 async function switchToB(page:Page){await externalLogout(page);await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();}
 async function speaking(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Speaking');}
@@ -173,3 +173,42 @@ for(const delayed of ['microphone','transcription','answer','completion','first 
     await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.method!=='GET')).toEqual([]);await expect(page.getByText('A private result')).toHaveCount(0);
   });
 }
+
+test('Landing and authentication share the polished mobile and desktop visual system without learner requests',async({page})=>{
+  const fixture=await setupAuth(page);
+  for(const viewport of [{width:320,height:740},{width:1440,height:1000}]) {
+    await page.setViewportSize(viewport);await page.reload();
+    await expect(page.getByRole('heading',{name:'Train your ears.'})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(viewport.width);
+    await expect(page.locator('.wordmark')).toHaveCSS('font-size','24px');
+    await page.screenshot({path:`/tmp/aud18-landing-${viewport.width}.png`,fullPage:true});
+    await page.getByRole('button',{name:'I already have an account'}).click();
+    await expect(page.getByRole('heading',{name:'Welcome back.'})).toBeVisible();
+    await expect(page.getByLabel('Email',{exact:true})).toHaveCSS('min-height','58px');
+    await expect(page.locator('.audli-mascot')).toHaveCSS('width','120px');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(viewport.width);
+    await page.screenshot({path:`/tmp/aud18-auth-${viewport.width}.png`,fullPage:true});
+  }
+  expect(fixture.requests).toEqual([]);
+});
+
+test('explicit onboarding End stays silent after refresh and relogin while retaining the checkpoint',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);
+  expect(fixture.snapshot().stage).toBe('needs');const before=fixture.snapshot();
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+  await page.reload();await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();
+  expect((await probe(page)).plays).toHaveLength(0);expect(fixture.snapshot()).toEqual(before);
+  await externalLogout(page);await signIn(page);await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();expect((await probe(page)).plays).toHaveLength(0);
+  await page.getByRole('button',{name:'Resume our conversation',exact:true}).click();await speaking(page);expect(fixture.snapshot().stage).toBe('needs');
+  expect(fixture.requests.filter(x=>x.path==='/api/onboarding/answer')).toHaveLength(1);
+});
+
+test('account switch discards a successful inline coaching audio body before any blob or B continuation',async({page})=>{
+  await installVoice(page,{delayBody:'/coach-audio'});const fixture=await setupAuth(page,true);await signIn(page);
+  await page.getByRole('button',{name:'Start today’s session'}).click();await speaking(page);await endAudio(page);
+  await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);const before=await probe(page);
+  await switchToB(page);const requests=fixture.requests.length;
+  await page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody?.());await page.waitForTimeout(100);
+  const after=await probe(page);expect(after.urls).toEqual(before.urls);expect(after.revoked).toEqual(after.urls);expect(after.plays).toEqual(before.plays);expect(fixture.requests.length).toBe(requests);
+  await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();await expect(page.locator('.session-shell')).toHaveCount(0);
+});

@@ -75,3 +75,40 @@ def test_literal_validation_diagnostics_do_not_disclose_allowed_learner_quotes(c
     assert 'literal_error' in caplog.text
     assert 'private learner statement' not in caplog.text
     assert 'invented response' not in caplog.text
+
+
+def test_stage_timings_are_development_only_and_do_not_accept_payloads(caplog):
+    with caplog.at_level(logging.INFO):
+        with operation(Settings(_env_file=None), 'turn.transcription'):
+            private_payload = 'private learner transcript'
+        assert 'stage=turn.transcription elapsed_ms=' in caplog.text
+        assert private_payload not in caplog.text
+        caplog.clear()
+        with operation(Settings(environment='production', persistence='postgres',
+                database_url='postgresql://test:test@localhost/test?sslmode=require',
+                auth_mode='supabase', supabase_url='https://test.supabase.co',
+                supabase_publishable_key='sb_publishable_test', _env_file=None), 'turn.transcription'):
+            pass
+        assert 'Turn timing' not in caplog.text
+
+
+def test_timed_lock_cancellation_does_not_release_another_operations_lock():
+    import asyncio
+    from app.diagnostics import timed_lock
+    async def scenario():
+        lock = asyncio.Lock()
+        await lock.acquire()
+        async def wait():
+            async with timed_lock(Settings(_env_file=None), lock, 'turn.wait'):
+                pytest.fail('Cancelled waiter must not acquire the lock')
+        task = asyncio.create_task(wait())
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError): await task
+        assert lock.locked()
+        lock.release()
+        with pytest.raises(ValueError):
+            async with timed_lock(Settings(_env_file=None), lock, 'turn.work'):
+                raise ValueError('Work failed')
+        assert not lock.locked()
+    asyncio.run(scenario())

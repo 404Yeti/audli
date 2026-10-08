@@ -17,7 +17,7 @@ async function setup(page: Page, options: Parameters<typeof installVoice>[1] = {
     if(path==='/api/exercises'){id++;phase='LISTENING';cue=null;pending=null;result=null;completed=false;turns=0;return route.fulfill({json:exercise()});}
     if(path.endsWith('/conversation/listened')){phase='AWAITING_SUMMARY';cue='summary';return route.fulfill({json:state()});}
     if(path.endsWith('/conversation'))return route.fulfill({json:state()});
-    if(path.endsWith('/coach-audio'))return route.fulfill({json:{audio_url:'/api/coach-voice'}});
+    if(path.endsWith('/coach-audio'))return route.fulfill({contentType:'audio/wav',body:promptWav()});
     if(path.endsWith('/attempts')){
       if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Upload failed. Your recording is safe.'}});}
       pending={id:'answer'+turns,transcription:{text:'The meeting time changed',confidence:uncertain?.2:.9,uncertainty:uncertain?['Uncertain']:[],source:'openai'}};uncertain=false;
@@ -143,4 +143,113 @@ test('End cancels a delayed assessment continuation and discards late coaching',
   await page.route('**/api/attempts/answer0/assess',async route=>{await new Promise<void>(resolve=>{release=async()=>{await route.fulfill({json:{state:'GIVING_FEEDBACK',cue_id:'feedback',prompt:'Late coaching',result:{},pending_attempt:null,active_followup:null}}).catch(()=>{});resolve();};});});
   await beginListening(page);await page.clock.runFor(2700);await expect.poll(()=>!!release).toBe(true);await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
   const count=fixture.requests.length;await release!();await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeVisible();await expect(page.getByText('Late coaching')).toHaveCount(0);expect((await probe(page)).revoked).toEqual((await probe(page)).urls);
+});
+
+test('polished shell fits mobile and desktop with reachable navigation and shared typography',async({page})=>{
+  await setup(page);
+  for(const viewport of [{width:320,height:740},{width:1440,height:1000}]) {
+    await page.setViewportSize(viewport);
+    for(const destination of ['Home','Review','Plan','Settings']) {
+      await page.getByRole('button',{name:destination,exact:true}).click();
+      await expect(page.getByRole('button',{name:destination,exact:true})).toHaveAttribute('aria-current','page');
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(viewport.width);
+      const nav=await page.getByRole('navigation').boundingBox();expect(nav!.y+nav!.height).toBeLessThanOrEqual(viewport.height);
+      await expect(page.locator('.wordmark')).toHaveCSS('font-size','24px');
+    }
+    await page.getByRole('button',{name:'Home',exact:true}).click();
+    const mascot=await page.locator('.audli-mascot').boundingBox();expect(mascot!.width).toBe(viewport.width===320?220:300);
+    const action=await page.getByRole('button',{name:'Start today’s session'}).boundingBox();
+    const nav=await page.getByRole('navigation').boundingBox();expect(action!.y+action!.height).toBeLessThan(nav!.y);
+    await page.screenshot({path:`/tmp/aud18-home-${viewport.width}.png`,fullPage:true});
+  }
+});
+
+test('session mascot scales on desktop and listening has a distinct static accessible turn cue',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});await page.setViewportSize({width:1440,height:1000});await setup(page);await page.clock.install();await beginListening(page);
+  const mascot=await page.locator('.audli-mascot').boundingBox();expect(mascot!.width).toBe(420);
+  await expect(page.getByRole('status')).toHaveText('Listening to you');await expect(page.locator('.state-label')).toHaveCSS('color','rgb(8, 127, 115)');
+  await expect(page.locator('.listening-marks')).toHaveAttribute('data-visible','true');await expect(page.locator('.sound-waves')).toHaveCSS('opacity','0');
+  await expect(page.locator('.mascot-pose')).toHaveCSS('transition-duration','0s');
+  await page.screenshot({path:'/tmp/aud18-listening-desktop.png'});
+  await page.setViewportSize({width:320,height:740});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(320);
+  const end=await page.getByRole('button',{name:'End',exact:true}).boundingBox();expect(end!.width).toBeGreaterThanOrEqual(44);
+  await page.screenshot({path:'/tmp/aud18-listening-mobile.png'});
+});
+
+test('mascot cue changes preserve vector nodes and playback while following actual voice state',async({page})=>{
+  await setup(page);await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  await page.locator('.mascot-pose').evaluate(node=>node.setAttribute('data-stable-probe','present'));
+  await expect(page.locator('.sound-waves')).toHaveAttribute('data-visible','true');await expect(page.locator('.mascot-body')).toHaveCSS('animation-duration','2s');
+  await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);await state(page,'Listening');
+  await expect(page.locator('.mascot-pose')).toHaveAttribute('data-stable-probe','present');
+  await expect(page.locator('.listening-marks')).toHaveAttribute('data-visible','true');await expect(page.locator('.sound-waves')).toHaveAttribute('data-visible','false');
+  expect((await probe(page)).plays).toHaveLength(2);
+});
+
+test('explicit reduced-motion setting disables shell transitions and mascot motion',async({page})=>{
+  await page.emulateMedia({reducedMotion:'no-preference'});await setup(page);
+  await expect(page.locator('.mascot-body')).toHaveCSS('animation-duration','3.5s');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('checkbox',{name:'Reduce motion',exact:true}).check();
+  await expect(page.getByRole('button',{name:'Home',exact:true})).toHaveCSS('transition-duration','0s');
+  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.mascot-body')).toHaveCSS('animation-name','none');
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  await expect(page.locator('.sound-waves')).toHaveCSS('animation-name','none');await expect(page.locator('.mascot-pose')).toHaveCSS('transition-duration','0s');await expect(page.getByRole('status')).toHaveText('Audli is speaking');
+});
+
+test('confirmed End stays silent on return and restarts the clip before saved follow-up coaching',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(1);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+  await page.reload();await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();await page.waitForTimeout(100);
+  expect((await probe(page)).plays).toHaveLength(0);const before=fixture.requests.length;
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  const returned=fixture.requests.slice(before);expect(returned.some(x=>x.path==='/api/exercises/clip1/audio')).toBe(true);
+  expect(returned.some(x=>x.path.endsWith('/coach-audio'))).toBe(false);expect(returned.some(x=>x.path==='/api/exercises')).toBe(false);
+  await endAudio(page);await expect.poll(()=>fixture.requests.slice(before).filter(x=>x.path.endsWith('/coach-audio')).length).toBe(1);
+  await state(page,'Speaking');expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(1);
+});
+
+test('End after final evidence preserves completion and starts a new clip rather than old feedback',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);await endAudio(page);await state(page,'Listening');await finishTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();const before=fixture.requests.length;
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  expect(fixture.requests.slice(before).filter(x=>x.path==='/api/exercises')).toHaveLength(1);
+  expect(fixture.requests.slice(before).some(x=>x.path==='/api/exercises/clip2/audio')).toBe(true);
+  expect(fixture.requests.slice(before).some(x=>x.path.endsWith('/coach-audio'))).toBe(false);
+});
+
+test('unexpected refresh during playback still restores the active authoritative conversation',async({page})=>{
+  await setup(page);await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');await page.reload();await state(page,'Speaking');
+  expect((await probe(page)).clicks).toBe(0);expect((await probe(page)).plays).toHaveLength(1);await expect(page.getByRole('button',{name:'Start today’s session'})).toHaveCount(0);
+});
+
+test('coaching uses one authenticated binary request and genuine processing emits safe stage timings',async({page})=>{
+  const logs:{stage:string;elapsedMs:number}[]=[];
+  page.on('console',async message=>{if(message.text().startsWith('[Audli turn]'))logs.push(await message.args()[1].jsonValue());});
+  const fixture=await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);
+  expect(fixture.requests.some(x=>x.path==='/api/coach-voice')).toBe(false);
+  await expect.poll(()=>logs.map(x=>x.stage)).toEqual(expect.arrayContaining(['silence_detection','recording_finalization','upload_transcription','assessment','tts_readiness','playback_start','turn_to_playback']));
+  for(const value of logs){expect(Object.keys(value).sort()).toEqual(['elapsedMs','stage']);expect(value.elapsedMs).toBeGreaterThanOrEqual(0);}
+});
+
+test('Speaking and Listening share exactly mirrored cues inside the viewBox at maximum scale',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});await page.setViewportSize({width:1440,height:1000});await setup(page);await page.clock.install();
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  async function check(selector:string){
+    const values=await page.locator(selector).evaluate(element=>{
+      const pair=element.querySelector<SVGGElement>('.sound-wave-motion')!;pair.style.transform='scaleX(1.025)';
+      const uses=[...pair.querySelectorAll('use')],rects=uses.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};});
+      const svg=element.closest('svg')!,r=svg.getBoundingClientRect();
+      const path=svg.querySelector('defs path')!;
+      return {rects,viewport:{x:r.x,y:r.y,width:r.width,height:r.height},refs:uses.map(node=>node.getAttribute('href')),mirror:uses[1].getAttribute('transform'),stroke:path.getAttribute('stroke-width')};
+    });
+    expect(values.refs[0]).toBe(values.refs[1]);expect(values.mirror).toBe('translate(171.38 0) scale(-1 1)');expect(values.stroke).toBe('1.8');
+    expect(values.rects[0].width).toBeCloseTo(values.rects[1].width,3);expect(values.rects[0].height).toBeCloseTo(values.rects[1].height,3);
+    const pad=.9*1.025*values.viewport.width/172.8;
+    for(const r of values.rects){expect(r.x-pad).toBeGreaterThan(values.viewport.x);expect(r.x+r.width+pad).toBeLessThan(values.viewport.x+values.viewport.width);expect(r.y-pad).toBeGreaterThan(values.viewport.y);expect(r.y+r.height+pad).toBeLessThan(values.viewport.y+values.viewport.height);}
+  }
+  await check('.sound-waves');await page.screenshot({path:'/tmp/aud18-speaking-waves.png'});
+  await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);await state(page,'Listening');await check('.listening-marks');
+  await page.screenshot({path:'/tmp/aud18-listening-waves.png'});
 });

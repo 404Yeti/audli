@@ -3,6 +3,7 @@ from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from app.audio import validate_upload, sanitize_generated_audio
 from app.models import Transcription
+from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
 from app.onboarding import PROMPTS, Revision, Answer, apply_extraction, application_destination
 
@@ -46,12 +47,14 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
     @app.post('/api/onboarding/attempts')
     async def transcribe(audio: UploadFile, revision: int = Form(ge=0)):
         try:
-            async with lock:
+            async with timed_lock(settings, lock, 'onboarding.upload'):
                 profile = check(revision)
                 if profile.onboarding_status != 'in_progress' or profile.onboarding.stage == 'review':
                     raise HTTPException(409, 'Resume your current onboarding stage.')
-                data, filename = await validate_upload(audio, settings)
-                transcription = Transcription.model_validate(await ai().transcribe(data, filename))
+                with operation(settings, 'onboarding.upload_validation'):
+                    data, filename = await validate_upload(audio, settings)
+                with operation(settings, 'onboarding.transcription'):
+                    transcription = Transcription.model_validate(await ai().transcribe(data, filename))
                 profile.onboarding.pending = transcription
                 return save(profile, revision)
         finally:
@@ -59,7 +62,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
 
     @app.post('/api/onboarding/answer')
     async def answer(body: Answer):
-        async with lock:
+        async with timed_lock(settings, lock, 'onboarding.extraction'):
             profile = check(body.revision)
             if profile.onboarding.pending is None:
                 raise HTTPException(409, 'Record an answer before confirming recognition.')
@@ -68,7 +71,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 raise HTTPException(422, "I didn't quite catch that. Could you say it again?")
             if not body.text.strip():
                 raise HTTPException(422, 'Please check recognition or record again.')
-            extraction = await ai().extract_profile(profile.onboarding.stage, body.text.strip())
+            with operation(settings, 'onboarding.extraction_provider'):
+                extraction = await ai().extract_profile(profile.onboarding.stage, body.text.strip())
             try:
                 profile = apply_extraction(profile, extraction)
             except ValueError as exc:
@@ -99,9 +103,12 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
 
     @app.post('/api/onboarding/audio')
     async def speech(body: Revision):
-        async with lock:
+        async with timed_lock(settings, lock, 'onboarding.audio'):
             profile = check(body.revision)
             text = PROMPTS[profile.onboarding.stage]
             kind = 'wav' if settings.provider == 'demo' else 'mp3'
-            data = await sanitize_generated_audio(await ai().speak(text), kind)
+            with operation(settings, 'onboarding.tts_provider'):
+                data = await ai().speak(text)
+            with operation(settings, 'onboarding.tts_sanitization'):
+                data = await sanitize_generated_audio(data, kind)
             return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')

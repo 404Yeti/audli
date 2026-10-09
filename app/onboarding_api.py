@@ -1,6 +1,7 @@
 """Account-scoped, restartable turn-based onboarding; recordings never persist."""
 from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
+from hashlib import sha256
 from app.audio import validate_upload, sanitize_generated_audio
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
@@ -24,7 +25,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
 
     def save(profile, revision):
         try:
-            return public(repo.save_onboarding(profile, revision))
+            with operation(settings, 'onboarding.profile_persistence'):
+                return public(repo.save_onboarding(profile, revision))
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
@@ -107,8 +109,16 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             profile = check(body.revision)
             text = PROMPTS[profile.onboarding.stage]
             kind = 'wav' if settings.provider == 'demo' else 'mp3'
-            with operation(settings, 'onboarding.tts_provider'):
-                data = await ai().speak(text)
-            with operation(settings, 'onboarding.tts_sanitization'):
-                data = await sanitize_generated_audio(data, kind)
+            # Only application-owned static prompts are reused. Include the complete
+            # voice configuration so changed settings cannot replay old speech.
+            key = ':'.join((str(repo.learner_id), 'onboarding-prompt-v1', settings.provider,
+                            settings.speech_model, settings.voice, text))
+            name = sha256(key.encode()).hexdigest() + '.' + kind
+            data = repo.audio_blob(name)
+            if data is None:
+                with operation(settings, 'onboarding.tts_provider'):
+                    data = await ai().speak(text)
+                with operation(settings, 'onboarding.tts_sanitization'):
+                    data = await sanitize_generated_audio(data, kind)
+                repo.cache_lesson_audio(name, data)
             return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')

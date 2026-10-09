@@ -250,3 +250,140 @@ test('review extraction recovery keeps the pending reflection and does not repla
   expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
   expect(fixture.spoken.filter(text=>text==='Let’s listen to the first recording.')).toHaveLength(1);
 });
+
+
+test('turn telemetry counts meaningful coaching after assessment, separately from acknowledgment playback', async ({page}) => {
+  const stages: string[] = [];
+  page.on('console', async message => {
+    if (!message.text().startsWith('[Audli turn]')) return;
+    const sample = await message.args()[1]?.jsonValue();
+    if (sample && typeof sample.stage === 'string') stages.push(sample.stage);
+  });
+  await setup(page);
+  let release: (() => Promise<void>) | undefined;
+  await page.route('**/api/attempts/answer/assess', async route => {
+    await new Promise<void>(resolve => {release = async () => {await route.fallback();resolve();};});
+  });
+  await page.clock.install();
+  await page.getByRole('button', {name:'Start today’s session'}).click();
+  for (let i=0;i<25&&!release;i++) {await page.clock.runFor(1000);await page.waitForTimeout(30);}
+  await expect.poll(() => !!release).toBe(true);
+  const before = stages.filter(stage => stage === 'turn_to_playback').length;
+  await page.clock.runFor(1400);
+  await expect.poll(() => stages.includes('acknowledgment_playback')).toBe(true);
+  expect(stages.filter(stage => stage === 'turn_to_playback')).toHaveLength(before);
+  await release!();
+  for (let i=0;i<5;i++) {await page.clock.runFor(1000);await page.waitForTimeout(30);}
+  await expect.poll(() => stages.filter(stage => stage === 'turn_to_playback').length).toBeGreaterThan(before);
+  expect(stages).toContain('first_audio_byte');
+  expect(stages).toContain('audio_body_ready');
+});
+
+
+async function heldAssessment(page: Page) {
+  const fixture = await setup(page, false, false);
+  let release: (() => Promise<void>) | undefined;
+  await page.route('**/api/attempts/answer/assess', async route => {
+    await new Promise<void>(resolve => { release = async () => { await route.fallback(); resolve(); }; });
+  });
+  await page.clock.install();
+  await page.getByRole('button', {name:'Start today’s session'}).click();
+  for (let i=0;i<30&&!release;i++) {
+    await page.clock.runFor(1000);
+    await page.waitForTimeout(30);
+    if (!release && await page.locator('audio').evaluate(element => !(element as HTMLAudioElement).paused)) await endAudio(page);
+  }
+  await expect.poll(() => !!release).toBe(true);
+  await page.clock.runFor(1400);
+  await expect.poll(() => fixture.spoken.includes('Okay, I heard you.')).toBe(true);
+  await expect.poll(() => page.locator('audio').evaluate(element => (element as HTMLAudioElement).paused)).toBe(false);
+  return {fixture, release:release!, coachRequests:()=>fixture.requests.filter(path=>path.endsWith('/coach-audio')).length};
+}
+
+test('saved coaching prepares during acknowledgment but plays serially once', async ({page}) => {
+  // Mock microphone/providers and virtual time: scheduling evidence, not acoustic latency.
+  const timings: {stage:string;elapsedMs:number}[]=[];
+  page.on('console',async message=>{
+    if(!message.text().startsWith('[Audli turn]'))return;
+    const sample=await message.args()[1]?.jsonValue().catch(()=>null);
+    if(sample && ['acknowledgment_duration','coaching_readiness','coaching_wait_after_ack'].includes(sample.stage))timings.push(sample);
+  });
+  const {fixture,release,coachRequests}=await heldAssessment(page);
+  const before=coachRequests(), plays=(await probe(page)).plays.length;
+  const readyBefore=timings.filter(sample=>sample.stage==='coaching_readiness').length;
+  await release();
+  await expect.poll(coachRequests).toBe(before+1);
+  await expect.poll(()=>timings.filter(sample=>sample.stage==='coaching_readiness').length).toBeGreaterThan(readyBefore);
+  await page.clock.runFor(5000);await page.waitForTimeout(100);
+  expect((await probe(page)).plays).toHaveLength(plays);
+  expect(fixture.requests.some(path=>path.endsWith('/ready')||path.endsWith('/advance'))).toBe(false);
+  await endAudio(page);
+  await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+1);
+  expect(coachRequests()).toBe(before+1);
+  await expect.poll(()=>timings.some(sample=>sample.stage==='coaching_wait_after_ack')).toBe(true);
+  console.log('Controlled virtual-time coaching handoff:',JSON.stringify(timings));
+  expect(fixture.requests.some(path=>path.endsWith('/ready'))).toBe(false);
+  await endAudio(page);
+  await expect.poll(()=>fixture.requests.filter(path=>path.endsWith('/ready')).length).toBe(1);
+});
+
+test('slow prepared coaching waits after acknowledgment without skipping feedback',async({page})=>{
+  const {fixture,release,coachRequests}=await heldAssessment(page);
+  let finish: (()=>Promise<void>)|undefined;
+  await page.route('**/api/exercises/clip/coach-audio',async route=>{
+    await new Promise<void>(resolve=>{finish=async()=>{await route.fallback();resolve();};});
+  });
+  const plays=(await probe(page)).plays.length;
+  await release();await expect.poll(()=>!!finish).toBe(true);
+  await endAudio(page);await page.clock.runFor(3000);await page.waitForTimeout(100);
+  expect((await probe(page)).plays).toHaveLength(plays);
+  expect(fixture.requests.some(path=>path.endsWith('/ready'))).toBe(false);
+  await finish!();await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+1);
+  expect(coachRequests()).toBe(2); // summary and feedback, one each
+});
+
+test('failed background coaching retries without repeating saved assessment',async({page})=>{
+  const {fixture,release}=await heldAssessment(page);
+  let requests=0;
+  await page.route('**/api/exercises/clip/coach-audio',async route=>{
+    requests++;
+    if(requests===1)return route.fulfill({status:503,json:{detail:'Speech unavailable. Retry conversation.'}});
+    await route.fallback();
+  });
+  await release();await expect.poll(()=>requests).toBe(1);
+  await expect(page.getByRole('button',{name:'Retry conversation'})).toHaveCount(0);
+  await endAudio(page);await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
+  expect(fixture.snapshot().exercise?.completed_attempt_id).toBe('answer');
+  await page.getByRole('button',{name:'Retry conversation'}).click();
+  await expect.poll(()=>requests).toBe(2);
+  await expect.poll(()=>fixture.spoken.filter(text=>text.startsWith('You understood')).length).toBe(1);
+  expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
+});
+
+for(const interrupt of ['end','stale','reload'] as const)test(`prepared coaching respects ${interrupt}`,async({page})=>{
+  const {fixture,release,coachRequests}=await heldAssessment(page);
+  const before=coachRequests();await release();await expect.poll(coachRequests).toBe(before+1);
+  await page.waitForTimeout(100);
+  const plays=(await probe(page)).plays.length;
+  if(interrupt==='end'){
+    await page.getByRole('button',{name:'End',exact:true}).click();
+    await page.getByRole('button',{name:'End session',exact:true}).click();
+    await page.clock.runFor(2000);
+    expect((await probe(page)).plays).toHaveLength(plays);
+    await expect.poll(()=>fixture.snapshot().status).toBe('paused');
+  }else if(interrupt==='stale'){
+    await page.route('**/api/lessons/structured',route=>route.fulfill({json:{...fixture.snapshot(),revision:fixture.snapshot().revision+1}}));
+    await endAudio(page);
+    await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
+    expect((await probe(page)).plays).toHaveLength(plays);
+  }else{
+    await page.reload();
+    // Unexpected refresh restores the saved active conversation automatically.
+    await expect.poll(async()=>(await probe(page)).plays.length).toBe(1);
+    await page.waitForTimeout(100);
+    expect((await probe(page)).plays).toHaveLength(1);
+    expect(fixture.spoken.filter(text=>text==='Okay, I heard you.')).toHaveLength(1);
+    expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
+  }
+  expect(fixture.requests.some(path=>path.endsWith('/ready')||path.endsWith('/advance'))).toBe(false);
+});

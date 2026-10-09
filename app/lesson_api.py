@@ -9,7 +9,7 @@ from app.lesson import Lesson, CheckinReply, social_response, now, elapsed, clos
 from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
 from app.recognition import reliable_recognition
-from app.diagnostics import report_failure
+from app.diagnostics import report_failure, operation, timed_lock
 
 ACKNOWLEDGMENT = 'Okay, I heard you.'
 ACKNOWLEDGMENTS = {'assessment': ACKNOWLEDGMENT, 'followup': 'Okay, I’ve heard that.',
@@ -69,8 +69,12 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         name = sha256((str(repo.learner_id) + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
         data = repo.audio_blob(name)
         if data is None:
-            data = await sanitize_generated_audio(await ai().speak(text), kind)
-            repo.cache_lesson_audio(name, data)
+            with operation(settings, 'lesson.tts_provider'):
+                generated = await ai().speak(text)
+            with operation(settings, 'lesson.tts_sanitization'):
+                data = await sanitize_generated_audio(generated, kind)
+            with operation(settings, 'lesson.audio_persistence'):
+                repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
 
     @app.get('/api/lessons/current')
@@ -176,19 +180,22 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     @app.post('/api/lessons/{lesson_id}/attempts')
     async def attempt(lesson_id: str, audio: UploadFile, revision: int = Form(ge=0)):
         try:
-            async with lock:
+            async with timed_lock(settings, lock, 'lesson.upload'):
                 lesson = check(lesson_id, revision)
                 if lesson.phase not in ('WELCOME', 'REVIEW'):
                     raise HTTPException(409, 'This phase does not request a personal response.')
-                data, filename = await validate_upload(audio, settings)
-                lesson.pending = Transcription.model_validate(await ai().transcribe(data, filename))
-                return public(save(lesson, revision))
+                with operation(settings, 'lesson.upload_validation'):
+                    data, filename = await validate_upload(audio, settings)
+                with operation(settings, 'lesson.transcription'):
+                    lesson.pending = Transcription.model_validate(await ai().transcribe(data, filename))
+                with operation(settings, 'lesson.pending_persistence'):
+                    return public(save(lesson, revision))
         finally:
             await audio.close()
 
     @app.post('/api/lessons/{lesson_id}/answer')
     async def answer(lesson_id: str, body: LessonRevision):
-        async with lock:
+        async with timed_lock(settings, lock, 'lesson.answer'):
             lesson = check(lesson_id, body.revision)
             if lesson.phase not in ('WELCOME', 'REVIEW') or lesson.pending is None:
                 raise HTTPException(409, 'Record a response to the current question first.')
@@ -198,7 +205,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             interests = None
             if lesson.phase == 'REVIEW':
                 try:
-                    extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
+                    with operation(settings, 'lesson.profile_extraction'):
+                        extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
                 except ValidationError:
                     check(lesson_id, body.revision)
                     raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '
@@ -212,14 +220,16 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             else:
                 lesson.checkin = text
                 try:
-                    reply = CheckinReply.model_validate(await ai().respond_checkin(text))
+                    with operation(settings, 'lesson.response_generation'):
+                        reply = CheckinReply.model_validate(await ai().respond_checkin(text))
                     lesson.welcome_response = reply.text + ' Let’s get our listening started.'
                 except Exception as exc:
                     report_failure(settings, 'Lesson check-in response', exc)
                     lesson.welcome_response = social_response(text)
                 lesson.phase = 'WELCOME_ACK'
             lesson.pending = None
-            return public(save(lesson, body.revision, interests))
+            with operation(settings, 'lesson.answer_persistence'):
+                return public(save(lesson, body.revision, interests))
 
     @app.post('/api/lessons/{lesson_id}/exercise')
     async def exercise(lesson_id: str, body: LessonRevision):

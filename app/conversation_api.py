@@ -5,7 +5,7 @@ from uuid import uuid4
 from types import SimpleNamespace
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import Field
+from pydantic import Field, model_validator
 from app.audio import sanitize_generated_audio
 from app.conversation import validate_evidence, choose_followup, final_evaluation, adapt_final
 from app.feedback import final_feedback
@@ -26,6 +26,14 @@ class TurnConfirmation(StrictModel):
 
 class CueRequest(StrictModel):
     cue_id: str = Field(min_length=1, max_length=80)
+    lesson_id: str | None = Field(default=None, min_length=1, max_length=80)
+    lesson_revision: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode='after')
+    def paired_checkpoint(self):
+        if (self.lesson_id is None) != (self.lesson_revision is None):
+            raise ValueError('Provide the lesson and revision together.')
+        return self
 
 
 def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio):
@@ -163,7 +171,8 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 repo.save_conversation(conversation)
             else:
                 evaluation = final_evaluation(content, assessment)
-                profile, event = adapt_final(repo.profile(), evaluation, settings)
+                with operation(settings, 'turn.adaptive_decision'):
+                    profile, event = adapt_final(repo.profile(), evaluation, settings)
                 evaluation.feedback = final_feedback(evaluation, event, settings.max_feedback_words, content, previous_advice(exercise_id))
                 conversation.active_followup = None
                 conversation.state = 'GIVING_FEEDBACK'
@@ -186,8 +195,18 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
 
     @app.post('/api/exercises/{exercise_id}/coach-audio')
     async def coach_audio(exercise_id: str, body: CueRequest, request: Request):
+        def check_checkpoint():
+            if body.lesson_id is None:
+                return  # Existing JSON/audio clients retain their owned cue contract.
+            lesson = repo.lesson(body.lesson_id)
+            if not lesson:
+                raise HTTPException(404, 'Lesson not found.')
+            if (lesson.status != 'active' or lesson.phase != 'EXERCISE'
+                    or lesson.exercise_id != exercise_id or lesson.revision != body.lesson_revision):
+                raise HTTPException(409, 'Reload your current lesson checkpoint.')
         async with timed_lock(settings, lock, 'turn.coach_audio'):
             exercise_or_404(exercise_id)
+            check_checkpoint()
             text = cue(exercise_id, body.cue_id)
             cache_id = audio_cache_id(body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
@@ -198,6 +217,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                     kind = 'wav' if settings.provider == 'demo' else 'mp3'
                     with operation(settings, 'turn.tts_sanitization'):
                         data = await sanitize_generated_audio(data, kind)
+                check_checkpoint()  # End can invalidate the lesson while the provider is running.
                 name = str(uuid4()) + '.' + kind
                 path = audio_dir / name
                 path.write_bytes(data)

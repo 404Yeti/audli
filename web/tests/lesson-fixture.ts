@@ -11,6 +11,10 @@ export class ExerciseLessonFixture {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/recognition/acknowledgment-audio') { await route.fulfill({status:503,json:{detail:'Optional cue unavailable in this exercise fixture'}}); return true; }
     if (!path.startsWith('/api/lessons/')) return false;
+    // Empty restoration reads need no browser clock (the page may be reloading).
+    if (path.endsWith('/current') && !this.value) {
+      await route.fulfill({json:null}); return true;
+    }
     const now = await this.page.evaluate(() => Date.now());
     if (this.value?.status === 'active') this.value.elapsed_seconds = Math.max(0,(now-this.anchor)/1000);
     if (path.endsWith('/start') && (!this.value || this.value.status === 'completed')) {

@@ -572,3 +572,64 @@ def test_malformed_review_extraction_is_private_and_retryable(lesson_client,fiel
     assert repo.profile()==before and repo.history()==[]
     assert action(client,recovered,'heard')['phase']=='TRANSITION'
     assert calls==['interests','interests']
+
+
+def test_revision_bound_coaching_prepares_once_without_advancing_lesson(lesson_client, audio_bytes):
+    client = lesson_client
+    lesson = exercises(client, audio_bytes)
+    exercise_id = lesson['exercise']['id']
+    assert client.post(f'/api/exercises/{exercise_id}/conversation/listened').status_code == 200
+    before = client.get(f"/api/lessons/{lesson['id']}").json()
+    calls = []
+    async def speak(text, speech_rate=.9):
+        calls.append(text)
+        return audio_bytes
+    client.provider.speak = speak
+    body = {'cue_id':'summary', 'lesson_id':lesson['id'], 'lesson_revision':lesson['revision']}
+    url = f'/api/exercises/{exercise_id}/coach-audio'
+    first = client.post(url, json=body, headers={'Accept':'audio/*'})
+    assert first.status_code == 200
+    assert client.post(url, json=body, headers={'Accept':'audio/*'}).content == first.content
+    assert len(calls) == 1
+    after = client.get(f"/api/lessons/{lesson['id']}").json()
+    for value in (before, after):
+        value.pop('server_time')
+        value.pop('elapsed_seconds')
+        value.pop('remaining_seconds')
+    assert after == before
+    assert client.get(f'/api/exercises/{exercise_id}/transcript').status_code == 403
+    assert client.post(url, json={**body,'lesson_revision':lesson['revision']+1}).status_code == 409
+    paused = client.post(f"/api/lessons/{lesson['id']}/end").json()
+    assert client.post(url, json=body).status_code == 409
+    assert client.post(url, json={**body,'lesson_revision':paused['revision']}).status_code == 409
+    assert len(calls) == 1
+
+
+def test_end_during_coaching_preparation_preserves_assessment_and_discards_stale_audio(lesson_client, audio_bytes):
+    client = lesson_client
+    lesson = exercises(client, audio_bytes)
+    complete_exercise(client, lesson, audio_bytes)
+    repo = client.app.state.repository
+    prior = repo.profile()
+    async def delayed(text, speech_rate=.9):
+        stored = repo.lesson(lesson['id'])
+        stored.status = 'paused'
+        repo.save_lesson(stored, stored.revision)
+        return audio_bytes
+    client.provider.speak = delayed
+    exercise_id = lesson['exercise']['id']
+    response = client.post(f'/api/exercises/{exercise_id}/coach-audio', json={
+        'cue_id':'feedback','lesson_id':lesson['id'],'lesson_revision':lesson['revision']})
+    assert response.status_code == 409
+    assert repo.profile() == prior
+    assert repo.completed(exercise_id)
+    assert client.get(f'/api/exercises/{exercise_id}/transcript').status_code == 200
+    from app.conversation_api import CueRequest
+    from pydantic import ValidationError
+    for malformed in ({'cue_id':'feedback','lesson_id':lesson['id']},
+                      {'cue_id':'feedback','lesson_revision':1},
+                      {'cue_id':'feedback','lesson_id':lesson['id'],'lesson_revision':-1}):
+        with pytest.raises(ValidationError):
+            CueRequest.model_validate(malformed)
+    with repo.engine.connect() as db:
+        assert not db.execute(select(s.coach_audio).where(s.coach_audio.c.exercise_id == exercise_id)).first()

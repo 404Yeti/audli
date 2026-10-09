@@ -114,7 +114,12 @@ function Product() {
   async function playCue(operation: LessonOperation, exercise: Exercise, state: Conversation) {
     voice.thinking();
     setPrompt(state.prompt ?? '');
-    await voice.coachSpeech(operation, exercise.id, state.cue_id);
+    await voice.coachSpeech(operation, exercise.id, state.cue_id, coachingCheckpoint(exercise));
+  }
+  function coachingCheckpoint(exercise: Exercise) {
+    const checkpoint = lesson.current;
+    return checkpoint?.phase === 'EXERCISE' && checkpoint.exercise?.id === exercise.id
+      ? { lesson_id: checkpoint.id, lesson_revision: checkpoint.revision } : undefined;
   }
   async function captureAnswer(operation: LessonOperation, exercise: Exercise): Promise<Attempt> {
     let blob = retained.current?.exercise === exercise.id ? retained.current.blob : null;
@@ -159,7 +164,10 @@ function Product() {
           }
           voice.thinking(); setPrompt('');
           try {
-            state = await voice.acknowledged(operation, `${account.scope}:attempt:${attempt!.id}`, () => measureTurn('assessment', () => operation.api<Conversation>(`/attempts/${attempt!.id}/assess`, json({ text: corrected ?? attempt!.transcription.text, confirmed: true, hands_free: !corrected, followup_id: state.active_followup?.id ?? null }))), state.active_followup ? 'followup' : 'assessment', setPrompt);
+            state = await voice.acknowledged(operation, `${account.scope}:attempt:${attempt!.id}`, () => measureTurn('assessment', () => operation.api<Conversation>(`/attempts/${attempt!.id}/assess`, json({ text: corrected ?? attempt!.transcription.text, confirmed: true, hands_free: !corrected, followup_id: state.active_followup?.id ?? null }))), state.active_followup ? 'followup' : 'assessment', setPrompt, saved => {
+              if (saved.cue_id && (saved.state === 'GIVING_FEEDBACK' || saved.state === 'AWAITING_FOLLOWUP'))
+                voice.prepareCoachSpeech(operation, exercise.id, saved.cue_id, coachingCheckpoint(exercise));
+            });
             retries = 0; break;
           } catch (error) {
             if (!(error instanceof ApiError) || !error.uncertain) throw error;

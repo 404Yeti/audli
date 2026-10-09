@@ -1,4 +1,6 @@
-const accessHref = 'mailto:robbie@audli.ai?subject=Audli%20early%20access';
+const accessHref = 'https://app.audli.ai';
+const feedbackHref = 'https://tally.so/r/pblj5V';
+const reportHref = 'https://tally.so/r/5By6QM';
 
 const steps = [
   { number: '01', title: 'Listen to real life', copy: 'Everyday conversations, stories and accents you actually encounter.', tone: 'blue' },
@@ -35,7 +37,7 @@ export default function Home() {
     <header className="site-header">
       <a className="wordmark" href="#top" aria-label="Audli home">audli</a>
       <nav aria-label="Main navigation"><a href="#how">How it works</a><a href="#why">Why Audli</a></nav>
-      <a className="button button-dark header-cta" href={accessHref}>Early access</a>
+      <a className="button button-dark header-cta" href={accessHref}>Try the early beta</a>
     </header>
 
     <section className="hero" id="top">
@@ -43,8 +45,8 @@ export default function Home() {
         <p className="eyebrow">LISTEN FIRST. LEARN NATURALLY.</p>
         <h1>Eyes optional.<br/>Ears essential.</h1>
         <p className="lede">Understand real spoken English with short, personalized AI listening sessions that adapt to your pace.</p>
-        <a className="button button-teal" href={accessHref}>Join early access <span aria-hidden="true">→</span></a>
-        <p className="note">Made for real conversations, not endless worksheets.</p>
+        <a className="button button-teal" href={accessHref}>Try the early beta <span aria-hidden="true">→</span></a>
+        <p className="note beta-note">Audli is in early beta. Try a listening lesson and help us improve. <a href={feedbackHref}>Send feedback →</a></p>
       </div>
       <Mascot/>
     </section>
@@ -68,7 +70,23 @@ export default function Home() {
       </article>)}</div>
     </section>
 
-    <section className="footer-cta"><div><h2>Ready to hear the difference?</h2><p>Get early access to Audli.</p></div><a className="button button-white" href={accessHref}>Join early access</a></section>
-    <footer><span>Audli · Eyes optional. Ears essential.</span><span><a href="mailto:robbie@audli.ai">Privacy</a> · <a href="mailto:robbie@audli.ai">Contact</a></span></footer>
+    <section className="testimonial section" aria-labelledby="testimonial-title">
+      <div className="section-heading"><p className="eyebrow">FROM OUR EARLY LEARNERS</p><h2 id="testimonial-title">A first listen. A little feedback.</h2></div>
+      <figure className="testimonial-card">
+        <blockquote>“I think its a great app and i am very happy to use it Robert, thank you very much!”</blockquote>
+        <figcaption><span className="learner-mark" aria-hidden="true">♡</span><div><strong>Early beta learner</strong><span>Feedback from a student testing Audli</span></div></figcaption>
+      </figure>
+    </section>
+
+    <section className="beta-feedback section" aria-labelledby="feedback-title">
+      <div className="section-heading"><h2 id="feedback-title">Help shape Audli.</h2><p>Trying the beta? We’d love to hear how it went.</p></div>
+      <div className="feedback-grid">
+        <a className="feedback-card" href={feedbackHref}><h3>Early beta feedback <span aria-hidden="true">↗</span></h3><p>Tell us what worked, what felt confusing, and how your listening lesson went.</p></a>
+        <a className="feedback-card" href={reportHref}><h3>Report a bug or suggest a feature <span aria-hidden="true">↗</span></h3><p>Something not working? Have an idea? Help us make Audli better.</p></a>
+      </div>
+    </section>
+
+    <section className="footer-cta"><div><h2>Ready to hear the difference?</h2><p>Try the early beta. Tell us what works and what could be better.</p><a className="feedback-link" href={feedbackHref}>Send feedback →</a></div><a className="button button-white" href={accessHref}>Try the early beta</a></section>
+    <footer><span>Audli · Eyes optional. Ears essential.</span><div className="footer-links"><a href={feedbackHref}>Early beta feedback</a><a href={reportHref}>Report a bug or suggest a feature</a><a href="mailto:robbie@audli.ai">Contact</a></div></footer>
   </main>;
 }

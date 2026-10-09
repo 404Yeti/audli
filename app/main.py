@@ -10,7 +10,7 @@ from pydantic import Field
 from app.adaptive import adapt
 from app.audio import validate_upload, sanitize_generated_audio
 from app.config import Settings
-from app.diagnostics import operation, report_failure, timed_lock
+from app.diagnostics import operation, report_failure, timed_lock, request_timings
 from app.evaluation import score_judgments
 from app.models import ExerciseContent, StrictModel, Transcription
 from app.repository import create_repository, SQLProgressRepository
@@ -71,11 +71,19 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @app.middleware('http')
     async def privacy_headers(request: Request, call_next):
+        timings = [] if settings.latency_telemetry or settings.environment == 'development' else None
+        token = request_timings.set(timings)
         try:
-            response = await call_next(request)
+            with operation(settings, 'request_total'):
+                response = await call_next(request)
         except Exception as exc:
             report_failure(settings, f'{request.method} {request.url.path}', exc)
             response = JSONResponse(status_code=503, content={'detail': 'Audli could not finish that step. Check server configuration and try again; your progress is safe.'})
+        finally:
+            request_timings.reset(token)
+        if timings:
+            response.headers['Server-Timing'] = ', '.join(
+                f'{name.replace(".", "_")};dur={duration:.1f}' for name, duration in timings)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         return response

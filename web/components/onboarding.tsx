@@ -7,7 +7,7 @@ import { recordingUpload } from '../lib/recording';
 import { SessionShell } from './product-shell';
 import { useAccount } from './auth-gate';
 import { conversationIntent } from '../lib/conversation-intent';
-import { measureTurn, turnTiming } from '../lib/turn-timing';
+import { measureTurn, turnTiming, measuredAudioBody } from '../lib/turn-timing';
 import { AudliMascot } from './audli-mascot';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
@@ -52,7 +52,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
       response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio', { ...json({ revision: latest.revision }), signal: operation.signal }, operation));
     }
     if (!response.ok) throw new Error('Audli’s voice is unavailable. Retry the conversation; your saved progress is safe.');
-    const body = await operation.wait(() => response.blob()); operation.assertCurrent();
+    const body = await operation.wait(() => measuredAudioBody(response)); operation.assertCurrent();
     turnTiming('tts_readiness', started);
     await voice.speak(operation, URL.createObjectURL(body)); return data;
   }

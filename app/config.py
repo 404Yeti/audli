@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     supabase_url: str = ''
     supabase_publishable_key: SecretStr | None = None
     provider: Literal['openai', 'demo'] = 'openai'
+    latency_telemetry: bool = False
     llm_model: str = 'gpt-4.1-mini'
     transcription_model: str = 'gpt-4o-mini-transcribe'
     speech_model: str = 'gpt-4o-mini-tts'

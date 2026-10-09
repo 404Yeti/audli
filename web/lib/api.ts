@@ -77,7 +77,10 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
     requestToken = token;
     headers.set('Authorization', `Bearer ${token}`);
   }
+  const submittedAt = performance.now();
+  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
   const response = await fetch(url, { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
+  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
   operation?.assertCurrent();
   if (response.status === 401 && revision === authRevision && typeof window !== 'undefined') {
     // A late response for an older token must not discard a refreshed session.

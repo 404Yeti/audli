@@ -112,3 +112,35 @@ def test_timed_lock_cancellation_does_not_release_another_operations_lock():
                 raise ValueError('Work failed')
         assert not lock.locked()
     asyncio.run(scenario())
+
+
+def test_request_timings_are_numeric_request_local_and_reset_on_failure():
+    from app.diagnostics import request_timings
+    from concurrent.futures import ThreadPoolExecutor
+    def scenario(name):
+        timings = []
+        token = request_timings.set(timings)
+        try:
+            with pytest.raises(ValueError):
+                with operation(Settings(_env_file=None), name):
+                    raise ValueError('private transcript')
+            assert len(timings) == 1
+            assert timings[0][0] == name and timings[0][1] >= 0
+            return timings
+        finally:
+            request_timings.reset(token)
+    with ThreadPoolExecutor(2) as pool:
+        a, b = list(pool.map(scenario, ['turn.transcription', 'turn.tts_provider']))
+    assert a is not b
+    assert request_timings.get() is None
+
+
+def test_server_timing_metadata_only_and_per_request(client):
+    response = client.post('/api/exercises')
+    assert response.status_code == 200
+    header = response.headers['Server-Timing']
+    assert 'ExerciseGenerator_generate;dur=' in header
+    assert 'request_total;dur=' in header
+    assert 'Maya' not in header and 'Bearer' not in header
+    # The next request cannot inherit provider stages from a previous request.
+    assert 'ExerciseGenerator' not in client.get('/api/profile').headers['Server-Timing']

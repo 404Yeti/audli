@@ -226,3 +226,85 @@ def test_prompt_audio_uses_existing_speech_and_recordings_are_not_retained(accou
     response = a.post('/api/onboarding/attempts', data={'revision':state['revision']}, files={'audio':('x.wav',audio_bytes,'audio/wav')})
     assert response.status_code == 200
     assert not list(tmp_path.rglob('*.wav'))
+
+
+def test_prompt_cache_retry_restart_owner_and_text_invalidation(accounts, repository_factory, audio_bytes, monkeypatch, tmp_path):
+    from app.onboarding import PROMPTS
+    a, b, _ = accounts
+    state = start(a)
+    other = start(b)
+    calls = []
+    async def speak(text, speech_rate=.9):
+        calls.append(text)
+        return audio_bytes
+    a.provider.speak = speak
+    body = {'revision': state['revision']}
+    first = a.post('/api/onboarding/audio', json=body)
+    assert first.status_code == 200
+    assert a.post('/api/onboarding/audio', json=body).content == first.content
+    assert len(calls) == 1
+    assert a.get('/api/onboarding').json() == state
+    # The authenticated second owner must generate its own cached asset.
+    b.provider.speak = speak
+    assert b.post('/api/onboarding/audio', json={'revision':other['revision']}).status_code == 200
+    assert len(calls) == 2
+    monkeypatch.setitem(PROMPTS, 'identity', 'An updated complete onboarding prompt.')
+    assert a.post('/api/onboarding/audio', json=body).status_code == 200
+    assert len(calls) == 3
+    # Persisted bytes can be read by a reconstructed repository without local files.
+    repo = repository_factory(USER_A)
+    from sqlalchemy import select
+    from app.storage import schema
+    with repo.engine.connect() as db:
+        names = db.execute(select(schema.audio_assets.c.audio_name).where(schema.audio_assets.c.user_id == USER_A)).scalars().all()
+    assert len(names) == 2
+    assert all(repo.audio_blob(name) for name in names)
+    assert a.post('/api/onboarding/audio', json={'revision':state['revision']-1}).status_code == 409
+    assert len(calls) == 3
+    auth = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
+    settings = settings_for(tmp_path / 'new-voice')
+    settings.voice = 'alloy'
+    resumed = AccountClient(create_app(settings, a.provider, repository=repository_factory(None),
+        auth_client=auth), a.provider, 'valid-a')
+    assert resumed.post('/api/onboarding/audio', json=body).status_code == 200
+    assert len(calls) == 4
+    assert resumed.post('/api/onboarding/audio', json=body).status_code == 200
+    assert len(calls) == 4
+    asyncio.run(auth.aclose())
+
+
+def test_prompt_cache_failure_does_not_poison_retry(accounts, audio_bytes):
+    a, _, _ = accounts
+    state = start(a)
+    async def fail(*args):
+        raise ValueError('synthetic failure')
+    a.provider.speak = fail
+    body = {'revision':state['revision']}
+    assert a.post('/api/onboarding/audio', json=body).status_code == 503
+    async def succeed(*args):
+        return audio_bytes
+    a.provider.speak = succeed
+    assert a.post('/api/onboarding/audio', json=body).status_code == 200
+    a.provider.speak = fail
+    assert a.post('/api/onboarding/audio', json=body).status_code == 200
+    assert a.get('/api/onboarding').json() == state
+
+
+def test_prompt_cache_concurrent_retry_synthesizes_once(accounts, audio_bytes):
+    a, _, _ = accounts
+    state = start(a)
+    calls = []
+    async def speak(*args):
+        calls.append(True)
+        await asyncio.sleep(.02)
+        return audio_bytes
+    a.provider.speak = speak
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=a.app), base_url='http://testserver',
+                headers={'Authorization':'Bearer valid-a'}) as client:
+            results = await asyncio.gather(*[client.post('/api/onboarding/audio', json={'revision':state['revision']}) for _ in range(2)])
+            assert all(result.status_code == 200 for result in results)
+            assert results[0].content == results[1].content
+    asyncio.run(scenario())
+    assert len(calls) == 1
+    assert a.get('/api/onboarding').json() == state

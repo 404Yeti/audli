@@ -41,13 +41,13 @@ export async function installVoice(page: Page, options: { denied?: boolean; dela
     const realPlay=HTMLMediaElement.prototype.play, realPause=HTMLMediaElement.prototype.pause;
     HTMLMediaElement.prototype.play=async function(){
       if(options.realPlayback) await realPlay.call(this);
-      else {Object.defineProperty(this,'paused',{configurable:true,value:false});this.dispatchEvent(new Event('play'));if(options.autoPlayback)setTimeout(()=>this.dispatchEvent(new Event('ended')),80);}
+      else {Object.defineProperty(this,'paused',{configurable:true,value:false});this.dispatchEvent(new Event('play'));this.dispatchEvent(new Event('playing'));if(options.autoPlayback)setTimeout(()=>this.dispatchEvent(new Event('ended')),80);}
       probe.plays.push(this.src);
     };
     HTMLMediaElement.prototype.pause=function(){probe.pauses.push(this.src);if(options.realPlayback)realPause.call(this);else Object.defineProperty(this,'paused',{configurable:true,value:true});};
     if(options.delayBody){
       const fetch=window.fetch.bind(window);
-      window.fetch=async (...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith(options.delayBody!) && response.ok){const blob=response.blob.bind(response);response.blob=async()=>{const body=await blob();probe.bodyPending=true;await new Promise<void>(resolve=>{probe.releaseBody=resolve;});return body;};}return response;};
+      window.fetch=async (...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith(options.delayBody!) && response.ok){return new Response(new ReadableStream({async start(controller){const body=await response.arrayBuffer();probe.bodyPending=true;await new Promise<void>(resolve=>{probe.releaseBody=resolve;});controller.enqueue(new Uint8Array(body));controller.close();}}),{status:response.status,headers:response.headers});}return response;};
     }
   }, options);
 }

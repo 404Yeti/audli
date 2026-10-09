@@ -7,8 +7,12 @@ import traceback
 from sqlalchemy.engine import make_url
 from contextlib import contextmanager, asynccontextmanager
 from time import perf_counter
+from contextvars import ContextVar
 from pydantic import ValidationError
 from app.config import Settings
+
+# Request-local numeric metadata only; never attach IDs, text, or provider payloads.
+request_timings: ContextVar[list[tuple[str, float]] | None] = ContextVar('request_timings', default=None)
 
 
 def redact(text: str, settings: Settings) -> str:
@@ -76,6 +80,9 @@ def operation(settings: Settings, name: str):
         report_failure(settings, name, exc)
         raise
     finally:
+        timings = request_timings.get()
+        if timings is not None:
+            timings.append((name, (perf_counter() - started) * 1000))
         if settings.environment == 'development':
             logger = logging.getLogger('uvicorn.error')
             logger.info('Turn timing stage=%s elapsed_ms=%.1f', name, (perf_counter() - started) * 1000)

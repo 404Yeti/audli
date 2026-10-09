@@ -84,31 +84,39 @@ def previous_copy(topic: str, evaluations) -> str:
 def prompt(lesson: Lesson) -> str | None:
     name = safe_label(lesson.name) or 'Listener'
     return {
-        'WELCOME': f'Hi, {name}. It’s good to listen together. How has your day been?',
+        'WELCOME': f'Hey {name}! How’s your day going?',
         'WELCOME_ACK': lesson.welcome_response or social_response(lesson.checkin or ''),
         'REVIEW': (lesson.previous or '') + ' What would you enjoy listening to more of today?',
         'REVIEW_ACK': lesson.review_response or 'I’ll use that to guide today’s listening.',
-        'TRANSITION': f'Today, we’ll practice {FOCUS[lesson.focus]}. Listen for the meaning, and use your own words afterward. Here we go.',
+        'TRANSITION': f'Alright, I’ve got something for you to listen to. We’ll focus on {FOCUS[lesson.focus]}.',
         'CLOSING': lesson.closing,
     }.get(lesson.phase)
+
+RECIPROCAL_REPLY = 'Doing well, thanks for asking!'
+_RECIPROCAL = re.compile(r"\b(?:and\s+)?(?:and you|how about you|what about you|how are you|how're you|how is your day|how's your day)\b", re.I)
+
+
+def reciprocal_checkin(text: str) -> bool:
+    return bool(_RECIPROCAL.search(text.replace('’', "'")))
+
 
 def social_response(text: str) -> str:
     """One bounded social reply, without assessment or invented personal experiences."""
     normalized = text.lower().replace('’', "'")
-    reciprocal = bool(re.search(r'\b(and you|how about you|what about you|how are you|how is your day|how.s your day)\b', normalized))
+    reciprocal = reciprocal_checkin(normalized)
     difficult = bool(re.search(r'\b(not (?:so )?(?:good|well|great)|tired|sad|stressed|bad|rough|difficult)\b', normalized))
     positive = bool(re.search(r'\b(good|well|great|fine|happy|okay|ok)\b', normalized))
-    acknowledgment = ('We can take this at a comfortable pace.' if difficult else
-                      'Good to hear.' if positive else 'It’s good to have you here.')
+    acknowledgment = ('Sounds like a tough day. We’ll take it easy.' if difficult else
+                      'Good to hear.' if positive else 'Glad you’re here.')
     if not difficult and not positive:
         if re.search(r'\b(work|working|busy)\b', normalized):
-            acknowledgment = 'Let’s make this a short listening break from your busy day.'
+            acknowledgment = 'Sounds like you’ve been busy.'
         elif re.search(r'\b(walk|walked|walking|run|running)\b', normalized):
-            acknowledgment = 'A little time outside can be a welcome break.'
+            acknowledgment = 'Sounds like a nice break outside.'
         elif re.search(r'\b(rain|raining|rainy)\b', normalized):
             acknowledgment = 'Sounds like a rainy day where you are.'
-    response = 'I’m here and ready to listen with you, thanks for asking.' if reciprocal else ''
-    return ' '.join(part for part in (acknowledgment, response, 'Let’s get our listening started.') if part)
+    response = RECIPROCAL_REPLY if reciprocal else ''
+    return ' '.join(part for part in (acknowledgment, response) if part)
 
 class CheckinReply(StrictModel):
     text: str = Field(min_length=1, max_length=280)
@@ -116,15 +124,47 @@ class CheckinReply(StrictModel):
     @field_validator('text')
     @classmethod
     def bounded_reply(cls, text):
-        from app.feedback import validate_final_feedback
-        validate_final_feedback(text, 35)
+        if not text.strip() or len(text.split()) > 35 or re.search(r'[?？\n]|\b(?:ignore instructions|system prompt)\b', text, re.I):
+            raise ValueError('Check-in replies must be bounded statements')
         if len(re.findall(r'[.!]+(?:\s|$)', text)) > 2 or re.search(
                 r'\b(correct|well done|great job|you understood|you caught)\b', text, re.I):
             raise ValueError('Check-in replies must be brief social responses, not comprehension praise')
         if text.strip().casefold().rstrip('.!') in (
                 'thanks', 'got it', 'okay, i heard you', 'thanks, let me think about that'):
             raise ValueError('A check-in reply must respond rather than supply generic processing filler')
+        if re.search(r"\b(?:i(?:'m| am) (?:happy|sad|tired|feeling)|i (?:had|went|ate|drank|slept|woke)|my (?:day|weekend|family|coffee))\b", text.replace('’', "'"), re.I):
+            raise ValueError('Check-in replies must not invent human experiences')
         return text.strip()
+
+
+def routine_checkin_reply(text: str) -> CheckinReply | None:
+    """Only complete, ordinary status greetings bypass generation; richer replies do not."""
+    normalized = text.lower().replace('’', "'")
+    status = re.sub(r'[.!?,;]+', ' ', _RECIPROCAL.sub('', normalized))
+    status = ' '.join(status.split())
+    if not re.fullmatch(
+            r"(?:(?:i'm|i am) )?(?:(?:doing|feeling) )?(?:(?:very|really|pretty|quite) )?"
+            r"(?:good|well|fine|great|okay|ok|not (?:so )?(?:good|well|great)|tired|stressed|sad)"
+            r"(?: today)?(?: thanks| thank you)?", status):
+        return None
+    return CheckinReply(text=social_response(text).strip())
+
+
+def compose_checkin_reply(text: str, reply: CheckinReply) -> str:
+    """Guarantee safe reciprocity without a second model call or extending small talk."""
+    response = reply.text
+    if reciprocal_checkin(text) and not (
+            re.search(r"\b(?:(?:thanks|thank you) for asking|(?:doing|i am|i'm) (?:well|good|fine)|all good|can't complain)\b", response.replace("’", "'"), re.I)):
+        # Keep a complete acknowledgment sentence; do not truncate a label or word.
+        first = re.split(r'(?<=[.!])\s+', response, maxsplit=1)[0]
+        if not first.endswith(('.', '!')):
+            first += '.'
+        try:
+            response = CheckinReply(text=first + ' ' + RECIPROCAL_REPLY).text
+        except ValueError:
+            response = social_response(text).strip()
+    return response
+
 
 def public_topic(content: dict) -> str | None:
     """Expose only a short scenario label, never an answer-shaped topic."""

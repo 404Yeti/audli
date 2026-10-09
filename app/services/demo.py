@@ -12,7 +12,7 @@ SCRIPT = ('On Monday, Maya and her team launched an update to their office sched
 class DemoProvider:
     async def respond_checkin(self, text):
         from app.lesson import CheckinReply, social_response
-        return CheckinReply(text=social_response(text).removesuffix(' Let’s get our listening started.'))
+        return CheckinReply(text=social_response(text).strip())
 
     async def generate(self, profile):
         d = profile.difficulty

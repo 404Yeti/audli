@@ -593,3 +593,9 @@ def test_profile_sdk_preserves_missing_empty_and_supplied_interests(interests):
         return response(dict(name=None,target_language=None,goal=None,target_situations=None,interests=interests))
     result=asyncio.run(run_provider(handler,lambda provider:provider.extract_profile('interests','A private reflection')))
     assert result.interests==interests and result.target_situations is None
+
+@pytest.mark.parametrize('text',['   ', 'I had coffee with friends.',
+    'My weekend was relaxing.', 'I am tired today.'])
+def test_checkin_rejects_invented_human_experiences(text):
+    from app.lesson import CheckinReply
+    with pytest.raises(ValueError):CheckinReply(text=text)

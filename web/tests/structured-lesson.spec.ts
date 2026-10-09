@@ -30,7 +30,7 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
       if(path.endsWith('/end'))value!.status='paused';
       if(path.endsWith('/resume'))value!.status='active';
       if(path.endsWith('/attempts')){value!.pending={text:value!.phase==='WELCOME'?"I'm good, and you?":'I enjoy science',confidence:.99,uncertainty:[]};value!.revision++;}
-      if(path.endsWith('/answer')){const welcome=value!.phase==='WELCOME';value!.pending=null;phase(welcome?'WELCOME_ACK':'REVIEW_ACK',welcome?'Good to hear. I’m here and ready to listen with you, thanks for asking. Let’s get our listening started.':missingInterests?'We can continue with today’s listening.':'I’ll keep science in mind as we choose our listening topics.');}
+      if(path.endsWith('/answer')){const welcome=value!.phase==='WELCOME';value!.pending=null;phase(welcome?'WELCOME_ACK':'REVIEW_ACK',welcome?'Good to hear. Doing well, thanks for asking!':missingInterests?'We can continue with today’s listening.':'I’ll keep science in mind as we choose our listening topics.');}
       if(path.endsWith('/heard')){
         if(value!.phase==='WELCOME_ACK')phase(returning?'REVIEW':'TRANSITION',returning?'Last time, we listened to work meetings. You demonstrated strength in following the main idea. What would you enjoy listening to today?':'Today, let’s practice catching important details. Here we go.');
         else if(value!.phase==='REVIEW_ACK')phase('TRANSITION','Today, let’s practice catching important details. Here we go.');
@@ -256,7 +256,7 @@ test('turn telemetry counts meaningful coaching after assessment, separately fro
   const stages: string[] = [];
   page.on('console', async message => {
     if (!message.text().startsWith('[Audli turn]')) return;
-    const sample = await message.args()[1]?.jsonValue();
+    const sample = await message.args()[1]?.jsonValue().catch(() => null);
     if (sample && typeof sample.stage === 'string') stages.push(sample.stage);
   });
   await setup(page);
@@ -386,4 +386,42 @@ for(const interrupt of ['end','stale','reload'] as const)test(`prepared coaching
     expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
   }
   expect(fixture.requests.some(path=>path.endsWith('/ready')||path.endsWith('/advance'))).toBe(false);
+});
+
+for(const interrupt of [false,true])test(`opening reciprocity plays before advancing${interrupt?' and End discards late audio':''}`,async({page})=>{
+  const fixture=await setup(page,false,false);
+  const stages:string[]=[];
+  page.on('console',async message=>{
+    if(!message.text().startsWith('[Audli turn]'))return;
+    const value=await message.args()[1]?.jsonValue().catch(()=>null);
+    if(value?.stage)stages.push(value.stage);
+  });
+  let release:(()=>Promise<void>)|undefined;
+  await page.route('**/api/lessons/structured/audio',async route=>{
+    if(fixture.snapshot().phase!=='WELCOME_ACK')return route.fallback();
+    await new Promise<void>(resolve=>{release=async()=>{await route.fallback().catch(()=>{});resolve();};});
+  });
+  await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();
+  await expect(page.getByRole('status')).toHaveText('Audli is speaking');await endAudio(page);
+  for(let i=0;i<15&&!release;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);}
+  await expect.poll(()=>!!release).toBe(true);
+  expect(fixture.snapshot().phase).toBe('WELCOME_ACK');
+  expect(fixture.requests.some(path=>path.endsWith('/heard'))).toBe(false);
+  await expect.poll(()=>stages.includes('upload_transcription')&&stages.includes('checkin_response')).toBe(true);
+  const plays=(await probe(page)).plays.length;
+  if(interrupt){
+    await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+    await expect.poll(()=>fixture.snapshot().status).toBe('paused');await release!();
+    await page.waitForTimeout(100);expect((await probe(page)).plays).toHaveLength(plays);
+    expect(fixture.requests.some(path=>path.endsWith('/heard'))).toBe(false);
+  }else{
+    await release!();await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+1);
+    expect(fixture.spoken.at(-1)).toContain('Doing well, thanks for asking');
+    expect(fixture.snapshot().phase).toBe('WELCOME_ACK');
+    await expect.poll(()=>stages.includes('turn_to_playback')).toBe(true);
+    expect(stages).toContain('tts_readiness');
+    await endAudio(page);await expect.poll(()=>fixture.snapshot().phase).toBe('TRANSITION');
+    expect(fixture.requests.filter(path=>path.endsWith('/heard'))).toHaveLength(1);
+    await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+2);
+  }
 });

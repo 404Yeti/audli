@@ -1,5 +1,5 @@
 /** Fixed-stage timings, local development or explicit opt-in. No learner content. */
-export type TurnStage = 'silence_detection' | 'recording_finalization' | 'upload_transcription' | 'assessment' | 'profile_extraction' | 'tts_readiness' | 'playback_start' | 'turn_to_playback' | 'request_submission' | 'response_headers' | 'first_audio_byte' | 'audio_body_ready' | 'acknowledgment_playback' | 'retry_playback' | 'acknowledgment_duration' | 'coaching_readiness' | 'coaching_wait_after_ack';
+export type TurnStage = 'silence_detection' | 'recording_finalization' | 'upload_transcription' | 'assessment' | 'checkin_response' | 'profile_extraction' | 'tts_readiness' | 'playback_start' | 'turn_to_playback' | 'request_submission' | 'response_headers' | 'first_audio_byte' | 'audio_body_ready' | 'acknowledgment_playback' | 'retry_playback' | 'acknowledgment_duration' | 'coaching_readiness' | 'coaching_wait_after_ack';
 export function turnTiming(stage: TurnStage, startedAt: number) {
   if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage, elapsedMs: Math.round(performance.now() - startedAt) });
 }

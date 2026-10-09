@@ -230,7 +230,7 @@ function Product() {
           if (!value.pending) {
             if (!personalCapture.current) personalCapture.current = await voice.listen(operation);
             const form = recordingUpload(personalCapture.current); form.append('revision', String(value.revision));
-            value = await operation.api<LessonCheckpoint>(`/lessons/${value.id}/attempts`, { method: 'POST', body: form });
+            value = await measureTurn('upload_transcription', () => operation.api<LessonCheckpoint>(`/lessons/${value.id}/attempts`, { method: 'POST', body: form }));
             operation.assertCurrent(); personalCapture.current = null; lesson.current = value;
           }
           if (!value.pending || !reliableRecognition(value.pending, minimum.current)) {
@@ -238,8 +238,8 @@ function Product() {
             await voice.retrySpeech(operation); value = { ...value, pending: null }; continue;
           }
           setPrompt('');
-          value = value.phase === 'WELCOME' ? await lessonAction(operation, value, 'answer') :
-            await voice.acknowledged(operation, `${account.scope}:reflection:${value.id}:${value.revision}`, () => lessonAction(operation, value, 'answer'), 'reflection', setPrompt);
+          value = value.phase === 'WELCOME' ? await measureTurn('checkin_response', () => lessonAction(operation, value, 'answer')) :
+            await voice.acknowledged(operation, `${account.scope}:reflection:${value.id}:${value.revision}`, () => measureTurn('profile_extraction', () => lessonAction(operation, value, 'answer')), 'reflection', setPrompt);
           break;
         }
       } else {

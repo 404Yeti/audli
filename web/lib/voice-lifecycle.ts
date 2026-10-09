@@ -120,11 +120,14 @@ export function useVoiceLifecycle() {
     });
   }
   async function lessonSpeech(operation: LessonOperation, lessonId: string, revision: number, action = 'audio') {
-    const response = await operation.wait(() => authenticatedFetch(`/api/lessons/${encodeURIComponent(lessonId)}/${action}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }), signal: operation.signal,
-    }, operation));
-    if (!response.ok) throw new Error('Audli’s lesson voice is unavailable. Retry the conversation; your progress is saved.');
-    const body = await operation.wait(() => measuredAudioBody(response)); operation.assertCurrent();
+    const body = await measureTurn('tts_readiness', async () => {
+      const response = await operation.wait(() => authenticatedFetch(`/api/lessons/${encodeURIComponent(lessonId)}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }), signal: operation.signal,
+      }, operation));
+      if (!response.ok) throw new Error('Audli’s lesson voice is unavailable. Retry the conversation; your progress is saved.');
+      return operation.wait(() => measuredAudioBody(response));
+    });
+    operation.assertCurrent();
     await speak(operation, URL.createObjectURL(body));
   }
   async function prepareAcknowledgment(operation: LessonOperation, cue: AcknowledgmentCue = 'assessment') {

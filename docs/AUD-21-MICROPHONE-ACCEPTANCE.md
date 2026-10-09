@@ -1,8 +1,11 @@
 # AUD-21 real-microphone acceptance
 
-Acceptance is pending. Browser RMS/`playing` timings are estimates, not measured acoustic
-speech-end/output boundaries. No representative samples have been collected and the
-≤5-second target is unverified. AUD-21 and AUD-23 remain In Progress.
+Opening naturalness acceptance passed: the user confirmed the latest local
+real-microphone greeting and reciprocal responses feel natural. Quantitative latency
+acceptance remains pending; no representative timestamped dataset was supplied.
+Browser RMS/`playing` timings are estimates, not measured acoustic speech-end/output
+boundaries. Representative p50/p90 and the ≤5-second target remain unverified.
+AUD-21 and AUD-23 remain In Progress.
 
 ## Setup
 
@@ -41,6 +44,9 @@ precision. Browser events alone cannot establish actual audible onset.
 
 ## Manual checklist
 
+- [ ] **Opening:** try a routine status with “How about you?”, then a richer check-in.
+  Expect a brief reciprocal reply before the listening transition. Record these as
+  separate opening categories; do not pool them with exercise-answer turns.
 - [ ] **Short answers:** answer in 1–8 seconds; expect one complete, meaning-based assessment
   and appropriate spoken feedback/follow-up. Repeat across several exercises.
 - [ ] **Long answers:** answer in 15–30 seconds; expect the entire answer to be assessed,
@@ -95,7 +101,7 @@ first audible playback separately; do not invent a speech-end boundary for it.
   window.audliAcceptance?.stop();
   const stages = new Set([
     'silence_detection', 'recording_finalization', 'upload_transcription',
-    'assessment', 'profile_extraction', 'request_submission', 'response_headers',
+    'assessment', 'checkin_response', 'profile_extraction', 'request_submission', 'response_headers',
     'first_audio_byte', 'audio_body_ready', 'tts_readiness', 'playback_start',
     'acknowledgment_playback', 'turn_to_playback', 'retry_playback',
     'acknowledgment_duration', 'coaching_readiness', 'coaching_wait_after_ack',

@@ -96,22 +96,62 @@ async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>
   let stage='identity',revision=0,pending:{text:string;confidence:number;uncertainty:string[]}|null=null;
   let failVoice=false,failUpload=false,failComplete=false,uncertain=false,delayAudio=false,releaseAudio:(()=>void)|undefined;
   const revisions:number[]=[];
-  const snapshot=()=>({profile:{...profile},stage,revision,pending,prompt:stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
+  let incomplete=0,clarification=false,clarificationCount=0,paused=false;
+  const snapshot=()=>({profile:{...profile},stage,revision,pending,clarification_paused:paused,prompt:clarification?'What language do you want to train? Audli currently trains English listening.':stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
   await page.route('**/api/profile',route=>route.fulfill({json:route.request().headers()['authorization']===`Bearer ${tokenB}`?{destination:'session_ready',profile:{...profile,name:'Bob'},provider:'openai'}:{destination:snapshot().destination,profile,provider:'openai'}}));
   await page.route('**/api/onboarding**',async route=>{
     const path=new URL(route.request().url()).pathname;fixture.requests.push({path,authorization:route.request().headers()['authorization'],method:route.request().method(),body:route.request().postData()});
     if(path.endsWith('/audio')){const requested=route.request().postDataJSON().revision;revisions.push(requested);if(delayAudio){delayAudio=false;await new Promise<void>(resolve=>{releaseAudio=resolve;});}if(requested!==revision)return route.fulfill({status:409,json:{detail:'Onboarding changed'}});if(failVoice)return route.fulfill({status:503,json:{detail:'Voice unavailable'}});return route.fulfill({contentType:'audio/wav',body:promptWav()});}
     if(path.endsWith('/start')&&profile.onboarding_status!=='in_progress'){profile.onboarding_status='in_progress';revision++;}
+    if(path.endsWith('/retry-clarification')){paused=false;clarificationCount=0;revision++;}
     if(path.endsWith('/attempts')){if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Transcription failed. Recording is safe.'}});}pending={text:'Maya English work meetings and science',confidence:uncertain?.2:.95,uncertainty:uncertain?['unclear']:[]};uncertain=false;revision++;}
-    if(path.endsWith('/answer')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Stale revision'}});if(stage==='identity'){profile.name='Maya';stage='needs';}else if(stage==='needs'){profile.goal='Understand meetings';profile.target_situations=['work meetings'];stage='interests';}else{profile.interests=['science'];stage='review';profile.onboarding_status='profile_saved';}pending=null;revision++;}
+    if(path.endsWith('/answer')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Stale revision'}});if(incomplete>0){incomplete--;profile.name='Maya';clarification=true;paused=clarificationCount===2;clarificationCount=Math.min(2,clarificationCount+1);pending=null;revision++;return route.fulfill({json:snapshot()});}clarification=false;clarificationCount=0;if(stage==='identity'){profile.name='Maya';stage='needs';}else if(stage==='needs'){profile.goal='Understand meetings';profile.target_situations=['work meetings'];stage='interests';}else{profile.interests=['science'];stage='review';profile.onboarding_status='profile_saved';}pending=null;revision++;}
     if(path.endsWith('/complete')){if(profile.onboarding_status!=='complete'){profile.onboarding_status='complete';revision++;}if(failComplete){failComplete=false;return route.fulfill({status:503,json:{detail:'Response interrupted. Progress is safe.'}});}}
     return route.fulfill({json:snapshot()});
   });
   await signIn(page);await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
-  return {...fixture,revisions,snapshot,failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
+  return {...fixture,revisions,snapshot,incompleteAnswers(count=1){incomplete=count;},failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
 }
 async function onboardingTurn(page:Page){await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);}
 async function completeOnboarding(page:Page){await page.getByRole('button',{name:'Let’s talk',exact:true}).click();for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();}
+
+test('incomplete onboarding asks a focused question and records fresh speech after End and refresh',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.incompleteAnswers();await page.clock.install();
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);
+  expect(fixture.snapshot().profile.name).toBe('Maya');expect(fixture.snapshot().pending).toBeNull();
+  await expect(page.getByText('What language do you want to train? Audli currently trains English listening.',{exact:true})).toHaveCount(1);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();await page.reload();
+  await expect(page.getByRole('button',{name:'Resume our conversation'})).toBeVisible();
+  expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(1);
+  await page.getByRole('button',{name:'Resume our conversation'}).click();await onboardingTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(2);
+  expect(fixture.snapshot().stage).toBe('needs');expect((await probe(page)).recorders).toBe(1);
+});
+
+test('repeated incomplete onboarding pauses across refresh until explicit retry',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.incompleteAnswers(3);await page.clock.install();
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
+  for(let i=0;i<2;i++)await onboardingTurn(page);
+  await endAudio(page);await listening(page);await page.clock.runFor(2700);
+  await expect(page.locator('main').getByRole('alert')).toContainText('Let’s pause here');
+  expect(fixture.snapshot().clarification_paused).toBe(true);await page.reload();
+  await expect(page.getByRole('button',{name:'Resume our conversation'})).toBeVisible();
+  expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(3);
+  expect((await probe(page)).recorders).toBe(0);
+  await page.getByRole('button',{name:'Resume our conversation'}).click();await onboardingTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/retry-clarification'))).toHaveLength(1);
+  expect(fixture.snapshot().stage).toBe('needs');
+});
+
+test('account switch cancels the fresh clarification recording',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.incompleteAnswers();await page.clock.install();
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);
+  await endAudio(page);await listening(page);await switchToB(page);const count=fixture.requests.length;
+  await page.clock.runFor(2700);await page.waitForTimeout(100);
+  expect(fixture.requests.length).toBe(count);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(1);
+  expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.method!=='GET')).toEqual([]);
+});
 
 test('spoken onboarding progresses hands-free, persists profile, and completed learner skips it',async({page})=>{
   const fixture=await setupOnboarding(page);await page.clock.install();await completeOnboarding(page);expect(fixture.requests.filter(x=>x.path==='/api/onboarding/answer')).toHaveLength(3);expect(fixture.snapshot().profile.interests).toEqual(['science']);expect(fixture.requests.some(x=>x.path==='/api/lessons/lesson/exercise')).toBe(false);

@@ -6,14 +6,15 @@ from app.audio import validate_upload, sanitize_generated_audio
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
-from app.onboarding import PROMPTS, Revision, Answer, apply_extraction, application_destination
+from app.onboarding import Revision, Answer, apply_extraction, application_destination, onboarding_prompt
 
 
 def register_onboarding_routes(app, repo, ai, lock, settings):
     def public(profile):
         return {'profile': profile, 'stage': profile.onboarding.stage,
                 'revision': profile.onboarding.revision,
-                'prompt': PROMPTS[profile.onboarding.stage],
+                'prompt': onboarding_prompt(profile),
+                'clarification_paused': profile.onboarding.clarification_paused,
                 'pending': profile.onboarding.pending,
                 'destination': application_destination(profile)}
 
@@ -29,6 +30,20 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 return public(repo.save_onboarding(profile, revision))
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
+
+    def require_active(profile):
+        if profile.onboarding.clarification_paused:
+            raise HTTPException(409, 'Pause and check your microphone, then retry the conversation.')
+
+    @app.post('/api/onboarding/retry-clarification')
+    async def retry_clarification(body: Revision):
+        async with lock:
+            profile = check(body.revision)
+            if not profile.onboarding.clarification_paused:
+                return public(profile)
+            profile.onboarding.clarification_paused = False
+            profile.onboarding.clarification_count = 0
+            return save(profile, body.revision)
 
     @app.get('/api/onboarding')
     async def state():
@@ -51,6 +66,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
         try:
             async with timed_lock(settings, lock, 'onboarding.upload'):
                 profile = check(revision)
+                require_active(profile)
                 if profile.onboarding_status != 'in_progress' or profile.onboarding.stage == 'review':
                     raise HTTPException(409, 'Resume your current onboarding stage.')
                 with operation(settings, 'onboarding.upload_validation'):
@@ -66,6 +82,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
     async def answer(body: Answer):
         async with timed_lock(settings, lock, 'onboarding.extraction'):
             profile = check(body.revision)
+            require_active(profile)
             if profile.onboarding.pending is None:
                 raise HTTPException(409, 'Record an answer before confirming recognition.')
             if body.hands_free and (body.text.strip() != profile.onboarding.pending.text.strip()
@@ -88,6 +105,10 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             if profile.onboarding.stage != 'review':
                 raise HTTPException(409, 'Finish the current stage first.')
             profile.onboarding.stage = 'identity'
+            profile.onboarding.answered_fields = []
+            profile.onboarding.clarification = None
+            profile.onboarding.clarification_count = 0
+            profile.onboarding.clarification_paused = False
             profile.onboarding_status = 'in_progress'
             return save(profile, body.revision)
 
@@ -107,7 +128,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
     async def speech(body: Revision):
         async with timed_lock(settings, lock, 'onboarding.audio'):
             profile = check(body.revision)
-            text = PROMPTS[profile.onboarding.stage]
+            require_active(profile)
+            text = onboarding_prompt(profile)
             kind = 'wav' if settings.provider == 'demo' else 'mp3'
             # Only application-owned static prompts are reused. Include the complete
             # voice configuration so changed settings cannot replay old speech.

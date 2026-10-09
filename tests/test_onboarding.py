@@ -20,7 +20,10 @@ def extraction(stage, text):
 
 def start(client):
     state = client.get('/api/onboarding').json()
-    return client.post('/api/onboarding/start', json={'revision': state['revision']}).json()
+    state = client.post('/api/onboarding/start', json={'revision': state['revision']}).json()
+    while state['welcome']:
+        state = client.post('/api/onboarding/heard', json={'revision': state['revision']}).json()
+    return state
 
 
 def spoken(client, state, audio_bytes, text='My spoken preferences'):
@@ -63,6 +66,7 @@ def test_authenticated_full_onboarding_restart_and_first_generation(accounts, re
     state = spoken(resumed, state, audio_bytes)
     state = spoken(resumed, state, audio_bytes)
     assert calls == ['identity', 'needs', 'interests']
+    state = spoken(resumed, state, audio_bytes, 'No preference')
     assert state['profile']['onboarding_status'] == 'profile_saved'
     assert resumed.put('/api/profile', json={'name':'Stale setup', 'goal':'Wrong context'}).status_code == 409
     assert state['profile']['initial_listening_profile'] is None
@@ -270,7 +274,7 @@ def test_no_interest_preference_remains_valid_after_clarification(accounts, audi
         return extraction('interests', '').model_copy(update={'interests':[]})
     a.provider.extract_profile = no_preference
     state = spoken(a, state, audio_bytes, 'No preference')
-    assert state['stage'] == 'review' and state['profile']['interests'] == []
+    assert state['stage'] == 'accents' and state['profile']['interests'] == []
 
 
 def test_provider_failure_after_partial_answer_retries_recognition_without_losing_name(accounts, audio_bytes):
@@ -307,12 +311,13 @@ def test_explicit_revision_and_completion_do_not_reset_old_learning(accounts, re
     profile.completed_attempts = 2
     profile.difficulty.speech_rate = .85
     repo.save_profile(profile)
-    for _ in range(3):
+    for _ in range(4):
         state = spoken(a, state, audio_bytes)
     response = a.post('/api/onboarding/revise', json={'revision':state['revision']})
     assert response.status_code == 200
     state = response.json()
     assert state['stage'] == 'identity' and state['profile']['completed_attempts'] == 2
+    # Saved optional accents are not asked again during explicit profile revision.
     for _ in range(3):
         state = spoken(a, state, audio_bytes)
     done = a.post('/api/onboarding/complete', json={'revision':state['revision']}).json()

@@ -36,16 +36,26 @@ class Transcription(StrictModel):
     source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
 
 class OnboardingProgress(StrictModel):
+    welcome: Literal['introduction', 'status'] | None = None
+    accents_asked: bool = False
     answered_fields: list[Literal['name', 'target_language', 'goal', 'target_situations', 'interests']] = Field(default_factory=list, max_length=5)
-    clarification: Literal['name', 'target_language', 'goal', 'target_situations', 'interests'] | None = None
+    clarification: Literal['name', 'target_language', 'goal', 'target_situations', 'interests', 'accents'] | None = None
     clarification_count: int = Field(default=0, ge=0, le=2)
     clarification_paused: bool = False
     version: Literal[1] = 1
-    stage: Literal['identity', 'needs', 'interests', 'review'] = 'identity'
+    stage: Literal['identity', 'needs', 'interests', 'accents', 'review'] = 'identity'
     revision: int = Field(default=0, ge=0)
     pending: Transcription | None = None
 
+class AccentPreferences(StrictModel):
+    version: Literal[1] = 1
+    source: Literal['learner_stated'] = 'learner_stated'
+    response: str = Field(default='', max_length=8000)
+    accents: list[Literal['british', 'american', 'australian', 'scottish', 'indian', 'irish', 'canadian', 'new_zealand', 'welsh', 'south_african']] = Field(default_factory=list, max_length=10)
+    status: Literal['unspecified', 'preferred', 'no_preference'] = 'unspecified'
+
 class LearnerProfile(StrictModel):
+    accent_preferences: AccentPreferences = Field(default_factory=AccentPreferences)
     name: str = Field(default='Listener', min_length=1, max_length=80)
     target_language: Literal['en'] = 'en'
     goal: str = Field(default='Understand everyday English', min_length=1, max_length=500)

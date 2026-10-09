@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
 import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 
-async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false) {
+async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string) {
   await installVoice(page,{autoPlayback,delayBody:delayIntroduction?'/introduction-audio':delayCue?'/recognition/acknowledgment-audio':undefined});
   let value:LessonCheckpoint|null=null,exerciseState='LISTENING',pendingAttempt=false;
   const requests:string[]=[],spoken:string[]=[],phases:string[]=[];
@@ -29,10 +29,10 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
       if(path.endsWith('/audio'))return audio(value!.prompt!);
       if(path.endsWith('/end'))value!.status='paused';
       if(path.endsWith('/resume'))value!.status='active';
-      if(path.endsWith('/attempts')){value!.pending={text:value!.phase==='WELCOME'?"I'm good, and you?":'I enjoy science',confidence:.99,uncertainty:[]};value!.revision++;}
-      if(path.endsWith('/answer')){const welcome=value!.phase==='WELCOME';value!.pending=null;phase(welcome?'WELCOME_ACK':'REVIEW_ACK',welcome?'Good to hear. Doing well, thanks for asking!':missingInterests?'We can continue with today’s listening.':'I’ll keep science in mind as we choose our listening topics.');}
+      if(path.endsWith('/attempts')){value!.pending={text:value!.phase==='WELCOME'?"I'm good, and you?":accentRequest??'I enjoy science',confidence:.99,uncertainty:[]};value!.revision++;}
+      if(path.endsWith('/answer')){const welcome=value!.phase==='WELCOME';value!.pending=null;phase(welcome?'WELCOME_ACK':'REVIEW_ACK',welcome?'Good to hear. Doing well, thanks for asking!':accentRequest?'I’ll remember that accent preference. Accent-specific recordings aren’t available yet, so today’s audio will use our usual voice.':missingInterests?'We can continue with today’s listening.':'I’ll keep science in mind as we choose our listening topics.');}
       if(path.endsWith('/heard')){
-        if(value!.phase==='WELCOME_ACK')phase(returning?'REVIEW':'TRANSITION',returning?'Last time, we listened to work meetings. You demonstrated strength in following the main idea. What would you enjoy listening to today?':'Today, let’s practice catching important details. Here we go.');
+        if(value!.phase==='WELCOME_ACK')phase(returning?'REVIEW':'TRANSITION',returning?(accentRequest?'Last time, we listened to work meetings. You demonstrated strength in following the main idea. You mentioned Australian English; accent-specific recordings aren’t available yet. What would you enjoy listening to today?':'Last time, we listened to work meetings. You demonstrated strength in following the main idea. What would you enjoy listening to today?'):'Today, let’s practice catching important details. Here we go.');
         else if(value!.phase==='REVIEW_ACK')phase('TRANSITION','Today, let’s practice catching important details. Here we go.');
         else if(value!.phase==='TRANSITION')phase('EXERCISE',null);
         else if(value!.phase==='CLOSING'){phase('COMPLETED',null);value!.status='completed';}
@@ -424,4 +424,15 @@ for(const interrupt of [false,true])test(`opening reciprocity plays before advan
     expect(fixture.requests.filter(path=>path.endsWith('/heard'))).toHaveLength(1);
     await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+2);
   }
+});
+
+
+test('returning review remembers accents with one question and honestly acknowledges unsupported requests',async({page})=>{
+  const fixture=await setup(page,true,true,undefined,false,false,true,'A Scottish accent please');
+  await runToCompletion(page);
+  const review=fixture.spoken.find(text=>text.startsWith('Last time'))!;
+  expect(review).toContain('Australian English');expect(review.match(/\?/g)).toHaveLength(1);
+  expect(fixture.spoken).toContain('I’ll remember that accent preference. Accent-specific recordings aren’t available yet, so today’s audio will use our usual voice.');
+  expect(fixture.requests.filter(path=>path==='/api/lessons/structured/attempts')).toHaveLength(2);
+  expect(fixture.phases).toContain('REVIEW_ACK');expect(fixture.phases).toContain('TRANSITION');
 });

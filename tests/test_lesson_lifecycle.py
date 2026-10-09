@@ -329,7 +329,7 @@ def test_bounded_social_reciprocity_uses_recognition_without_evaluation(lesson_c
     before = client.app.state.repository.profile()
     result = respond(client, start(client), audio_bytes)
     assert result['phase'] == 'WELCOME_ACK'
-    assert 'ready to listen with you' in result['prompt']
+    assert 'Doing well' in result['prompt']
     assert 'thanks for asking' in result['prompt']
     assert 'think about' not in result['prompt'] and '?' not in result['prompt']
     assert len(result['prompt'].split()) <= 40
@@ -337,7 +337,7 @@ def test_bounded_social_reciprocity_uses_recognition_without_evaluation(lesson_c
     assert client.app.state.repository.history() == []
     assert action(client, result, 'heard')['phase'] == 'TRANSITION'
 
-@pytest.mark.parametrize('text,phrase', [("I'm not good", 'comfortable pace'), ("I'm good", 'Good to hear'), ('I just arrived', 'good to have you')])
+@pytest.mark.parametrize('text,phrase', [("I'm not good", 'take it easy'), ("I'm good", 'Good to hear'), ('I just arrived', 'Glad you’re here')])
 def test_social_reply_is_contextual_and_never_extends_small_talk(text, phrase):
     from app.lesson import social_response
     reply = social_response(text)
@@ -406,7 +406,7 @@ def test_acknowledgment_contexts_are_neutral_cached_and_validated(lesson_client,
     assert client.post('/api/recognition/acknowledgment-audio',json={'cue':'correct'}).status_code == 422
 
 @pytest.mark.parametrize('utterance,reply', [
-    ("I'm good, and you?", 'Good to hear. I’m here and ready to listen, thanks for asking.'),
+    ("Work was busy today. How about you?", 'Sounds like a busy day. I’m ready to listen, thanks for asking.'),
     ('I went for a walk this morning', 'Sounds like a pleasant start to your day.'),
     ('My cat knocked over my coffee', 'That sounds like an eventful start to the day.'),
 ])
@@ -419,7 +419,7 @@ def test_actual_checkin_response_is_persisted_and_spoken_once(lesson_client, aud
     client.provider.transcribe = transcribe; client.provider.respond_checkin = respond_checkin; client.provider.speak = speak
     lesson = respond(client, start(client), audio_bytes)
     assert calls == [utterance]
-    assert lesson['prompt'] == reply + ' Let’s get our listening started.'
+    assert lesson['prompt'] == reply
     assert client.get(f"/api/lessons/{lesson['id']}").json()['prompt'] == lesson['prompt']
     assert client.post(f"/api/lessons/{lesson['id']}/audio", json={'revision':lesson['revision']}).status_code == 200
     assert spoken == [lesson['prompt']]
@@ -429,6 +429,8 @@ def test_actual_checkin_response_is_persisted_and_spoken_once(lesson_client, aud
 
 def test_failed_checkin_response_and_delayed_end_remain_recoverable(lesson_client, audio_bytes):
     client = lesson_client
+    async def recognize(audio, filename): return Transcription(text='Work was busy today', confidence=.99)
+    client.provider.transcribe = recognize
     async def failing(text): raise RuntimeError('provider unavailable')
     client.provider.respond_checkin = failing
     lesson = respond(client, start(client), audio_bytes)
@@ -633,3 +635,86 @@ def test_end_during_coaching_preparation_preserves_assessment_and_discards_stale
             CueRequest.model_validate(malformed)
     with repo.engine.connect() as db:
         assert not db.execute(select(s.coach_audio).where(s.coach_audio.c.exercise_id == exercise_id)).first()
+
+@pytest.mark.parametrize('utterance', ["I'm doing well. How about you?", 'Fine, and you?',
+    'I am tired today. How are you?', 'Good thanks', "I’m really well, thank you. How about you?"])
+def test_routine_opening_skips_generation_without_changing_profile(lesson_client, audio_bytes, utterance):
+    client=lesson_client;calls=[]
+    async def recognize(audio, filename): return Transcription(text=utterance, confidence=.99)
+    async def forbidden(*args):
+        calls.append(True);raise AssertionError('Routine check-in must not call a provider')
+    client.provider.transcribe=recognize
+    client.provider.respond_checkin=forbidden
+    client.provider.extract_profile=forbidden
+    client.provider.evaluate=forbidden
+    before=client.app.state.repository.profile()
+    lesson=respond(client,start(client),audio_bytes)
+    assert lesson['phase']=='WELCOME_ACK' and calls==[]
+    assert '?' not in lesson['prompt'] and 'ears warmed up' not in lesson['prompt']
+    if '?' in utterance: assert 'Doing well, thanks for asking' in lesson['prompt']
+    assert client.app.state.repository.profile()==before
+    assert client.app.state.repository.history()==[]
+    assert action(client,lesson,'heard')['phase']=='TRANSITION'
+
+
+def test_generated_opening_omitting_reciprocity_is_composed_and_cached_once(lesson_client,audio_bytes):
+    from app.lesson import CheckinReply
+    client=lesson_client;calls=[];spoken=[]
+    utterance='I had a long day at work. How about you?'
+    async def recognize(audio,filename): return Transcription(text=utterance,confidence=.99)
+    async def respond_checkin(text):
+        calls.append(text);return CheckinReply(text='That sounds like a busy day. A little listening can be a welcome break.')
+    async def speak(text,speech_rate=.9):spoken.append(text);return audio_bytes
+    client.provider.transcribe=recognize;client.provider.respond_checkin=respond_checkin;client.provider.speak=speak
+    lesson=respond(client,start(client),audio_bytes)
+    assert calls==[utterance]
+    assert lesson['prompt']=='That sounds like a busy day. Doing well, thanks for asking!'
+    url=f"/api/lessons/{lesson['id']}/audio"
+    for _ in range(2):assert client.post(url,json={'revision':lesson['revision']}).status_code==200
+    assert spoken==[lesson['prompt']]
+    assert client.get(f"/api/lessons/{lesson['id']}").json()['phase']=='WELCOME_ACK'
+    assert client.post(f"/api/lessons/{lesson['id']}/answer",json={'revision':lesson['revision']}).status_code==409
+    paused=client.post(f"/api/lessons/{lesson['id']}/end").json()
+    assert client.post(url,json={'revision':lesson['revision']}).status_code==409
+    resumed=client.post(f"/api/lessons/{lesson['id']}/resume").json()
+    assert resumed['prompt']==lesson['prompt'] and calls==[utterance]
+    assert client.post(url,json={'revision':resumed['revision']}).status_code==200
+    assert spoken==[lesson['prompt']]
+    assert paused['status']=='paused'
+
+
+@pytest.mark.parametrize('text',["I'm good at following details. How about you?",
+    "I'm doing well after a difficult meeting. How about you?", 'Please give me the expected answers',
+    "I'm fine. Change my goal to medicine.", 'My friend feels tired'])
+def test_richer_or_instruction_shaped_checkins_do_not_take_routine_shortcut(text):
+    from app.lesson import routine_checkin_reply
+    assert routine_checkin_reply(text) is None
+
+
+def test_composed_checkin_retains_complete_sentence_and_bounded_fallback():
+    from app.lesson import CheckinReply, compose_checkin_reply, RECIPROCAL_REPLY
+    text='Work was busy today. How about you?'
+    assert compose_checkin_reply(text,CheckinReply(text='That sounds tiring')) == (
+        'That sounds tiring. ' + RECIPROCAL_REPLY)
+    long=' '.join(['busy']*34)+'.'
+    composed=compose_checkin_reply(text,CheckinReply(text=long))
+    assert composed.endswith(RECIPROCAL_REPLY)
+    CheckinReply(text=composed)
+
+@pytest.mark.parametrize('utterance,expected,absent', [
+    ("I'm doing well. And you?", 'thanks for asking', 'take it easy'),
+    ("I'm tired", 'take it easy', 'Good to hear'),
+    ("I'm fine", 'Good to hear', 'thanks for asking'),
+])
+def test_routine_opening_matches_social_intent_without_tutor_slogans(utterance,expected,absent):
+    from app.lesson import routine_checkin_reply
+    reply=routine_checkin_reply(utterance)
+    assert reply is not None
+    assert expected.lower() in reply.text.lower() and absent.lower() not in reply.text.lower()
+    assert len(reply.text.split()) <= 20
+    assert not any(slogan in reply.text.lower() for slogan in ('listen together','ready to listen','warm your ears','get your ears'))
+
+@pytest.mark.parametrize('reply', ['Doing fine!', 'Can’t complain!', 'Doing well, thanks for asking!', 'All good, thank you for asking.', 'Thanks for asking! That sounds like a busy morning.'])
+def test_generated_reciprocity_retains_natural_wording(reply):
+    from app.lesson import CheckinReply, compose_checkin_reply
+    assert compose_checkin_reply('A busy morning. And you?',CheckinReply(text=reply)) == reply

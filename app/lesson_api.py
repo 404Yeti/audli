@@ -5,7 +5,7 @@ from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from pydantic import Field, ValidationError
 from app.audio import validate_upload, sanitize_generated_audio
-from app.lesson import Lesson, CheckinReply, social_response, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
+from app.lesson import Lesson, CheckinReply, social_response, routine_checkin_reply, compose_checkin_reply, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
 from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
 from app.recognition import reliable_recognition
@@ -220,9 +220,12 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             else:
                 lesson.checkin = text
                 try:
-                    with operation(settings, 'lesson.response_generation'):
-                        reply = CheckinReply.model_validate(await ai().respond_checkin(text))
-                    lesson.welcome_response = reply.text + ' Let’s get our listening started.'
+                    reply = routine_checkin_reply(text)
+                    if reply is None:
+                        with operation(settings, 'lesson.response_generation'):
+                            reply = CheckinReply.model_validate(await ai().respond_checkin(text))
+                    with operation(settings, 'lesson.checkin_composition'):
+                        lesson.welcome_response = compose_checkin_reply(text, reply)
                 except Exception as exc:
                     report_failure(settings, 'Lesson check-in response', exc)
                     lesson.welcome_response = social_response(text)

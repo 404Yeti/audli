@@ -36,6 +36,10 @@ class Transcription(StrictModel):
     source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
 
 class OnboardingProgress(StrictModel):
+    answered_fields: list[Literal['name', 'target_language', 'goal', 'target_situations', 'interests']] = Field(default_factory=list, max_length=5)
+    clarification: Literal['name', 'target_language', 'goal', 'target_situations', 'interests'] | None = None
+    clarification_count: int = Field(default=0, ge=0, le=2)
+    clarification_paused: bool = False
     version: Literal[1] = 1
     stage: Literal['identity', 'needs', 'interests', 'review'] = 'identity'
     revision: int = Field(default=0, ge=0)

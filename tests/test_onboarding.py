@@ -158,7 +158,7 @@ def test_unsupported_language_does_not_advance(accounts, audio_bytes, language):
     assert a.get('/api/onboarding').json() == state
 
 @pytest.mark.parametrize('stage', ['identity', 'needs', 'interests'])
-def test_missing_structured_preferences_preserve_pending_stage(accounts, audio_bytes, stage):
+def test_missing_structured_preferences_request_fresh_answer(accounts, audio_bytes, stage):
     a, _, _ = accounts
     configure(a)
     state = start(a)
@@ -170,8 +170,128 @@ def test_missing_structured_preferences_preserve_pending_stage(accounts, audio_b
         return ProfileExtraction(name=None, target_language=None, goal=None, interests=None, target_situations=None)
     a.provider.extract_profile = missing
     response = a.post('/api/onboarding/answer', json={'revision':state['revision'],'text':'Unclear preferences','confirmed':True})
-    assert response.status_code == 422
+    assert response.status_code == 200
+    saved = response.json()
+    assert saved['stage'] == stage and saved['pending'] is None
+    assert saved['revision'] == state['revision'] + 1
+    assert saved['profile']['onboarding']['clarification_count'] == 1
+    assert a.get('/api/onboarding').json() == saved
+
+
+@pytest.mark.parametrize('stage,missing', [('identity','name'), ('identity','target_language'),
+    ('needs','goal'), ('needs','target_situations'), ('interests','interests')])
+def test_partial_preferences_merge_only_fresh_answers(accounts, audio_bytes, stage, missing):
+    a, b, _ = accounts
+    configure(a)
+    state = start(a)
+    while state['stage'] != stage:
+        state = spoken(a, state, audio_bytes)
+    full = extraction(stage, '')
+    async def partial(*args):
+        return full.model_copy(update={missing: None})
+    a.provider.extract_profile = partial
+    state = spoken(a, state, audio_bytes)
+    assert state['stage'] == stage and state['pending'] is None
+    assert state['profile']['onboarding']['clarification'] == missing
+    from app.onboarding import CLARIFICATIONS
+    assert state['prompt'] == CLARIFICATIONS[missing]
+    prompts = []
+    async def speak(text, speech_rate=.9):
+        prompts.append(text)
+        return audio_bytes
+    a.provider.speak = speak
+    assert a.post('/api/onboarding/audio', json={'revision':state['revision']}).status_code == 200
+    assert prompts == [state['prompt']]
     assert a.get('/api/onboarding').json() == state
+    assert b.get('/api/onboarding').json()['profile']['onboarding']['clarification'] is None
+    assert a.post('/api/onboarding/answer', json={'revision':state['revision'], 'text':'Old answer', 'confirmed':True}).status_code == 409
+    # A response containing only the missing field completes the saved stage.
+    async def focused(*args):
+        return ProfileExtraction(**{key: (getattr(full, key) if key == missing else None)
+            for key in ProfileExtraction.model_fields})
+    a.provider.extract_profile = focused
+    state = spoken(a, state, audio_bytes, 'Fresh clarification')
+    assert state['stage'] != stage
+    assert state['profile']['onboarding']['clarification'] is None
+    if stage == 'identity':
+        assert state['profile']['name'] == 'Maya'
+
+
+def test_clarification_budget_survives_restart_and_explicit_retry(accounts, repository_factory, tmp_path, audio_bytes):
+    a, _, _ = accounts
+    async def partial(*args):
+        return extraction('identity', '').model_copy(update={'target_language':None})
+    a.provider.extract_profile = partial
+    state = start(a)
+    for _ in range(3):
+        state = spoken(a, state, audio_bytes)
+    assert state['clarification_paused'] and state['profile']['name'] == 'Maya'
+    auth = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
+    resumed = AccountClient(create_app(settings_for(tmp_path / 'partial-restart'), a.provider,
+        repository=repository_factory(None), auth_client=auth), a.provider, 'valid-a')
+    assert resumed.get('/api/onboarding').json() == state
+    assert resumed.post('/api/onboarding/audio', json={'revision':state['revision']}).status_code == 409
+    assert resumed.post('/api/onboarding/attempts', data={'revision':state['revision']},
+        files={'audio':('x.wav',audio_bytes,'audio/wav')}).status_code == 409
+    state = resumed.post('/api/onboarding/retry-clarification', json={'revision':state['revision']}).json()
+    assert not state['clarification_paused'] and state['profile']['name'] == 'Maya'
+    assert state['profile']['onboarding']['clarification_count'] == 0
+    configure(resumed)
+    assert spoken(resumed, state, audio_bytes)['stage'] == 'needs'
+    asyncio.run(auth.aclose())
+
+
+def test_uncertain_hands_free_answer_cannot_save_partial_information(accounts, audio_bytes):
+    a, _, _ = accounts
+    configure(a)
+    from app.models import Transcription
+    async def uncertain(*args):
+        return Transcription(text='Maya', confidence=.2, uncertainty=['unclear'])
+    a.provider.transcribe = uncertain
+    state = start(a)
+    state = a.post('/api/onboarding/attempts', data={'revision':state['revision']},
+        files={'audio':('x.wav',audio_bytes,'audio/wav')}).json()
+    assert a.post('/api/onboarding/answer', json={'revision':state['revision'], 'text':'Maya',
+        'confirmed':True,'hands_free':True}).status_code == 422
+    assert a.get('/api/onboarding').json() == state
+
+
+def test_no_interest_preference_remains_valid_after_clarification(accounts, audio_bytes):
+    a, _, _ = accounts
+    configure(a)
+    state = start(a)
+    for _ in range(2):
+        state = spoken(a, state, audio_bytes)
+    async def empty(*args):
+        return extraction('interests', '').model_copy(update={'interests':None})
+    a.provider.extract_profile = empty
+    state = spoken(a, state, audio_bytes)
+    async def no_preference(*args):
+        return extraction('interests', '').model_copy(update={'interests':[]})
+    a.provider.extract_profile = no_preference
+    state = spoken(a, state, audio_bytes, 'No preference')
+    assert state['stage'] == 'review' and state['profile']['interests'] == []
+
+
+def test_provider_failure_after_partial_answer_retries_recognition_without_losing_name(accounts, audio_bytes):
+    a, _, _ = accounts
+    async def name_only(*args):
+        return extraction('identity', '').model_copy(update={'target_language':None})
+    a.provider.extract_profile = name_only
+    state = spoken(a, start(a), audio_bytes, 'Maya')
+    state = a.post('/api/onboarding/attempts', data={'revision':state['revision']},
+        files={'audio':('x.wav',audio_bytes,'audio/wav')}).json()
+    async def fail(*args):
+        raise ValueError('Synthetic provider failure')
+    a.provider.extract_profile = fail
+    body = {'revision':state['revision'],'text':'English','confirmed':True}
+    assert a.post('/api/onboarding/answer', json=body).status_code == 503
+    assert a.get('/api/onboarding').json() == state
+    async def language_only(*args):
+        return ProfileExtraction(name=None,target_language='en',goal=None,target_situations=None,interests=None)
+    a.provider.extract_profile = language_only
+    saved = a.post('/api/onboarding/answer', json=body).json()
+    assert saved['stage'] == 'needs' and saved['profile']['name'] == 'Maya'
 
 
 def test_explicit_revision_and_completion_do_not_reset_old_learning(accounts, repository_factory, audio_bytes):

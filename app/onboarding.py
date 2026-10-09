@@ -40,30 +40,55 @@ class Answer(Revision):
     hands_free: bool = False
 
 
+CLARIFICATIONS = {
+    'name': 'What should I call you?',
+    'target_language': 'What language do you want to train? Audli currently trains English listening.',
+    'goal': 'Why are you learning English?',
+    'target_situations': 'What listening situation matters most to you?',
+    'interests': 'What topics do you enjoy listening to? You can also say you have no preference.',
+}
+
+def onboarding_prompt(profile):
+    return CLARIFICATIONS.get(profile.onboarding.clarification, PROMPTS[profile.onboarding.stage])
+
 def apply_extraction(profile, extraction):
     extraction = ProfileExtraction.model_validate(extraction)
     stage = profile.onboarding.stage
-    if stage == 'identity':
-        if not extraction.name or not extraction.target_language:
-            raise ValueError('Please tell Audli your preferred name and training language.')
-        if extraction.target_language.casefold() not in ('en', 'english'):
-            raise ValueError('Audli currently supports English listening. Please confirm English to continue.')
-        profile.name, profile.target_language = extraction.name, 'en'
-        profile.onboarding.stage = 'needs'
-    elif stage == 'needs':
-        if not extraction.goal or not extraction.target_situations:
-            raise ValueError('Please explain your reason for learning and a listening situation that matters to you.')
-        profile.goal, profile.target_situations = extraction.goal, extraction.target_situations
-        profile.onboarding.stage = 'interests'
-    elif stage == 'interests':
-        if extraction.interests is None:
-            raise ValueError('Please share an interest, or say you have no preference.')
-        profile.interests = extraction.interests
-        profile.onboarding.stage = 'review'
-        profile.onboarding_status = 'profile_saved'
-    else:
+    fields = {'identity': ('name', 'target_language'), 'needs': ('goal', 'target_situations'),
+              'interests': ('interests',)}.get(stage)
+    if fields is None:
         raise ValueError('Your profile is ready for confirmation.')
+    if stage == 'identity' and extraction.target_language is not None and extraction.target_language.casefold() not in ('en', 'english'):
+        raise ValueError('Audli currently supports English listening. Please confirm English to continue.')
+    profile = profile.model_copy(deep=True)
+    progress = profile.onboarding
+    # Defaults and previous setup are not evidence for the current spoken stage.
+    # Only fields actually supplied in this stage can satisfy its requirements.
+    for field in fields:
+        value = getattr(extraction, field)
+        if value is None or (field == 'target_situations' and not value):
+            continue
+        setattr(profile, field, 'en' if field == 'target_language' else value)
+        if field not in progress.answered_fields:
+            progress.answered_fields.append(field)
     profile.onboarding.pending = None
+    missing = next((field for field in fields if field not in progress.answered_fields), None)
+    if missing:
+        progress.clarification = missing
+        # Two automatic fresh-answer clarifications, then a persisted pause.
+        # Refresh cannot reset this budget; explicit Retry starts a new cycle.
+        if progress.clarification_count == 2:
+            progress.clarification_paused = True
+        else:
+            progress.clarification_count += 1
+        return profile
+    progress.stage = {'identity': 'needs', 'needs': 'interests', 'interests': 'review'}[stage]
+    progress.answered_fields = []
+    progress.clarification = None
+    progress.clarification_count = 0
+    progress.clarification_paused = False
+    if progress.stage == 'review':
+        profile.onboarding_status = 'profile_saved'
     return profile
 
 

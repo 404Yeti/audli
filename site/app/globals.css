@@ -21,6 +21,8 @@ h1,h2,h3,p { margin:0; }
 h1 { font-size:79px; line-height:1; letter-spacing:-.06em; }
 .lede { color:var(--muted); font-size:23px; line-height:1.22; }
 .note { color:var(--muted); font-size:16px; }
+.beta-note { max-width:530px; line-height:1.6; }
+.beta-note a { display:inline-block; color:var(--navy); font-weight:600; text-decoration:underline; text-underline-offset:4px; }
 .mascot { width:350px; height:307px; position:relative; margin:auto; filter:drop-shadow(0 18px 20px #0b1c3812); }
 .headband,.opening,.ear,.sound { position:absolute; display:block; }
 .headband { width:219px; height:172px; left:66px; top:26px; border-radius:50%; background:linear-gradient(145deg,#12c6b5,#02a99c); }
@@ -52,6 +54,20 @@ h1 { font-size:79px; line-height:1; letter-spacing:-.06em; }
 .benefit-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:80px; margin-top:40px; }.benefit-grid article { display:flex; flex-direction:column; gap:20px; }
 .benefit-dot { width:45px; height:45px; border-radius:50%; }.benefit-dot.blue { background:#dbeafe; }.benefit-dot.teal { background:#ccfbf1; }.benefit-dot.coral { background:#ffe3df; }
 .benefit-grid h3 { font-size:23px; }.benefit-grid p { color:var(--muted); font-size:18px; }
+.testimonial { margin-top:100px; }
+.testimonial .section-heading .eyebrow { color:var(--teal); font-size:13px; letter-spacing:.08em; font-weight:700; }
+.testimonial-card { margin:32px 0 0; max-width:850px; padding:40px; background:#fff; border:1px solid #e2ece8; border-radius:28px; }
+.testimonial-card blockquote { margin:0; font-size:28px; line-height:1.5; letter-spacing:-.02em; }
+.testimonial-card figcaption { display:flex; gap:14px; align-items:center; margin-top:28px; }
+.learner-mark { width:46px; height:46px; display:grid; place-items:center; background:var(--teal-soft); color:var(--navy); border-radius:50%; font-size:24px; }
+.testimonial-card figcaption div { display:flex; flex-direction:column; gap:5px; }
+.testimonial-card figcaption strong { font-size:15px; }.testimonial-card figcaption div span { font-size:14px; color:var(--muted); line-height:1.4; }
+.feedback-link { display:inline-block; margin-top:18px; text-decoration:underline; text-underline-offset:4px; font-weight:600; }
+.beta-feedback { margin-top:80px; }
+.feedback-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; margin-top:28px; }
+.feedback-card { display:block; padding:28px; border:1px solid #e2ece8; border-radius:24px; background:var(--teal-soft); }
+.feedback-card:hover { border-color:var(--teal); }.feedback-card h3 { font-size:22px; line-height:1.4; }.feedback-card p { margin-top:12px; color:var(--muted); font-size:17px; line-height:1.5; }
+.footer-links { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px 24px; }.footer-links a:hover { text-decoration:underline; text-underline-offset:4px; }
 .footer-cta { min-height:235px; margin-top:160px; padding:50px 57px; border-radius:38px; background:var(--navy); color:#fff; display:flex; justify-content:space-between; align-items:center; }
 .footer-cta h2 { font-size:42px; letter-spacing:-.04em; }.footer-cta p { margin-top:12px; color:#cbd5e1; font-size:20px; }.button-white { padding:18px 32px; color:var(--navy); background:#fff; font-size:18px; }
 footer { margin:45px 22px 0; display:flex; justify-content:space-between; color:var(--muted); font-size:15px; }
@@ -61,10 +77,15 @@ footer { margin:45px 22px 0; display:flex; justify-content:space-between; color:
   .hero { min-height:600px; margin-top:25px; padding:40px 24px 32px; border-radius:28px; display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
   .hero-copy { gap:24px; }.eyebrow { font-size:13px; }.hero h1 { font-size:48px; line-height:1.12; letter-spacing:-.055em; }.lede { font-size:18px; line-height:1.3; max-width:300px; }
   .hero .button { order:5; align-self:stretch; width:100%; padding:16px; margin-top:15px; }.note { display:none; }
+  .hero .beta-note { display:block; order:6; font-size:14px; }
   .hero > .mascot { order:4; width:210px; height:184px; transform:scale(.6); transform-origin:top left; margin:-2px 0 -74px 52px; }
   .section { padding:0 6px; }.steps { margin-top:44px; }.section-heading h2 { font-size:32px; }.steps .section-heading p { display:none; }
   .step-grid { grid-template-columns:1fr; gap:20px; margin-top:30px; }.step-card { min-height:170px; padding:25px 20px; display:grid; grid-template-columns:50px 1fr; grid-template-rows:50px auto; gap:18px; align-items:center; }
   .number { width:50px; height:50px; font-size:16px; }.step-card h3 { font-size:20px; }.step-card p { grid-column:1 / -1; font-size:15px; }
-  .lesson,.benefits,.footer-cta,footer { display:none; }
+  .lesson,.benefits { display:none; }
+  .testimonial { margin-top:48px; }.testimonial-card { padding:24px; margin-top:24px; }.testimonial-card blockquote { font-size:22px; }
+  .footer-cta { margin-top:48px; padding:32px 24px; border-radius:28px; flex-direction:column; align-items:flex-start; gap:24px; }.footer-cta h2 { font-size:30px; }.footer-cta p { font-size:16px; line-height:1.5; }.footer-cta .button { width:100%; font-size:16px; }
+  footer { margin:28px 6px 0; flex-direction:column; gap:16px; font-size:13px; line-height:1.5; }
+  .beta-feedback { margin-top:48px; }.feedback-grid { grid-template-columns:1fr; }.feedback-card { padding:24px; }.feedback-card h3 { font-size:20px; }.feedback-card p { font-size:15px; }.beta-feedback .section-heading p { font-size:17px; line-height:1.5; }.footer-links { justify-content:flex-start; }
 }
 @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; }.button { transition:none; } }

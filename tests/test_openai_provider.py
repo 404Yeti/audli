@@ -599,3 +599,17 @@ def test_profile_sdk_preserves_missing_empty_and_supplied_interests(interests):
 def test_checkin_rejects_invented_human_experiences(text):
     from app.lesson import CheckinReply
     with pytest.raises(ValueError):CheckinReply(text=text)
+
+
+def test_remembered_accents_do_not_select_voice_or_change_exercise_generation(exercise):
+    from app.accents import extract
+    profile = LearnerProfile()
+    profile.accent_preferences = extract('Fast Scottish and Australian English')
+    before = profile.difficulty.model_dump()
+    def handler(request):
+        supplied = json.loads(json.loads(request.content)['input'][1]['content'])
+        assert 'accent_preferences' not in supplied['profile']
+        assert supplied['profile']['difficulty'] == before
+        assert 'Fast Scottish and Australian English' not in json.dumps(supplied)
+        return response(exercise.model_dump())
+    asyncio.run(run_provider(handler, lambda provider: provider.generate(profile)))

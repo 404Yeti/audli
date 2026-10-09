@@ -6,13 +6,14 @@ from app.audio import validate_upload, sanitize_generated_audio
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
-from app.onboarding import Revision, Answer, apply_extraction, application_destination, onboarding_prompt
+from app.onboarding import Revision, Answer, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
 
 
 def register_onboarding_routes(app, repo, ai, lock, settings):
     def public(profile):
         return {'profile': profile, 'stage': profile.onboarding.stage,
                 'revision': profile.onboarding.revision,
+                'welcome': profile.onboarding.welcome,
                 'prompt': onboarding_prompt(profile),
                 'clarification_paused': profile.onboarding.clarification_paused,
                 'pending': profile.onboarding.pending,
@@ -58,7 +59,18 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                     and profile.onboarding.revision == 0):
                 return public(profile)
             profile = check(body.revision)
+            if profile.onboarding_status == 'not_started' and profile.onboarding.revision == 0:
+                profile.onboarding.welcome = 'introduction'
             profile.onboarding_status = 'in_progress'
+            return save(profile, body.revision)
+
+    @app.post('/api/onboarding/heard')
+    async def heard(body: Revision):
+        async with lock:
+            profile = check(body.revision)
+            if not profile.onboarding.welcome or profile.onboarding_status != 'in_progress':
+                raise HTTPException(409, 'Continue from your saved onboarding question.')
+            profile.onboarding.welcome = 'status' if profile.onboarding.welcome == 'introduction' else None
             return save(profile, body.revision)
 
     @app.post('/api/onboarding/attempts')
@@ -67,7 +79,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             async with timed_lock(settings, lock, 'onboarding.upload'):
                 profile = check(revision)
                 require_active(profile)
-                if profile.onboarding_status != 'in_progress' or profile.onboarding.stage == 'review':
+                if profile.onboarding_status != 'in_progress' or profile.onboarding.stage == 'review' or profile.onboarding.welcome:
                     raise HTTPException(409, 'Resume your current onboarding stage.')
                 with operation(settings, 'onboarding.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
@@ -90,6 +102,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 raise HTTPException(422, "I didn't quite catch that. Could you say it again?")
             if not body.text.strip():
                 raise HTTPException(422, 'Please check recognition or record again.')
+            if profile.onboarding.stage == 'accents':
+                return save(apply_accent_answer(profile, body.text.strip()), body.revision)
             with operation(settings, 'onboarding.extraction_provider'):
                 extraction = await ai().extract_profile(profile.onboarding.stage, body.text.strip())
             try:

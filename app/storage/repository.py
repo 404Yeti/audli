@@ -104,7 +104,7 @@ class SQLProgressRepository:
     def profile(self):
         with self.engine.connect() as db:
             row = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id)).mappings().one()
-            return LearnerProfile(onboarding=row['data'].get('onboarding', {}), name=row['name'], target_language=row['target_language'], goal=row['goal'],
+            return LearnerProfile(accent_preferences=row['data'].get('accent_preferences', {}), onboarding=row['data'].get('onboarding', {}), name=row['name'], target_language=row['target_language'], goal=row['goal'],
                 interests=row['interests'], target_situations=row['target_situations'],
                 onboarding_status=row['onboarding_status'], initial_listening_profile=row['initial_listening_profile'],
                 listening_profile={key: row[key] for key in ('overall', 'main_idea', 'details', 'vocabulary', 'inference', 'natural_speed')},
@@ -125,7 +125,7 @@ class SQLProgressRepository:
                 raise ValueError('Onboarding changed. Reload your saved progress before continuing.')
             if current.onboarding_status == 'complete':
                 raise ValueError('Onboarding is already complete.')
-            for field in ('name', 'target_language', 'goal', 'interests', 'target_situations', 'onboarding_status', 'onboarding'):
+            for field in ('name', 'target_language', 'goal', 'interests', 'target_situations', 'onboarding_status', 'onboarding', 'accent_preferences'):
                 setattr(current, field, getattr(profile, field))
             current.onboarding.revision = expected_revision + 1
             db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id)
@@ -388,15 +388,23 @@ class SQLProgressRepository:
 
     def create_lesson(self, lesson):
         with self.transaction() as db:
-            db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
+            row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == self.learner_id).with_for_update()).scalar_one()
             if db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == self.learner_id,
                     s.lessons.c.status != 'completed'))).first():
                 raise ValueError('Resume the existing lesson.')
+            completed = db.execute(select(s.lessons.c.data).where(and_(s.lessons.c.user_id == self.learner_id,
+                s.lessons.c.status == 'completed')).order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc())).scalars().all()
+            preferences = LearnerProfile.model_validate(row).accent_preferences
+            # Every other returning lesson; rotate recognized labels and never
+            # repeat the last suggestion. A single preference is suggested once.
+            last = next((item.get('suggested_accent') for item in completed if item.get('suggested_accent')), None)
+            if lesson.previous and len(completed) % 2 == 1 and preferences.status == 'preferred':
+                lesson.suggested_accent = next((item for item in preferences.accents if item != last), None)
             db.execute(s.lessons.insert().values(id=lesson.id, user_id=self.learner_id,
                 status=lesson.status, revision=lesson.revision, started_at=lesson.started_at,
                 data=lesson.model_dump(mode='json')))
 
-    def save_lesson(self, lesson, expected_revision, interests=None):
+    def save_lesson(self, lesson, expected_revision, interests=None, accent_preferences=None):
         """CAS checkpoint plus preferences in one transaction; never replace learning state."""
         with self.transaction() as db:
             profile = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id).with_for_update()).mappings().one()
@@ -406,9 +414,12 @@ class SQLProgressRepository:
                 .values(status=lesson.status, revision=lesson.revision, data=lesson.model_dump(mode='json')))
             if changed.rowcount != 1:
                 raise ValueError('Lesson changed. Reload the current checkpoint.')
-            if interests is not None:
+            if interests is not None or accent_preferences is not None:
                 current = LearnerProfile.model_validate(profile['data'])
-                current.interests = interests
+                if interests is not None:
+                    current.interests = interests
+                if accent_preferences is not None:
+                    current.accent_preferences = accent_preferences
                 db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id).values(**profile_values(current)))
         return lesson
 

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from pydantic import Field, field_validator
 from app.models import StrictModel, Transcription, Dimension
+from app.accents import LABELS
 
 TARGET_SECONDS = 600
 CLOSING_SECONDS = 90
@@ -33,6 +34,7 @@ class Lesson(StrictModel):
     name: str
     focus: Dimension
     previous: str | None = None
+    suggested_accent: str | None = Field(default=None, max_length=30)
     exercise_id: str | None = None
     introduced_exercise_id: str | None = None
     welcome_response: str | None = None
@@ -86,7 +88,9 @@ def prompt(lesson: Lesson) -> str | None:
     return {
         'WELCOME': f'Hey {name}! How’s your day going?',
         'WELCOME_ACK': lesson.welcome_response or social_response(lesson.checkin or ''),
-        'REVIEW': (lesson.previous or '') + ' What would you enjoy listening to more of today?',
+        'REVIEW': (lesson.previous or '') + (
+            f' You mentioned {LABELS[lesson.suggested_accent]}; we can keep that preference in mind, though accent-specific recordings aren’t available yet.'
+            if lesson.suggested_accent in LABELS else '') + ' What would you enjoy listening to more of today?',
         'REVIEW_ACK': lesson.review_response or 'I’ll use that to guide today’s listening.',
         'TRANSITION': f'Alright, I’ve got something for you to listen to. We’ll focus on {FOCUS[lesson.focus]}.',
         'CLOSING': lesson.closing,

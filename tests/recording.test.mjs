@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { captureRecording, recordingPreview, previewSource, recordingUpload, recordingDiagnostic } from '../web/lib/recording.ts';
 
-function setup({ mimeType = 'audio/webm;codecs=opus', supported = 'audio/webm;codecs=opus', failStart = false } = {}) {
+function setup({ mimeType = 'audio/webm;codecs=opus', supported = 'audio/webm;codecs=opus', failStart = false, delayedStart = false } = {}) {
   let stoppedTracks = 0;
   let current;
   const input = { getTracks: () => [{ stop() { stoppedTracks++; } }] };
@@ -19,6 +19,7 @@ function setup({ mimeType = 'audio/webm;codecs=opus', supported = 'audio/webm;co
       assert.equal(timeslice, 250);
       if (failStart) throw new Error('start failed');
       this.state = 'recording';
+      if (!delayedStart) queueMicrotask(() => this.onstart?.());
     }
     stop() { this.state = 'inactive'; this.stopRequests = (this.stopRequests || 0) + 1; }
     chunk(data) { this.ondataavailable?.({ data }); }
@@ -46,6 +47,29 @@ test('final dataavailable is collected before stop; upload uses the complete ori
   assert.equal(file.name, 'response.webm');
   assert.equal(file.type, captured.blob.type);
   assert.equal(await file.text(), 'firstfinal');
+});
+
+test('recording readiness waits for the start event and cancellation rejects pending readiness', async () => {
+  const captured = setup({delayedStart:true});
+  let ready=false;captured.session.ready.then(()=>{ready=true;});
+  await Promise.resolve();assert.equal(ready,false);
+  captured.active.onstart();await captured.session.ready;assert.equal(ready,true);
+  captured.session.dispose();assert.equal(captured.active.onstart,null);
+  const cancelled = setup({delayedStart:true});
+  cancelled.session.dispose();
+  await assert.rejects(cancelled.session.ready,{name:'AbortError'});
+  assert.ok(cancelled.stoppedTracks);
+});
+
+test('missing recorder start times out, releases tracks and cannot publish late partial audio', async context => {
+  context.mock.timers.enable({apis:['setTimeout']});
+  const captured=setup({delayedStart:true});
+  captured.active.chunk(new Blob(['partial'],{type:'audio/webm'}));
+  context.mock.timers.tick(5000);
+  await assert.rejects(captured.session.ready,/could not start/);
+  captured.active.finish();
+  assert.equal(captured.blob,null);assert.equal(captured.errors.length,1);
+  assert.ok(captured.stoppedTracks);
 });
 
 test('preview is absent until its URL matches the current Blob; cleanup revokes only its own URL', () => {

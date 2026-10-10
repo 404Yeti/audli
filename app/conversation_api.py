@@ -157,8 +157,8 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             text = body.text.strip()
             conversation.pending_attempt_id, conversation.pending_text = attempt_id, text
             conversation.state = 'ASSESSING_FOLLOWUP' if question else 'ASSESSING'
-            repo.confirm_text(attempt_id, text)
-            repo.save_conversation(conversation)  # Retry/reload checkpoint before external work.
+            with operation(settings, 'turn.assessment_checkpoint_persistence'):
+                repo.prepare_assessment(attempt_id, text, conversation)  # Durable retry checkpoint before external work.
             turn = ConversationTurn(attempt_id=attempt_id, text=text, followup=question)
             turns = [*conversation.turns, turn]
             content = ExerciseContent.model_validate_json(exercise_or_404(exercise_id)['content'])

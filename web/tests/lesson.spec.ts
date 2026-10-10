@@ -49,6 +49,35 @@ test('approved Home is mascot-centered with four working destinations and no met
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.setViewportSize({width:320,height:740});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(320);
   await page.screenshot({path:'/tmp/aud17-home.png',fullPage:true});
 });
+for (const delay of ['Context','Recorder'] as const) {
+  test(`Listening waits for delayed ${delay} readiness`,async({page})=>{
+    await setup(page,{delayContext:delay==='Context',delayRecorder:delay==='Recorder'});
+    await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+    await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);
+    await endAudio(page);
+    const key=`release${delay}`;
+    await expect.poll(()=>page.evaluate(key=>typeof (window as unknown as Record<string,unknown>)[key]==='function',key)).toBe(true);
+    await state(page,'Thinking');
+    if(delay==='Context')expect((await probe(page)).recorders).toBe(0);
+    await page.evaluate(key=>(window as unknown as Record<string,()=>void>)[key](),key);
+    await state(page,'Listening');
+    expect((await probe(page)).recorders).toBe(1);
+  });
+  test(`End during delayed ${delay} readiness releases tracks and prevents late recording`,async({page})=>{
+    await setup(page,{delayContext:delay==='Context',delayRecorder:delay==='Recorder'});
+    await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+    await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);
+    const key=`release${delay}`;
+    await expect.poll(()=>page.evaluate(key=>typeof (window as unknown as Record<string,unknown>)[key]==='function',key)).toBe(true);
+    await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Start today’s session'})).toBeVisible();
+    await page.evaluate(key=>(window as unknown as Record<string,()=>void>)[key](),key);
+    await page.waitForTimeout(100);
+    expect((await probe(page)).tracks).toBe((await probe(page)).mediaCalls);
+    expect((await probe(page)).recorders).toBe(delay==='Context'?0:1);
+    await expect(page.locator('.session-shell')).toHaveCount(0);
+  });
+}
 test('normal session completes with zero clicks after Start and automatically handles a follow-up',async({page})=>{
   const fixture=await setup(page,{autoPlayback:true});await page.clock.install();
   await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
@@ -255,4 +284,18 @@ test('Speaking and Listening share exactly mirrored cues inside the viewBox at m
   await check('.sound-waves');await page.screenshot({path:'/tmp/aud18-speaking-waves.png'});
   await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);await state(page,'Listening');await check('.listening-marks');
   await page.screenshot({path:'/tmp/aud18-listening-waves.png'});
+});
+
+
+test('suspended context times out safely, offers Retry and discards late resume',async({page})=>{
+  await setup(page,{delayContext:true});await page.clock.install();
+  await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
+  await endAudio(page);await expect.poll(async()=>(await probe(page)).plays.length).toBe(2);await endAudio(page);
+  await expect.poll(()=>page.evaluate(()=>typeof (window as unknown as Record<string,unknown>).releaseContext==='function')).toBe(true);
+  await state(page,'Thinking');await page.clock.runFor(5100);
+  await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
+  expect((await probe(page)).recorders).toBe(0);
+  expect((await probe(page)).tracks).toBe((await probe(page)).mediaCalls);
+  await page.evaluate(()=>(window as unknown as Record<string,()=>void>).releaseContext());
+  await page.waitForTimeout(50);expect((await probe(page)).recorders).toBe(0);
 });

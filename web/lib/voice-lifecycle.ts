@@ -183,6 +183,7 @@ export function useVoiceLifecycle() {
   }
   async function listen(operation: LessonOperation): Promise<Blob> {
     operation.assertCurrent(); audio.current?.pause();
+    setState('Thinking'); setActivity(false);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('Recording requires HTTPS and a supported browser.');
     const input = await operation.wait(() => navigator.mediaDevices.getUserMedia({ audio: true }), stream => stream.getTracks().forEach(track => track.stop()));
     operation.assertCurrent(() => input.getTracks().forEach(track => track.stop()));
@@ -190,11 +191,13 @@ export function useVoiceLifecycle() {
       return await operation.wait(() => new Promise<Blob>((resolve, reject) => {
         let context: AudioContext | undefined, source: MediaStreamAudioSourceNode | undefined;
         let interval: ReturnType<typeof setInterval> | undefined;
+        let resumeTimer: ReturnType<typeof setTimeout> | undefined;
         let capture: ReturnType<typeof captureRecording> | undefined;
         let disposed = false, stoppedAt: number | null = null, lastVoiceAt = performance.now();
         const cleanup = () => {
           if (disposed) return; disposed = true;
           if (interval) clearInterval(interval);
+          if (resumeTimer) clearTimeout(resumeTimer);
           source?.disconnect(); void context?.close().catch(() => {});
           capture?.dispose(); input.getTracks().forEach(track => track.stop());
           operation.signal.removeEventListener('abort', cancelled); disposeRecording.current = null;
@@ -207,22 +210,32 @@ export function useVoiceLifecycle() {
           const analyser = context.createAnalyser(); analyser.fftSize = 1024;
           source = context.createMediaStreamSource(input); source.connect(analyser);
           const samples = new Float32Array(analyser.fftSize);
-          capture = captureRecording(input, blob => { if (stoppedAt != null) turnTiming('recording_finalization', stoppedAt); cleanup(); resolve(blob); }, message => { cleanup(); reject(new Error(message)); });
-          const detect = turnDetector(Date.now());
-          setState('Listening'); setActivity(false);
-          void context.resume().catch(() => { cleanup(); reject(new Error('Microphone turn detection could not start. Please retry.')); });
-          interval = setInterval(() => {
-            if (!operation.current) { cancelled(); return; }
-            analyser.getFloatTimeDomainData(samples);
-            const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
-            const turn = detect(Date.now(), rms); setActivity(turn.activity);
-            if (turn.activity) lastVoiceAt = performance.now();
-            if (turn.end) {
-              latency.current.begin(lastVoiceAt); turnTiming('silence_detection', lastVoiceAt); stoppedAt = performance.now();
-              setState('Thinking'); setActivity(false);
-              if (interval) clearInterval(interval); capture?.stop();
-            }
-          }, 50);
+          resumeTimer = setTimeout(() => { cleanup(); reject(new Error('Microphone turn detection could not start. Please retry.')); }, 5000);
+          void context.resume().then(async () => {
+            if (disposed || !operation.current) return;
+            if (context?.state !== 'running') throw new Error('Microphone turn detection could not start. Please retry.');
+            if (resumeTimer) clearTimeout(resumeTimer);
+            capture = captureRecording(input, blob => { if (stoppedAt != null) turnTiming('recording_finalization', stoppedAt); cleanup(); resolve(blob); }, message => { cleanup(); reject(new Error(message)); });
+            await capture.ready;
+            if (disposed || !operation.current) return;
+            if (!input.getAudioTracks().some(track => track.readyState === 'live' && track.enabled))
+              throw new Error('Microphone recording could not start. Please retry.');
+            const detect = turnDetector(Date.now());
+            lastVoiceAt = performance.now();
+            setState('Listening'); setActivity(false);
+            interval = setInterval(() => {
+              if (!operation.current) { cancelled(); return; }
+              analyser.getFloatTimeDomainData(samples);
+              const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
+              const turn = detect(Date.now(), rms); setActivity(turn.activity);
+              if (turn.activity) lastVoiceAt = performance.now();
+              if (turn.end) {
+                latency.current.begin(lastVoiceAt); turnTiming('silence_detection', lastVoiceAt); stoppedAt = performance.now();
+                setState('Thinking'); setActivity(false);
+                if (interval) clearInterval(interval); capture?.stop();
+              }
+            }, 50);
+          }).catch(() => { cleanup(); reject(new Error('Microphone recording could not start. Please retry.')); });
         } catch (error) { cleanup(); reject(error); }
       }));
     } catch (error) { input.getTracks().forEach(track => track.stop()); throw error; }

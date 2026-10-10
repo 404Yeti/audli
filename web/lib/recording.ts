@@ -58,9 +58,27 @@ export function captureRecording(
   }
   let disposed = false;
   let failed = false;
+  let started = false;
+  let resolveReady!: () => void;
+  let rejectReady!: (error: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+  // Callers may not need readiness; failure must not become an unhandled rejection.
+  void ready.catch(() => {});
+  const startup = setTimeout(() => {
+    if (disposed || started || failed) return;
+    failed = true;
+    rejectReady(new Error('Microphone recording could not start. Please retry.'));
+    if (active.state !== 'inactive') active.stop();
+    stopTracks();
+    failure('Microphone recording could not start. Please retry.');
+  }, 5000);
   const chunks: Blob[] = [];
   const stopTracks = () => input.getTracks().forEach(track => track.stop());
-  const detach = () => { active.ondataavailable = null; active.onstop = null; active.onerror = null; chunks.length = 0; };
+  const detach = () => { clearTimeout(startup); active.onstart = null; active.ondataavailable = null; active.onstop = null; active.onerror = null; chunks.length = 0; };
+  active.onstart = () => {
+    if (disposed || failed || active.state !== 'recording') return;
+    started = true; clearTimeout(startup); resolveReady();
+  };
   active.ondataavailable = event => {
     if (disposed || failed || !event.data.size) return;
     chunks.push(event.data);
@@ -68,6 +86,7 @@ export function captureRecording(
   };
   active.onstop = () => {
     stopTracks();
+    if (!started) rejectReady(new DOMException('Recording stopped before readiness.', 'AbortError'));
     if (disposed) { detach(); return; }
     // The final dataavailable precedes stop. Build only after all chunks have arrived.
     const mimeType = active.mimeType || chunks.find(chunk => chunk.type)?.type || '';
@@ -84,6 +103,7 @@ export function captureRecording(
   active.onerror = () => {
     if (disposed || failed) return;
     failed = true;
+    clearTimeout(startup); rejectReady(new Error('Recording failed. Please retry.'));
     recordingDiagnostic('recorder_error', { recorderState: active.state });
     if (active.state !== 'inactive') active.stop();
     stopTracks();
@@ -93,13 +113,22 @@ export function captureRecording(
     active.start(250);
     recordingDiagnostic('recorder_started', { mimeType: active.mimeType });
   } catch (error) {
+    rejectReady(new Error('Microphone recording could not start. Please retry.'));
     disposed = true; detach(); stopTracks(); throw error;
   }
   return {
-    stop() { if (!disposed && active.state !== 'inactive') active.stop(); },
+    ready,
+    stop() {
+      if (!disposed && active.state !== 'inactive') {
+        clearTimeout(startup);
+        if (!started) rejectReady(new DOMException('Recording stopped before readiness.', 'AbortError'));
+        active.stop();
+      }
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
+      rejectReady(new DOMException('Recording cancelled.', 'AbortError'));
       if (active.state !== 'inactive') active.stop();
       detach(); stopTracks();
     },

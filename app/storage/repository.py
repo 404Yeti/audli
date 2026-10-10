@@ -67,7 +67,13 @@ class SQLProgressRepository:
     def for_learner(self, learner_id: str):
         """A new request scope; never mutate the pool owner's identity or dispose it."""
         scoped = SQLProgressRepository(self.engine, learner_id)
-        scoped.initialize_learner()
+        # Auth has already verified this identity. Existing accounts need a read,
+        # not two no-op upserts and a commit on every protected request.
+        with self.engine.connect() as db:
+            initialized = db.execute(select(s.profiles.c.user_id).join(s.users,
+                s.users.c.id == s.profiles.c.user_id).where(s.profiles.c.user_id == learner_id)).first()
+        if initialized is None:
+            scoped.initialize_learner()
         return scoped
 
     def close(self):
@@ -339,6 +345,17 @@ class SQLProgressRepository:
         with self.transaction() as db:
             self.owned_attempt(db, attempt_id)
             db.execute(update(s.attempts).where(s.attempts.c.id == attempt_id).values(confirmed_text=text))
+
+    def prepare_assessment(self, attempt_id: str, text: str, conversation: Conversation):
+        """Durably save recognition confirmation and retry checkpoint together."""
+        with self.transaction() as db:
+            attempt = self.owned_attempt(db, attempt_id)
+            if (attempt['exercise_id'] != conversation.exercise_id
+                    or conversation.pending_attempt_id != attempt_id
+                    or conversation.pending_text != text):
+                raise ValueError('Assessment checkpoint does not match the confirmed attempt')
+            db.execute(update(s.attempts).where(s.attempts.c.id == attempt_id).values(confirmed_text=text))
+            self.write_conversation(db, conversation)
 
     def coach_audio(self, exercise_id, cue_id):
         with self.engine.connect() as db:

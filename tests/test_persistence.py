@@ -194,6 +194,60 @@ def test_completion_is_atomic_and_duplicate_safe(repository_factory, exercise, m
     assert len(repository_factory().history()) == 1
 
 
+def test_assessment_confirmation_and_retry_checkpoint_commit_or_rollback_together(repository_factory, exercise, monkeypatch):
+    repo=repository_factory()
+    exercise_id=str(uuid4())
+    repo.save_exercise(exercise_id,exercise,repo.profile().difficulty,'clip.mp3',audio=b'synthetic')
+    attempt_id=repo.add_attempt(exercise_id,Transcription(text='The team restored the update.'))
+    original=Conversation(exercise_id=exercise_id,state='AWAITING_SUMMARY')
+    repo.save_conversation(original)
+    pending=Conversation(exercise_id=exercise_id,state='ASSESSING',pending_attempt_id=attempt_id,pending_text='Confirmed meaning.')
+    write=repo.write_conversation
+    def failure(db,conversation):
+        raise RuntimeError('Synthetic checkpoint failure')
+    monkeypatch.setattr(repo,'write_conversation',failure)
+    with pytest.raises(RuntimeError):repo.prepare_assessment(attempt_id,pending.pending_text,pending)
+    reopened=repository_factory()
+    assert reopened.attempt(attempt_id)['confirmed_text'] is None
+    assert reopened.conversation(exercise_id)==original
+    monkeypatch.setattr(repo,'write_conversation',write)
+    repo.prepare_assessment(attempt_id,pending.pending_text,pending)
+    assert reopened.attempt(attempt_id)['confirmed_text']==pending.pending_text
+    assert reopened.conversation(exercise_id)==pending
+    assert reopened.history()==[]
+
+
+def test_assessment_checkpoint_rejects_foreign_attempts_and_mismatched_pending_text(repository_factory,exercise):
+    repo=repository_factory()
+    exercise_id=str(uuid4())
+    repo.save_exercise(exercise_id,exercise,repo.profile().difficulty,'clip.mp3',audio=b'synthetic')
+    attempt_id=repo.add_attempt(exercise_id,Transcription(text='The team restored the update.'))
+    pending=Conversation(exercise_id=exercise_id,state='ASSESSING',pending_attempt_id=attempt_id,pending_text='Confirmed.')
+    with pytest.raises(ValueError):repo.prepare_assessment(attempt_id,'Different.',pending)
+    other=repository_factory(str(uuid4()))
+    with pytest.raises(ValueError):other.prepare_assessment(attempt_id,'Confirmed.',pending)
+    assert repo.attempt(attempt_id)['confirmed_text'] is None
+    assert repo.conversation(exercise_id) is None
+
+
+def test_existing_verified_request_scope_is_read_only_and_never_reuses_another_owner(repository_factory):
+    from sqlalchemy import event
+    repo=repository_factory()
+    statements=[]
+    def query(connection,cursor,statement,parameters,context,executemany):
+        statements.append(statement.lstrip().split()[0].upper())
+    event.listen(repo.engine,'before_cursor_execute',query)
+    try:
+        scoped=repo.for_learner(repo.learner_id)
+        assert statements==['SELECT']
+        assert scoped.learner_id==repo.learner_id and scoped is not repo
+        new_id=str(uuid4());other=repo.for_learner(new_id)
+        assert other.learner_id==new_id and repo.learner_id==scoped.learner_id
+        assert other.profile()==LearnerProfile()
+        assert 'INSERT' in statements
+    finally:event.remove(repo.engine,'before_cursor_execute',query)
+
+
 def test_ownership_is_scoped_for_reads_and_writes(repository_factory, exercise):
     first = repository_factory()
     attempt_id, evaluation, profile, event, conversation = prepare_completion(first, exercise)

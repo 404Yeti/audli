@@ -1,12 +1,13 @@
 """Turn-based coaching routes alongside the unchanged V0.1 evaluation endpoint."""
 import json
+import asyncio
 from hashlib import sha256
 from uuid import uuid4
 from types import SimpleNamespace
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import Field, model_validator
-from app.audio import sanitize_generated_audio
+from app.services.tutor_tts import tutor_cache_signature, tutor_cue_cache_id, sanitize_tutor_audio
 from app.conversation import validate_evidence, choose_followup, final_evaluation, adapt_final
 from app.feedback import final_feedback
 from app.lesson import public_topic, evidence_gaps, evidence_tip
@@ -37,18 +38,23 @@ class CueRequest(StrictModel):
 
 
 def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio):
+    retry_lock = asyncio.Lock()
     @app.post('/api/recognition/retry-audio')
     async def retry_audio():
         # Protected by the same authenticated request boundary as every /api resource.
         kind = 'wav' if settings.provider == 'demo' else 'mp3'
-        data = await sanitize_generated_audio(
-            await ai().speak("I didn't quite catch that. Could you say it again?"), kind)
+        text = "I didn't quite catch that. Could you say it again?"
+        name = sha256((str(repo.learner_id) + ':retry-v1:' + tutor_cache_signature(settings) + ':' + text).encode()).hexdigest() + '.' + kind
+        async with timed_lock(settings, retry_lock, 'retry.audio'):
+            data = repo.audio_blob(name)
+            if data is None:
+                data = await sanitize_tutor_audio(await ai().speak(text), kind, ai())
+                repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
 
     def audio_cache_id(cue_id, text):
         # Old evaluator-report audio must never replay as terminal feedback.
-        return ('feedback-v0.2.1-' + sha256(text.encode()).hexdigest()[:16]
-                if cue_id == 'feedback' else cue_id)
+        return tutor_cue_cache_id(settings, cue_id, text)
 
     def previous_advice(exercise_id):
         lesson = repo.lesson_for_exercise(exercise_id)
@@ -216,7 +222,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                         data = await ai().speak(text)
                     kind = 'wav' if settings.provider == 'demo' else 'mp3'
                     with operation(settings, 'turn.tts_sanitization'):
-                        data = await sanitize_generated_audio(data, kind)
+                        data = await sanitize_tutor_audio(data, kind, ai())
                 check_checkpoint()  # End can invalidate the lesson while the provider is running.
                 name = str(uuid4()) + '.' + kind
                 path = audio_dir / name

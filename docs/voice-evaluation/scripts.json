@@ -1,0 +1,19 @@
+{
+  "version": "AUD-25-2026-10-09-v1",
+  "content_kind": "original synthetic English; no learner data",
+  "tutor": {
+    "welcome": "Welcome to Audli. I'm your listening tutor, and we'll work together to help spoken English feel easier to understand. You can take your time, and I'll guide you through each listening activity.",
+    "goals": "Where would you most like to feel confident understanding English: at work, while studying, or in everyday conversations? Tell me about a situation that matters to you.",
+    "task": "You'll hear a short passage from one speaker. Listen for the main point and the details that explain it. When the audio ends, tell me what you understood in your own words.",
+    "clarification": "I heard you say the meeting was cancelled, but I'm not sure whether you meant cancelled or moved to another time. Could you explain what you meant by that?",
+    "encouragement": "You captured the main point and explained why the plan changed. Your summary kept the important details connected, which makes the message easy to follow.",
+    "mistake": "You understood that the meeting time changed, but the reason was different: the speaker was waiting for a delivery, rather than leaving early. The useful contrast here is between a delay and a cancellation.",
+    "small_talk": "A quiet walk can be a lovely way to clear your head after a busy day. I like how you noticed the little details around you. What made that walk memorable?"
+  },
+  "accent_passage": "On Thursday morning, I took the train to a small town near the coast. A friend met me at the station, and we walked past the old park to a cafe on the next street. I ordered water and a cup of coffee while she checked the weather. We planned to visit the market after lunch, but the rain arrived earlier than expected. Instead, we stayed inside and talked about a new project. By half past three, the sky was clear, so we collected our bags and headed back to the station.",
+  "rates": [1.0, 0.85],
+  "coral_production_control_rate": 0.9,
+  "coral_instructions": "One clear English speaker. Friendly, clear delivery without background sounds.",
+  "elevenlabs_starting_settings": {"stability": 0.5, "similarity_boost": 0.75, "style": 0.0, "use_speaker_boost": true},
+  "settings_note": "Starting experiment settings, not measured optimal settings. Set voice_settings.speed per job; verify model support before generating. No tags, forced accent prompts or punctuation changes."
+}

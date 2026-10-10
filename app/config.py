@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     transcription_model: str = 'gpt-4o-mini-transcribe'
     speech_model: str = 'gpt-4o-mini-tts'
     voice: str = 'coral'
+    tutor_tts_provider: Literal['openai', 'elevenlabs'] = 'openai'
+    elevenlabs_api_key: SecretStr | None = Field(default=None, validation_alias='ELEVENLABS_API_KEY')
+    elevenlabs_model: Literal['eleven_flash_v2_5', 'eleven_multilingual_v2'] = 'eleven_flash_v2_5'
+    elevenlabs_voice_id: str = Field(default='yKYzqEa22xh5PdidhN70', pattern=r'^[A-Za-z0-9]{20}$')
+    elevenlabs_stability: float = Field(default=.5, ge=0, le=1)
+    elevenlabs_similarity_boost: float = Field(default=.75, ge=0, le=1)
+    elevenlabs_style: float = Field(default=0, ge=0, le=1)
+    elevenlabs_speaker_boost: bool = True
+    tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)
+    tutor_tts_fallback_timeout_seconds: float = Field(default=20, gt=0, le=60)
     data_dir: Path = Path('data')
     edge_low: float = Field(default=.70, gt=0, lt=1)
     edge_high: float = Field(default=.85, gt=0, lt=1)
@@ -51,6 +61,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def thresholds(self):
+        if self.tutor_tts_provider == 'elevenlabs':
+            if self.provider == 'demo':
+                raise ValueError('ElevenLabs tutor TTS requires AUDLI_PROVIDER=openai')
+            if not self.elevenlabs_api_key or not self.elevenlabs_api_key.get_secret_value().strip():
+                raise ValueError('ElevenLabs tutor TTS requires ELEVENLABS_API_KEY')
         if not self.low_score < self.edge_low < self.edge_high:
             raise ValueError('Expected low_score < edge_low < edge_high')
         if self.environment == 'production' and self.persistence != 'postgres':

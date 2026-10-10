@@ -44,6 +44,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     @asynccontextmanager
     async def lifespan(app):
         try:
+            from app.services.tutor_tts import emit_configuration
+            emit_configuration(settings)
             yield
         finally:
             database.close()

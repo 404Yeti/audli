@@ -50,6 +50,31 @@ def test_cache_signature_tracks_audio_settings_but_not_keys():
     assert tutor_cue_cache_id(first,'summary','text')!=tutor_cue_cache_id(first,'feedback','text')
 
 
+def test_startup_configuration_logs_only_safe_metadata(caplog):
+    from app.services.tutor_tts import emit_configuration
+    caplog.set_level('INFO', logger='uvicorn.error')
+    config = settings(openai_api_key='fixture-openai-secret')
+    emit_configuration(config)
+    assert 'fixture-openai-secret' not in caplog.text
+    assert 'fixture-eleven-secret' not in caplog.text
+    assert '"elevenlabs_key_configured": true' in caplog.text
+    assert '"coral_fallback_selected": true' in caplog.text
+    caplog.clear()
+    emit_configuration(Settings(_env_file=None, provider='openai'))
+    assert '"elevenlabs_key_configured": false' in caplog.text
+    assert '"coral_selected": true' in caplog.text
+
+
+def test_application_startup_emits_configuration_without_synthesis(tmp_path, caplog):
+    caplog.set_level('INFO', logger='uvicorn.error')
+    app = create_app(Settings(_env_file=None, data_dir=tmp_path), FakeProvider())
+    async def run():
+        async with app.router.lifespan_context(app):
+            assert '"event": "configuration"' in caplog.text
+    asyncio.run(run())
+    assert '"outcome"' not in caplog.text
+
+
 def test_selected_voice_mp3_and_passages_stay_delegated(mp3, caplog):
     calls, fallback, metrics = [], [], []
     def transport(request):

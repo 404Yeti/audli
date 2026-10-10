@@ -52,6 +52,26 @@ def emit(metrics: dict) -> None:
         collector.append(dict(metrics))
 
 
+def emit_configuration(settings: Settings) -> None:
+    """Startup evidence without secret values, learner IDs or arbitrary strings."""
+    emit({'event': 'configuration', 'provider': settings.tutor_tts_provider,
+        'passage_provider': settings.provider,
+        'elevenlabs_model': settings.elevenlabs_model,
+        'audli_voice_selected': settings.elevenlabs_voice_id == 'yKYzqEa22xh5PdidhN70',
+        'coral_selected': settings.provider == 'openai' and settings.tutor_tts_provider == 'openai' and settings.voice == 'coral',
+        'passage_coral_selected': settings.provider == 'openai' and settings.voice == 'coral',
+        'coral_fallback_selected': settings.tutor_tts_provider == 'elevenlabs',
+        'openai_speech_model_matches': settings.speech_model == 'gpt-4o-mini-tts',
+        'elevenlabs_key_configured': bool(settings.elevenlabs_api_key and settings.elevenlabs_api_key.get_secret_value().strip()),
+        'openai_key_configured': bool(settings.openai_api_key and settings.openai_api_key.get_secret_value().strip()),
+        'timeout_seconds': settings.tutor_tts_timeout_seconds,
+        'fallback_timeout_seconds': settings.tutor_tts_fallback_timeout_seconds,
+        'stability': settings.elevenlabs_stability,
+        'similarity_boost': settings.elevenlabs_similarity_boost,
+        'style': settings.elevenlabs_style,
+        'speaker_boost': settings.elevenlabs_speaker_boost})
+
+
 class TutorTTSProvider:
     def __init__(self, base: AIProvider, settings: Settings, client: httpx.AsyncClient | None = None):
         self.base, self.settings = base, settings

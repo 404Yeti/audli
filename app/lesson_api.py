@@ -1,17 +1,19 @@
 """Owned lesson checkpoints around the existing exercise evidence loop."""
 from hashlib import sha256
+import asyncio
 from uuid import uuid4
 import re
 from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from pydantic import Field, ValidationError
-from app.audio import validate_upload, sanitize_generated_audio
+from app.audio import validate_upload
 from app.lesson import Lesson, CheckinReply, social_response, routine_checkin_reply, compose_checkin_reply, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
 from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
 from app.accents import lesson_preference, only_accent_request, acknowledgment as accent_acknowledgment
 from app.recognition import reliable_recognition
 from app.diagnostics import report_failure, operation, timed_lock
+from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
 
 ACKNOWLEDGMENT = 'Okay, I heard you.'
 ACKNOWLEDGMENTS = {'assessment': ACKNOWLEDGMENT, 'followup': 'Okay, I’ve heard that.',
@@ -24,6 +26,7 @@ class LessonRevision(StrictModel):
     revision: int = Field(ge=0)
 
 def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise):
+    acknowledgment_lock = asyncio.Lock()
     def owned(lesson_id):
         lesson = repo.lesson(lesson_id)
         if lesson is None:
@@ -68,13 +71,13 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     async def speech(text, key):
         kind = 'wav' if settings.provider == 'demo' else 'mp3'
         # Cache is scoped to the verified owner and complete spoken message.
-        name = sha256((str(repo.learner_id) + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
+        name = sha256((str(repo.learner_id) + ':' + tutor_cache_signature(settings) + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
         data = repo.audio_blob(name)
         if data is None:
             with operation(settings, 'lesson.tts_provider'):
                 generated = await ai().speak(text)
             with operation(settings, 'lesson.tts_sanitization'):
-                data = await sanitize_generated_audio(generated, kind)
+                data = await sanitize_tutor_audio(generated, kind, ai())
             with operation(settings, 'lesson.audio_persistence'):
                 repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
@@ -142,7 +145,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     @app.post('/api/recognition/acknowledgment-audio')
     async def acknowledgment(body: AcknowledgmentCue = AcknowledgmentCue()):
         # Neutral, cached, no LLM generation or lesson progress mutation.
-        return await speech(ACKNOWLEDGMENTS[body.cue], 'acknowledgment-v2')
+        async with timed_lock(settings, acknowledgment_lock, 'acknowledgment.audio'):
+            return await speech(ACKNOWLEDGMENTS[body.cue], 'acknowledgment-v2')
 
     @app.post('/api/lessons/{lesson_id}/introduction-audio')
     async def introduction_audio(lesson_id: str, body: LessonRevision):

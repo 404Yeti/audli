@@ -49,7 +49,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             database.close()
             if identity is not None:
                 await identity.close()
-            if hasattr(provider, 'client'):
+            from app.services.tutor_tts import TutorTTSProvider
+            if isinstance(provider, TutorTTSProvider):
+                await provider.close()
+            elif hasattr(provider, 'client'):
                 await provider.client.close()
 
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -66,7 +69,12 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 provider = DemoProvider()
             else:
                 from app.services.openai_provider import OpenAIProvider
-                provider = OpenAIProvider(settings)
+                from app.services.tutor_tts import TutorTTSProvider
+                provider = TutorTTSProvider(OpenAIProvider(settings), settings)
+        if settings.tutor_tts_provider == 'elevenlabs':
+            from app.services.tutor_tts import TutorTTSProvider
+            if not isinstance(provider, TutorTTSProvider):
+                provider = TutorTTSProvider(provider, settings)
         return provider
 
     @app.middleware('http')

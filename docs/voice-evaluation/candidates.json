@@ -1,0 +1,24 @@
+{
+  "researched_at": "2026-10-09",
+  "availability_status": "pilot completed 2026-10-10; tutor IDs and four accent IDs resolved; acoustic authenticity pending",
+  "custom_voice": {"name": "Audlis voice", "voice_id": "yKYzqEa22xh5PdidhN70", "category": "generated", "account_access_verified": true},
+  "tutor_source": "https://elevenlabs.io/docs/help-center/product/voices/my-voices/what-are-default-voices",
+  "tutors": [
+    {"name": "Talia", "description": "Warm Soft Guide", "voice_id": "OZ0L6eISlOejga3XjDFt"},
+    {"name": "Eddie", "description": "Natural and Helpful", "voice_id": "l7kNoIfnJKPg7779LI2t", "previous_description": "Helpful and Comforting", "identity_evidence": "Official replacement link embeds this exact voice ID"},
+    {"name": "Maisie", "description": "Friendly Casual Neighbor", "voice_id": "QtY3JBOUKEB5xzrRfOKc"},
+    {"name": "Caleb", "description": "Trusted Guide", "voice_id": null},
+    {"name": "Kellan", "description": "Casual Friendly Speaker", "voice_id": null},
+    {"name": "Jade", "description": "Upbeat and Natural", "voice_id": null},
+    {"name": "Lawrence", "description": "Bright and Informative", "voice_id": null},
+    {"name": "Alicia", "description": "Polished Global Anchor", "voice_id": null}
+  ],
+  "accents": [
+    {"target": "General American", "name": "Spuds Oxley - Old Storyteller", "claim": "American, not specifically General American", "source": "https://elevenlabs.io/text-to-speech/american-accent", "voice_id": null},
+    {"target": "British English", "name": "Christopher - British Storyteller", "claim": "British; region unspecified", "source": "https://elevenlabs.io/text-to-speech/british-accent", "voice_id": null},
+    {"target": "Australian English", "name": "Clara | Australian Professional Female with Warmth & Trust", "claim": "Australian", "source": "https://elevenlabs.io/text-to-speech/australian-accent", "voice_id": null},
+    {"target": "Irish English", "name": "Jessica Gallagher - Clear and Neutral", "claim": "listed on Irish accent page", "source": "https://elevenlabs.io/text-to-speech/irish-accent", "voice_id": null},
+    {"target": "Scottish English", "name": "Isla - Youthful, Relaxed, and Warm", "claim": "listed on Scottish accent page", "source": "https://elevenlabs.io/text-to-speech/scottish-accent", "voice_id": null},
+    {"target": "Indian English", "name": "Maya - Friendly and Cheerful", "claim": "listed on Indian accent page; English suitability unverified", "source": "https://elevenlabs.io/text-to-speech/indian-accent", "voice_id": null}
+  ]
+}

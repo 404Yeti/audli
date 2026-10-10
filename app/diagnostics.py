@@ -20,6 +20,8 @@ def redact(text: str, settings: Settings) -> str:
                if value and re.search(r'(api.?key|token|password|secret|authorization)', name, re.I)]
     if settings.openai_api_key:
         secrets.append(settings.openai_api_key.get_secret_value())
+    if settings.elevenlabs_api_key:
+        secrets.append(settings.elevenlabs_api_key.get_secret_value())
     if settings.database_url:
         secrets.append(settings.database_url.get_secret_value())
         password = make_url(settings.database_url.get_secret_value()).password

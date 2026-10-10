@@ -217,6 +217,26 @@ Use a different scenario each exercise. The topic must be a short, specific scen
             speed=speech_rate, instructions='One clear English speaker. Friendly, clear delivery without background sounds.')
         return result.content
 
+    async def tutor_speak(self, text: str, speech_rate: float, metrics: dict) -> bytes:
+        from time import perf_counter
+        from app.services.tutor_tts import MAX_TUTOR_BYTES
+        started = perf_counter()
+        client = self.client.with_options(max_retries=0, timeout=self.settings.tutor_tts_fallback_timeout_seconds)
+        voice = 'coral' if self.settings.tutor_tts_provider == 'elevenlabs' else self.settings.voice
+        async with client.audio.speech.with_streaming_response.create(
+            model=self.settings.speech_model, voice=voice, input=text, response_format='mp3',
+            speed=speech_rate, instructions='One clear English speaker. Friendly, clear delivery without background sounds.') as response:
+            metrics['http_status'] = response.status_code
+            audio = bytearray()
+            async for chunk in response.iter_bytes():
+                if chunk:
+                    if metrics['first_audio_byte_ms'] is None:
+                        metrics['first_audio_byte_ms'] = (perf_counter() - started) * 1000
+                    audio.extend(chunk)
+                if len(audio) > MAX_TUTOR_BYTES:
+                    raise ValueError('Tutor audio exceeds size limit')
+            return bytes(audio)
+
     async def transcribe(self, audio: bytes, filename: str) -> Transcription:
         result = await self.client.audio.transcriptions.create(
             model=self.settings.transcription_model, file=(filename, audio), language='en',

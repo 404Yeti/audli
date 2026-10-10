@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { AudliMascot } from './audli-mascot';
 import { isAuthRetryableFetchError, type SupabaseClient, type Session } from '@supabase/supabase-js';
 import { authClient, authStorageKey, sessionIdentity } from '../lib/auth';
@@ -32,6 +33,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Older email templates may fall back to Site URL. Forward only to our
+    // fixed recovery route before constructing the persistent learner client.
+    const query = new URLSearchParams(window.location.search);
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    if (query.get('type') === 'recovery' || fragment.get('type') === 'recovery' || query.has('token_hash')) {
+      window.location.replace('/auth/recovery' + window.location.search + window.location.hash);
+      return;
+    }
     let active = true;
     let unsubscribe: (() => void) | undefined;
     let supabase: SupabaseClient | undefined;
@@ -50,6 +59,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.addEventListener('audli-session-expired', expire);
     void api<{ mode: string }>('/auth/config').then(config => {
       if (!active) return;
+      if (query.get('signin') === '1') setLanding(false);
       if (config.mode === 'local') {
         const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
         if (process.env.NODE_ENV === 'production' && !loopback) throw new Error('The server must enable authenticated access for this deployment.');
@@ -146,6 +156,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} />
         <label htmlFor="password">Password</label><input id="password" type="password" autoComplete={signup ? 'new-password' : 'current-password'} required minLength={signup ? 8 : undefined} value={password} onChange={event => setPassword(event.target.value)} />
         <button className="primary" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Sign up' : 'Sign in'}</button>
+        {!signup && <Link className="text-button auth-link" href="/forgot-password" prefetch={false}>Forgot password?</Link>}
         <button type="button" className="text-button" disabled={busy} onClick={() => { setSignup(!signup); setMessage(''); }}>{signup ? 'Already have an account? Sign in' : 'New to Audli? Create an account'}</button>
       </form>}
     </>}

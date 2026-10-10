@@ -123,6 +123,30 @@ def test_only_health_and_auth_mode_are_public(accounts):
     assert client.get('/api/profile?access_token=valid-a&learner_id=' + USER_A).status_code == 401
 
 
+@pytest.mark.parametrize('path', ['/api/profile', '/api/history', '/api/auth/recovery', '/api/auth/reset-password'])
+def test_recovery_parameters_and_cookies_never_authenticate_backend(accounts, path):
+    a, _, calls = accounts
+    client = ASGIClient(a.app, a.provider)
+    response = client.get(path + '?type=recovery&token_hash=valid-a&access_token=valid-a&learner_id=' + USER_A,
+        headers={'Cookie': 'access_token=valid-a; audli-password-recovery=valid-a'})
+    assert response.status_code == 401
+    assert response.headers['www-authenticate'] == 'Bearer'
+    assert calls == []
+    with a.app.state.repository.engine.connect() as db:
+        assert db.execute(select(s.users)).all() == []
+
+
+def test_recovery_parameters_cannot_change_verified_account_or_origin_guard(accounts):
+    a, b, calls = accounts
+    assert a.put('/api/profile', json={'name': 'Alice', 'goal': 'Meetings'}).status_code == 200
+    response = b.get('/api/profile?type=recovery&access_token=valid-a&learner_id=' + USER_A)
+    assert response.status_code == 200 and response.json()['profile']['name'] == 'Listener'
+    assert b.put('/api/profile?type=recovery', headers={'Origin': 'https://evil.example'},
+        json={'name': 'Intruder', 'goal': 'Meetings'}).status_code == 403
+    assert a.get('/api/profile').json()['profile']['name'] == 'Alice'
+    assert calls == []
+
+
 def test_authentication_preserves_origin_and_request_body_guard(accounts):
     a, _, _ = accounts
     assert a.put('/api/profile', headers={'Origin': 'https://audli-seven.vercel.app.evil.example'},

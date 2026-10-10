@@ -1,5 +1,7 @@
 # Authenticated learner identity (AUD-14)
 
+Password recovery is implemented locally in AUD-27; see [flow, redirect/SMTP requirements and acceptance](PASSWORD_RECOVERY.md). The production app domain is now `https://app.audli.ai`. Historical AUD-14 notes below use the earlier Vercel domain; preserve legitimate existing URLs when adding the exact custom-domain recovery callback at approved rollout. No dashboard settings are changed by this documentation.
+
 AUD-13 production persistence was manually verified by the owner. AUD-14 account identity and isolation passed controlled production acceptance on 2026-10-07 (final Linear production-verification comment). AUD-15 adds the lifecycle described in [APPLICATION_FLOW.md](APPLICATION_FLOW.md). Historical pending-verification notes below describe the earlier AUD-14 implementation stage. No production settings or database are changed by implementation/tests.
 
 ## Architecture and trust boundary

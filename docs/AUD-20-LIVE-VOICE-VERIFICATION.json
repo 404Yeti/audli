@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-11T07:21:52.153714+00:00",
+  "authorization": "Product owner explicitly authorizes 3 calls, 1500 combined characters, included credits only, $0 overage, no automatic retries",
+  "calls_dispatched": 3,
+  "characters_submitted": 1416,
+  "results": [
+    {
+      "accent": "british",
+      "voice_id": "onwK4e9ZLuTAKqWW03F9",
+      "model": "eleven_flash_v2_5",
+      "speech_rate": 0.75,
+      "characters": 472,
+      "decoded_audio": true,
+      "saved_audio_replay_identical": true,
+      "consent_consumed": true,
+      "duration_seconds": 46.579,
+      "sha256": "6d59cbcda3408561cd9856199bf7fe8502ae4060ccf4479e5ba9683e225bf338"
+    },
+    {
+      "accent": "australian",
+      "voice_id": "tyepWYJJwJM9TTFIg5U7",
+      "model": "eleven_flash_v2_5",
+      "speech_rate": 1.0,
+      "characters": 472,
+      "decoded_audio": true,
+      "saved_audio_replay_identical": true,
+      "consent_consumed": true,
+      "duration_seconds": 29.35,
+      "sha256": "dc008cec4af8331e389ff1140b3d13bc429979458a09b4734d5bde4d60d1ef67"
+    },
+    {
+      "accent": "irish",
+      "voice_id": "DbwWo4rVEd5NrejHYUnm",
+      "model": "eleven_flash_v2_5",
+      "speech_rate": 0.75,
+      "characters": 472,
+      "decoded_audio": true,
+      "saved_audio_replay_identical": true,
+      "consent_consumed": true,
+      "duration_seconds": 35.062,
+      "sha256": "30dff7434d7f74450351b2a0febbb49b95baecd51e8501a8790e7ca7fa4f6eed"
+    }
+  ],
+  "production_database_writes": false,
+  "production_authenticated_acceptance": "deferred; isolated service verification only",
+  "success": true,
+  "tutor_voice_unchanged": true,
+  "local_reserved_characters": 1416
+}

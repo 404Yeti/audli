@@ -85,7 +85,15 @@ class VocabularyItem(StrictModel):
     phrase: Text
     meaning_in_context: Text
 
+class PassageVoice(StrictModel):
+    accent: str = "default"
+    provider: str = "default"
+    voice_id: str = "default"
+    validation: str | None = None
+    fallback: bool = False
+
 class ExerciseContent(StrictModel):
+    passage_voice: PassageVoice | None = None
     title: Text
     topic: Text
     script: str = Field(min_length=80, max_length=5000)

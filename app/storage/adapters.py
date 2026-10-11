@@ -16,6 +16,8 @@ from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
 SCHEMA_VERSION = 2
+# Migration 003 is additive. The bridge only uses schema-2 tables.
+SUPPORTED_POSTGRES_VERSIONS = ([1, 2], [1, 2, 3])
 
 
 def sqlite_engine(path):
@@ -156,7 +158,7 @@ class PostgresRepository(SQLProgressRepository):
             stage = 'database connection'
             with engine.connect() as db:
                 stage = 'schema version validation'
-                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) != list(range(1, SCHEMA_VERSION + 1)):
+                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in SUPPORTED_POSTGRES_VERSIONS:
                     detail = ('Expected migrations 001 and 002. Apply missing migrations with '
                               'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')

@@ -1,0 +1,29 @@
+{
+  "postgres_version": "17.11 (Ubuntu 17.11-1.pgdg26.04+2)",
+  "checks": [
+    "schema2 health",
+    "schema2 profile",
+    "schema2 ordinary generation with mock provider",
+    "schema2 ordinary saved playback",
+    "schema2 transcript gate",
+    "migration leaves all learner rows byte-for-byte unchanged",
+    "global flag disabled and budget zero",
+    "running bridge still serves profile after migration",
+    "restart schema3 health",
+    "restart schema3 preference retained",
+    "restart schema3 existing lesson",
+    "restart schema3 saved playback",
+    "restart schema3 transcript gate",
+    "restart account isolation",
+    "rollback to bridge schema3 health",
+    "rollback to bridge schema3 preference retained",
+    "rollback to bridge schema3 existing lesson",
+    "rollback to bridge schema3 saved playback",
+    "rollback to bridge schema3 transcript gate",
+    "rollback to bridge account isolation"
+  ],
+  "passed": 20,
+  "paid_calls": 0,
+  "production_writes": false,
+  "scope": "synthetic learners only; baseline 001/002 then full proposed 003; same bridge binary restarted twice"
+}

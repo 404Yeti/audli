@@ -15,7 +15,7 @@ already hold the spoken response; no additional audio or transcript is retained.
 | No grant; saved preference | Occasionally offer a supported accent; remain ordinary practice |
 | Offer; clear acceptance | Accept a one-passage grant |
 | Independent explicit practice request | Accept only a supported requested accent |
-| Preference discovery | Save preference independently; ordinary practice |
+| Newly expressed supported preference | Save preference; ask one separate practice question, with no grant yet |
 | Decline, ambiguity, unrelated reply | No accent grant; consume that session's offer |
 | Accepted; spoken cancellation or ambiguous confirmation | Revoke grant; ordinary passage |
 | Accepted; explicit supported alternate | Replace grant for that next passage |
@@ -34,6 +34,18 @@ after the consent turn; topic replies neither grant nor extend consent. There ar
 never trigger another offer during that lesson; a later independent request is
 still allowed. Discovery is separate, at most twice with three starts between
 questions, and a discovery refusal persists the existing opt-out.
+
+AUD-29 adds a follow-up after a newly expressed supported preference: “Would you
+like to try an Australian English listening exercise now?” The existing REVIEW
+turn takes the answer. Pending offers reuse `accent_offered` and
+`accent_confirmation`, while consent remains `none`. Its accent field holds only
+the proposed target, with no acceptance timestamp or exercise ordinal, so the
+previous deployed revision can render the pending question during rollback.
+Only explicit acceptance
+creates the existing one-passage grant. A lesson that already offered practice
+does not offer again; declined discovery, unsupported preferences, disabled
+voices, ambiguity and topic changes never authorize a passage. The normal topic
+review is preserved. No new fields, UI, provider settings or budgets are needed.
 
 The service checks grant scope and time before TTS. The repository checks again
 inside the owned exercise transaction before saving accent-specific audio; a

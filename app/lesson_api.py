@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from pydantic import Field, ValidationError
-from app.accent_practice import offer, resolve, discover, discovery_response, intent, expire
+from app.accent_practice import offer, resolve, discover, discovery_response, intent, expire, offer_after_preference
 from app.accents import lesson_preference, only_accent_request, acknowledgment as accent_acknowledgment
 from app.audio import validate_upload
 from app.lesson import Lesson, CheckinReply, social_response, routine_checkin_reply, compose_checkin_reply, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
@@ -271,6 +271,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     return public(save(lesson, body.revision, interests, accent_preferences))
             interests = None
             accent_preferences = None
+            available_voices = await passage_limits.voices()
             if (lesson.phase == 'WELCOME' and lesson.accent_discovery and not lesson.accent_discovery_resolved
                     and intent(text)[0] not in ('select', 'unavailable')):
                 accent_preferences, accent_reply = discovery_response(text)
@@ -280,10 +281,20 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 # Persistent opt-out differs from declining today's practice offer.
                 if re.search(r"\b(stop suggesting|no more accents|forget.*accent|don't suggest|do not suggest)\b", text.replace('’', "'"), re.I):
                     accent_preferences = lesson_preference(text)
-                accent_reply = resolve(lesson, text, await passage_limits.voices())
+                elif not lesson.accent_confirmation and intent(text, lesson.accent_offered)[0] is None:
+                    accent_preferences = lesson_preference(text)
+                accent_reply = resolve(lesson, text, available_voices)
                 if accent_preferences and accent_preferences.status == 'no_preference':
                     expire(lesson)
                     accent_reply = 'Of course. I won’t suggest accent practice again. We’ll use our usual passage voice.'
+            if offer_after_preference(lesson, accent_preferences, available_voices):
+                if lesson.phase == 'REVIEW':
+                    # Ask immediately in the existing response-taking phase. Keep
+                    # the normal topic review after this optional practice question.
+                    lesson.accent_topic_review_pending = True
+                    lesson.pending = None
+                    return public(save(lesson, body.revision, interests, accent_preferences))
+                accent_reply = 'Got it! I’ll remember that accent preference.'
             if accent_reply:
                 if lesson.phase == 'REVIEW':
                     lesson.review_response = accent_reply

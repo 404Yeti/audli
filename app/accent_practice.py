@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import httpx
 from pydantic import Field
 from app.models import StrictModel, PassageVoice
-from app.accents import LABELS, normalize, only_accent_request, extract, no_preference
+from app.accents import LABELS, normalize, only_accent_request, extract, no_preference, lesson_preference
 
 
 def discover(preferences, history, voices):
@@ -19,7 +19,7 @@ def discover(preferences, history, voices):
 
 def discovery_response(text):
     # A social answer must never become a saved preference or topic request.
-    preferences = extract(text) if no_preference(text) or only_accent_request(text) else None
+    preferences = extract(text) if no_preference(text) or only_accent_request(text) else lesson_preference(text)
     if preferences is None:
         return None, 'We can leave accent preferences for another time and continue with our usual listening practice.'
     if preferences.status == 'no_preference':
@@ -27,6 +27,23 @@ def discovery_response(text):
     labels = ', '.join(LABELS[accent] for accent in preferences.accents)
     acknowledgment = f'I’ll remember your interest in {labels}.' if labels else 'I’ll remember that accent interest, although it isn’t available for practice.'
     return preferences, acknowledgment + ' We’ll use our usual passage voice today.'
+
+
+def offer_after_preference(lesson, preferences, voices):
+    """Queue one spoken question, never a consent grant or a repeated offer."""
+    if (preferences is None or preferences.status != 'preferred' or lesson.accent_offered
+            or lesson.accent_consent.state != 'none'):
+        return False
+    accent = next((accent for accent in preferences.accents if accent in voices), None)
+    if accent is None:
+        return False
+    lesson.accent_offered = accent
+    # Older deployed readers use this target to render the confirmation question.
+    # State, timestamp and ordinal still contain no authorization.
+    lesson.accent_consent.accent = accent
+    lesson.accent_confirmation = True
+    lesson.accent_resolved = False
+    return True
 
 
 class VerifiedPassageVoice(StrictModel):

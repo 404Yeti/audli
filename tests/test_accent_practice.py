@@ -67,7 +67,8 @@ def test_existing_learner_discovery_persists_without_selecting(repository_factor
     assert repo.lesson().accent_discovery and repo.lesson().accent_offered is None
     assert start(client)['id']==item['id']
     item=respond(client,item,audio_bytes)
-    assert 'usual passage voice today' in item['prompt'] or 'usual listening practice' in item['prompt']
+    assert ('remember that accent preference' in item['prompt'] if status == 'preferred'
+            else 'usual listening practice' in item['prompt'])
     saved=repo.profile().accent_preferences
     assert saved.status==status and saved.accents==accents and saved.response==text
     assert repo.lesson().passage_accent is None and repo.lesson().accent_discovery_resolved

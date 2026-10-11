@@ -21,6 +21,13 @@ TIPS = {
 }
 Phase = Literal['WELCOME', 'WELCOME_ACK', 'REVIEW', 'REVIEW_ACK', 'TRANSITION', 'EXERCISE', 'CLOSING', 'COMPLETED']
 
+# Snapshot compatibility only; the bridge does not act on accent consent.
+class AccentConsent(StrictModel):
+    state: Literal['none', 'accepted', 'declined', 'expired', 'consumed'] = 'none'
+    accent: str | None = None
+    accepted_at: datetime | None = None
+    exercise_number: int | None = Field(default=None, ge=0)
+
 class Lesson(StrictModel):
     version: Literal[1] = 1
     id: str
@@ -37,6 +44,15 @@ class Lesson(StrictModel):
     suggested_accent: str | None = Field(default=None, max_length=30)
     exercise_id: str | None = None
     introduced_exercise_id: str | None = None
+    accent_offered: str | None = None
+    accent_discovery: bool = False
+    accent_discovery_resolved: bool = False
+    accent_resolved: bool = False
+    accent_consent: AccentConsent = Field(default_factory=AccentConsent)
+    accent_confirmation: bool = False
+    accent_topic_review_pending: bool = False
+    passage_accent: str | None = None
+    passage_fallback: bool = False
     welcome_response: str | None = None
     review_response: str | None = None
     pending: Transcription | None = None

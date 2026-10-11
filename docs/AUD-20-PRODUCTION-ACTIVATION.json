@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-11T07:44:04.183575+00:00",
+  "enabled": true,
+  "daily_character_limit": 5000,
+  "concurrent_synthesis_limit": 1,
+  "characters_reserved": 0,
+  "revision": 3,
+  "disable_after_commit_ms": 897.918,
+  "two_control_pools_agree": true,
+  "measurement_scope": "Two independent release-code control pools against production PostgreSQL; not two authenticated deployed application instances",
+  "additional_synthesis_calls": 0,
+  "learner_rows_modified": false
+}

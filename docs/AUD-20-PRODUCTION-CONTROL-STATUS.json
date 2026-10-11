@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-11T07:45:22.568879+00:00",
+  "enabled": true,
+  "daily_character_limit": 5000,
+  "concurrent_synthesis_limit": 1,
+  "characters_reserved": 0,
+  "revision": 3,
+  "schema_versions": [
+    1,
+    2,
+    3
+  ],
+  "usage_by_state": [],
+  "paid_calls": 0,
+  "production_writes": false
+}

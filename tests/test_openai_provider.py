@@ -166,7 +166,7 @@ def test_sdk_backed_api_slice_persists_audit_and_regenerates_with_new_speed(tmp_
             first = await client.post('/api/exercises')
             assert first.status_code == 200, first.text
             first = first.json()
-            assert set(first) == {'id', 'difficulty', 'audio_url', 'completed_attempt_id', 'topic'}
+            assert set(first) == {'id', 'difficulty', 'audio_url', 'completed_attempt_id', 'topic', 'passage_voice'}
             assert (await client.get(first['audio_url'])).status_code == 200
             gate = f"/api/exercises/{first['id']}/transcript"
             assert (await client.get(gate)).status_code == 403

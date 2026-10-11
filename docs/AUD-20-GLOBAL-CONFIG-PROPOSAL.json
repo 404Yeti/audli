@@ -1,0 +1,34 @@
+{
+  "status": "live_voice_verified_pending_production_sequence",
+  "scope": "all_authenticated_learners",
+  "proposed_environment": {
+    "AUDLI_ACCENT_PRACTICE_ENABLED": "true",
+    "AUDLI_PASSAGE_VOICES": "{\"australian\":{\"voice_id\":\"tyepWYJJwJM9TTFIg5U7\",\"validation\":\"data/voice-evaluation/aud20-validation-20261010/product-owner-approval.json; AUD-20-product-owner-global-release-20261011; explicit product-owner qualitative approval; numerical ratings waived; source hashes verified\"},\"british\":{\"voice_id\":\"onwK4e9ZLuTAKqWW03F9\",\"validation\":\"data/voice-evaluation/aud20-validation-20261010/product-owner-approval.json; AUD-20-product-owner-global-release-20261011; explicit product-owner qualitative approval; numerical ratings waived; source hashes verified\"},\"irish\":{\"voice_id\":\"DbwWo4rVEd5NrejHYUnm\",\"validation\":\"data/voice-evaluation/aud20-validation-20261010/product-owner-approval.json; AUD-20-product-owner-global-release-20261011; explicit product-owner qualitative approval; numerical ratings waived; source hashes verified\"}}",
+    "AUDLI_PASSAGE_REVIEW_DIR": "/app/data/voice-evaluation/aud20-validation-20261010",
+    "AUDLI_PASSAGE_TTS_MODEL": "eleven_flash_v2_5",
+    "AUDLI_PASSAGE_TTS_TIMEOUT_SECONDS": "20",
+    "AUDLI_PASSAGE_TTS_MAX_CONCURRENT": "1",
+    "AUDLI_PASSAGE_TTS_MAX_CHARACTERS": "4000",
+    "AUDLI_PASSAGE_TTS_DAILY_CHARACTERS": "5000"
+  },
+  "tutor_voice_id_unchanged": "yKYzqEa22xh5PdidhN70",
+  "approved_accent_count": 3,
+  "budget_note": "Durable fleet-wide UTC-day reservations in PostgreSQL, atomic concurrency leases and permanent passage-scope deduplication. Environment limits remain additional ceilings. Reserved characters are not actual provider billing. Positive operational limits and provider/tutor headroom still require approval.",
+  "authorization": "Owner authorizes active global release and separately authorizes up to 3 live synthesis calls / 1500 combined characters, included credits only, $0 overage, no retries. Three calls / 1416 characters passed.",
+  "proposed_shared_control": {
+    "enabled": false,
+    "daily_limit": 0,
+    "concurrent_limit": 2,
+    "lease_seconds": 90,
+    "positive_flag_cache_seconds": 0,
+    "control_operation_deadline_seconds": 2
+  },
+  "migration": "docs/postgres-003.sql, prepared locally; no production application",
+  "activation_target": {
+    "enabled": true,
+    "daily_characters": 5000,
+    "concurrent_synthesis": 1,
+    "max_passage_characters": 4000,
+    "no_overage": true
+  }
+}

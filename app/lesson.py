@@ -3,8 +3,8 @@ import re
 from datetime import datetime, timezone
 from typing import Literal
 from pydantic import Field, field_validator
-from app.models import StrictModel, Transcription, Dimension
 from app.accents import LABELS
+from app.models import StrictModel, Transcription, Dimension
 
 TARGET_SECONDS = 600
 CLOSING_SECONDS = 90
@@ -21,7 +21,6 @@ TIPS = {
 }
 Phase = Literal['WELCOME', 'WELCOME_ACK', 'REVIEW', 'REVIEW_ACK', 'TRANSITION', 'EXERCISE', 'CLOSING', 'COMPLETED']
 
-# Snapshot compatibility only; the bridge does not act on accent consent.
 class AccentConsent(StrictModel):
     state: Literal['none', 'accepted', 'declined', 'expired', 'consumed'] = 'none'
     accent: str | None = None
@@ -41,6 +40,7 @@ class Lesson(StrictModel):
     name: str
     focus: Dimension
     previous: str | None = None
+    # Retain the schema-2 snapshot field for existing lessons and bridge rollback.
     suggested_accent: str | None = Field(default=None, max_length=30)
     exercise_id: str | None = None
     introduced_exercise_id: str | None = None
@@ -102,11 +102,9 @@ def previous_copy(topic: str, evaluations) -> str:
 def prompt(lesson: Lesson) -> str | None:
     name = safe_label(lesson.name) or 'Listener'
     return {
-        'WELCOME': f'Hey {name}! How’s your day going?',
+        'WELCOME': (f'Hey {name}! Are there any English accents you’d like me to remember for future listening practice? You can say no preference.' if lesson.accent_discovery else f'Hey {name}! I remember you mentioned {LABELS[lesson.accent_offered]} accents. Want to practice it for the next passage?' if lesson.accent_offered else f'Hey {name}! How’s your day going?'),
         'WELCOME_ACK': lesson.welcome_response or social_response(lesson.checkin or ''),
-        'REVIEW': (lesson.previous or '') + (
-            f' You mentioned {LABELS[lesson.suggested_accent]}; we can keep that preference in mind, though accent-specific recordings aren’t available yet.'
-            if lesson.suggested_accent in LABELS else '') + ' What would you enjoy listening to more of today?',
+        'REVIEW': (f'Use {LABELS[lesson.accent_consent.accent]} for the next passage? You can change your mind and say no.' if lesson.accent_confirmation else (lesson.previous or '') + (f' You mentioned {LABELS[lesson.suggested_accent]}; we can keep that preference in mind, though accent-specific recordings aren’t available yet.' if lesson.suggested_accent in LABELS else '') + ' What would you enjoy listening to more of today?'),
         'REVIEW_ACK': lesson.review_response or 'I’ll use that to guide today’s listening.',
         'TRANSITION': f'Alright, I’ve got something for you to listen to. We’ll focus on {FOCUS[lesson.focus]}.',
         'CLOSING': lesson.closing,
@@ -198,6 +196,8 @@ def public_topic(content: dict) -> str | None:
     return topic
 
 def introduction(lesson: Lesson) -> str:
+    if lesson.passage_fallback:
+        return 'That accent voice is unavailable right now, so this recording uses our usual passage voice. Listen carefully, then tell me what you understood.'
     return ('Let’s listen to the first recording. Take your time, then tell me what you understood.'
             if lesson.exercises_completed == 0 else
             'Now, let’s try another recording. Listen for what matters, then tell me what you understood.')
@@ -265,7 +265,11 @@ def compose_closing(lesson: Lesson, evaluations, topics=(), contents=()) -> None
 
 def heard(lesson: Lesson, at: datetime) -> Lesson:
     result = lesson.model_copy(deep=True)
-    transitions = {'WELCOME_ACK': 'REVIEW' if lesson.previous else 'TRANSITION', 'REVIEW_ACK': 'TRANSITION', 'TRANSITION': 'EXERCISE'}
+    transitions = {'WELCOME_ACK': 'REVIEW' if lesson.previous or lesson.accent_confirmation else 'TRANSITION', 'REVIEW_ACK': 'REVIEW' if lesson.accent_topic_review_pending else 'TRANSITION', 'TRANSITION': 'EXERCISE'}
+    if lesson.phase == 'WELCOME_ACK' and lesson.accent_confirmation and lesson.previous:
+        result.accent_topic_review_pending = True
+    if lesson.phase == 'REVIEW_ACK' and lesson.accent_topic_review_pending:
+        result.accent_topic_review_pending = False
     if lesson.phase == 'CLOSING':
         result.phase = 'COMPLETED'
         result.status = 'completed'

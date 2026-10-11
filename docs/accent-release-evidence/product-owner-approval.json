@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "decision_id": "AUD-20-product-owner-global-release-20261011",
+  "authority": "product_owner",
+  "decision": "approved",
+  "scope": "all_authenticated_learners",
+  "approved_at": "2026-10-11T03:15:17.940526+00:00",
+  "source": "Product owner user instruction: AUD-20 \u2014 Final Release Authorization: Ship Globally, 2026-10-11",
+  "statement": "The product owner has completed the qualitative listening review and explicitly accepts British Daniel, Australian Clara and Irish Jessica Gallagher for the initial global Audli accent-training release. The 12-row numerical human-rating CSV is no longer mandatory. Technical and operational release gates remain mandatory.",
+  "numerical_ratings_waived": true,
+  "results_sha256": "6bb7e37b8688f75e26acba822995388b5bfe42352df098a2f5e94a9004e5cc0a",
+  "voices": {
+    "british": {
+      "voice_id": "onwK4e9ZLuTAKqWW03F9",
+      "name": "Daniel - Steady Broadcaster",
+      "sample_hashes": {
+        "P09": "87a2636195a5a04d9644d77f157ea5b0688fb2d5500786cdfd62d63a4d731f56",
+        "P10": "73f9ec0889bae2db0fe891a1f9247a5abc3b98d217061386211380e3174ddac3",
+        "P11": "9b57f3cda27e920d0a8bea0d3bc9030b2bf7b1c542385d3afcf06bf2fa40ba10",
+        "P12": "00172aeb2fa0d105531f3f6d44b26a16334446858213674132fd451a4be7a4eb"
+      }
+    },
+    "australian": {
+      "voice_id": "tyepWYJJwJM9TTFIg5U7",
+      "name": "Clara | Australian Professional Female with Warmth & Trust",
+      "sample_hashes": {
+        "P01": "b0441ed62338543f89ff16dc38472e6e7ae7862c7f510fea79f12d1842836f03",
+        "P02": "5e936a82fc549f4664975915da08bf13b74b36e0640b0a81cc0dcd4dc2e9b44b",
+        "P03": "12ecea5b6bd3bc2da10af6b48afa4b2f922e504e3e6a6c1aba9a50635874ea18",
+        "P04": "56821d8341402f4647347f015930e50cabdd34274f3f1e539f14f9ccd32400cb"
+      }
+    },
+    "irish": {
+      "voice_id": "DbwWo4rVEd5NrejHYUnm",
+      "name": "Jessica Gallagher - Clear and Neutral",
+      "sample_hashes": {
+        "P05": "5e1d98ca834af77785d9eef39585ca61bcc52b745522af2e024af6bbd08bd665",
+        "P06": "e29590d7130f5a1de597a4ad41663fa059c6c93bc3f3b20faf02dcc894789e0a",
+        "P07": "7362e0a2da0a0ab2af6c685c5be62e592312cdead502d546d69c83428bc71cbe",
+        "P08": "e7a413012809665786d06eae7f91379dbc816058fd60e4d80822a2b6b905d534"
+      }
+    }
+  }
+}

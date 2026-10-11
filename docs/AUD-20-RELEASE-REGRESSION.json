@@ -1,0 +1,33 @@
+{
+  "backend_full": {
+    "passed": 818,
+    "failed_before_response_contract_update": 2,
+    "skipped": 3,
+    "seconds": 333.25
+  },
+  "affected_api_rerun": {
+    "passed": 75,
+    "seconds": 40.56,
+    "overlaps_full": true
+  },
+  "distinct_backend_cases_verified": 820,
+  "frontend_unit_passed": 58,
+  "typecheck": "passed",
+  "lint": "passed",
+  "build": "passed",
+  "npm_production_vulnerabilities": 0,
+  "pip_check": "passed",
+  "disable_two_instance_ms": {
+    "sqlite": 3.316,
+    "postgresql": 17.71
+  },
+  "scope": "isolated SQLite/PostgreSQL 17.11; synthetic accounts; mocked providers",
+  "paid_synthesis_calls": 0,
+  "production_writes": false,
+  "production_cross_account_acceptance": "deferred by explicit product-owner authorization; unverified",
+  "production_preflight": {
+    "passed": 19,
+    "total": 19,
+    "authenticated_success_tested": false
+  }
+}

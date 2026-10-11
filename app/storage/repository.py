@@ -177,6 +177,10 @@ class SQLProgressRepository:
                         or checkpoint.status != 'active' or checkpoint.phase != 'EXERCISE'
                         or checkpoint.exercise_id or closing_due(checkpoint, utcnow())):
                     raise ValueError('Lesson changed or closing is due; reload the lesson.')
+            from app.accent_practice import authorized_accent
+            if content.passage_voice and content.passage_voice.accent != 'default':
+                if open_lesson is None or content.passage_voice.accent != authorized_accent(checkpoint):
+                    raise ValueError('Passage accent consent is missing or expired; retry ordinary practice')
             if profile['data']['difficulty'] != difficulty.model_dump():
                 raise ValueError('Learner difficulty changed; retry exercise generation')
             current = db.execute(select(s.exercises.c.id).where(s.exercises.c.user_id == self.learner_id)
@@ -200,6 +204,10 @@ class SQLProgressRepository:
                     lesson_id=lesson.id, user_id=self.learner_id))
                 updated = lesson.model_copy(deep=True)
                 updated.exercise_id = exercise_id
+                if updated.accent_consent.state == 'accepted':
+                    updated.accent_consent.state = 'consumed' if authorized_accent(checkpoint) else 'expired'
+                updated.passage_accent = None
+                updated.passage_fallback = bool(content.passage_voice and content.passage_voice.fallback)
                 updated.revision += 1
                 db.execute(update(s.lessons).where(s.lessons.c.id == lesson.id).values(
                     revision=updated.revision, data=updated.model_dump(mode='json')))
@@ -403,7 +411,14 @@ class SQLProgressRepository:
             row = db.execute(query.order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
             return Lesson.model_validate(row['data']) if row else None
 
-    def create_lesson(self, lesson):
+    def accent_lesson_history(self):
+        from app.lesson import Lesson
+        with self.engine.connect() as db:
+            rows = db.execute(select(s.lessons.c.data).where(s.lessons.c.user_id == self.learner_id)
+                .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc())).scalars().all()
+            return [Lesson.model_validate(row) for row in rows]
+
+    def create_lesson(self, lesson, remember_only=True):
         with self.transaction() as db:
             row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == self.learner_id).with_for_update()).scalar_one()
             if db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == self.learner_id,
@@ -415,7 +430,7 @@ class SQLProgressRepository:
             # Every other returning lesson; rotate recognized labels and never
             # repeat the last suggestion. A single preference is suggested once.
             last = next((item.get('suggested_accent') for item in completed if item.get('suggested_accent')), None)
-            if lesson.previous and len(completed) % 2 == 1 and preferences.status == 'preferred':
+            if remember_only and lesson.previous and len(completed) % 2 == 1 and preferences.status == 'preferred':
                 lesson.suggested_accent = next((item for item in preferences.accents if item != last), None)
             db.execute(s.lessons.insert().values(id=lesson.id, user_id=self.learner_id,
                 status=lesson.status, revision=lesson.revision, started_at=lesson.started_at,

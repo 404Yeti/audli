@@ -3,6 +3,8 @@ from typing import Literal
 from uuid import UUID
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from app.accent_practice import VerifiedPassageVoice
+from app.accents import LABELS
 from app.security import parse_browser_origin
 from sqlalchemy.engine import make_url
 
@@ -23,6 +25,14 @@ class Settings(BaseSettings):
     transcription_model: str = 'gpt-4o-mini-transcribe'
     speech_model: str = 'gpt-4o-mini-tts'
     voice: str = 'coral'
+    accent_practice_enabled: bool = False
+    passage_review_dir: Path = Path('data/voice-evaluation/aud20-validation-20261010')
+    passage_tts_model: Literal['eleven_flash_v2_5'] = 'eleven_flash_v2_5'
+    passage_tts_timeout_seconds: float = Field(default=20, gt=0, le=60)
+    passage_tts_max_concurrent: int = Field(default=2, ge=1, le=16)
+    passage_tts_max_characters: int = Field(default=4000, ge=1, le=4000)
+    passage_tts_daily_characters: int = Field(default=0, ge=0)
+    passage_voices: dict[str, VerifiedPassageVoice] = Field(default_factory=dict)
     tutor_tts_provider: Literal['openai', 'elevenlabs'] = 'openai'
     elevenlabs_api_key: SecretStr | None = Field(default=None, validation_alias='ELEVENLABS_API_KEY')
     elevenlabs_model: Literal['eleven_flash_v2_5', 'eleven_multilingual_v2'] = 'eleven_flash_v2_5'
@@ -56,11 +66,31 @@ class Settings(BaseSettings):
         return ','.join(origins)
 
     @property
+    def available_passage_voices(self) -> dict[str, VerifiedPassageVoice]:
+        return self.passage_voices if self.accent_practice_enabled else {}
+
+    @property
     def browser_origins(self) -> tuple[str, ...]:
         return tuple(self.allowed_origins.split(',')) if self.allowed_origins else ()
 
     @model_validator(mode='after')
     def thresholds(self):
+        if any(key not in LABELS for key in self.passage_voices):
+            raise ValueError('Unknown passage accent')
+        if self.passage_voices and (self.provider == 'demo' or not self.elevenlabs_api_key
+                or not self.elevenlabs_api_key.get_secret_value().strip()):
+            raise ValueError('Configured passage voices require live provider and ElevenLabs credentials')
+        if self.accent_practice_enabled and self.passage_tts_daily_characters <= 0:
+            raise ValueError('Accent practice requires an explicit positive daily character budget ceiling')
+        if self.accent_practice_enabled and self.environment == 'production':
+            from app.passage_validation import approved_configuration
+            try:
+                approved = approved_configuration(self.passage_review_dir)
+            except (OSError, ValueError, KeyError, TypeError):
+                raise ValueError('Readable complete human passage review evidence is required') from None
+            if not self.passage_voices or any(approved.get(accent, {}).get('voice_id') != voice.voice_id
+                    for accent, voice in self.passage_voices.items()):
+                raise ValueError('Configured passage voices have not passed human approval/hash validation')
         if self.tutor_tts_provider == 'elevenlabs':
             if self.provider == 'demo':
                 raise ValueError('ElevenLabs tutor TTS requires AUDLI_PROVIDER=openai')

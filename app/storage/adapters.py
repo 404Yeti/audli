@@ -15,9 +15,13 @@ from app.storage.repository import SQLProgressRepository, profile_values, utcnow
 from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
-SCHEMA_VERSION = 2
-# Migration 003 is additive. The bridge only uses schema-2 tables.
-SUPPORTED_POSTGRES_VERSIONS = ([1, 2], [1, 2, 3])
+SCHEMA_VERSION = 3
+
+
+def initialize_accent_control(db):
+    if db.execute(select(s.accent_control.c.id)).first() is None:
+        db.execute(s.accent_control.insert().values(id=1, enabled=0, revision=0, daily_limit=0,
+            concurrent_limit=2, budget_day=utcnow().date().isoformat(), characters=0, updated_at=utcnow()))
 
 
 def sqlite_engine(path):
@@ -42,11 +46,12 @@ def initialize_sqlite(repo):
         existing = set(inspect(db).get_table_names())
         if 'schema_migrations' in existing:
             versions = sorted(db.execute(select(s.versions.c.version)).scalars().all())
-            if versions not in ([1], [1, 2]):
+            if versions not in ([1], [1, 2], [1, 2, 3]):
                 raise RuntimeError('Unsupported SQLite schema version')
             s.metadata.create_all(db)
-            if versions == [1]:
-                db.execute(s.versions.insert().values(version=2, applied_at=utcnow()))
+            for version in range(max(versions) + 1, SCHEMA_VERSION + 1):
+                db.execute(s.versions.insert().values(version=version, applied_at=utcnow()))
+            initialize_accent_control(db)
             return
         # Original tables keep their names/data. Add nullable projection columns,
         # then backfill before exposing the upgraded repository to application code.
@@ -112,6 +117,7 @@ def initialize_sqlite(repo):
                 repo.learner_id = original_learner
         for version in range(1, SCHEMA_VERSION + 1):
             db.execute(s.versions.insert().values(version=version, applied_at=utcnow()))
+        initialize_accent_control(db)
         for table in s.metadata.sorted_tables:
             for index in table.indexes:
                 db.execute(CreateIndex(index, if_not_exists=True))
@@ -158,8 +164,8 @@ class PostgresRepository(SQLProgressRepository):
             stage = 'database connection'
             with engine.connect() as db:
                 stage = 'schema version validation'
-                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in SUPPORTED_POSTGRES_VERSIONS:
-                    detail = ('Expected migrations 001 and 002. Apply missing migrations with '
+                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) != list(range(1, SCHEMA_VERSION + 1)):
+                    detail = ('Expected migrations 001, 002 and 003. Apply missing migrations with '
                               'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')
                 stage = 'required table and column validation'
@@ -180,7 +186,7 @@ class PostgresRepository(SQLProgressRepository):
             detail = {
                 '28P01': 'Database authentication failed.', '28000': 'Database authorization failed.',
                 '42501': 'Database role lacks required permissions.',
-                '42P01': 'Required schema tables are missing; inspect migrations 001 and 002.',
+                '42P01': 'Required schema tables are missing; inspect migrations 001, 002 and 003.',
                 '42703': 'Required schema columns are missing; inspect the numbered migrations.',
                 '3D000': 'Configured database does not exist.',
                 '57014': 'Database operation timed out or was cancelled.',

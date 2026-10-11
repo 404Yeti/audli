@@ -1,16 +1,17 @@
 """Owned lesson checkpoints around the existing exercise evidence loop."""
 from hashlib import sha256
 import asyncio
-from uuid import uuid4
 import re
+from uuid import uuid4
 from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from pydantic import Field, ValidationError
+from app.accent_practice import offer, resolve, discover, discovery_response, intent, expire
+from app.accents import lesson_preference, only_accent_request, acknowledgment as accent_acknowledgment
 from app.audio import validate_upload
 from app.lesson import Lesson, CheckinReply, social_response, routine_checkin_reply, compose_checkin_reply, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
 from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
-from app.accents import lesson_preference, only_accent_request, acknowledgment as accent_acknowledgment
 from app.recognition import reliable_recognition
 from app.diagnostics import report_failure, operation, timed_lock
 from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
@@ -25,7 +26,7 @@ class AcknowledgmentCue(StrictModel):
 class LessonRevision(StrictModel):
     revision: int = Field(ge=0)
 
-def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise):
+def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits):
     acknowledgment_lock = asyncio.Lock()
     def owned(lesson_id):
         lesson = repo.lesson(lesson_id)
@@ -103,8 +104,13 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             at = now()
             lesson = Lesson(id=str(uuid4()), started_at=at, active_since=at,
                 name=profile.name, focus=profile.focus, previous=repo.previous_lesson())
+            available_voices = await passage_limits.voices()
+            history = repo.accent_lesson_history()
+            lesson.accent_discovery = discover(profile.accent_preferences, history, available_voices)
+            if not lesson.accent_discovery:
+                lesson.accent_offered = offer(profile.accent_preferences, history, available_voices)
             try:
-                repo.create_lesson(lesson)
+                repo.create_lesson(lesson, remember_only=not bool(available_voices))
             except ValueError:
                 return public(repo.lesson())
             return public(lesson)
@@ -128,6 +134,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             revision = lesson.revision
             lesson.elapsed_seconds = elapsed(lesson, now())
             lesson.active_since = None
+            expire(lesson)
+            lesson.accent_topic_review_pending = False
             lesson.status = 'paused'
             save(lesson, revision)
         return public(lesson)
@@ -208,26 +216,91 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             if not reliable_recognition(lesson.pending, settings.min_transcription_confidence):
                 raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             text = lesson.pending.text
-            accent_preferences = lesson_preference(text, lesson.suggested_accent if lesson.phase == 'REVIEW' else None)
-            interests = None
-            if lesson.phase == 'REVIEW':
-                if accent_preferences is None or not only_accent_request(text):
+            if not await passage_limits.voices() and not (lesson.accent_offered or lesson.accent_discovery or lesson.accent_confirmation):
+                expire(lesson)
+                accent_preferences = lesson_preference(text, lesson.suggested_accent if lesson.phase == 'REVIEW' else None)
+                interests = None
+                if lesson.phase == 'REVIEW':
+                    if accent_preferences is None or not only_accent_request(text):
+                        try:
+                            with operation(settings, 'lesson.profile_extraction'):
+                                extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
+                            interests = extracted.interests
+                        except Exception as exc:
+                            check(lesson_id, body.revision)
+                            if accent_preferences is None:
+                                if isinstance(exc, ValidationError):
+                                    raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '
+                                                        'your lesson and saved preferences are unchanged.') from None
+                                raise
+                            # An optional accent request never gates lesson availability.
+                            report_failure(settings, 'Lesson topic preference', exc)
+                        if accent_preferences is not None and interests == [] and not re.search(
+                                r'\bno (?:topic|interest) preference\b', text, re.I):
+                            interests = None
+                    lesson.reflection = text
+                    interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
+                    lesson.review_response = (f'I’ll keep {interest} in mind as we choose our listening topics.'
+                                              if interest else 'We can continue with today’s listening.')
+                    lesson.phase = 'REVIEW_ACK'
+                else:
+                    lesson.checkin = text
                     try:
-                        with operation(settings, 'lesson.profile_extraction'):
-                            extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
-                        interests = extracted.interests
+                        reply = routine_checkin_reply(text)
+                        if reply is None:
+                            with operation(settings, 'lesson.response_generation'):
+                                reply = CheckinReply.model_validate(await ai().respond_checkin(text))
+                        with operation(settings, 'lesson.checkin_composition'):
+                            lesson.welcome_response = compose_checkin_reply(text, reply)
                     except Exception as exc:
-                        check(lesson_id, body.revision)
-                        if accent_preferences is None:
-                            if isinstance(exc, ValidationError):
-                                raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '
-                                                    'your lesson and saved preferences are unchanged.') from None
-                            raise
-                        # An optional accent request never gates lesson availability.
-                        report_failure(settings, 'Lesson topic preference', exc)
-                    if accent_preferences is not None and interests == [] and not re.search(
-                            r'\bno (?:topic|interest) preference\b', text, re.I):
-                        interests = None
+                        report_failure(settings, 'Lesson check-in response', exc)
+                        lesson.welcome_response = social_response(text)
+                    lesson.phase = 'WELCOME_ACK'
+                if accent_preferences is not None:
+                    if lesson.phase == 'WELCOME_ACK':
+                        lesson.suggested_accent = None
+                    # Application-owned reply cannot promise an unsupported voice,
+                    # even if generated social text would have done so.
+                    if lesson.phase == 'REVIEW_ACK':
+                        lesson.review_response = accent_acknowledgment(accent_preferences) + (
+                            f' I’ll also keep {interest} in mind for our topics.' if interest else '')
+                    else:
+                        lesson.welcome_response = accent_acknowledgment(accent_preferences)
+                lesson.pending = None
+                with operation(settings, 'lesson.answer_persistence'):
+                    return public(save(lesson, body.revision, interests, accent_preferences))
+            interests = None
+            accent_preferences = None
+            if (lesson.phase == 'WELCOME' and lesson.accent_discovery and not lesson.accent_discovery_resolved
+                    and intent(text)[0] not in ('select', 'unavailable')):
+                accent_preferences, accent_reply = discovery_response(text)
+                lesson.accent_discovery_resolved = True
+                lesson.accent_resolved = True
+            else:
+                # Persistent opt-out differs from declining today's practice offer.
+                if re.search(r"\b(stop suggesting|no more accents|forget.*accent|don't suggest|do not suggest)\b", text.replace('’', "'"), re.I):
+                    accent_preferences = lesson_preference(text)
+                accent_reply = resolve(lesson, text, await passage_limits.voices())
+                if accent_preferences and accent_preferences.status == 'no_preference':
+                    expire(lesson)
+                    accent_reply = 'Of course. I won’t suggest accent practice again. We’ll use our usual passage voice.'
+            if accent_reply:
+                if lesson.phase == 'REVIEW':
+                    lesson.review_response = accent_reply
+                    lesson.phase = 'REVIEW_ACK'
+                else:
+                    lesson.checkin = text
+                    lesson.welcome_response = accent_reply
+                    lesson.phase = 'WELCOME_ACK'
+            elif lesson.phase == 'REVIEW':
+                try:
+                    with operation(settings, 'lesson.profile_extraction'):
+                        extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
+                except ValidationError:
+                    check(lesson_id, body.revision)
+                    raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '
+                                        'your lesson and saved preferences are unchanged.') from None
+                interests = extracted.interests  # Never replace goals, identity, scores or difficulty.
                 lesson.reflection = text
                 interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
                 lesson.review_response = (f'I’ll keep {interest} in mind as we choose our listening topics.'
@@ -246,16 +319,6 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     report_failure(settings, 'Lesson check-in response', exc)
                     lesson.welcome_response = social_response(text)
                 lesson.phase = 'WELCOME_ACK'
-            if accent_preferences is not None:
-                if lesson.phase == 'WELCOME_ACK':
-                    lesson.suggested_accent = None
-                # Application-owned reply cannot promise an unsupported voice,
-                # even if generated social text would have done so.
-                if lesson.phase == 'REVIEW_ACK':
-                    lesson.review_response = accent_acknowledgment(accent_preferences) + (
-                        f' I’ll also keep {interest} in mind for our topics.' if interest else '')
-                else:
-                    lesson.welcome_response = accent_acknowledgment(accent_preferences)
             lesson.pending = None
             with operation(settings, 'lesson.answer_persistence'):
                 return public(save(lesson, body.revision, interests, accent_preferences))

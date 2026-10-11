@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-11T03:19:15.553005+00:00",
+  "credential_file_owner_only": true,
+  "production_writes": false,
+  "paid_calls": 0,
+  "test_sessions_available": false,
+  "production_session_pooler_validated": true,
+  "connected": true,
+  "postgres_version": "17.11",
+  "read_only": true,
+  "schema_versions": [
+    1,
+    2
+  ],
+  "shared_controls_exist": false,
+  "existing_data": {
+    "users": 7,
+    "learner_profiles": 7,
+    "training_sessions": 13,
+    "exercises": 13,
+    "attempts": 33,
+    "evaluation_results": 11,
+    "audio_assets": 96,
+    "lesson_lifecycles": 3
+  },
+  "missing_profile_owners": 0,
+  "missing_audio_owners": 0,
+  "invalid_constraints": 0,
+  "learner_integrity_scope": "Current aggregate counts and owner/constraint integrity only; no previous private snapshot available for historical comparison."
+}

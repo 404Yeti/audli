@@ -219,3 +219,5 @@ validated mapping. These are administrative database operations, not HTTP routes
 Every production write requires explicit authorization. Feature rollback changes
 one shared row, leaving schema, budgets, learner data and replay audio intact.
 See AUD-20-GLOBAL-RELEASE-READINESS.md for exact release gates and in-flight behavior.
+
+Production pooler verification for AUD-20 found libpq startup timeout options were discarded. SharedAccentControls therefore applies transaction-local set_config for statement_timeout=750ms, lock_timeout=250ms, idle_in_transaction_session_timeout=2000ms and UTC before every read/write/recheck; the same settings were verified through production pooling.

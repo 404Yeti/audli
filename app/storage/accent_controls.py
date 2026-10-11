@@ -38,6 +38,13 @@ class SharedAccentControls:
             else:
                 db.begin()
             try:
+                if db.dialect.name == 'postgresql':
+                    # Session poolers may discard libpq startup options. Set limits
+                    # locally in every transaction, including reads and rechecks.
+                    db.exec_driver_sql("SELECT set_config('statement_timeout','750ms',true), "
+                        "set_config('lock_timeout','250ms',true), "
+                        "set_config('idle_in_transaction_session_timeout','2000ms',true), "
+                        "set_config('TimeZone','UTC',true)")
                 yield db
                 db.commit()
             except BaseException:
@@ -59,7 +66,7 @@ class SharedAccentControls:
             return None
 
     def read(self):
-        with self.engine.connect() as db:
+        with self.transaction() as db:
             return dict(db.execute(select(s.accent_control).where(s.accent_control.c.id == 1)).mappings().one())
 
     async def voices(self):
@@ -140,7 +147,7 @@ class SharedAccentControls:
     def check_reservation(self, reservation, owner=None, lesson_id=None, number=None, accent=None):
         from app.lesson import Lesson
         from app.accent_practice import authorized_accent
-        with self.engine.connect() as db:
+        with self.transaction() as db:
             row = db.execute(select(s.accent_control.c.enabled, s.accent_control.c.revision)
                 .where(s.accent_control.c.id == 1)).mappings().one()
             lease = db.execute(select(s.accent_reservations).where(

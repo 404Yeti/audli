@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-11T07:29:19.176187+00:00",
+  "shared_flag_disabled": true,
+  "budget_zero": true,
+  "two_independent_release_control_pools_ms": 645.457,
+  "server_connection_options": {
+    "statement_timeout": "750ms",
+    "lock_timeout": "250ms",
+    "idle_in_transaction_session_timeout": "2s",
+    "TimeZone": "UTC"
+  },
+  "production_writes": false,
+  "paid_calls": 0,
+  "measurement_scope": "Two release-code control pools connected to production PostgreSQL; not two deployed Render instances"
+}

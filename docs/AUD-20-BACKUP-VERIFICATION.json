@@ -1,5 +1,5 @@
 {
-  "utc": "2026-10-11T03:33:01.103541+00:00",
+  "utc": "2026-10-11T07:22:27.729191+00:00",
   "scope": "Audli public schema, including all application learner data and generated audio; excludes managed Supabase Auth/storage schemas",
   "production_writes": false,
   "paid_calls": 0,
@@ -30,9 +30,9 @@
     "turn_assessments": 32,
     "users": 7
   },
-  "backup_path": "/home/lenovo/.config/audli/backups/aud20-public-20261011T033301Z.dump",
+  "backup_path": "/home/lenovo/.config/audli/backups/aud20-public-20261011T072227Z.dump",
   "backup_bytes": 5311814,
-  "backup_sha256": "f2e5cc36c56b77dc832595cb4c1fb9ca954080e5b8715f55491e4707c5643dab",
+  "backup_sha256": "5989dea9fb84f09c250740975a8d764d847f2365ec5a8a4671cf50f18f5111a0",
   "isolated_migration_preserves_all_learner_rows": true,
   "isolated_migration_defaults_disabled_zero_budget": true
 }

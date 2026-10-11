@@ -1,5 +1,14 @@
 # AUD-20 full-platform accent release readiness
 
+Current execution evidence (supersedes historical preparation status below): migration 003 applied to production at 07:23 UTC after a fresh 07:22 verified private application backup/isolated restore. All existing learner-table fingerprints preserved; schema versions [1,2,3], controls initially disabled/zero and RLS/browser-role revocations verified. Bridge passed 19/19 post-migration safe health/auth rejection checks. No learner data modified. Minimum rollback revision remains 2454f040b693ee5b53ebca1fad5574d4460d8a7c.
+
+Three authorized live calls passed (1,416 characters, one per voice, no retries, included credits/$0 overage). The original qualitative approval, numerical waiver and accepted deferred two-account production acceptance remain in force. No additional live verification synthesis is authorized or planned.
+
+Production session pooler discarded startup timeout options; fixed by applying transaction-local set_config before every control read, reservation, recheck and update. Focused fleet/consent/global regression: 121 passed, two expected skips. Production read-only verification confirms statement_timeout=750ms, lock_timeout=250ms, idle_in_transaction_session_timeout=2s and UTC. Two warmed independent release-code pools observed disabled state in 645.457ms; this measures reads against production PostgreSQL, not two deployed Render instances or a flag transition. No positive cache; two-second async deadline rejects stale positive results. See AUD-20-PRODUCTION-CONTROL-PREFLIGHT.json. Flag activation and actual disable transition measurement follow verified deployment.
+
+Release PR #13 is ready for review; deploy/activation pending latest checks and merge. Conservative global target: 5,000 characters per UTC day, concurrency one, no account allowlist. Tutor voice unchanged. All prior references to missing paid authorization, mandatory numerical review or requiring dedicated two-account sessions are historical and superseded by owner instructions and evidence above.
+
+
 Status: **NOT READY — release gates remain open**. Scope is every authenticated
 Audli learner, existing and newly registered. There is no account allowlist or
 account-specific eligibility gate. AUD-20 remains In Progress until deployed and

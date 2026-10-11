@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-11T07:23:55.544685+00:00",
+  "backup_verified": true,
+  "migration_applied": true,
+  "learner_data_modified": false,
+  "minimum_rollback_revision": "2454f040b693ee5b53ebca1fad5574d4460d8a7c",
+  "paid_calls": 0,
+  "schema_versions": [
+    1,
+    2,
+    3
+  ],
+  "all_existing_learner_table_fingerprints_preserved": true,
+  "global_flag_enabled": false,
+  "daily_character_budget": 0,
+  "concurrent_limit": 2,
+  "rls_and_browser_revocations_verified": true
+}

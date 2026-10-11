@@ -392,3 +392,19 @@ def test_consent_is_rechecked_between_admission_and_dispatch(fleet,change):
     repo.save_lesson(latest,latest.revision)
     assert not asyncio.run(a.valid(grant,owner=repo.learner_id,lesson=lesson,accent='british'))
     assert b.read()['characters']==10
+
+
+def test_pooler_ignored_startup_options_are_overridden_per_transaction(fleet):
+    root, config, a, b = fleet
+    if root.engine.dialect.name != 'postgresql':
+        pytest.skip('PostgreSQL session-pooler timeout contract')
+    for control in (a, b):
+        with control.engine.begin() as db:
+            db.exec_driver_sql("SELECT set_config('statement_timeout','2min',false), "
+                "set_config('lock_timeout','0',false), "
+                "set_config('idle_in_transaction_session_timeout','0',false)")
+        with control.transaction() as db:
+            assert db.exec_driver_sql('SHOW statement_timeout').scalar_one() == '750ms'
+            assert db.exec_driver_sql('SHOW lock_timeout').scalar_one() == '250ms'
+            assert db.exec_driver_sql('SHOW idle_in_transaction_session_timeout').scalar_one() == '2s'
+        assert control.read()['enabled'] == 1

@@ -1,0 +1,43 @@
+{
+  "release": "AUD-20 GLOBAL RELEASE LIVE",
+  "application_revision": "ec1672b8d5cfe5b84eda9afcaa58c5f4e9ddad09",
+  "release_pr": "https://github.com/404Yeti/audli/pull/13",
+  "render_deployment": "dep-db5jnud9mjac738hvql0",
+  "render_live_utc": "2026-10-11T07:35:09.951631Z",
+  "vercel_deployment": "6992528929",
+  "vercel_url": "https://audli-cyf7rw645-robert-leybas-projects.vercel.app",
+  "vercel_status": "success",
+  "minimum_rollback_revision": "2454f040b693ee5b53ebca1fad5574d4460d8a7c",
+  "schema_versions": [
+    1,
+    2,
+    3
+  ],
+  "global_enabled": true,
+  "daily_character_limit": 5000,
+  "concurrent_synthesis_limit": 1,
+  "live_tests": {
+    "calls": 3,
+    "characters": 1416,
+    "automatic_retries": 0,
+    "additional_charges": 0,
+    "scope": "Isolated service using real ElevenLabs, not authenticated production HTTP"
+  },
+  "monitoring": {
+    "start_utc": "2026-10-11T07:35:10Z",
+    "end_utc": "2026-10-11T07:45:42.774885495Z",
+    "error_logs": 0,
+    "request_5xx_logs": 0,
+    "credits_used_at_074317": 93808,
+    "credits_used_at_074548": 93808,
+    "shared_reserved_characters_at_074522": 0,
+    "new_monitoring_alerts_configured": false
+  },
+  "accepted_unverified_risks": [
+    "Dedicated two-account authenticated production acceptance deferred by product owner",
+    "Authenticated production passage/tutor playback and cross-account success/isolation not exercised",
+    "Disable measured across independent release-code pools against production PostgreSQL, not two deployed authenticated HTTP instances",
+    "No real multi-user production load test; isolated concurrency and spending regressions passed"
+  ],
+  "tutor_voice_unchanged": "yKYzqEa22xh5PdidhN70"
+}

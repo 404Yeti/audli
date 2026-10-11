@@ -101,10 +101,17 @@ def previous_copy(topic: str, evaluations) -> str:
 
 def prompt(lesson: Lesson) -> str | None:
     name = safe_label(lesson.name) or 'Listener'
+    accent_question = None
+    if lesson.accent_confirmation:
+        if lesson.accent_consent.state == 'none':
+            article = 'a' if lesson.accent_offered == 'british' else 'an'
+            accent_question = f'Would you like to try {article} {LABELS[lesson.accent_offered]} listening exercise now?'
+        else:
+            accent_question = f'Use {LABELS[lesson.accent_consent.accent]} for the next passage? You can change your mind and say no.'
     return {
         'WELCOME': (f'Hey {name}! Are there any English accents you’d like me to remember for future listening practice? You can say no preference.' if lesson.accent_discovery else f'Hey {name}! I remember you mentioned {LABELS[lesson.accent_offered]} accents. Want to practice it for the next passage?' if lesson.accent_offered else f'Hey {name}! How’s your day going?'),
         'WELCOME_ACK': lesson.welcome_response or social_response(lesson.checkin or ''),
-        'REVIEW': (f'Use {LABELS[lesson.accent_consent.accent]} for the next passage? You can change your mind and say no.' if lesson.accent_confirmation else (lesson.previous or '') + (f' You mentioned {LABELS[lesson.suggested_accent]}; we can keep that preference in mind, though accent-specific recordings aren’t available yet.' if lesson.suggested_accent in LABELS else '') + ' What would you enjoy listening to more of today?'),
+        'REVIEW': (accent_question if lesson.accent_confirmation else (lesson.previous or '') + (f' You mentioned {LABELS[lesson.suggested_accent]}; we can keep that preference in mind, though accent-specific recordings aren’t available yet.' if lesson.suggested_accent in LABELS else '') + ' What would you enjoy listening to more of today?'),
         'REVIEW_ACK': lesson.review_response or 'I’ll use that to guide today’s listening.',
         'TRANSITION': f'Alright, I’ve got something for you to listen to. We’ll focus on {FOCUS[lesson.focus]}.',
         'CLOSING': lesson.closing,

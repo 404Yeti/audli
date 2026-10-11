@@ -1,0 +1,43 @@
+{
+  "bridge_source_commit": "a4a69328d83bb436933a2fdfa2ce90b85b0f12ae",
+  "bridge_merged_commit": "2454f040b693ee5b53ebca1fad5574d4460d8a7c",
+  "pr": "https://github.com/404Yeti/audli/pull/12",
+  "render_deploy": "dep-db5fju3rjlhs73aocrm0",
+  "render_live_at": "2026-10-11T02:53:18.316463Z",
+  "vercel_deployment_id": 6990115100,
+  "vercel_url": "https://audli-mf7ekfkgs-robert-leybas-projects.vercel.app",
+  "vercel_status": "success",
+  "postgres_versions": [
+    1,
+    2
+  ],
+  "migration_003_applied": false,
+  "backup_verified": false,
+  "authenticated_production_acceptance_verified": false,
+  "inactive_aud20_deployed": false,
+  "paid_calls": 0,
+  "global_accent_activation": false,
+  "shared_control_table_exists": false,
+  "public_prechecks_passed": 19,
+  "public_postchecks_passed": 19,
+  "error_log_observation": "no matching error logs or request 5xx from 2026-10-11T02:52:40Z through approximately 02:56:31Z",
+  "tutor_configuration": {
+    "custom_audli_voice_selected": true,
+    "provider": "elevenlabs",
+    "model": "eleven_flash_v2_5",
+    "ordinary_passage_provider": "openai",
+    "ordinary_passage_coral_selected": true
+  },
+  "isolated_checks": {
+    "full_migration_upgrade_rollback": 20,
+    "focused_backend_passed": 241,
+    "focused_skipped": 1,
+    "full_backend_passed": 485,
+    "full_skipped": 1,
+    "additional_schema3_assessment_suite_passed": 3,
+    "additional_schema3_suite_skipped": 2,
+    "pip_check": "passed",
+    "production_npm_vulnerabilities": 0
+  },
+  "stop_reason": "Missing private production database backup access and authenticated saved-audio test sessions; do not proceed to migration."
+}

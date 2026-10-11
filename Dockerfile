@@ -7,4 +7,6 @@ COPY app app
 COPY scripts scripts
 COPY docs/postgres.sql docs/postgres.sql
 COPY docs/postgres-002.sql docs/postgres-002.sql
+COPY docs/postgres-003.sql docs/postgres-003.sql
+COPY docs/accent-release-evidence /app/data/voice-evaluation/aud20-validation-20261010
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

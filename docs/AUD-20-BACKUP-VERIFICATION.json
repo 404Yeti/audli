@@ -1,0 +1,38 @@
+{
+  "utc": "2026-10-11T03:33:01.103541+00:00",
+  "scope": "Audli public schema, including all application learner data and generated audio; excludes managed Supabase Auth/storage schemas",
+  "production_writes": false,
+  "paid_calls": 0,
+  "restore_verified": true,
+  "source_snapshot_matches_restore": true,
+  "restored_schema_versions": [
+    1,
+    2
+  ],
+  "postgres_version": "17.11 (Ubuntu 17.11-1.pgdg26.04+2)",
+  "table_count": 17,
+  "row_counts": {
+    "adaptation_events": 11,
+    "assessment_evidence": 224,
+    "attempts": 33,
+    "audio_assets": 96,
+    "coach_audio": 44,
+    "conversation_followups": 21,
+    "conversation_turns": 32,
+    "conversations": 12,
+    "evaluation_results": 11,
+    "exercises": 13,
+    "learner_profiles": 7,
+    "lesson_exercises": 5,
+    "lesson_lifecycles": 3,
+    "schema_migrations": 2,
+    "training_sessions": 13,
+    "turn_assessments": 32,
+    "users": 7
+  },
+  "backup_path": "/home/lenovo/.config/audli/backups/aud20-public-20261011T033301Z.dump",
+  "backup_bytes": 5311814,
+  "backup_sha256": "f2e5cc36c56b77dc832595cb4c1fb9ca954080e5b8715f55491e4707c5643dab",
+  "isolated_migration_preserves_all_learner_rows": true,
+  "isolated_migration_defaults_disabled_zero_budget": true
+}

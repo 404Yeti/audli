@@ -33,7 +33,7 @@ def import_learner(source_path: Path, target, source_learner_id='local'):
             exercise_ids = select(s.exercises.c.id).where(s.exercises.c.user_id == source_learner_id)
             attempt_ids = select(s.attempts.c.id).where(s.attempts.c.exercise_id.in_(exercise_ids))
             for table in s.metadata.sorted_tables:
-                if table in (s.versions, s.users, s.profiles):
+                if table in (s.versions, s.users, s.profiles, s.accent_control, s.accent_reservations):
                     continue
                 if 'user_id' in table.c:
                     query = select(table).where(table.c.user_id == source_learner_id)

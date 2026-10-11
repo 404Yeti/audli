@@ -20,7 +20,7 @@ from app.config import Settings
 from app.main import create_app
 from app.repository import ProgressRepository, PostgresRepository
 from app.storage import schema as s
-from app.storage.migrations import postgres_baseline, postgres_lesson_migration
+from app.storage.migrations import postgres_baseline, postgres_lesson_migration, postgres_accent_migration
 from app.models import Conversation, ConversationTurn, LearnerProfile, Transcription
 from app.conversation import final_evaluation, adapt_final
 from conftest import ASGIClient, FakeProvider
@@ -404,7 +404,7 @@ def test_postgres_startup_diagnostics_are_specific_but_private(monkeypatch, stag
     failure.sqlstate = code
     engine = MagicMock()
     db = engine.connect.return_value.__enter__.return_value
-    db.execute.return_value.scalars.return_value.all.return_value = [1] if stage == 'version_mismatch' else [1, 2]
+    db.execute.return_value.scalars.return_value.all.return_value = [1] if stage == 'version_mismatch' else [1, 2, 3]
     inspector = MagicMock()
     inspector.get_columns.side_effect = lambda name: [{'name': column.name} for column in s.metadata.tables[name].columns]
     monkeypatch.setattr(adapters, 'create_engine', lambda *args, **kwargs: engine)
@@ -435,7 +435,7 @@ def test_backend_image_contains_all_numbered_migrations():
 def test_postgres_baseline_matches_schema_and_protects_browser_roles():
     assert (Path(__file__).parents[1] / 'docs/postgres.sql').read_text() == postgres_baseline()
     for table in s.metadata.sorted_tables:
-        assert f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;' in postgres_baseline() + postgres_lesson_migration()
+        assert f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;' in postgres_baseline() + postgres_lesson_migration() + postgres_accent_migration()
 
 
 def test_import_retains_progress_and_refuses_overwrite(repository_factory, tmp_path, exercise):
@@ -483,13 +483,15 @@ def test_postgres_rls_blocks_an_untrusted_role(repository_factory):
         db.exec_driver_sql(f'CREATE ROLE {role} NOLOGIN')
         db.exec_driver_sql(f'GRANT USAGE ON SCHEMA public TO {role}')
         db.exec_driver_sql(f'GRANT SELECT ON learner_profiles TO {role}')
-        db.exec_driver_sql(f'GRANT SELECT ON lesson_lifecycles, lesson_exercises TO {role}')
+        db.exec_driver_sql(f'GRANT SELECT ON lesson_lifecycles, lesson_exercises, accent_control, accent_reservations TO {role}')
     try:
         with repo.engine.begin() as db:
             db.exec_driver_sql(f'SET LOCAL ROLE {role}')
             assert db.exec_driver_sql('SELECT count(*) FROM learner_profiles').scalar_one() == 0
             assert db.exec_driver_sql('SELECT count(*) FROM lesson_lifecycles').scalar_one() == 0
             assert db.exec_driver_sql('SELECT count(*) FROM lesson_exercises').scalar_one() == 0
+            assert db.exec_driver_sql('SELECT count(*) FROM accent_control').scalar_one() == 0
+            assert db.exec_driver_sql('SELECT count(*) FROM accent_reservations').scalar_one() == 0
     finally:
         with repo.engine.begin() as db:
             db.exec_driver_sql(f'DROP OWNED BY {role}')

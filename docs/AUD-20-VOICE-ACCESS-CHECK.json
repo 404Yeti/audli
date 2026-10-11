@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-10-11T03:35:38.554431+00:00",
+  "synthesis_calls": 0,
+  "voices": {
+    "british": {
+      "voice_id": "onwK4e9ZLuTAKqWW03F9",
+      "accessible": true,
+      "compatible_model": true,
+      "premium_multiplier": null
+    },
+    "australian": {
+      "voice_id": "tyepWYJJwJM9TTFIg5U7",
+      "accessible": true,
+      "compatible_model": true,
+      "premium_multiplier": 1.0
+    },
+    "irish": {
+      "voice_id": "DbwWo4rVEd5NrejHYUnm",
+      "accessible": true,
+      "compatible_model": true,
+      "premium_multiplier": 1.0
+    }
+  },
+  "flash_tts_supported": true,
+  "model_credit_multiplier": 1.0
+}

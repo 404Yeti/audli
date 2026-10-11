@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; media-src 'self' file:; connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'">
+<title>AUD-20 human passage review</title>
+<style>body{font:17px system-ui;max-width:1000px;margin:24px auto;padding:16px;background:#f5f6f8;color:#18232f}section{background:white;padding:24px;margin:24px 0;border:1px solid #ccd3dc;border-radius:12px}label{display:block;margin:12px 0}input,select,textarea,button{font:inherit;padding:8px;max-width:100%;box-sizing:border-box}input,textarea{width:100%}audio{width:100%}.scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}button{cursor:pointer}small{display:block}#status{font-weight:bold}summary{cursor:pointer}</style></head>
+<body><h1>AUD-20 human passage review</h1>
+<p>All candidates are pending. These are reviewer test passages, separate from the learner app. Listen to each full clip at normal player speed. Daniel / British is first for pilot consideration, without any endorsement. Voice labels describe the intended accent; record what you actually hear.</p>
+<p>Rate 1 = unsuitable, 2 = weak, 3 = mixed, 4 = suitable, 5 = excellent. Every clip must score at least 4 in clarity, accent consistency, naturalness and ESL suitability under the existing gate. Also rate accent credibility and pacing; both must be reviewed before a pilot proposal. Document your familiarity and concrete observations. Enter “none” for critical errors only after listening.</p>
+<p>Check meaning-bearing times and facts, vowels and connected speech, pauses, one-speaker delivery, and volume on your intended listening device. Clara is relatively quiet; Jessica is relatively fast. Do not use those measurements as approval evidence.</p>
+<button id="export" type="button">Download reviewed ratings CSV</button>
+<p id="status" role="status">No automatic approval. Download your CSV to preserve the review.</p>
+<p>Drafts save in this browser when storage is available. Download remains necessary: this page cannot overwrite ratings.csv. Exported cells are kept as literal text; do not evaluate spreadsheet formulas.</p>
+<main id="samples"></main>
+<script>
+'use strict';
+const source=__REVIEW_DATA__;
+const fields=['sample_id','rater','accent_familiarity','heard_accent','clarity','consistency','naturalness','esl_suitability','critical_errors','notes','accent_credibility','pacing'];
+const categories={clarity:'Pronunciation clarity',consistency:'Accent consistency',naturalness:'Naturalness',esl_suitability:'ESL suitability',accent_credibility:'Accent credibility',pacing:'Pacing'};
+const key='aud20-human-review-'+source.rows.map(r=>r.sha256).join('-');
+let drafts={};
+try{drafts=JSON.parse(localStorage.getItem(key)||'{}');}catch{}
+const forms=new Map();
+function el(tag,text){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;}
+function read(form,id){const row={sample_id:id};for(const name of fields.slice(1))row[name]=form.elements.namedItem(name).value;return row;}
+function save(){const values={};for(const [id,form] of forms)values[id]=read(form,id);try{localStorage.setItem(key,JSON.stringify(values));document.querySelector('#status').textContent='Draft saved in this browser. Download CSV when finished; no voice approved.';}catch{document.querySelector('#status').textContent='Browser storage unavailable. Download CSV to save your work.';}}
+const ordered=[...source.rows].sort((a,b)=>({british:0,australian:1,irish:2}[a.accent]-{british:0,australian:1,irish:2}[b.accent])||a.sample_id.localeCompare(b.sample_id));
+for(const row of ordered){
+ const section=el('section');section.append(el('h2',`${row.sample_id} — ${row.name}`),el('p',`Intended accent: ${row.accent} · Passage: ${row.passage} · Speech rate: ${row.rate}× · Duration: ${row.duration_seconds}s`),el('small',`Voice ID: ${row.voice_id} · Model: ${row.model}`));
+ const audio=el('audio');audio.controls=true;audio.preload='none';audio.src=row.sample_id+'.mp3';audio.setAttribute('aria-label',`${row.sample_id} ${row.accent} ${row.passage} rate ${row.rate}`);audio.addEventListener('play',()=>{document.querySelectorAll('audio').forEach(other=>{if(other!==audio)other.pause();});});section.append(audio);
+ const details=el('details');details.append(el('summary','Original test passage (reviewers only)'),el('p',row.text));section.append(details);
+ const form=el('form');form.addEventListener('submit',e=>e.preventDefault());const scores=el('div');scores.className='scores';
+ const initial=drafts[row.sample_id]||source.ratings.find(r=>r.sample_id===row.sample_id)||{};
+ const labels={rater:'Reviewer name',accent_familiarity:'Your familiarity with this accent (at least 10 characters)',heard_accent:'Accent actually heard (british / australian / irish, or describe uncertainty)',critical_errors:'Critical errors (explicitly “none” if absent)',notes:'Listening comments (at least 10 characters; include pronunciation, pacing and volume)'};
+ for(const name of fields.slice(1)){
+  const label=el('label',categories[name]||labels[name]);let input;
+  if(categories[name]){input=el('select');input.append(new Option('Unrated',''));for(let i=1;i<=5;i++)input.append(new Option(String(i),String(i)));}
+  else input=el(name==='notes'||name==='accent_familiarity'?'textarea':'input');
+  input.name=name;input.value=initial[name]||'';label.append(input);(categories[name]?scores:form).append(label);
+ }
+ form.append(scores);form.addEventListener('input',save);section.append(form);forms.set(row.sample_id,form);document.querySelector('#samples').append(section);
+}
+document.querySelector('#export').addEventListener('click',()=>{
+ const quote=value=>'"'+String(value).replaceAll('"','""')+'"';
+ const rows=[fields.join(','),...source.rows.map(r=>{const data=read(forms.get(r.sample_id),r.sample_id);return fields.map(f=>quote(data[f])).join(',');})];
+ const url=URL.createObjectURL(new Blob([rows.join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'}));const a=el('a');a.href=url;a.download='ratings-reviewed.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ document.querySelector('#status').textContent='CSV downloaded. Review remains pending until validated; no runtime configuration changed.';
+});
+</script></body></html>

@@ -1,0 +1,130 @@
+{
+  "utc": "2026-10-11T03:43:38.709235+00:00",
+  "checks": [
+    {
+      "url": "https://audli-api.onrender.com/api/health",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://audli-api.onrender.com/api/auth/config",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://audli-api.onrender.com/api/profile",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://audli-api.onrender.com/api/lessons/current",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://audli-api.onrender.com/api/profile",
+      "case": "invalid token",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://app.audli.ai/api/health",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://app.audli.ai/api/auth/config",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://app.audli.ai/api/profile",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://app.audli.ai/api/lessons/current",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://app.audli.ai/api/profile",
+      "case": "invalid token",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://audli-seven.vercel.app/api/health",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://audli-seven.vercel.app/api/auth/config",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "url": "https://audli-seven.vercel.app/api/profile",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://audli-seven.vercel.app/api/lessons/current",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "url": "https://audli-seven.vercel.app/api/profile",
+      "case": "invalid token",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "case": "origin rejection before provider dispatch",
+      "origin": "https://app.audli.ai",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "case": "origin rejection before provider dispatch",
+      "origin": "https://audli-seven.vercel.app",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "case": "origin rejection before provider dispatch",
+      "origin": "https://evil.example",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    },
+    {
+      "case": "origin rejection before provider dispatch",
+      "origin": "https://app.audli.ai.evil.example",
+      "status": 403,
+      "expected": 403,
+      "passed": true
+    }
+  ],
+  "passed": 19,
+  "total": 19,
+  "paid_calls": 0,
+  "authenticated_success_tested": false
+}

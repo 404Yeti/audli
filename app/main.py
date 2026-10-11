@@ -40,6 +40,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     audio_dir = settings.data_dir / 'exercise_audio'
     audio_dir.mkdir(parents=True, exist_ok=True)
     lock = asyncio.Lock()
+    from app.storage.accent_controls import SharedAccentControls
+    passage_limits = SharedAccentControls(database.engine, settings)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -48,6 +50,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             emit_configuration(settings)
             yield
         finally:
+            passage_limits.close()
             database.close()
             if identity is not None:
                 await identity.close()
@@ -61,6 +64,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     if identity is not None:
         app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
+    app.state.accent_controls = passage_limits
     app.state.repository = database
 
     def ai():
@@ -115,6 +119,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         # Scenario label only; scripts, titles, questions and answers stay gated.
         return {'id': row['id'], 'difficulty': json.loads(row['difficulty']),
                 'topic': public_topic(json.loads(row['content'])),
+                'passage_voice': json.loads(row['content']).get('passage_voice'),
                 'audio_url': f"/api/exercises/{row['id']}/audio", 'completed_attempt_id': repo.completed(row['id'])}
 
     def restore_audio(name):
@@ -182,13 +187,18 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         if (content.speech_rate, content.target_duration_seconds, content.vocabulary_level, content.information_density) != (d.speech_rate, d.duration_seconds, d.vocabulary_level, d.information_density):
             raise ValueError('Provider difficulty mismatch')
         with operation(settings, 'SpeechService.speech'):
-            audio = await ai().speech(content)
+            from app.accent_practice import passage_audio, authorized_accent
+            content.passage_voice = None
+            audio, routing = await passage_audio(settings, ai(), content, authorized_accent(lesson) if lesson else None, passage_limits, owner=repo.learner_id, lesson=lesson)
+            if routing.accent != 'default' and (not settings.accent_practice_enabled or lesson is None or authorized_accent(lesson) != routing.accent):
+                audio, routing = await passage_audio(settings, ai(), content, None, passage_limits)
         if not audio:
             raise ValueError('Empty generated audio')
         exercise_id = str(uuid4())
         kind = 'wav' if settings.provider == 'demo' else 'mp3'
         with operation(settings, 'SpeechService.sanitize_generated_audio'):
             audio = await sanitize_generated_audio(audio, kind)
+        content.passage_voice = routing
         audio_name = exercise_id + '.' + kind
         path = audio_dir / audio_name
         path.write_bytes(audio)
@@ -298,7 +308,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
-    register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise)
+    register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits)
     return app
 
 app = create_app()

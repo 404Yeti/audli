@@ -72,8 +72,8 @@ These steps initialize a fresh installation. Existing installations must apply o
 1. Create a dedicated Supabase project; retain its database password securely. Keep this database separate from unrelated application tables.
 2. In **Connect**, copy the **Session pooler** PostgreSQL URI (port 5432), using its actual user/host and URL-encoding the password. Session pooling supports IPv4 and suits the persistent backend; direct connections require compatible network access. See [Supabase connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres).
 3. Append `?sslmode=require`, or `&sslmode=require` if a query already exists. Alternatively configure certificate verification with `verify-full` and the trusted CA.
-4. In Supabase **SQL Editor**, execute the complete `docs/postgres.sql` then `docs/postgres-002.sql`, in order, as database owner. Alternatively, configure the backend environment above and run `.venv/bin/python -m scripts.migrate_postgres`; use `python -m scripts.migrate_postgres` inside the container. The command applies only missing migrations and prints applied/already-applied without the URI.
-5. Confirm `SELECT version, applied_at FROM schema_migrations ORDER BY version;` returns versions 1 and 2. Confirm tables/indexes and RLS. Migrations enable RLS without browser policies and revoke table privileges from PUBLIC and Supabase `anon`/`authenticated`; the backend owner retains access. Do not grant browser access to scripts or learner records.
+4. In Supabase **SQL Editor**, execute the complete `docs/postgres.sql` then `docs/postgres-002.sql` and `docs/postgres-003.sql`, in order, as database owner. Alternatively, configure the backend environment above and run `.venv/bin/python -m scripts.migrate_postgres`; use `python -m scripts.migrate_postgres` inside the container. The command applies only missing migrations and prints applied/already-applied without the URI.
+5. Confirm `SELECT version, applied_at FROM schema_migrations ORDER BY version;` returns versions 1, 2 and 3. Confirm tables/indexes and RLS. Migrations enable RLS without browser policies and revoke table privileges from PUBLIC and Supabase `anon`/`authenticated`; the backend owner retains access. Do not grant browser access to scripts or learner records.
 6. Configure Supabase Auth and confirmed accounts using [AUD-14 setup](AUTHENTICATION.md). Do not set a shared production learner UUID.
 7. In Render's backend **Environment**, set the production persistence/auth values above. Retain `OPENAI_API_KEY`, provider/model settings and `AUDLI_DATA_DIR` (a cache in Postgres mode). Install updated `requirements.txt` in the build. The Docker image includes the schema/migration command.
 8. Redeploy with this code. Leave Vercel's `BACKEND_URL=https://audli-api.onrender.com` and the existing proxy unchanged. No frontend database credentials are needed; add the public Auth project URL/publishable key described in [AUD-14](AUTHENTICATION.md).
@@ -141,7 +141,7 @@ The first sandboxed full run stalled in an existing audio subprocess test and wa
 Files changed: `.env.example`, `AGENTS.md`, `Dockerfile`, `README.md`, `requirements.txt`; `app/config.py`, `app/main.py`, `app/models.py`, `app/repository.py`, `app/conversation_api.py`, `app/diagnostics.py`; `app/storage/__init__.py`, `schema.py`, `repository.py`, `adapters.py`, `migrations.py`; `docs/postgres.sql`, `docs/PERSISTENCE.md`; `scripts/migrate_postgres.py`, `scripts/import_sqlite.py`, `scripts/inspect_attempt.py`; `tests/conftest.py`, `tests/test_persistence.py`, `tests/test_diagnostics.py`, `tests/test_security.py`, `tests/fixtures/sqlite_v0.2.sql`. No frontend source changes.
 ## Structured lesson checkpoints (Migration 002)
 
-Apply `docs/postgres-002.sql` after the unchanged Migration 001, using the backend database owner. `python -m scripts.migrate_postgres` applies missing numbered migrations; production startup requires versions 1 and 2 and fails closed if the schema is incomplete. No production migration is automatic. SQLite adds the two new tables and version 2 transactionally, including upgrades from version 1; existing history and onboarding remain intact.
+Apply `docs/postgres-002.sql` after the unchanged Migration 001, using the backend database owner. `python -m scripts.migrate_postgres` applies missing numbered migrations; this build requires versions 1, 2 and 3 (see Migration 003 below) and fails closed if the schema is incomplete. No production migration is automatic. SQLite adds the two new tables and version 2 transactionally, including upgrades from version 1; existing history and onboarding remain intact.
 
 `lesson_lifecycles` holds an owned, revisioned domain snapshot, active-time anchors, phase, pending personal recognition, review source, closing summary and completion. A partial unique index permits one active or paused lesson per learner. `lesson_exercises` associates owned exercise records with the whole lesson; the existing single-exercise `training_sessions` rows retain their original semantics for legacy compatibility. New history uses completed lesson membership; when no structured lesson exists, review can reference an actual completed legacy training session.
 
@@ -178,3 +178,44 @@ WHERE oid IN ('public.lesson_lifecycles'::regclass, 'public.lesson_exercises'::r
 ```
 
 Then, only with approval, restart/redeploy Render and confirm startup and authenticated history/resume. If versions are already 1 and 2 but startup still fails, inspect the safe failure stage: engine configuration; database connection; schema version validation (including ledger access); required table/column validation; or development-only learner initialization. Fixed diagnostics distinguish authentication/permissions/missing schema/timeouts when the driver supplies a known SQLSTATE; raw driver messages, SQL parameters, URLs and learner data are omitted. Supabase MCP access does not prove Render's credentials, TLS or networking are working. Missing privileges, wrong database/search path, schema drift and connection limits can independently fail validation; never bypass it.
+
+
+## Migration 003 — shared accent admission
+
+`docs/postgres-003.sql` is an additive, explicit transaction creating only
+`accent_control` and `accent_reservations`, their constraints/index, RLS/browser
+revocations and version 3 marker. Existing learner tables/data are unchanged.
+The single control row starts disabled, daily limit zero, concurrency two. The
+migration runner applies missing 001/002/003; this build requires all three at
+Postgres startup. No production migration was applied during AUD-20 preparation.
+SQLite adds these tables and missing version markers on local initialization.
+Learner imports deliberately exclude operational controls and spending ledgers.
+
+Use the writable primary database for every API instance and operator control;
+never a read replica or independently restored database. `SharedAccentControls`
+uses a separate bounded pool (two connections per process, 0.2s pool wait, 1s
+connect timeout, 750ms statement, 250ms lock and 2s idle-transaction timeouts), plus a 2s asynchronous
+operation deadline. Budget admission locks the singleton before reading counters,
+leases, idempotency scope and the owned lesson/one-passage consent, and commits
+all reservations/counters atomically. Consent, owner, ordinal and expiration are
+re-read immediately before dispatch and after the provider response. SQLite uses BEGIN IMMEDIATE for equivalent
+local serialization. No network/provider await occurs inside a DB transaction.
+
+DB UTC time chooses the budget day and lease deadlines. Scope SHA-256 combines
+server-owned learner, lesson and exercise ordinal; no content or secrets enter
+the ledger. Scope tombstones are retained across days/restarts and must not be
+purged while a lesson can be retried. Failures never refund characters. Successful
+HTTP completion releases concurrency; failure/cancel/unknown work retains its
+90s lease. Expired leases cease counting at admission; abandoned active rows are
+marked lazily on the next successful admission. Recovery needs no paid retry,
+Redis service or background worker. Provider-side work may outlive a local lease;
+this is an application admission bound, not a remote provider concurrency SLA.
+
+The privileged CLI `python -m scripts.accent_controls status` exposes aggregate
+counts only; `configure --daily-characters N --concurrent M` keeps the shared flag
+off and never resets used characters; `disable` increments the flag revision and
+turns it off; `enable` additionally requires production settings with formally
+validated mapping. These are administrative database operations, not HTTP routes.
+Every production write requires explicit authorization. Feature rollback changes
+one shared row, leaving schema, budgets, learner data and replay audio intact.
+See AUD-20-GLOBAL-RELEASE-READINESS.md for exact release gates and in-flight behavior.

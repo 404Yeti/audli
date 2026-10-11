@@ -1,0 +1,32 @@
+{
+  "deployed_sha": "df5140ca4796a6102bcd5e3b91b402a91f511854",
+  "infrastructure": "isolated PostgreSQL; no production learner data",
+  "production_writes": false,
+  "postgres_version": "17.11 (Ubuntu 17.11-1.pgdg26.04+2)",
+  "before_versions": [
+    1,
+    2
+  ],
+  "deployed_before_003": {
+    "exit_code": 0,
+    "startup_ok": true,
+    "schema_mismatch": false
+  },
+  "after_versions": [
+    1,
+    2,
+    3
+  ],
+  "shared_defaults": {
+    "enabled": 0,
+    "daily_limit": 0,
+    "characters": 0,
+    "concurrent_limit": 2
+  },
+  "deployed_after_003": {
+    "exit_code": 1,
+    "startup_ok": false,
+    "schema_mismatch": true
+  },
+  "isolated_database_removed": true
+}

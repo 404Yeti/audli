@@ -137,3 +137,22 @@ Index('lessons_by_learner_time', lessons.c.user_id, lessons.c.started_at)
 Index('one_open_lesson_per_learner', lessons.c.user_id, unique=True,
     sqlite_where=lessons.c.status != 'completed', postgresql_where=lessons.c.status != 'completed')
 Index('exercises_by_lesson', lesson_exercises.c.lesson_id)
+
+# Migration 003: operational state only; no scripts, audio, tokens or provider bodies.
+accent_control = Table('accent_control', metadata,
+    Column('id', Integer, primary_key=True, autoincrement=False),
+    Column('enabled', Integer, nullable=False), Column('revision', Integer, nullable=False),
+    Column('daily_limit', Integer, nullable=False), Column('concurrent_limit', Integer, nullable=False),
+    Column('budget_day', String(10), nullable=False), Column('characters', Integer, nullable=False),
+    Column('updated_at', timestamp, nullable=False),
+    CheckConstraint('id=1 AND enabled IN (0,1) AND revision>=0', name='accent_control_singleton'),
+    CheckConstraint('daily_limit>=0 AND characters>=0 AND concurrent_limit BETWEEN 1 AND 16', name='accent_control_limits'))
+accent_reservations = Table('accent_reservations', metadata,
+    Column('scope', String(64), primary_key=True), Column('token', identifier, nullable=False, unique=True),
+    Column('budget_day', String(10), nullable=False), Column('characters', Integer, nullable=False),
+    Column('flag_revision', Integer, nullable=False), Column('state', String(16), nullable=False),
+    Column('created_at', timestamp, nullable=False), Column('lease_until', timestamp, nullable=False),
+    CheckConstraint('characters BETWEEN 1 AND 4000', name='accent_reservation_characters'),
+    CheckConstraint("state IN ('active','success','failed','cancelled','abandoned')", name='accent_reservation_state'))
+Index('accent_reservations_by_lease', accent_reservations.c.lease_until)
+Index('accent_reservations_by_state_lease', accent_reservations.c.state, accent_reservations.c.lease_until)

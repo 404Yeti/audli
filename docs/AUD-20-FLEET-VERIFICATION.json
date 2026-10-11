@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-11",
+  "status": "blocked_pending_release_gates",
+  "scope": "all_authenticated_learners",
+  "infrastructure": "isolated local SQLite and PostgreSQL 17.11, synthetic accounts, mocked/offline providers",
+  "production_writes": false,
+  "paid_synthesis": false,
+  "approved_voice_count": 0,
+  "backend_full": {
+    "passed": 759,
+    "skipped": 1,
+    "seconds": 304.17
+  },
+  "backend_final_guard_focused": {
+    "passed": 158,
+    "skipped": 1,
+    "seconds": 68.21,
+    "overlaps_full": true
+  },
+  "authenticated_two_instance_integration": {
+    "passed": 2,
+    "seconds": 4.59
+  },
+  "frontend_unit_passed": 53,
+  "handoff_unit_passed": 4,
+  "browser": {
+    "passed": 90,
+    "skipped": 1,
+    "minutes": 2.6
+  },
+  "native_browser": {
+    "passed": 1,
+    "minutes": 4.7
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "build": "passed",
+  "production_npm_vulnerabilities": 0,
+  "disable_observation_ms": {
+    "full": {
+      "postgresql": 17.839,
+      "sqlite": 4.565
+    },
+    "final_guard": {
+      "postgresql": 14.669,
+      "sqlite": 3.428
+    },
+    "final_dispatch": {
+      "postgresql": 15.629,
+      "sqlite": 3.575
+    }
+  },
+  "control_deadline_seconds": 2,
+  "positive_flag_cache_seconds": 0,
+  "lease_seconds": 90,
+  "measurement_limit": "Local after-commit observation across two control pools; production/load propagation unverified",
+  "remaining_gates": [
+    "Mandatory human CSV and extra credibility/pacing review",
+    "Reviewed adaptive speed policy",
+    "Evidence delivery and live approved-voice end-to-end checks",
+    "Real Supabase authentication and production-like staging load/propagation",
+    "Approved budget, provider-side limits/tutor headroom, connection/pooler compatibility and monitoring",
+    "Explicit production authorization"
+  ],
+  "backend_final_dispatch_focused": {
+    "passed": 215,
+    "skipped": 1,
+    "seconds": 88.0,
+    "overlaps_full_and_guard": true
+  }
+}

@@ -11,13 +11,16 @@ import { measureTurn, turnTiming, measuredAudioBody } from '../lib/turn-timing';
 import { AudliMascot } from './audli-mascot';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
-type Checkpoint = { profile: Profile; stage: string; welcome?: 'introduction' | 'status' | null; revision: number; prompt: string; destination: string; pending: Recognition | null; clarification_paused?: boolean };
+type Checkpoint = { name_entry_available?: boolean; name_question_revision?: number | null; profile: Profile; stage: string; welcome?: 'introduction' | 'status' | null; revision: number; prompt: string; destination: string; pending: Recognition | null; clarification_paused?: boolean };
 const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 export function SpokenOnboarding({ onComplete }: { onComplete: (operation: LessonOperation) => Promise<void> }) {
   const voice = useVoiceLifecycle();
   const intent = conversationIntent(useAccount().scope, 'onboarding');
   const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null);
+  const [name, setName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const nameSubmission = useRef(false);
   const [active, setActive] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
@@ -87,6 +90,9 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
         data = await operation.api<Checkpoint>('/onboarding/start', json({ revision: data.revision }));
       }
       operation.assertCurrent(); intent.start(); setCheckpoint(data);
+      if (userInitiated && data.name_entry_available && data.pending && !reliableRecognition(data.pending, minimum.current)) {
+        await voice.retrySpeech(operation); data = await captureAnswer(operation, data);
+      }
       let retries = 0;
       while (operation.current) {
         if (data.clarification_paused) throw new Error('Let’s pause here. Check your microphone, then retry to answer the remaining question. Your preferences are saved.');
@@ -95,6 +101,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
           // Pending recognition resumes without duplicating completed profile stages.
           retained.current = null;
           if (!reliableRecognition(data.pending, minimum.current)) {
+            if (data.name_entry_available) throw new Error('I didn’t quite catch your name. You can type it below, or retry by voice.');
             if (++retries > 2) throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');
             await voice.retrySpeech(operation); data = await captureAnswer(operation, data); continue;
           }
@@ -120,9 +127,36 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     } catch (error) { if (operation.current) { setError((error as Error).message); setBusy(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
-  function end() { voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
+  async function saveName() {
+    if (!checkpoint || nameSubmission.current) return;
+    nameSubmission.current = true; setSavingName(true);
+    // Cancel recording/playback and all stale UI continuations immediately.
+    voice.stop(); retained.current = null; running.current = false;
+    const operation = voice.begin();
+    setError('');
+    try {
+      const data = await operation.api<Checkpoint>('/onboarding/name', json({
+        question_revision: checkpoint.name_question_revision ?? 0, name,
+      }));
+      operation.assertCurrent(); setCheckpoint(data); setName('');
+      nameSubmission.current = false; setSavingName(false);
+      void start();
+    } catch (error) {
+      if (operation.current) setError((error as Error).message);
+    } finally {
+      if (operation.current) { nameSubmission.current = false; setSavingName(false); }
+      operation.release();
+    }
+  }
+  const nameEntry = checkpoint?.name_entry_available && <form className="onboarding-name" onSubmit={event => { event.preventDefault(); void saveName(); }}>
+    <label htmlFor="preferred-name">What should I call you?</label>
+    <p id="name-help">You can say your name or type it here.</p>
+    <div><input id="preferred-name" name="preferred-name" autoComplete="given-name" aria-describedby="name-help" maxLength={80} value={name} onChange={event => setName(event.target.value)} disabled={savingName} />
+    <button className="primary" type="submit" disabled={savingName || !name.trim()}>{savingName ? 'Saving…' : 'Save and continue'}</button></div>
+  </form>;
+  function end() { nameSubmission.current = false; setSavingName(false); voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
-    <p className="sr-only">{checkpoint?.prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start(true)}>Retry conversation</button></div>}
+    <p className="sr-only">{checkpoint?.prompt}</p>{nameEntry}{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start(true)}>Retry conversation</button></div>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/></>;
-  return <main className="onboarding-ready"><header><strong className="wordmark">audli</strong></header><AudliMascot/><h1>Let’s make this yours.</h1><p>{checkpoint?.clarification_paused ? 'Your preferences are saved. Check your microphone, then resume to answer the remaining question.' : 'A short conversation about what you want to understand.'}</p><button className="primary" disabled={busy} onClick={() => void start(true)}>{checkpoint?.profile.onboarding_status === 'in_progress' ? 'Resume our conversation' : 'Let’s talk'}</button>{error && <div role="alert">{error}<button className="secondary" onClick={() => void start(true)}>Retry conversation</button></div>}<audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/><footer>Eyes optional. Ears essential.</footer></main>;
+  return <main className="onboarding-ready"><header><strong className="wordmark">audli</strong></header><AudliMascot/><h1>Let’s make this yours.</h1><p>{checkpoint?.clarification_paused ? 'Your preferences are saved. Check your microphone, then resume to answer the remaining question.' : 'A short conversation about what you want to understand.'}</p><button className="primary" disabled={busy} onClick={() => void start(true)}>{checkpoint?.profile.onboarding_status === 'in_progress' ? 'Resume our conversation' : 'Let’s talk'}</button>{error && <div role="alert">{error}<button className="secondary" onClick={() => void start(true)}>Retry conversation</button></div>}<audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/>{nameEntry}<footer>Eyes optional. Ears essential.</footer></main>;
 }

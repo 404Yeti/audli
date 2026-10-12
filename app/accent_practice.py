@@ -13,7 +13,10 @@ def discover(preferences, history, voices):
     """At most two discovery prompts, separated by three new lesson starts."""
     if preferences.status != 'unspecified' or not voices:
         return False
-    asked = [index for index, item in enumerate(history) if item.accent_discovery]
+    # Merely scheduling a welcome does not establish a discovery attempt.
+    # Abandoned starts must not exhaust the learner's two conversational chances.
+    asked = [index for index, item in enumerate(history)
+             if item.accent_discovery and (item.accent_discovery_resolved or item.accent_resolved)]
     return len(asked) < 2 and (not asked or asked[0] >= 2)
 
 

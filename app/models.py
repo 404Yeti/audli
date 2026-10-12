@@ -54,6 +54,10 @@ class AccentPreferences(StrictModel):
     accents: list[Literal['british', 'american', 'australian', 'scottish', 'indian', 'irish', 'canadian', 'new_zealand', 'welsh', 'south_african']] = Field(default_factory=list, max_length=10)
     status: Literal['unspecified', 'preferred', 'no_preference'] = 'unspecified'
 
+class AccentPreferenceUpdate(StrictModel):
+    # An explicitly submitted empty selection means no particular difficulty.
+    accents: list[Literal['british', 'australian', 'irish']] = Field(max_length=3)
+
 class LearnerProfile(StrictModel):
     accent_preferences: AccentPreferences = Field(default_factory=AccentPreferences)
     name: str = Field(default='Listener', min_length=1, max_length=80)

@@ -226,3 +226,6 @@ dd .text-button { display: block; padding-left: 0; }
 @media (min-width: 600px) { main { border: 0; margin: auto; border-radius: 0; min-height: 100dvh; } }
 @media (max-height: 740px) { .home-view { padding-top: 16px; } .home-view .audli-mascot { margin: 16px auto; width: 220px; } .session-presence .audli-mascot { width: min(260px, 62vw); margin: 12px auto 20px; } }
 @media (prefers-reduced-motion: reduce) { .audli-mascot * { animation: none !important; transition: none !important; } }
+.accent-settings fieldset { border: 0; padding: 0; margin: 16px 0; }
+.accent-settings legend { margin-bottom: 12px; }
+.accent-settings .toggle { margin: 12px 0; }

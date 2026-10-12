@@ -12,7 +12,7 @@ from app.audio import validate_upload, sanitize_generated_audio
 from app.config import Settings
 from app.diagnostics import operation, report_failure, timed_lock, request_timings
 from app.evaluation import score_judgments
-from app.models import ExerciseContent, StrictModel, Transcription
+from app.models import ExerciseContent, StrictModel, Transcription, AccentPreferences, AccentPreferenceUpdate
 from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
@@ -168,6 +168,16 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             profile.onboarding_status = 'profile_saved'
             repo.save_profile(profile)
             return profile
+
+    @app.put('/api/profile/accent-preferences')
+    async def update_accent_preferences(body: AccentPreferenceUpdate):
+        from app.accents import LABELS
+        accents = list(dict.fromkeys(body.accents))
+        preferences = AccentPreferences(accents=accents,
+            status='preferred' if accents else 'no_preference',
+            response=', '.join(LABELS[accent] for accent in accents) if accents else 'No particular accent difficulty')
+        async with lock:
+            return repo.save_accent_preferences(preferences)
 
     @app.get('/api/exercises/current')
     async def current():

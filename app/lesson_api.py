@@ -189,6 +189,17 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 updated = heard(lesson, now())
             except ValueError as exc:
                 raise HTTPException(409, str(exc)) from exc
+            # Existing lessons predate discovery scheduling at /start. Use the
+            # next conversational boundary, preserving the topic answer and progress.
+            if (lesson.phase in ('WELCOME_ACK', 'REVIEW_ACK')
+                    and not lesson.accent_discovery and not lesson.accent_offered
+                    and not lesson.accent_confirmation
+                    and discover(repo.profile().accent_preferences,
+                                 [item for item in repo.accent_lesson_history() if item.id != lesson.id],
+                                 await passage_limits.voices())):
+                updated.accent_discovery = True
+                updated.phase = 'REVIEW'
+                updated.accent_topic_review_pending = lesson.phase == 'WELCOME_ACK' and bool(lesson.previous)
             return public(save(updated, body.revision))
 
     @app.post('/api/lessons/{lesson_id}/attempts')
@@ -272,12 +283,15 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             interests = None
             accent_preferences = None
             available_voices = await passage_limits.voices()
-            if (lesson.phase == 'WELCOME' and lesson.accent_discovery and not lesson.accent_discovery_resolved
-                    and intent(text)[0] not in ('select', 'unavailable')):
+            discovering = (lesson.accent_discovery and not lesson.accent_discovery_resolved
+                           and not lesson.accent_confirmation)
+            if discovering and intent(text)[0] not in ('select', 'unavailable'):
                 accent_preferences, accent_reply = discovery_response(text)
                 lesson.accent_discovery_resolved = True
                 lesson.accent_resolved = True
             else:
+                if discovering:
+                    lesson.accent_discovery_resolved = True
                 # Persistent opt-out differs from declining today's practice offer.
                 if re.search(r"\b(stop suggesting|no more accents|forget.*accent|don't suggest|do not suggest)\b", text.replace('’', "'"), re.I):
                     accent_preferences = lesson_preference(text)
@@ -291,7 +305,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 if lesson.phase == 'REVIEW':
                     # Ask immediately in the existing response-taking phase. Keep
                     # the normal topic review after this optional practice question.
-                    lesson.accent_topic_review_pending = True
+                    if not (lesson.accent_discovery_resolved and lesson.reflection is not None):
+                        lesson.accent_topic_review_pending = True
                     lesson.pending = None
                     return public(save(lesson, body.revision, interests, accent_preferences))
                 accent_reply = 'Got it! I’ll remember that accent preference.'

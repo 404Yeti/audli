@@ -229,3 +229,10 @@ dd .text-button { display: block; padding-left: 0; }
 .accent-settings fieldset { border: 0; padding: 0; margin: 16px 0; }
 .accent-settings legend { margin-bottom: 12px; }
 .accent-settings .toggle { margin: 12px 0; }
+
+.onboarding-name { width: min(100%, 420px); margin: 24px auto; text-align: left; }
+.onboarding-name label { font-size: 14px; font-weight: 600; }
+.onboarding-name p { font-size: 13px; color: #5b697c; margin: 6px 0 12px; }
+.onboarding-name > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.onboarding-name input { flex: 1; min-width: 140px; width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font: inherit; font-size: 16px; }
+.onboarding-name button { font-size: 14px; }

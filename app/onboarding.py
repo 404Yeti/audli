@@ -1,5 +1,6 @@
 """Preferences only: no listening score or adaptation is inferred from speech."""
 from typing import Literal
+import unicodedata
 from pydantic import Field, field_validator
 from app.models import StrictModel
 from app.accents import extract as extract_accents
@@ -41,6 +42,32 @@ PROMPTS = {
 class Revision(StrictModel):
     revision: int = Field(ge=0)
 
+def normalize_name(value):
+    value = unicodedata.normalize('NFC', value)
+    if any(unicodedata.category(c).startswith('C') or c in '<>{}[]\\/' for c in value):
+        raise ValueError('Please enter a name without control characters or markup.')
+    value = ' '.join(value.split())
+    if not value or len(value) > 80 or not any(unicodedata.category(c).startswith('L') for c in value):
+        raise ValueError('Please enter a name between 1 and 80 characters.')
+    return value
+
+
+class TypedName(StrictModel):
+    question_revision: int = Field(ge=0)
+    name: str = Field(min_length=1, max_length=320)
+
+    @field_validator('name')
+    @classmethod
+    def safe_name(cls, value):
+        return normalize_name(value)
+
+
+def name_entry_available(profile):
+    return (profile.onboarding_status == 'in_progress' and not profile.onboarding.welcome
+            and profile.onboarding.stage == 'identity'
+            and 'name' not in profile.onboarding.answered_fields)
+
+
 class Answer(Revision):
     text: str = Field(min_length=1, max_length=8000)
     confirmed: Literal[True]
@@ -48,7 +75,7 @@ class Answer(Revision):
 
 
 CLARIFICATIONS = {
-    'name': 'What should I call you?',
+    'name': 'What should I call you? You can say your name or type it here.',
     'target_language': 'What language do you want to train? Audli currently trains English listening.',
     'goal': 'Why are you learning English?',
     'target_situations': 'What listening situation matters most to you?',
@@ -96,6 +123,8 @@ def apply_extraction(profile, extraction):
     # Defaults and previous setup are not evidence for the current spoken stage.
     # Only fields actually supplied in this stage can satisfy its requirements.
     for field in fields:
+        if field == 'name' and (progress.typed_name or 'name' in progress.answered_fields):
+            continue
         value = getattr(extraction, field)
         if value is None or (field == 'target_situations' and not value):
             continue

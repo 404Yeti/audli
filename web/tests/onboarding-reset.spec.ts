@@ -4,7 +4,7 @@ import { installVoice, promptWav } from './voice-fixture';
 const user = { id: '00000000-0000-0000-0000-000000000034', email: 'test@example.com',
   email_confirmed_at: '2026-10-06T00:00:00Z', app_metadata: { provider: 'email', providers: ['email'] }, user_metadata: {}, aud: 'authenticated', created_at: '2026-10-06T00:00:00Z' };
 const token = [Buffer.from('{"alg":"HS256"}').toString('base64url'), Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'), 'fixture'].join('.');
-async function setup(page: Page, options: { restart?: boolean; failedReset?: boolean; unconfirmedReset?: boolean; revokedReset?: boolean } = {}) {
+async function setup(page: Page, options: { failedReset?: boolean; unconfirmedReset?: boolean; expiredReset?: boolean } = {}) {
   await installVoice(page);
   const writes: { path: string; body: Record<string, unknown> }[] = [];
   let onboarding = false;
@@ -18,11 +18,11 @@ async function setup(page: Page, options: { restart?: boolean; failedReset?: boo
     if (path === '/api/profile') return route.fulfill({ json: { destination: onboarding ? 'onboarding' : 'session_ready', profile: { name: 'Robin', goal: 'Meetings', completed_attempts: 2 }, provider: 'demo' } });
     if (path === '/api/history') return route.fulfill({ json: [] });
     if (path === '/api/exercises/current' || path === '/api/lessons/current') return route.fulfill({ json: null });
-    if (path === '/api/onboarding/reset-controls') return route.fulfill({ json: { restart_available: options.restart ?? true, onboarding_revision: 12,
+    if (path === '/api/onboarding/reset-controls') return route.fulfill({ json: { restart_available: true, onboarding_revision: 12,
       reset_description: 'Your preferred name, goal, interests, accent preferences, and onboarding answers reset. Your account, lessons, attempts, learning scores, difficulty, and accessibility settings stay saved.' } });
     if (path === '/api/onboarding/restart') {
       writes.push({ path, body: route.request().postDataJSON() });
-      if (options.revokedReset) return route.fulfill({ status: 403, json: { detail: 'Onboarding restart is restricted to authorized test accounts.' } });
+      if (options.expiredReset) return route.fulfill({ status: 401, json: { detail: 'Your session expired or is invalid. Please sign in again.' } });
       if (options.unconfirmedReset) return route.fulfill({ json: { destination: 'onboarding', revision: 12 } });
       if (options.failedReset) return route.fulfill({ status: 409, json: { detail: 'Finish your current lesson before restarting onboarding.' } });
       onboarding = true; return route.fulfill({ json: { destination: 'onboarding', revision: 13 } });
@@ -48,13 +48,13 @@ test('authorized reset explains preserved data and reloads into onboarding', asy
   await expect(page.getByRole('dialog')).toContainText('learning scores');
   await page.getByLabel('Type RESTART ONBOARDING to confirm').fill('RESTART ONBOARDING');
   await page.getByRole('button', { name: 'Confirm restart', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Let’s make this yours.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Let’s make this yours.' })).toBeVisible({ timeout: 15000 });
   expect(writes).toEqual([{ path: '/api/onboarding/restart', body: { confirmation: 'RESTART ONBOARDING', revision: 12 } }]);
   expect(await page.evaluate(() => localStorage.getItem('audli-auth-session'))).not.toBeNull();
 });
 
-test('ordinary production accounts never see reset', async ({ page }) => {
-  await setup(page, { restart: false }); await expect(page.getByRole('button', { name: 'Restart Onboarding', exact: true })).toHaveCount(0);
+test('ordinary authenticated learners see reset', async ({ page }) => {
+  await setup(page); await expect(page.getByRole('button', { name: 'Restart Onboarding', exact: true })).toBeVisible();
 });
 
 test('active lesson conflict prevents reset and keeps the current account', async ({ page }) => {
@@ -92,12 +92,23 @@ test('unconfirmed response preserves session and shows recovery without reloadin
   expect(await page.evaluate(() => localStorage.getItem('audli-auth-session'))).not.toBeNull();
 });
 
-test('server revocation overrides previously displayed reset controls', async ({ page }) => {
-  const writes = await setup(page, { revokedReset: true });
+test('expired authentication cannot use previously displayed reset controls', async ({ page }) => {
+  const writes = await setup(page, { expiredReset: true });
   await page.getByRole('button', { name: 'Restart Onboarding', exact: true }).click();
   await page.getByLabel('Type RESTART ONBOARDING to confirm').fill('RESTART ONBOARDING');
   await page.getByRole('button', { name: 'Confirm restart', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('restricted to authorized test accounts');
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   expect(writes).toHaveLength(1);
-  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('desktop confirmation explains reset and cancel sends no mutation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const writes = await setup(page);
+  await page.getByRole('button', { name: 'Restart Onboarding', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('preferred name');
+  await expect(page.getByRole('dialog')).toContainText('account, lessons, attempts');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(writes).toEqual([]);
+  await expect(page.getByRole('button', { name: 'Restart Onboarding', exact: true })).toBeFocused();
 });

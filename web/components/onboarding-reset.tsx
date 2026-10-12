@@ -43,7 +43,7 @@ export function OnboardingReset({ disabled }: { disabled: boolean }) {
     finally { if (operation.current) setBusy(false); operation.release(); }
   }
   if (!controls?.restart_available || !Number.isInteger(controls.onboarding_revision) || !controls.reset_description) return null;
-  return <section aria-label="Onboarding testing">
+  return <section aria-label="Restart onboarding">
     <button className="secondary" disabled={disabled || busy} onClick={event => {
       trigger.current = event.currentTarget; setError(''); setOpen(true);
     }}>Restart Onboarding</button>
@@ -59,7 +59,7 @@ export function OnboardingReset({ disabled }: { disabled: boolean }) {
     }}>
       <h2 id="reset-dialog-title">Restart onboarding?</h2>
       <p id="reset-dialog-description">{controls.reset_description}</p>
-      <p>Finish your current lesson first. You can then test both spoken and typed preferred names again.</p>
+      <p>Finish your current lesson first. Your spoken introduction and preferred-name question will begin again.</p>
       <form onSubmit={event => { event.preventDefault(); void submit(); }}>
         <label htmlFor="reset-confirmation">Type RESTART ONBOARDING to confirm</label>
         <input autoFocus id="reset-confirmation" autoComplete="off" disabled={busy} value={confirmation} onChange={event => setConfirmation(event.target.value)}/>

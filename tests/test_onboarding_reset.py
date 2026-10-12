@@ -53,35 +53,40 @@ def test_reset_rejects_unfinished_exercise(repository_factory, exercise):
     assert repo.profile().name == 'Robin'
 
 
-def test_production_reset_requires_operator_allowlist(tmp_path):
-    provider = FakeProvider()
-    settings = settings_for(tmp_path).model_copy(update={'auth_mode': 'local', 'environment': 'production'})
-    app = create_app(settings, provider); client = ASGIClient(app, provider)
-    try:
-        assert client.get('/api/onboarding/reset-controls').json()['restart_available'] is False
-        assert client.post('/api/onboarding/restart', json={'confirmation': 'RESTART ONBOARDING', 'revision': 0}).status_code == 403
-    finally:
-        app.state.repository.close()
-
-
-def test_reset_authorization_is_per_authenticated_account(repository_factory, tmp_path):
-    from uuid import UUID
+def test_production_reset_is_authenticated_and_per_owned_account(repository_factory, tmp_path):
     repo = repository_factory(None); owner = str(uuid4()); other = str(uuid4())
     def response(request):
         assert request.method == 'GET' and str(request.url).endswith('/auth/v1/user')
-        selected = owner if request.headers['authorization'] == 'Bearer allowed' else other
+        if request.headers['authorization'] not in ('Bearer first', 'Bearer second'):
+            return httpx.Response(401, json={'message': 'Invalid bearer'})
+        selected = owner if request.headers['authorization'] == 'Bearer first' else other
         return httpx.Response(200, json={'id': selected, 'email_confirmed_at': 'yes'})
     auth = httpx.AsyncClient(transport=httpx.MockTransport(response))
-    settings = settings_for(tmp_path).model_copy(update={'environment': 'production', 'onboarding_test_accounts': [UUID(owner)]})
+    settings = settings_for(tmp_path, environment='production', persistence='postgres',
+        database_url='postgresql://operator:fixture@localhost:55434/disposable?sslmode=require')
     app = create_app(settings, FakeProvider(), repository=repo, auth_client=auth)
     client = ASGIClient(app, FakeProvider())
     try:
-        assert client.get('/api/onboarding/reset-controls', headers={'Authorization': 'Bearer allowed'}).json()['restart_available'] is True
-        assert client.get('/api/onboarding/reset-controls', headers={'Authorization': 'Bearer ordinary'}).json()['restart_available'] is False
         body = {'confirmation': 'RESTART ONBOARDING', 'revision': 0}
-        assert client.post('/api/onboarding/restart', json=body, headers={'Authorization': 'Bearer ordinary'}).status_code == 403
-        assert client.post('/api/onboarding/restart', json=body, headers={'Authorization': 'Bearer allowed'}).status_code == 200
-        assert repo.for_learner(other).profile().onboarding.revision == 0
+        assert client.get('/api/onboarding/reset-controls').status_code == 401
+        assert client.post('/api/onboarding/restart', json=body).status_code == 401
+        assert client.post('/api/onboarding/restart', json=body, headers={'Authorization': 'Bearer invalid'}).status_code == 401
+        for bearer in ('first', 'second'):
+            controls = client.get('/api/onboarding/reset-controls', headers={'Authorization': 'Bearer ' + bearer})
+            assert controls.status_code == 200 and controls.json()['restart_available'] is True
+        before_other = repo.for_learner(other).profile()
+        # No body or URL owner selector exists. Attempts to supply another owner fail schema validation.
+        assert client.post('/api/onboarding/restart', json={**body, 'user_id': other},
+                           headers={'Authorization': 'Bearer first'}).status_code == 422
+        assert client.post('/api/onboarding/restart/' + other, json=body,
+                           headers={'Authorization': 'Bearer first'}).status_code == 404
+        assert repo.for_learner(other).profile() == before_other
+        assert client.post('/api/onboarding/restart', json=body, headers={'Authorization': 'Bearer first'}).status_code == 200
+        assert repo.for_learner(owner).profile().onboarding.revision == 1
+        assert repo.for_learner(other).profile() == before_other
+        assert client.post('/api/onboarding/restart', json=body, headers={'Authorization': 'Bearer second'}).status_code == 200
+        assert repo.for_learner(owner).profile().onboarding.revision == 1
+        assert repo.for_learner(other).profile().onboarding.revision == 1
     finally:
         asyncio.run(auth.aclose())
 
@@ -94,7 +99,9 @@ def test_reset_can_repeat_typed_and_spoken_names_without_stale_answers(repositor
         revision = repo.profile().onboarding.revision
         result = client.post('/api/onboarding/restart', json={'confirmation': 'RESTART ONBOARDING', 'revision': revision})
         assert result.status_code == 200
+        assert repo.profile().name == 'Listener' and repo.profile().onboarding.welcome == 'introduction'
         state = client.post('/api/onboarding/start', json={'revision': result.json()['revision']}).json()
+        assert state['welcome'] == 'introduction' and state['stage'] == 'identity'
         while state['welcome']:
             state = client.post('/api/onboarding/heard', json={'revision': state['revision']}).json()
         assert state['name_entry_available'] is True
@@ -269,25 +276,6 @@ def test_reset_preserves_all_history_evidence_and_audio(repository_factory, tmp_
 
 
 
-def test_server_allowlist_configuration_is_typed_and_default_denies(monkeypatch):
-    import json
-    from pydantic import ValidationError
-    from app.config import Settings
-    from app.onboarding_reset import reset_allowed
-    owner = uuid4(); other = uuid4()
-    monkeypatch.delenv('AUDLI_ONBOARDING_TEST_ACCOUNTS', raising=False)
-    settings = Settings(_env_file=None)
-    assert settings.onboarding_test_accounts == []
-    production = settings.model_copy(update={'environment': 'production'})
-    assert not reset_allowed(production, str(owner))
-    monkeypatch.setenv('AUDLI_ONBOARDING_TEST_ACCOUNTS', json.dumps([str(owner)]))
-    production = Settings(_env_file=None).model_copy(update={'environment': 'production'})
-    assert reset_allowed(production, str(owner)) and not reset_allowed(production, str(other))
-    monkeypatch.setenv('AUDLI_ONBOARDING_TEST_ACCOUNTS', '["test@example.com"]')
-    with pytest.raises(ValidationError):
-        Settings(_env_file=None)
-
-
 def test_postgres_owner_lease_releases_on_cancel_and_does_not_block_other_accounts(repository_factory, tmp_path):
     repo = repository_factory(None)
     if repo.engine.dialect.name != 'postgresql':
@@ -320,3 +308,22 @@ def test_postgres_owner_lease_releases_on_cancel_and_does_not_block_other_accoun
             assert released.status_code == 200
         await auth.aclose()
     asyncio.run(run())
+
+
+def test_reset_invalidates_stale_voice_and_completion_requests(repository_factory, tmp_path, audio_bytes):
+    repo = repository_factory(); provider = FakeProvider()
+    app = create_app(settings_for(tmp_path).model_copy(update={'auth_mode': 'local'}), provider, repository=repo)
+    client = ASGIClient(app, provider)
+    old = repo.profile().onboarding.revision
+    assert client.post('/api/onboarding/restart', json={'confirmation': 'RESTART ONBOARDING', 'revision': old}).status_code == 200
+    after = repo.profile()
+    for path in ('start', 'heard', 'answer', 'complete'):
+        body = {'revision': old}
+        if path == 'answer':
+            body.update(text='Stale response', confirmed=True, hands_free=False)
+        response = client.post('/api/onboarding/' + path, json=body)
+        assert response.status_code == 409, (path, response.text)
+        assert repo.profile() == after
+    stale = client.post('/api/onboarding/attempts', data={'revision': old},
+                        files={'audio': ('response.wav', audio_bytes, 'audio/wav')})
+    assert stale.status_code == 409 and repo.profile() == after

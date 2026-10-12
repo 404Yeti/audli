@@ -61,10 +61,9 @@ class SupabaseIdentity:
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository, requires_mutation_lease):
+    def __init__(self, app, identity, repository, request_repository):
         self.app, self.identity = app, identity
         self.repository, self.request_repository = repository, request_repository
-        self.requires_mutation_lease = requires_mutation_lease
         # Mutations share an owner-specific lease across API workers, including
         # provider awaits. Reset cannot run while another worker saves a lesson.
         self.lease_engine = (create_engine(repository.engine.url, poolclass=NullPool,
@@ -83,8 +82,7 @@ class LearnerAuthentication:
         lease = None
         token = None
         try:
-            if (self.lease_engine is not None and self.requires_mutation_lease(learner_id)
-                    and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')):
+            if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
                 for _ in range(100):
                     candidate = self.lease_engine.connect()

@@ -1,16 +1,12 @@
-# AUD-34: independent test-only onboarding reset
+# AUD-34: Restart Onboarding for authenticated learners
 
-This branch is based on current main and extracts Restart Onboarding without the permanent-deletion implementation in draft PR #20. It adds no deletion route, deletion control, Supabase administrative operation, or privileged Auth credential. Do not merge PR #20 as part of this release. AUD-34 stays open; deletion/retention and AUD-36 provider-history work remain outstanding.
+The owner has approved Restart Onboarding as a standard authenticated learner feature. PR #22 removes the former test-account allowlist and associated configuration. It contains no permanent-deletion implementation, deletion routes/controls, Supabase administrative operation, or privileged Auth credential. PR #20 remains draft; AUD-34 stays open for deletion and AUD-36 remains tracked for provider-history/retention work.
 
-## Authorization and configuration
+## Authentication and ownership
 
-Every protected request retains existing Supabase `/auth/v1/user` verification using the publishable key and the caller's bearer token. Confirmed, nonanonymous identity supplies the repository owner; browser UUIDs and user metadata cannot authorize reset. Authentication, MFA settings, Auth identities, and sessions remain unchanged.
+Every protected request retains Supabase `/auth/v1/user` verification using the publishable key and the caller's bearer token. Confirmed, nonanonymous identity supplies the request-scoped repository owner; browser UUIDs and editable user metadata cannot select a target account. Authentication, MFA settings, Auth identities, and sessions remain unchanged.
 
-In production, only UUIDs in the server-only `AUDLI_ONBOARDING_TEST_ACCOUNTS` JSON array are authorized. Its default is `[]`, which denies every production account. Invalid UUIDs fail configuration validation. Development environments permit reset through their existing authentication mode. No frontend environment variable or user-editable metadata grants access.
-
-GET `/api/onboarding/reset-controls` returns only `restart_available: false` for unauthorized accounts. POST `/api/onboarding/restart` requires authorization, exact `RESTART ONBOARDING` confirmation, and the current nonnegative onboarding revision. Additional owner/password fields are rejected. Settings displays the control only when the server authorizes it. Capability-fetch failures keep it hidden.
-
-**Production authorization blocker:** the owner has not supplied the explicitly authorized test accounts. No production allowlist was changed or verified in this review. Do not infer permission from existing users or this repository's test fixtures. Before approval, resolve the supplied identifiers against existing confirmed Supabase accounts, verify the API service uses production environment and Supabase authentication, configure the exact UUID array using a save-only operation, and verify the saved values. Saved configuration is distinct from runtime verification: after an owner-approved release, check an allowlisted account succeeds and an ordinary account receives 403. No live account reset was performed for this review.
+GET `/api/onboarding/reset-controls` supplies the authenticated learner's current onboarding revision and reset explanation. Settings shows Restart Onboarding to authenticated learners. POST `/api/onboarding/restart` requires exact `RESTART ONBOARDING` confirmation and the current nonnegative onboarding revision. Additional owner/password fields are rejected; no target-user URL parameter exists. Missing, invalid, expired, unconfirmed, or anonymous authentication is rejected by the existing authentication boundary. Local shared identity remains development-only.
 
 ## Exact reset boundary
 
@@ -19,7 +15,7 @@ Only these learner-profile fields reset to their schema defaults:
 | Field | Reset |
 | --- | --- |
 | `name` | `Listener` |
-| `target_language` | Default English |
+| `target_language` | English (`en`) |
 | `goal` | `Understand everyday English` |
 | `interests` | Default `["technology"]` |
 | `target_situations` | Empty list |
@@ -28,29 +24,30 @@ Only these learner-profile fields reset to their schema defaults:
 | `onboarding` | Answers, pending recognition, stages, clarification state, typed-name state, and checkpoints reset; welcome introduction restored |
 | `initial_listening_profile` | Cleared onboarding snapshot |
 
-The onboarding revision and name-question token advance monotonically rather than returning to zero. Old reset requests, typed-name submissions, audio uploads, and other revision-bound onboarding submissions cannot operate on a new run.
+Current learning scores, difficulty, focus, completed-attempt counts, lessons, attempts, evaluations, evidence, conversations, adaptation history, lesson membership, audio assets, and provider-budget records are preserved. All unrelated profile fields are preserved. Existing generated onboarding audio caches remain keyed by prompt/configuration. Reset introduces no recording deletion or retention change. The frontend removes only the current account's transient session timer and reloads into the spoken introduction; Auth credentials and accessibility preferences remain saved.
 
-Current learning scores, difficulty, focus, completed-attempt counts, lessons, attempts, evaluations, evidence, conversations, adaptation history, lesson membership, audio assets, and provider-budget records are preserved. All unrelated profile fields are preserved. Existing generated onboarding audio caches are preserved and keyed by prompt/configuration; raw learner recordings are not introduced or retained by reset. The frontend removes only the current account's transient session timer and reloads into onboarding; Auth credentials and accessibility preferences remain saved.
+The onboarding revision and name-question token advance monotonically rather than returning to zero. Old reset requests, typed-name submissions, voice uploads, heard/start acknowledgments, answers, and completion requests cannot operate on a new run. The server rejects stale revisions and the client closes the old request/audio lifetime when it reloads. Repeated resets and refreshed/resumed onboarding use the authoritative saved checkpoint.
 
 ## Persistence and failure handling
 
-Reset updates the authenticated owner's profile in one transaction with a PostgreSQL row lock and revision comparison. It rejects any active or paused lesson and any current incomplete exercise. A failed transaction rolls back; a lost response is resolved by reloading the authoritative checkpoint. The client only reloads after receiving the expected destination and next revision, and otherwise shows the error without claiming success.
+Reset updates only the authenticated owner's profile in one transaction with a PostgreSQL row lock and revision comparison. It rejects any active or paused lesson and any current incomplete exercise. A failure after UPDATE but before commit rolls back. A lost/unconfirmed response is resolved by reloading the authoritative checkpoint. The client only reloads after receiving the expected destination and next revision; otherwise it displays the error without claiming success.
 
-In authenticated PostgreSQL deployments, all mutating API requests for reset-capable owners take the same owner-specific advisory transaction lease, including time awaiting provider responses. Ordinary production accounts retain their existing request behavior. This closes the race where a different worker could finish saving a lesson after reset checks. Locks use a separate unpooled connection, avoiding application pool exhaustion while waiting; each in-flight mutation for a reset-capable account uses an additional connection. Contention returns 409 after bounded retries. Cancellation/error releases the connection and transaction lease. Different accounts use different locks. SQLite remains a development/test backend with the existing application lock.
+All authenticated PostgreSQL mutating API requests take the same owner-specific advisory transaction lease, including time awaiting provider responses. This prevents a different worker from finishing a lesson save after reset checks. Locks use a separate unpooled connection; each in-flight mutation uses an additional database connection. Contention returns 409 after bounded retries. Cancellation/error releases the connection and lease. Different accounts use different locks. SQLite remains development/test-only and uses the existing application lock.
 
-**Release procedure:** old API processes do not participate in this lease. The owner-approved release must drain old workers and in-flight mutations before test accounts use reset; do not enable this during mixed-version overlap. No schema migration or Auth administrative grants are required. This review does not deploy or merge anything.
+No schema migration or Auth administrative grants are required. Old API processes do not participate in this lease: complete the first rollout and old-worker shutdown before any real production reset. Do not issue a real production reset during deployment. The owner has authorized merge and Render/Vercel deployment after checks pass, but requires separate confirmation before resetting an actual production learner.
 
-## Verification
+## Verification and release
 
-Review performed 2026-10-12. Tests use mocked provider/Auth responses and disposable local databases; no paid provider calls or live learner mutations were made.
+Release regression results (2026-10-12):
 
-- Full backend/PostgreSQL run on the initial `be53624` main baseline plus reset changes: **1,171 passed, 5 skipped**. Main advanced during the run; the final locking refinement and current `fc7a9d2` baseline were checked separately below.
-- Final backend/PostgreSQL integration run on `fc7a9d2`: **211 passed, 2 skipped**, covering reset, authentication, persistence, and the newly merged Australian-passage/global-release checks. PostgreSQL-only concurrency tests execute on PostgreSQL and intentionally skip their SQLite fixture variants.
-- Reset-specific run: **21 passed, 2 skipped**, including rollback after the profile update, whole-table/history/audio preservation, other-owner preservation, typed/spoken repetition, resume, and cancellation recovery.
-- Frontend unit tests: **58 passed**. TypeScript, ESLint, and the optimized production build passed.
-- Authentication/mobile browser regression: **50 passed**. **6 final reset browser cases passed**, including revoked authorization and an unconfirmed response.
-- All **23** built public JavaScript assets scanned: no account-deletion route/control/confirmation text or service-role-key marker. Backend route tests confirm account-deletion and account-controls paths are unregistered and return authenticated 404.
+- Full backend with SQLite and disposable PostgreSQL: **1,218 passed, 6 skipped**. Skips are SQLite variants of PostgreSQL-only checks; those PostgreSQL variants passed.
+- Save-lock prerequisite isolated from main: **121 passed, 1 SQLite variant skipped**.
+- Frontend unit tests: **58 passed**. TypeScript, ESLint, and optimized production build passed.
+- Full Chromium regression initially: **135 passed**, 1 optional integrated-media scenario skipped, and one reset reload assertion timed out during SDK restoration with six workers. Its wait now permits 15 seconds for session restoration; all **7 reset browser cases passed** in the final run. This yields **136 distinct passing browser cases**, including desktop and mobile reset, authentication, onboarding, lesson lifecycle, and password recovery.
+- **23** public JavaScript assets scanned: no account-deletion control/route/confirmation or service-role-key marker. Backend tests verify authenticated account-deletion paths are unregistered (404).
 
-Production readiness remains blocked on the owner's explicit test-account selection and saved allowlist verification. This is a reset-only code review; no production behavior is claimed verified before an approved release.
+The first Render rollout is sequenced through a save-lock prerequisite PR before PR #22, preventing mixed old/new worker races. Deployed revisions and production health results will be recorded on AUD-34. Tests use mocked providers and Auth responses plus disposable PostgreSQL/SQLite databases. No paid provider calls or real production resets are authorized for this review.
 
-Both frontend project roots disable Vercel deployments for `feat/AUD-34-onboarding-reset`. Commits/PR use `[skip render]`; the branch is not merged into Render's auto-deploy branch. These guards protect review preparation only, not a future owner-approved release.
+Required coverage includes authenticated success, missing/invalid authentication, body/URL cross-account rejection, other-owner preservation, complete history/evidence/audio preservation, rollback after update, simultaneous resets, active/paused lessons, in-flight saving, cancellation recovery, repeated typed/spoken onboarding, stale voice/completion requests, checkpoint resume, and desktop/mobile confirmation and navigation.
+
+The review branch has Vercel preview guards for both frontend roots. These guards apply only to this branch and do not disable main's production deployments. The release merge commit must not carry a Render deployment-skip marker. Production health/access checks must cover Render and both app aliases. Authenticated production capability verification needs an existing authorized session; absence of that session must be reported as unverified rather than treated as passing. No real reset will be performed without owner confirmation.

@@ -1,4 +1,4 @@
-"""Owner-scoped development/test onboarding reset; preserves accounts and history."""
+"""Authenticated owner-scoped onboarding reset; preserves accounts and history."""
 from typing import Literal
 from fastapi import HTTPException
 from pydantic import Field
@@ -45,21 +45,13 @@ def reset_onboarding(repo, revision):
     return {'destination': 'onboarding', 'revision': profile.onboarding.revision}
 
 
-def reset_allowed(settings, owner):
-    return settings.environment == 'development' or owner in {str(value) for value in settings.onboarding_test_accounts}
-
-
-def register_onboarding_reset_routes(app, repo, settings, lock):
+def register_onboarding_reset_routes(app, repo, lock):
     @app.get('/api/onboarding/reset-controls')
     async def controls():
-        if not reset_allowed(settings, repo.learner_id):
-            return {'restart_available': False}
         return {'restart_available': True, 'reset_description': RESET_DESCRIPTION,
                 'onboarding_revision': repo.profile().onboarding.revision}
 
     @app.post('/api/onboarding/restart')
     async def restart(body: ResetOnboarding):
-        if not reset_allowed(settings, repo.learner_id):
-            raise HTTPException(403, 'Onboarding restart is restricted to authorized test accounts.')
         async with lock:
             return reset_onboarding(repo, body.revision)

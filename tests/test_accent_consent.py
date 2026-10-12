@@ -52,7 +52,7 @@ def test_scope_expiration_consumption_and_pause():
 
 
 @pytest.mark.parametrize('reply', ['No thanks', 'Cancel', 'I changed my mind', 'Use the default voice',
-                                  'Maybe', 'Yes, work was busy today', 'Try a Jamaican accent instead'])
+                                  'Try a Jamaican accent instead'])
 def test_pre_passage_conversation_cancels_or_defaults(repository_factory,tmp_path,audio_bytes,reply):
     repo=repository_factory(); profile=repo.profile(); profile.onboarding_status='complete'
     profile.accent_preferences=AccentPreferences(status='preferred',accents=['british']);repo.save_profile(profile)
@@ -61,10 +61,12 @@ def test_pre_passage_conversation_cancels_or_defaults(repository_factory,tmp_pat
     async def transcribe(*args):return Transcription(text='Yes',confidence=.99)
     provider.transcribe=transcribe
     client=ASGIClient(create_app(Settings(_env_file=None,data_dir=tmp_path,elevenlabs_api_key='test',accent_practice_enabled=True,passage_tts_daily_characters=100000,passage_voices={'british':VOICE}),provider,repo),provider)
-    item=respond(client,start(client),audio_bytes)
+    item=start(client); stored=repo.lesson();stored.previous='Last time we practiced listening.'
+    repo.save_lesson(stored,stored.revision);item=client.get('/api/lessons/current').json()
+    item=respond(client,item,audio_bytes)
     assert authorized_accent(repo.lesson())=='british'
     item=action(client,item,'heard')
-    assert item['phase']=='REVIEW' and 'change your mind' in item['prompt']
+    assert item['phase']=='REVIEW' and 'enjoy listening' in item['prompt']
     async def reconsider(*args):return Transcription(text=reply,confidence=.99)
     provider.transcribe=reconsider
     item=respond(client,item,audio_bytes)
@@ -165,16 +167,13 @@ def test_returning_learner_retains_normal_topic_review_after_consent(repository_
     repo=repository_factory();profile=repo.profile();profile.onboarding_status='complete'
     profile.accent_preferences=AccentPreferences(status='preferred',accents=['british']);repo.save_profile(profile)
     provider=FakeProvider()
-    async def transcribe(*args):return Transcription(text='Yes',confidence=.99)
+    async def transcribe(*args):return Transcription(text=confirmation,confidence=.99)
     provider.transcribe=transcribe
     client=ASGIClient(create_app(Settings(_env_file=None,data_dir=tmp_path,elevenlabs_api_key='test',accent_practice_enabled=True,passage_tts_daily_characters=100000,passage_voices={'british':VOICE}),provider,repo),provider)
     item=start(client);stored=repo.lesson();stored.previous='Last time we listened to a meeting.'
     repo.save_lesson(stored,stored.revision);item=client.get('/api/lessons/current').json()
     item=respond(client,item,audio_bytes);item=action(client,item,'heard')
-    async def confirm(*args):return Transcription(text=confirmation,confidence=.99)
-    provider.transcribe=confirm
-    item=respond(client,item,audio_bytes);accepted_at=repo.lesson().accent_consent.accepted_at
-    item=action(client,item,'heard')
+    accepted_at=repo.lesson().accent_consent.accepted_at
     assert item['phase']=='REVIEW' and 'enjoy listening' in item['prompt']
     async def topic(*args):return Transcription(text='I enjoy science',confidence=.99)
     provider.transcribe=topic

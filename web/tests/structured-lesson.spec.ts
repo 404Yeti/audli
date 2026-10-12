@@ -2,11 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
 import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 
-async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string) {
+async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string, accentConsent=false, loseAttemptResponse=false) {
   await installVoice(page,{autoPlayback,delayBody:delayIntroduction?'/introduction-audio':delayCue?'/recognition/acknowledgment-audio':undefined});
   let value:LessonCheckpoint|null=null,exerciseState='LISTENING',pendingAttempt=false;
   const requests:string[]=[],spoken:string[]=[],phases:string[]=[];
   let failedGeneration = false;
+  let accentReplies = 0, lostResponse = false;
   const clip={id:'clip',audio_url:'/api/exercises/clip/audio',topic:'Pottery making',completed_attempt_id:null as string|null};
   const snapshot=()=>({...value!});
   const phase=(next:LessonCheckpoint['phase'],prompt:string|null)=>{value!.phase=next;value!.prompt=prompt;value!.revision++;phases.push(next);};
@@ -20,7 +21,7 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
     if(path==='/api/recognition/acknowledgment-audio')return audio(({assessment:'Okay, I heard you.',followup:'Okay, I’ve heard that.',reflection:'Let me keep that in mind.'})[route.request().postDataJSON().cue as 'assessment'|'followup'|'reflection']);
     if(path==='/api/lessons/current')return route.fulfill({json:value?.status==='completed'?null:value});
     if(path==='/api/lessons/start'){
-      if(!value)value={id:'structured',revision:0,status:'active',phase:'WELCOME',prompt:'Hi, Maya. How has your day been?',pending:null,exercise:null,elapsed_seconds:0,remaining_seconds:600,server_time:new Date().toISOString(),focus:'details',exercises_completed:0,strength:null,improvement_focus:null,encouragement:'Thanks for listening, Maya.'};
+      if(!value)value={id:'structured',revision:0,status:'active',phase:'WELCOME',prompt:accentConsent?'Want to practice Australian English for the next passage?':'Hi, Maya. How has your day been?',pending:null,exercise:null,elapsed_seconds:0,remaining_seconds:600,server_time:new Date().toISOString(),focus:'details',exercises_completed:0,strength:null,improvement_focus:null,encouragement:'Thanks for listening, Maya.'};
       return route.fulfill({json:snapshot()});
     }
     if(path.startsWith('/api/lessons/')){
@@ -29,8 +30,15 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
       if(path.endsWith('/audio'))return audio(value!.prompt!);
       if(path.endsWith('/end'))value!.status='paused';
       if(path.endsWith('/resume'))value!.status='active';
-      if(path.endsWith('/attempts')){value!.pending={text:value!.phase==='WELCOME'?"I'm good, and you?":accentRequest??'I enjoy science',confidence:.99,uncertainty:[]};value!.revision++;}
-      if(path.endsWith('/answer')){const welcome=value!.phase==='WELCOME';value!.pending=null;phase(welcome?'WELCOME_ACK':'REVIEW_ACK',welcome?'Good to hear. Doing well, thanks for asking!':accentRequest?'I’ll remember that accent preference. Accent-specific recordings aren’t available yet, so today’s audio will use our usual voice.':missingInterests?'We can continue with today’s listening.':'I’ll keep science in mind as we choose our listening topics.');}
+      if(path.endsWith('/attempts')){
+        value!.pending={text:accentConsent?(accentReplies?'Yes, I’d like to try that.':'Maybe'):value!.phase==='WELCOME'?"I'm good, and you?":accentRequest??'I enjoy science',confidence:.99,uncertainty:[]};value!.revision++;
+        if(loseAttemptResponse&&!lostResponse){lostResponse=true;return route.abort('internetdisconnected');}
+      }
+      if(path.endsWith('/answer')){
+        const welcome=value!.phase==='WELCOME';value!.pending=null;
+        if(accentConsent){accentReplies++;phase(accentReplies===1?'REVIEW':'REVIEW_ACK',accentReplies===1?'Would you like Australian English for the next new passage? You can say yes or no.':'Perfect, we’ll practice Australian English for the next new passage only.');}
+        else phase(welcome?'WELCOME_ACK':'REVIEW_ACK',welcome?'Good to hear. Doing well, thanks for asking!':accentRequest?'I’ll remember that accent preference. Accent-specific recordings aren’t available yet, so today’s audio will use our usual voice.':missingInterests?'We can continue with today’s listening.':'I’ll keep science in mind as we choose our listening topics.');
+      }
       if(path.endsWith('/heard')){
         if(value!.phase==='WELCOME_ACK')phase(returning?'REVIEW':'TRANSITION',returning?(accentRequest?'Last time, we listened to work meetings. You demonstrated strength in following the main idea. You mentioned Australian English; accent-specific recordings aren’t available yet. What would you enjoy listening to today?':'Last time, we listened to work meetings. You demonstrated strength in following the main idea. What would you enjoy listening to today?'):'Today, let’s practice catching important details. Here we go.');
         else if(value!.phase==='REVIEW_ACK')phase('TRANSITION','Today, let’s practice catching important details. Here we go.');
@@ -66,6 +74,28 @@ async function runToCompletion(page:Page){
   for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())return;}
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
 }
+
+for(const lost of [false,true])test(`accent clarification stays voice driven${lost?' after a committed upload loses its response':''}`,async({page})=>{
+  const fixture=await setup(page,false,true,undefined,false,false,false,undefined,true,lost);
+  await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();
+  for(let i=0;i<45;i++){
+    await page.clock.runFor(1000);await page.waitForTimeout(30);
+    if(await page.getByRole('button',{name:'Retry conversation'}).count())break;
+    if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;
+  }
+  if(lost){
+    await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
+    expect(fixture.snapshot().pending?.text).toBe('Maybe');
+    await page.getByRole('button',{name:'Retry conversation'}).click();
+    for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
+  }
+  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  expect(fixture.requests.filter(path=>path==='/api/lessons/structured/attempts')).toHaveLength(2);
+  expect(fixture.spoken.filter(text=>text.includes('You can say yes or no'))).toHaveLength(1);
+  expect(fixture.spoken.filter(text=>text.includes('Want to practice Australian'))).toHaveLength(1);
+  expect(fixture.spoken).toContain('Perfect, we’ll practice Australian English for the next new passage only.');
+  expect(fixture.spoken.some(text=>text.includes('usual passage voice'))).toBe(false);
+});
 
 for(const returning of [false,true])test(`${returning?'returning':'first-time'} lesson is teacher-led from named greeting to evidence-backed completion`,async({page})=>{
   const fixture=await setup(page,returning);await runToCompletion(page);

@@ -490,10 +490,17 @@ class SQLProgressRepository:
         from app.lesson import closing_due
         with self.transaction() as db:
             db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
-            self.owned_exercise(db, exercise_id)
+            exercise = self.owned_exercise(db, exercise_id)
             if closing_due(lesson, utcnow()):
                 raise ValueError('Closing is due.')
             lesson.exercise_id = exercise_id
+            from app.accent_practice import authorized_accent
+            if authorized_accent(lesson):
+                # This audio predates the grant. Keep its replay/progress and
+                # reserve the grant for the next newly generated passage.
+                lesson.accent_consent.exercise_number = lesson.exercises_completed + 1
+            voice = exercise['content'].get('passage_voice')
+            lesson.passage_fallback = bool(voice and voice.get('fallback'))
             lesson.revision += 1
             result = db.execute(update(s.lessons).where(and_(s.lessons.c.id == lesson.id,
                 s.lessons.c.user_id == self.learner_id, s.lessons.c.revision == lesson.revision - 1,

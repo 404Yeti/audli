@@ -94,7 +94,8 @@ def intent(text, offered=None):
     text = text.lower().replace('’', "'").strip(' .!?')
     if re.search(r"\b(maybe|perhaps|not sure|don't know|do not know|tomorrow|later|might|if)\b", text):
         return None, None
-    if re.search(r"\b(no thanks|not today|skip|nope|rather not|don't want|do not want|cancel|changed my mind|change my mind|usual voice|default voice)\b", text) or text == 'no':
+    decline_text = ' '.join(re.sub(r'[,!.?]', ' ', text).split())
+    if re.search(r"\b(no thanks|not today|skip|nope|rather not|don't want|do not want|cancel|changed my mind|change my mind|usual voice|default voice)\b", decline_text) or decline_text == 'no':
         return ('decline', None) if offered or 'accent' in text else (None, None)
     accents = normalize(text)
     named = re.findall(r'\b([a-z]+)\s+(?:english\s+)?accents?\b', text)
@@ -103,10 +104,19 @@ def intent(text, offered=None):
     if re.search(r'\b(prefer|preference|difficult|difficulty|remember|interest|interested|struggle)\b', text) and not re.search(r'\b(practice|try|switch)\b', text):
         return None, None
     request = bool(re.search(r"^(?:practice|try|switch|use)\b|\b(?:let's (?:practice|try|do)|(?:can|could) we (?:practice|try|do|listen|hear|use)|instead)\b", text)
-                   or re.search(r"\b(want|would like|i'd like)\b.*\b(practice|listen|passage|exercise|accent)\b", text))
+                   or re.search(r"\b(want|would like|i'd like)\b.*\b(practice|try|listen|passage|exercise|accent)\b", text))
     # Topic requests such as British music are not accent-practice requests.
-    request = request and only_accent_request(re.sub(r'\b(?:switch|use|next|passage|exercise)\b', '', text.replace("let's", '')))
-    acceptance = bool(re.fullmatch(r"(?:yes|yeah|yep|sure|okay|ok|sounds good)(?: please| thanks|, please)?", text))
+    request_text = re.sub(r'^(?:yes|yeah|yep|okay|ok|absolutely)[, ]+', '', text)
+    request = request and only_accent_request(re.sub(r'\b(?:switch|use|next|passage|exercise)\b', '', request_text.replace("let's", '')))
+    # STT punctuation varies; accept complete, bounded affirmative replies, not
+    # a leading 'yes' followed by unrelated speech or a preference statement.
+    affirmative = r"(?:yes|yeah|yep|sure|okay|ok|absolutely|sounds good)"
+    answer = ' '.join(re.sub(r'[,!.?]', ' ', text).split())
+    acceptance = bool(re.fullmatch(
+        rf"(?:{affirmative}(?: please| thanks| thank you)?|"
+        rf"(?:{affirmative} )?(?:let's (?:do|try) (?:it|that)|"
+        r"(?:(?:i'd|i would) like|i want) to (?:try|practice) (?:it|that)|"
+        r"that sounds good))(?: please| thanks| thank you)?", answer))
     from app.accents import ALIASES
     choice = text
     for aliases in ALIASES.values():
@@ -134,11 +144,23 @@ def resolve(lesson, text, voices):
         # A later topic answer is not a new offer; verbal revocation still works.
         if intent(text, lesson.accent_consent.accent)[0] == 'decline':
             action = 'decline'
+    already_resolved = lesson.accent_resolved
     lesson.accent_resolved = True
     if action is None:
-        if confirmation or lesson.accent_consent.state != 'accepted':
-            expire(lesson)
-        return ('We’ll use our usual passage voice.' if confirmation else None)
+        if lesson.accent_consent.state == 'accepted':
+            # Old checkpoints may still contain the redundant confirmation.
+            # A topic answer never revokes a grant already explicitly accepted.
+            lesson.accent_confirmation = False
+            return None
+        if context and not already_resolved:
+            # Existing flags encode one bounded clarification: resolved plus
+            # confirmation with no grant. Preferences still cannot authorize it.
+            lesson.accent_consent.accent = context
+            lesson.accent_confirmation = True
+            return None
+        expire(lesson)
+        return ('We can leave accent practice for another time. We’ll use our usual passage voice.'
+                if confirmation else None)
     lesson.accent_confirmation = False
     if action == 'decline' or accent not in voices:
         lesson.accent_consent = AccentConsent(state='declined')
@@ -148,8 +170,7 @@ def resolve(lesson, text, voices):
     lesson.accent_consent = AccentConsent(state='accepted', accent=accent,
         accepted_at=now(), exercise_number=lesson.exercises_completed)
     lesson.passage_accent = accent  # Compatibility display only; never authorizes routing.
-    lesson.accent_confirmation = lesson.phase == 'WELCOME'
-    return f'Perfect, we’ll practice {LABELS[accent]} for the next passage only.'
+    return f'Perfect, we’ll practice {LABELS[accent]} for the next new passage only.'
 
 
 async def passage_audio(settings, provider, content, accent, limits=None, *, owner=None, lesson=None):

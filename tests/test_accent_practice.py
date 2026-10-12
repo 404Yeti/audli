@@ -27,7 +27,7 @@ def test_discovery_is_bounded_separate_and_backward_compatible():
         selected = discover(prefs, history, {'british': VOICE})
         if selected:
             asked.append(index)
-        item = lesson(); item.accent_discovery = selected
+        item = lesson(); item.accent_discovery = selected; item.accent_discovery_resolved = selected
         history.insert(0, item)
     assert asked == [0, 3]
     assert not discover(prefs, [], {})

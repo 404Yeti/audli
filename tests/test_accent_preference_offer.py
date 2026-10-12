@@ -84,6 +84,9 @@ def test_preference_offer_routes_only_explicit_acceptance(monkeypatch,repository
     assert client.get(item['exercise']['audio_url']).status_code==200
     assert client.get(f"/api/exercises/{item['exercise']['id']}/transcript").status_code==403
     after=repo.profile().model_dump();after['accent_preferences']=before['accent_preferences']
+    if answer == 'I enjoy science':
+        assert after['interests'] == ['I enjoy science']
+        after['interests'] = before['interests']
     assert after==before
     assert settings.elevenlabs_voice_id=='yKYzqEa22xh5PdidhN70'
 

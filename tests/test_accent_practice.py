@@ -149,7 +149,7 @@ def test_decline_unknown_and_checkpoint():
     item = lesson(); item.accent_offered = 'australian'
     assert 'usual' in resolve(item,'No thanks',{'australian':VOICE})
     restored = Lesson.model_validate_json(item.model_dump_json())
-    assert resolve(restored,'Sure',{'australian':VOICE}) is None
+    assert 'usual passage voice' in resolve(restored,'Sure',{'australian':VOICE})
     assert restored.passage_accent is None and restored.accent_resolved
     assert 'Perfect' in resolve(restored,'Practice Australian please',{'australian':VOICE})
     assert restored.passage_accent == 'australian'

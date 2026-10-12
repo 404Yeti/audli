@@ -311,8 +311,9 @@ def test_explicit_revision_and_completion_do_not_reset_old_learning(accounts, re
     profile.completed_attempts = 2
     profile.difficulty.speech_rate = .85
     repo.save_profile(profile)
-    for _ in range(4):
+    for _ in range(3):
         state = spoken(a, state, audio_bytes)
+    state = spoken(a, state, audio_bytes, 'No preference')
     response = a.post('/api/onboarding/revise', json={'revision':state['revision']})
     assert response.status_code == 200
     state = response.json()

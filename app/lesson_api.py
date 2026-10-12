@@ -6,8 +6,9 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from pydantic import Field, ValidationError
-from app.accent_practice import offer, resolve, discover, discovery_response, intent, expire, offer_after_preference
-from app.accents import lesson_preference, only_accent_request, acknowledgment as accent_acknowledgment
+from app.accent_practice import offer, resolve, discover, discovery_response, expire, offer_after_preference
+from app.accents import acknowledgment as accent_acknowledgment
+from app.accent_intent import interpret
 from app.audio import validate_upload
 from app.lesson import Lesson, CheckinReply, social_response, routine_checkin_reply, compose_checkin_reply, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
 from app.models import StrictModel, Transcription
@@ -193,7 +194,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             # next conversational boundary, preserving the topic answer and progress.
             if (lesson.phase in ('WELCOME_ACK', 'REVIEW_ACK')
                     and not lesson.accent_discovery and not lesson.accent_offered
-                    and not lesson.accent_confirmation
+                    and not lesson.accent_confirmation and not lesson.accent_resolved
                     and discover(repo.profile().accent_preferences,
                                  [item for item in repo.accent_lesson_history() if item.id != lesson.id],
                                  await passage_limits.voices())):
@@ -227,12 +228,19 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             if not reliable_recognition(lesson.pending, settings.min_transcription_confidence):
                 raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             text = lesson.pending.text
-            if not await passage_limits.voices() and not (lesson.accent_offered or lesson.accent_discovery or lesson.accent_confirmation):
+            available_voices = await passage_limits.voices()
+            discovering = (lesson.accent_discovery and not lesson.accent_discovery_resolved
+                           and not lesson.accent_confirmation)
+            context = (lesson.accent_consent.accent if lesson.accent_confirmation
+                       else None if lesson.accent_resolved else lesson.accent_offered)
+            parsed = interpret(text, offered=context, discovering=discovering,
+                               practice_question=lesson.accent_confirmation)
+            if not available_voices and parsed.kind in ('topic', 'preference') and not (lesson.accent_offered or lesson.accent_discovery or lesson.accent_confirmation):
                 expire(lesson)
-                accent_preferences = lesson_preference(text, lesson.suggested_accent if lesson.phase == 'REVIEW' else None)
+                accent_preferences = parsed.preferences
                 interests = None
                 if lesson.phase == 'REVIEW':
-                    if accent_preferences is None or not only_accent_request(text):
+                    if accent_preferences is None or parsed.topic_text is not None:
                         try:
                             with operation(settings, 'lesson.profile_extraction'):
                                 extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
@@ -281,26 +289,37 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 with operation(settings, 'lesson.answer_persistence'):
                     return public(save(lesson, body.revision, interests, accent_preferences))
             interests = None
-            accent_preferences = None
-            available_voices = await passage_limits.voices()
-            discovering = (lesson.accent_discovery and not lesson.accent_discovery_resolved
-                           and not lesson.accent_confirmation)
-            if discovering and intent(text)[0] not in ('select', 'unavailable'):
-                accent_preferences, accent_reply = discovery_response(text)
+            accent_preferences = parsed.preferences
+            if parsed.topic_text:
+                try:
+                    with operation(settings, 'lesson.profile_extraction'):
+                        extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', parsed.topic_text))
+                    interests = extracted.interests
+                    lesson.reflection = parsed.topic_text
+                except Exception as exc:
+                    check(lesson_id, body.revision)
+                    if parsed.kind == 'topic':
+                        raise
+                    report_failure(settings, 'Lesson topic preference', exc)
+            if discovering:
                 lesson.accent_discovery_resolved = True
+            if parsed.kind == 'preference':
+                # Disclosure is interest, never acceptance of a pending offer.
+                accent_reply = ('Got it! I’ll remember that accent preference.'
+                                if any(accent in available_voices for accent in accent_preferences.accents) else
+                                'I’ll remember that accent preference, though it isn’t available for practice yet.')
+                if lesson.accent_consent.state != 'accepted' and lesson.accent_offered:
+                    # A new disclosure is not acceptance and must not restart a
+                    # question already offered/declined in this lesson.
+                    expire(lesson)
+                    lesson.accent_resolved = True
+                if not available_voices:
+                    accent_reply = accent_acknowledgment(accent_preferences)
+            elif discovering and parsed.kind == 'topic':
+                _, accent_reply = discovery_response(parsed)
                 lesson.accent_resolved = True
             else:
-                if discovering:
-                    lesson.accent_discovery_resolved = True
-                # Persistent opt-out differs from declining today's practice offer.
-                if re.search(r"\b(stop suggesting|no more accents|forget.*accent|don't suggest|do not suggest)\b", text.replace('’', "'"), re.I):
-                    accent_preferences = lesson_preference(text)
-                elif not lesson.accent_confirmation and intent(text, lesson.accent_offered)[0] is None:
-                    accent_preferences = lesson_preference(text)
-                accent_reply = resolve(lesson, text, available_voices)
-                if accent_preferences and accent_preferences.status == 'no_preference':
-                    expire(lesson)
-                    accent_reply = 'Of course. I won’t suggest accent practice again. We’ll use our usual passage voice.'
+                accent_reply = resolve(lesson, parsed, available_voices)
             if lesson.accent_confirmation and lesson.accent_resolved and lesson.accent_consent.state == 'none':
                 # Stay at a response-taking checkpoint so the existing voice
                 # loop speaks one clarification and records its answer.
@@ -333,7 +352,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             elif lesson.phase == 'REVIEW':
                 try:
                     with operation(settings, 'lesson.profile_extraction'):
-                        extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
+                        if not parsed.topic_text:
+                            extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
                 except ValidationError:
                     check(lesson_id, body.revision)
                     raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '

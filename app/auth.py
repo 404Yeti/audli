@@ -1,5 +1,9 @@
 """Supabase Auth verification and isolated request-scoped repository identities."""
 from contextvars import ContextVar
+import asyncio
+from hashlib import sha256
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 from uuid import UUID
 
 import httpx
@@ -60,6 +64,11 @@ class LearnerAuthentication:
     def __init__(self, app, identity, repository, request_repository):
         self.app, self.identity = app, identity
         self.repository, self.request_repository = repository, request_repository
+        # Mutations share an owner-specific lease across API workers, including
+        # provider awaits. Reset cannot run while another worker saves a lesson.
+        self.lease_engine = (create_engine(repository.engine.url, poolclass=NullPool,
+            connect_args={'connect_timeout': 5, 'prepare_threshold': None})
+            if repository.engine.dialect.name == 'postgresql' else None)
 
     async def __call__(self, scope, receive, send):
         public = scope.get('path') in ('/api/health', '/api/auth/config')
@@ -70,11 +79,34 @@ class LearnerAuthentication:
         except HTTPException as error:
             headers = {'WWW-Authenticate': 'Bearer'} if error.status_code == 401 else {}
             return await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=headers)(scope, receive, send)
-        # Database initialization is idempotent and transactional. Do not create users
-        # until the Auth server has validated the token; no browser UUID is accepted.
-        scoped = self.repository.for_learner(learner_id)
-        token = self.request_repository.current.set(scoped)
+        lease = None
+        token = None
         try:
+            if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')):
+                key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
+                for _ in range(100):
+                    candidate = self.lease_engine.connect()
+                    try:
+                        candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
+                        acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
+                    except BaseException:
+                        candidate.close()
+                        raise
+                    if acquired:
+                        lease = candidate
+                        break
+                    candidate.close()
+                    await asyncio.sleep(.05)
+                if lease is None:
+                    raise HTTPException(409, 'Your account is saving another step. Wait and retry.')
+            # Identity still comes only from the Auth-verified bearer.
+            scoped = self.repository.for_learner(learner_id)
+            token = self.request_repository.current.set(scoped)
             await self.app(scope, receive, send)
+        except HTTPException as error:
+            await JSONResponse({'detail': error.detail}, status_code=error.status_code)(scope, receive, send)
         finally:
-            self.request_repository.current.reset(token)
+            if token is not None:
+                self.request_repository.current.reset(token)
+            if lease is not None:
+                lease.close()

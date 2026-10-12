@@ -17,6 +17,7 @@ from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
 from app.onboarding_api import register_onboarding_routes
+from app.onboarding_reset import register_onboarding_reset_routes, reset_allowed
 from app.lesson_api import register_lesson_routes
 from app.onboarding import application_destination
 from app.security import LocalRequestGuard
@@ -62,7 +63,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     if identity is not None:
-        app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo)
+        app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo,
+                           requires_mutation_lease=lambda owner: reset_allowed(settings, owner))
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database
@@ -323,6 +325,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return repo.history()
 
     register_onboarding_routes(app, repo, ai, lock, settings)
+    register_onboarding_reset_routes(app, repo, settings, lock)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
     register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits)
     return app

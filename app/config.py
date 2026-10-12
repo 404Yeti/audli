@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     auth_mode: Literal['local', 'supabase'] = 'local'
     supabase_url: str = ''
     supabase_publishable_key: SecretStr | None = None
+    onboarding_test_accounts: list[UUID] = Field(default_factory=list)
     provider: Literal['openai', 'demo'] = 'openai'
     latency_telemetry: bool = False
     llm_model: str = 'gpt-4.1-mini'

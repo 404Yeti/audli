@@ -7,7 +7,7 @@ from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
-from app.onboarding import Revision, Answer, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
+from app.onboarding import Revision, Answer, TypedName, name_entry_available, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
 
 
 def register_onboarding_routes(app, repo, ai, lock, settings):
@@ -15,6 +15,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
         return {'profile': profile, 'stage': profile.onboarding.stage,
                 'revision': profile.onboarding.revision,
                 'welcome': profile.onboarding.welcome,
+                'name_entry_available': name_entry_available(profile),
+                'name_question_revision': profile.onboarding.name_question_revision,
                 'prompt': onboarding_prompt(profile),
                 'clarification_paused': profile.onboarding.clarification_paused,
                 'pending': profile.onboarding.pending,
@@ -62,7 +64,12 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             profile = check(body.revision)
             if profile.onboarding_status == 'not_started' and profile.onboarding.revision == 0:
                 profile.onboarding.welcome = 'introduction'
+            has_saved_name = profile.name != 'Listener' or profile.onboarding_status == 'profile_saved'
             profile.onboarding_status = 'in_progress'
+            if has_saved_name:
+                profile.onboarding.name_question_revision = None
+                profile.onboarding.answered_fields = ['name']
+                profile.onboarding.clarification = 'target_language'
             return save(profile, body.revision)
 
     @app.post('/api/onboarding/heard')
@@ -72,7 +79,38 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             if not profile.onboarding.welcome or profile.onboarding_status != 'in_progress':
                 raise HTTPException(409, 'Continue from your saved onboarding question.')
             profile.onboarding.welcome = 'status' if profile.onboarding.welcome == 'introduction' else None
+            if profile.onboarding.welcome is None and 'name' not in profile.onboarding.answered_fields:
+                profile.onboarding.name_question_revision = body.revision + 1
             return save(profile, body.revision)
+
+    @app.post('/api/onboarding/name')
+    async def typed_name(body: TypedName):
+        async with lock:
+            profile = repo.profile()
+            progress = profile.onboarding
+            # The question token survives transcription/identity extraction so a
+            # submitted typed answer wins even if voice acquired the lock first.
+            if (profile.onboarding_status != 'in_progress' or progress.welcome
+                    or progress.name_question_revision != body.question_revision
+                    or progress.stage not in ('identity', 'needs')):
+                raise HTTPException(409, 'Continue from your saved onboarding question.')
+            if progress.typed_name:
+                if profile.name == body.name:
+                    return public(profile)  # Lost response: no second advancement.
+                raise HTTPException(409, 'Your name is already saved. Reload your progress.')
+            revision = progress.revision
+            progress.typed_name = True
+            profile.name = body.name
+            progress.pending = None
+            progress.clarification_paused = False
+            progress.clarification_count = 0
+            if progress.stage == 'identity':
+                # Satisfy the name question; preserve any language still to ask.
+                if 'name' not in progress.answered_fields:
+                    progress.answered_fields.append('name')
+                profile = apply_extraction(profile, dict(name=None, target_language=None,
+                    goal=None, target_situations=None, interests=None))
+            return save(profile, revision)
 
     @app.post('/api/onboarding/attempts')
     async def transcribe(audio: UploadFile, revision: int = Form(ge=0)):
@@ -86,6 +124,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                     data, filename = await validate_upload(audio, settings)
                 with operation(settings, 'onboarding.transcription'):
                     transcription = Transcription.model_validate(await ai().transcribe(data, filename))
+                if profile.onboarding.stage == 'needs':
+                    profile.onboarding.name_question_revision = None
                 profile.onboarding.pending = transcription
                 return save(profile, revision)
         finally:
@@ -120,8 +160,9 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             if profile.onboarding.stage != 'review':
                 raise HTTPException(409, 'Finish the current stage first.')
             profile.onboarding.stage = 'identity'
-            profile.onboarding.answered_fields = []
-            profile.onboarding.clarification = None
+            profile.onboarding.answered_fields = ['name']
+            profile.onboarding.name_question_revision = None
+            profile.onboarding.clarification = 'target_language'
             profile.onboarding.clarification_count = 0
             profile.onboarding.clarification_paused = False
             profile.onboarding_status = 'in_progress'

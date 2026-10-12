@@ -101,16 +101,17 @@ async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>
   let failVoice=false,failUpload=false,failComplete=false,uncertain=false,delayAudio=false,releaseAudio:(()=>void)|undefined;
   const revisions:number[]=[];
   let incomplete=0,clarification=false,clarificationCount=0,paused=false;
-  const snapshot=()=>({profile:{...profile,accent_preferences:{...accentPreferences}},stage,welcome,revision,pending,clarification_paused:paused,prompt:welcome==='introduction'?"Hey! I’m Audli, your listening buddy. We’ll practice listening together.":welcome==='status'?"My status bubbles say ‘Audli is speaking’, ‘Listening to you’, or ‘Thinking’. You don’t need to watch them.":stage==='accents'?'Are there any English accents you find tricky? You can say skip.':clarification?'What language do you want to train? Audli currently trains English listening.':stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
+  const snapshot=()=>({name_entry_available:profile.onboarding_status==='in_progress'&&stage==='identity'&&!welcome&&!clarification,name_question_revision:0,profile:{...profile,accent_preferences:{...accentPreferences}},stage,welcome,revision,pending,clarification_paused:paused,prompt:welcome==='introduction'?"Hey! I’m Audli, your listening buddy. We’ll practice listening together.":welcome==='status'?"My status bubbles say ‘Audli is speaking’, ‘Listening to you’, or ‘Thinking’. You don’t need to watch them.":stage==='accents'?'Are there any English accents you find tricky? You can say skip.':clarification?'What language do you want to train? Audli currently trains English listening.':stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
   await page.route('**/api/profile',route=>route.fulfill({json:route.request().headers()['authorization']===`Bearer ${tokenB}`?{destination:'session_ready',profile:{...profile,name:'Bob'},provider:'openai'}:{destination:snapshot().destination,profile,provider:'openai'}}));
   await page.route('**/api/onboarding**',async route=>{
     const path=new URL(route.request().url()).pathname;fixture.requests.push({path,authorization:route.request().headers()['authorization'],method:route.request().method(),body:route.request().postData()});
     if(path.endsWith('/audio')){const requested=route.request().postDataJSON().revision;revisions.push(requested);if(delayAudio){delayAudio=false;await new Promise<void>(resolve=>{releaseAudio=resolve;});}if(requested!==revision)return route.fulfill({status:409,json:{detail:'Onboarding changed'}});if(failVoice)return route.fulfill({status:503,json:{detail:'Voice unavailable'}});return route.fulfill({contentType:'audio/wav',body:promptWav()});}
+    if(path.endsWith('/name')){profile.name=route.request().postDataJSON().name.normalize('NFC').trim().replace(/\s+/g,' ');clarification=true;pending=null;revision++;}
     if(path.endsWith('/start')&&profile.onboarding_status!=='in_progress'){profile.onboarding_status='in_progress';if(withWelcome&&!legacy)welcome='introduction';revision++;}
     if(path.endsWith('/heard')){welcome=welcome==='introduction'?'status':null;revision++;}
     if(path.endsWith('/retry-clarification')){paused=false;clarificationCount=0;revision++;}
     if(path.endsWith('/attempts')){if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Transcription failed. Recording is safe.'}});}pending={text:stage==='accents'?accentResponse:'Maya English work meetings and science',confidence:uncertain?.2:.95,uncertainty:uncertain?['unclear']:[]};uncertain=false;revision++;}
-    if(path.endsWith('/answer')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Stale revision'}});if(incomplete>0){incomplete--;profile.name='Maya';clarification=true;paused=clarificationCount===2;clarificationCount=Math.min(2,clarificationCount+1);pending=null;revision++;return route.fulfill({json:snapshot()});}clarification=false;clarificationCount=0;if(stage==='identity'){profile.name='Maya';stage='needs';}else if(stage==='needs'){profile.goal='Understand meetings';profile.target_situations=['work meetings'];stage='interests';}else if(stage==='accents'){accentPreferences.response=body.text;accentPreferences.accents=body.text==='skip'?[]:['australian','scottish'];accentPreferences.status=body.text==='skip'?'no_preference':'preferred';stage='review';profile.onboarding_status='profile_saved';}else{profile.interests=['science'];stage=withWelcome?'accents':'review';if(!withWelcome)profile.onboarding_status='profile_saved';}pending=null;revision++;}
+    if(path.endsWith('/answer')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Stale revision'}});if(incomplete>0){incomplete--;profile.name='Maya';clarification=true;paused=clarificationCount===2;clarificationCount=Math.min(2,clarificationCount+1);pending=null;revision++;return route.fulfill({json:snapshot()});}clarification=false;clarificationCount=0;if(stage==='identity'){if(profile.name==='Listener')profile.name='Maya';stage='needs';}else if(stage==='needs'){profile.goal='Understand meetings';profile.target_situations=['work meetings'];stage='interests';}else if(stage==='accents'){accentPreferences.response=body.text;accentPreferences.accents=body.text==='skip'?[]:['australian','scottish'];accentPreferences.status=body.text==='skip'?'no_preference':'preferred';stage='review';profile.onboarding_status='profile_saved';}else{profile.interests=['science'];stage=withWelcome?'accents':'review';if(!withWelcome)profile.onboarding_status='profile_saved';}pending=null;revision++;}
     if(path.endsWith('/complete')){if(profile.onboarding_status!=='complete'){profile.onboarding_status='complete';revision++;}if(failComplete){failComplete=false;return route.fulfill({status:503,json:{detail:'Response interrupted. Progress is safe.'}});}}
     return route.fulfill({json:snapshot()});
   });
@@ -199,10 +200,13 @@ test('account switch cancels a stale-audio checkpoint reload before it can retry
   await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await expect.poll(()=>fixture.audioPending).toBe(true);fixture.advanceRevision();recovering=true;fixture.releaseAudio();await expect.poll(()=>!!release).toBe(true);
   await switchToB(page);const count=fixture.requests.length;await release!();await page.waitForTimeout(150);expect(fixture.requests.length).toBe(count);expect(fixture.revisions).toEqual([1]);expect((await probe(page)).urls).toEqual([]);
 });
-test('onboarding uncertain recognition automatically retries without a recognition form',async({page})=>{
-  const fixture=await setupOnboarding(page);fixture.uncertainNext();await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);
-  expect(fixture.snapshot().stage).toBe('identity');expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(0);await expect(page.locator('textarea')).toHaveCount(0);
-  await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);expect(fixture.snapshot().stage).toBe('needs');
+test('uncertain spoken name suggests typing and still permits an explicit voice retry',async({page})=>{
+  const fixture=await setupOnboarding(page);fixture.uncertainNext();await page.clock.install();await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
+  await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);
+  await expect(page.locator('main').getByRole('alert')).toContainText('You can type it below');
+  expect(fixture.snapshot().stage).toBe('identity');expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(0);
+  await expect(page.getByLabel('What should I call you?',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Retry conversation'}).click();await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);expect(fixture.snapshot().stage).toBe('needs');
 });
 test('account switch discards delayed successful exercise audio before playback',async({page})=>{
   await installVoice(page,{delayBody:'/api/exercises/clip/audio'});const fixture=await setupAuth(page,true);await signIn(page);await page.getByRole('button',{name:'Start today’s session'}).click();await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
@@ -406,4 +410,46 @@ test('Settings failed save preserves the saved preference and allows retry',asyn
   await page.unroute('**/api/profile/accent-preferences');
   await page.getByRole('button',{name:'Save accent preferences'}).click();
   await expect(page.getByText('Saved: Irish.')).toBeVisible();
+});
+
+
+test('typed onboarding name cancels recording, continues speech, and stays saved',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.clock.install();
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);
+  const input=page.getByLabel('What should I call you?',{exact:true});
+  await expect(input).toBeVisible();await expect(page.getByText('You can say your name or type it here.')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Save and continue'})).toBeDisabled();
+  await input.fill('   ');await expect(page.getByRole('button',{name:'Save and continue'})).toBeDisabled();
+  await endAudio(page);await listening(page);
+  await input.fill('Nguyễn Thị Mỹ');await input.press('Enter');
+  await expect(input).toHaveCount(0);await speaking(page);
+  expect(fixture.snapshot().stage).toBe('identity');expect(fixture.snapshot().profile.name).toBe('Nguyễn Thị Mỹ');
+  expect((await probe(page)).tracks).toBeGreaterThan(0);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/name'))).toHaveLength(1);
+  for(let i=0;i<3;i++)await onboardingTurn(page);
+  await endAudio(page);await expect(page.getByRole('heading',{name:'Good to see you, Nguyễn Thị Mỹ.'})).toBeVisible();
+});
+
+test('pending typed name restores after reload and interrupted save can retry',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);
+  await page.reload();const input=page.getByLabel('What should I call you?',{exact:true});await expect(input).toBeVisible();
+  let fail=true;
+  await page.route('**/api/onboarding/name',async route=>{if(fail){fail=false;return route.fulfill({status:503,json:{detail:'Please retry saving your name.'}});}await route.fallback();});
+  await input.fill('José');await page.getByRole('button',{name:'Save and continue'}).click();
+  await expect(page.locator('main').getByRole('alert')).toContainText('Please retry saving your name.');await expect(input).toHaveValue('José');
+  await page.getByRole('button',{name:'Save and continue'}).click();await expect(input).toHaveCount(0);await speaking(page);
+  expect(fixture.snapshot().profile.name).toBe('José');expect(fixture.snapshot().stage).toBe('identity');
+});
+
+
+test('ending an interrupted typed save permits retry without a stale continuation',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);
+  let first=true;let release:(()=>void)|undefined;
+  await page.route('**/api/onboarding/name',async route=>{if(first){first=false;await new Promise<void>(resolve=>{release=resolve;});return route.fulfill({status:503,json:{detail:'Interrupted'}}).catch(()=>{});}await route.fallback();});
+  await page.getByLabel('What should I call you?',{exact:true}).fill('Đặng Hà');await page.getByRole('button',{name:'Save and continue'}).click();
+  await expect.poll(()=>!!release).toBe(true);
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Save and continue'})).toBeEnabled();release?.();
+  await page.getByRole('button',{name:'Save and continue'}).click();await expect(page.getByLabel('What should I call you?',{exact:true})).toHaveCount(0);await speaking(page);
+  expect(fixture.snapshot().profile.name).toBe('Đặng Hà');
 });

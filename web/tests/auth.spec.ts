@@ -10,6 +10,7 @@ const token=tokenFor(userId),tokenB=tokenFor(userB.id);
 type Request={path:string;authorization:string|undefined;method:string;body:string|null};
 async function setupAuth(page:Page,training=false){
   const requests:Request[]=[];let reject=false,listened=false;
+  const preferences=new Map<string, {status:string;accents:string[]}>();
   await page.route('https://audli-auth-test.supabase.co/**',route=>{
     const path=new URL(route.request().url()).pathname;
     if(path.endsWith('/signup'))return route.fulfill({json:user});
@@ -26,7 +27,8 @@ async function setupAuth(page:Page,training=false){
     if(reject||![`Bearer ${token}`,`Bearer ${tokenB}`].includes(authorization??''))return route.fulfill({status:401,json:{detail:'Your session expired or is invalid. Please sign in again.'}});
     if(path.startsWith('/api/lessons/') && authorization===`Bearer ${tokenB}` && path.endsWith('/current'))return route.fulfill({json:null});
     if(await lesson.handle(route))return;
-    if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:authorization===`Bearer ${tokenB}`?'Bob':'Alice',goal:'Meetings',completed_attempts:0},provider:'openai'}});
+    if(path==='/api/profile/accent-preferences' && route.request().method()==='PUT'){const accents=route.request().postDataJSON().accents as string[];const value={status:accents.length?'preferred':'no_preference',accents};preferences.set(authorization!,value);return route.fulfill({json:value});}
+    if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:authorization===`Bearer ${tokenB}`?'Bob':'Alice',goal:'Meetings',completed_attempts:0,accent_preferences:preferences.get(authorization!)??{status:'unspecified',accents:[]}},provider:'openai'}});
     if(path==='/api/history')return route.fulfill({json:[]});
     if(path==='/api/exercises/current')return route.fulfill({json:training&&authorization!==`Bearer ${tokenB}`?{id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null}:null});
     if(path==='/api/exercises')return route.fulfill({json:{id:'clip',audio_url:'/api/exercises/clip/audio',completed_attempt_id:null}});
@@ -360,4 +362,48 @@ test('a welcome completed elsewhere during playback cannot duplicate acknowledgm
   await endAudio(page);await speaking(page);
   expect(fixture.requests.filter(x=>x.path.endsWith('/heard'))).toHaveLength(1);
   expect(fixture.snapshot().welcome).toBeNull();
+});
+
+test('Settings accent choices persist after login and remain account scoped',async({page})=>{
+  const fixture=await setupAuth(page);await signIn(page);
+  await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await expect(page.getByText('Saved: Not answered yet.')).toBeVisible();
+  for(const label of ['British','Australian','Irish'])await page.getByRole('checkbox',{name:label,exact:true}).check();
+  await page.getByRole('button',{name:'Save accent preferences'}).click();
+  await expect(page.getByRole('status')).toContainText('Accent preferences saved.');
+  const writes=fixture.requests.filter(x=>x.path==='/api/profile/accent-preferences');
+  expect(writes).toHaveLength(1);expect(writes[0].authorization).toBe(`Bearer ${token}`);
+  expect(JSON.parse(writes[0].body!)).toEqual({accents:['british','australian','irish']});
+  await signOut(page);await signIn(page,userB.email);
+  await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await expect(page.getByText('Saved: Not answered yet.')).toBeVisible();
+  await page.getByRole('checkbox',{name:'No particular accent difficulty',exact:true}).check();
+  await page.getByRole('button',{name:'Save accent preferences'}).click();
+  await expect(page.getByText('Saved: No particular accent difficulty.')).toBeVisible();
+  await signOut(page);await signIn(page);
+  await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  for(const label of ['British','Australian','Irish'])await expect(page.getByRole('checkbox',{name:label,exact:true})).toBeChecked();
+  await expect(page.getByRole('checkbox',{name:'No particular accent difficulty',exact:true})).not.toBeChecked();
+  await page.getByRole('checkbox',{name:'No particular accent difficulty',exact:true}).check();
+  for(const label of ['British','Australian','Irish'])await expect(page.getByRole('checkbox',{name:label,exact:true})).not.toBeChecked();
+  await page.getByRole('button',{name:'Save accent preferences'}).click();
+  await expect(page.getByText('Saved: No particular accent difficulty.')).toBeVisible();
+  expect(fixture.requests.some(x=>x.path==='/api/lessons/start')).toBe(false);
+});
+
+test('Settings failed save preserves the saved preference and allows retry',async({page})=>{
+  await setupAuth(page);await signIn(page);
+  await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('checkbox',{name:'Irish',exact:true}).check();
+  await page.route('**/api/profile/accent-preferences',route=>route.fulfill({status:503,json:{detail:'Please retry.'}}));
+  await page.getByRole('button',{name:'Save accent preferences'}).click();
+  await expect(page.getByRole('alert').filter({hasText:'Please retry.'})).toContainText('Please retry.');
+  await expect(page.getByText('Saved: Not answered yet.')).toBeVisible();
+  await page.unroute('**/api/profile/accent-preferences');
+  await page.getByRole('button',{name:'Save accent preferences'}).click();
+  await expect(page.getByText('Saved: Irish.')).toBeVisible();
 });

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { AuthGate, useAccount } from '../components/auth-gate';
+import { AccentSettings, type AccentPreferences } from '../components/accent-settings';
 import { SpokenOnboarding } from '../components/onboarding';
 import { AudliMascot } from '../components/audli-mascot';
 import { BottomNavigation, SessionShell, type Destination } from '../components/product-shell';
@@ -14,7 +15,7 @@ import { microphonePermission } from '../lib/session';
 import type { ConversationPhase } from '../lib/conversation';
 import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
 
-type Profile = { name: string; goal: string; focus?: string; interests?: string[]; target_situations?: string[]; completed_attempts: number };
+type Profile = { accent_preferences?: AccentPreferences; name: string; goal: string; focus?: string; interests?: string[]; target_situations?: string[]; completed_attempts: number };
 type ProfileResponse = { destination: string; profile: Profile; provider: string; recognition_min_confidence?: number };
 type Exercise = { id: string; audio_url: string; completed_attempt_id: string | null };
 type Attempt = { id: string; transcription: Recognition; confirmed_text?: string | null };
@@ -306,7 +307,7 @@ function Product() {
     </section>}
     {destination === 'Review' && <section className="shell-view"><h1>What your ears are learning</h1><p>A simple look at recent listening—not a dashboard.</p>{history.length ? [...history].reverse().slice(0,5).map(item => <article className="review-observation" key={item.id}><h2>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(item.created_at))}</h2><p>{item.evaluation.feedback}</p><button className="text-button" onClick={() => void reviewTranscript(item.exercise_id)}>Read transcript</button></article>) : <><AudliMascot/><p>Your listening observations will appear after your first session.</p></>}{transcript && <details className="review-transcript" open><summary>{transcript.title}</summary><p>{transcript.script}</p></details>}</section>}
     {destination === 'Plan' && <section className="shell-view"><h1>Your listening plan</h1><p>Audli adjusts this automatically as it learns how you listen.</p><AudliMascot small/><dl><dt>Goal</dt><dd>{profile?.goal ?? 'Build confidence understanding English'}</dd><dt>Current focus</dt><dd>{profile?.completed_attempts ? focusCopy[profile.focus ?? 'details'] ?? 'Build on what you understood.' : 'Find your starting point through listening.'}</dd><dt>Session</dt><dd>10 minutes daily</dd><dt>Starting pace</dt><dd>Clear, slightly slower English</dd></dl></section>}
-    {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dt>Voice & playback</dt><dd>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
+    {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dt>Accent difficulties</dt><dd><AccentSettings preferences={profile?.accent_preferences} onSaved={value => setProfile(current => current ? { ...current, accent_preferences: value } : current)}/></dd><dt>Voice & playback</dt><dd>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
     {busy && <p role="status">Loading your listening space…</p>}{error && <div role="alert" className="session-error">{error}<button className="secondary" onClick={retry}>Retry connection</button></div>}
     <BottomNavigation destination={destination} onNavigate={value => void navigate(value)}/><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/>
   </main>;

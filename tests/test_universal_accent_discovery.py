@@ -2,6 +2,7 @@
 import asyncio
 import httpx
 import pytest
+from uuid import uuid4
 from app.accent_practice import discover, authorized_accent
 from app.lesson import Lesson, now
 from app.models import AccentPreferences
@@ -16,7 +17,7 @@ from app.config import Settings
 
 
 def checkpoint(repo, phase):
-    item = Lesson(id='existing', started_at=now(), active_since=now(),
+    item = Lesson(id=str(uuid4()), started_at=now(), active_since=now(),
                   name='Maya', focus='details', phase=phase,
                   reflection='Science', review_response='I’ll keep science in mind.')
     repo.create_lesson(item)

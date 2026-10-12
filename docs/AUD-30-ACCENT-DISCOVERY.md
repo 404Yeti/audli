@@ -43,9 +43,12 @@ practice offer as WELCOME. A preference grants no consent. Explicit acceptance
 uses the existing timestamped, exercise-scoped one-passage grant; its consumption,
 expiry, revocation, voice mappings and Clara routing remain unchanged.
 
-No new UI, schema, provider, infrastructure or tutor voice configuration.
-Release only after PR and spoken behavior review. No deployment is authorized
-by this implementation task. Rollback to ff0593e is snapshot-compatible because
+No new screens, schema, provider, infrastructure or tutor voice configuration.
+The existing Settings screen now includes the supported accent choices and
+no particular accent difficulty, saved through the authenticated profile API.
+The final release instruction authorizes commit, merge and Render/Vercel
+deployment after the complete spoken discovery and Settings scope passes
+verification. The second account identity is not a release prerequisite. Rollback to ff0593e is snapshot-compatible because
 only existing fields and phases are used; retain all learner data and controls.
 
 ## Verification scope
@@ -64,3 +67,34 @@ After the final immediate-request guard and topic-selection cases, focused
 accent/discovery/offer/consent regressions passed 98/98, including 15 new AUD-30
 cases. Frontend unit tests, TypeScript, lint and optimized Next.js production build
 all passed. No real production learner walkthrough or paid synthesis was run.
+
+
+## Final Settings scope
+
+`PUT /api/profile/accent-preferences` accepts only British/Australian/Irish
+selections; an explicitly submitted empty selection means no particular accent
+difficulty. It uses the existing server-verified identity and owner-scoped
+repository. A transaction locks and reads current profile state before replacing
+only accent preferences. It cannot write learner IDs, difficulty, scores,
+onboarding checkpoints, budget controls or lesson consent. Existing spoken
+preference extraction and future offer cadence read the same persisted field.
+
+The Settings controls reuse existing checkbox/button styling, show the saved
+preference, allow multiple accents, separate the none choice, handle failed
+saves/retries, and discard stale responses after unmount/account change.
+
+Final database verification: 554 passing regressions on SQLite and disposable
+PostgreSQL 17.11. The two skips are SQLite variants of PostgreSQL-only tests.
+Both exact PostgreSQL variants were additionally verified separately: 2 passed.
+This covers control lock timeout and transaction-local pooler timeout settings,
+as well as persisted preferences, authenticated account isolation and RLS denial.
+Production baseline was inspected read-only: schema [1,2,3], shared controls
+enabled, daily limit 5000, concurrency 1, revision 3. No migration is required.
+
+Frontend unit, strict TypeScript, lint and optimized production build passed.
+Non-paid browser verification passed 66 broader auth/onboarding/spoken-lesson
+cases and the final two Settings persistence/retry cases. The initial retry
+assertion matched both the application alert and Next.js's route announcer;
+scoping the test locator fixed it. Browser execution used temporary Webpack
+configuration because Turbopack cannot follow shared worktree dependencies;
+no bundled product configuration changed.

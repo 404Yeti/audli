@@ -212,7 +212,7 @@ def public_topic(content: dict) -> str | None:
 
 def introduction(lesson: Lesson) -> str:
     if lesson.passage_fallback:
-        return 'That accent voice is unavailable right now, so this recording uses our usual passage voice. Listen carefully, then tell me what you understood.'
+        return 'I couldn’t use the requested accent for this recording, so it uses our usual passage voice. Listen carefully, then tell me what you understood.'
     return ('Let’s listen to the first recording. Take your time, then tell me what you understood.'
             if lesson.exercises_completed == 0 else
             'Now, let’s try another recording. Listen for what matters, then tell me what you understood.')

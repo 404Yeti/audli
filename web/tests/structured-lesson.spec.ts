@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
 import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 
-async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string, accentConsent=false, loseAttemptResponse=false) {
+async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string, accentConsent=false, loseAttemptResponse=false, accentFallback=false) {
   await installVoice(page,{autoPlayback,delayBody:delayIntroduction?'/introduction-audio':delayCue?'/recognition/acknowledgment-audio':undefined});
   let value:LessonCheckpoint|null=null,exerciseState='LISTENING',pendingAttempt=false;
   const requests:string[]=[],spoken:string[]=[],phases:string[]=[];
@@ -48,7 +48,7 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
       if(path.endsWith('/exercise')){
         if(recovery && value!.exercises_completed===1 && !failedGeneration){failedGeneration=true;value!.elapsed_seconds=150;value!.remaining_seconds=450;return route.fulfill({status:503,json:{detail:'I couldn’t get the next listening passage ready. Choose Retry conversation to continue; your lesson progress is saved.'}});}
         if(recovery==='closing' && failedGeneration){value!.elapsed_seconds=550;value!.remaining_seconds=50;phase('CLOSING','You caught the main idea today. Thanks for listening with me.');}
-        else {if(failedGeneration){clip.id='recovered-clip';clip.topic='Baking bread';clip.audio_url='/api/exercises/recovered-clip/audio';clip.completed_attempt_id=null;exerciseState='LISTENING';}value!.exercise=clip;value!.introduction_pending=true;value!.introduction_prompt=value!.exercises_completed?'Now, let’s try another recording.':'Let’s listen to the first recording.';value!.revision++;}
+        else {if(failedGeneration){clip.id='recovered-clip';clip.topic='Baking bread';clip.audio_url='/api/exercises/recovered-clip/audio';clip.completed_attempt_id=null;exerciseState='LISTENING';}value!.exercise=clip;value!.introduction_pending=true;value!.introduction_prompt=value!.exercises_completed?'Now, let’s try another recording.':accentFallback?'I couldn’t use the requested accent for this recording, so it uses our usual passage voice. Listen carefully, then tell me what you understood.':'Let’s listen to the first recording.';value!.revision++;}
       }
       if(path.endsWith('/advance')){value!.exercise=null;value!.exercises_completed++;value!.strength='following the main idea';
         if(recovery && value!.exercises_completed===1){value!.elapsed_seconds=120;phase('EXERCISE',null);}
@@ -95,6 +95,15 @@ for(const lost of [false,true])test(`accent clarification stays voice driven${lo
   expect(fixture.spoken.filter(text=>text.includes('Want to practice Australian'))).toHaveLength(1);
   expect(fixture.spoken).toContain('Perfect, we’ll practice Australian English for the next new passage only.');
   expect(fixture.spoken.some(text=>text.includes('usual passage voice'))).toBe(false);
+});
+
+test('accepted accent fallback speaks the actual recording outcome and preserves lesson completion',async({page})=>{
+  const fixture=await setup(page,false,true,undefined,false,false,false,undefined,true,false,true);
+  await runToCompletion(page);
+  expect(fixture.spoken).toContain('Perfect, we’ll practice Australian English for the next new passage only.');
+  expect(fixture.spoken.filter(text=>text.includes('couldn’t use the requested accent for this recording'))).toHaveLength(1);
+  expect(fixture.spoken.some(text=>text.includes('accent voice is unavailable'))).toBe(false);
+  expect(fixture.requests.filter(path=>path==='/api/lessons/structured/attempts')).toHaveLength(2);
 });
 
 for(const returning of [false,true])test(`${returning?'returning':'first-time'} lesson is teacher-led from named greeting to evidence-backed completion`,async({page})=>{

@@ -103,7 +103,8 @@ def test_unsupported_combined_request_is_not_substituted():
 def test_cancel_then_explicit_request_can_grant_new_scope():
     item=checkpoint();resolve(item,'No thanks',{'british':VOICE})
     assert authorized_accent(item) is None
-    assert resolve(item,'Sure',{'british':VOICE}) is None
+    assert 'usual passage voice' in resolve(item,'Sure',{'british':VOICE})
+    assert authorized_accent(item) is None
     resolve(item,'Can we practice British?',{'british':VOICE})
     assert authorized_accent(item)=='british'
 

@@ -16,7 +16,7 @@ from test_lesson_lifecycle import lesson_client, action, respond
     ('fast Indian English', ['indian'], 'preferred'),
     ('Singaporean English at work, especially fast speech', [], 'preferred'),
     ('No preference', [], 'no_preference'), ('No', [], 'no_preference'),
-    ("I’m not sure", [], 'no_preference'), ('skip', [], 'no_preference'),
+    ('skip', [], 'no_preference'),
 ])
 def test_accent_contract_preserves_response(text, accents, status):
     preference = extract(text)
@@ -108,10 +108,8 @@ def test_occasionally_rotate_suggestions_with_one_existing_review_question(repos
 
 
 @pytest.mark.parametrize('phase,text,status,accents',[
-    ('WELCOME','Could we try an Australian accent today?', 'preferred',['australian']),
     ('REVIEW','Scottish and fast Indian English please', 'preferred',['scottish','indian']),
     ('REVIEW','A Singaporean accent please', 'preferred',[]),
-    ('REVIEW','No thanks', 'no_preference',[]),
     ('WELCOME','Please stop suggesting accents', 'no_preference',[]),
 ])
 def test_lesson_accent_requests_are_honest_and_persisted(lesson_client,audio_bytes,phase,text,status,accents):
@@ -125,7 +123,7 @@ def test_lesson_accent_requests_are_honest_and_persisted(lesson_client,audio_byt
     updated=respond(client,lesson,audio_bytes)
     assert updated['phase']==phase+'_ACK'
     if status=='preferred': assert 'aren’t available yet' in updated['prompt'] and 'usual voice' in updated['prompt']
-    else: assert 'won’t suggest' in updated['prompt']
+    else: assert 'ask about accent preferences again' in updated['prompt']
     profile=repo.profile(); assert profile.accent_preferences.response==text
     assert profile.accent_preferences.status==status and profile.accent_preferences.accents==accents
     assert profile.difficulty==before.difficulty and profile.listening_profile==before.listening_profile
@@ -144,7 +142,7 @@ def test_tentative_accent_response_keeps_named_varieties():
     assert preference.response == 'Not sure, maybe Scottish and Australian'
 
 
-@pytest.mark.parametrize('text', ['A Singaporean accent please', 'Scottish and fast Indian English please', 'No thanks'])
+@pytest.mark.parametrize('text', ['A Singaporean accent please', 'Scottish and fast Indian English please'])
 def test_accent_only_review_never_clears_topics_or_depends_on_extraction(lesson_client, audio_bytes, text):
     client=lesson_client; repo=client.app.state.repository
     profile=repo.profile(); profile.interests=['science']; repo.save_profile(profile)
@@ -182,7 +180,12 @@ def test_mixed_topic_accent_review_preserves_availability_and_topics(lesson_clie
 
 @pytest.mark.parametrize('text', ['Could we try a Scottish recording?', 'I would like to hear Australian', 'fast Indian English'])
 def test_spontaneous_speech_requests_are_recognized(text):
-    assert lesson_preference(text).status=='preferred'
+    from app.accent_intent import interpret
+    if text == 'fast Indian English':
+        assert lesson_preference(text).status == 'preferred'
+    else:
+        assert interpret(text).kind == 'request'
+        assert lesson_preference(text) is None  # A current practice request is not a saved preference.
 
 
 def test_authenticated_lesson_preferences_do_not_cross_accounts(accounts,repository_factory,audio_bytes):
@@ -211,3 +214,7 @@ def test_pre_feature_json_snapshots_load_without_backfill(repository_factory):
     old=repository_factory(repo.learner_id).profile()
     assert old.onboarding_status=='complete' and old.onboarding.welcome is None
     assert old.accent_preferences.status=='unspecified'
+
+
+def test_uncertain_onboarding_answer_is_not_a_persistent_opt_out():
+    assert extract("I’m not sure") is None

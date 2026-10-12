@@ -149,8 +149,12 @@ def resolve(lesson, text, voices):
 async def passage_audio(settings, provider, content, accent, limits=None, *, owner=None, lesson=None):
     voice = settings.available_passage_voices.get(accent)
     reservation = None
+    # Audition sample rates (.75/1.0) are not an eligibility whitelist.
+    # Preserve the adaptive rate exactly within the provider's documented range;
+    # never clamp a slower lesson or change its difficulty to get accent audio.
+    supported_rate = .7 <= content.speech_rate <= 1.2
     if (voice and settings.provider != 'demo' and settings.elevenlabs_api_key
-            and content.speech_rate in (.75, 1.0)):
+            and supported_rate):
         if limits is not None and lesson is not None and owner is not None:
             reservation = await limits.call(limits.reserve, owner, lesson.id, lesson.exercises_completed, accent, len(content.script))
         if reservation:
@@ -187,5 +191,11 @@ async def passage_audio(settings, provider, content, accent, limits=None, *, own
                 await asyncio.shield(limits.call(limits.finish, reservation[0], outcome))
         else:
             logging.getLogger('audli').warning('Accent passage outcome=limit_fallback')
+    elif accent:
+        reason = ('disabled' if not settings.accent_practice_enabled else
+                  'missing_voice' if not voice else
+                  'missing_credentials' if not settings.elevenlabs_api_key else
+                  'unsupported_rate' if not supported_rate else 'provider_disabled')
+        logging.getLogger('audli').warning('Accent passage outcome=eligibility_fallback reason=%s', reason)
     return await provider.speech(content), PassageVoice(provider=settings.provider,
         voice_id=settings.voice, fallback=bool(accent))

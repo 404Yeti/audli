@@ -85,7 +85,7 @@ def test_provider_failures_and_limits_preserve_default_voice(monkeypatch,failure
     from app.storage.accent_controls import SharedAccentControls
     repo=repository_factory();lesson=scope(repo,settings)
     limits=SharedAccentControls(repo.engine,settings)
-    content=SimpleNamespace(script='original fixture story',speech_rate=.8 if failure=='rate' else .75)
+    content=SimpleNamespace(script='original fixture story',speech_rate=.65 if failure=='rate' else .75)
     audio,voice=asyncio.run(passage_audio(settings,Provider(),content,'british',limits,owner=repo.learner_id,lesson=lesson))
     assert audio==b'ordinary' and voice.accent=='default' and voice.fallback
     limits.close()

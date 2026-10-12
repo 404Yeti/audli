@@ -66,7 +66,10 @@ def accounts(tmp_path, repository_factory):
         return assessment(content, turns, {'inference': 'insufficient_evidence'} if len(turns) == 1 else {})
     provider.assess = assess
     client = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path), provider, repository=repository_factory(None), auth_client=client)
+    repository = repository_factory(None)
+    from test_account import auth_schema
+    auth_schema(repository.engine, [USER_A, USER_B])
+    app = create_app(settings_for(tmp_path), provider, repository=repository, auth_client=client)
     yield AccountClient(app, provider, 'valid-a'), AccountClient(app, provider, 'valid-b'), calls
     app.state.repository.close()
     asyncio.run(client.aclose())

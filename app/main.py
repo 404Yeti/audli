@@ -16,6 +16,7 @@ from app.models import ExerciseContent, StrictModel, Transcription, AccentPrefer
 from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
+from app.account import register_account_routes
 from app.onboarding_api import register_onboarding_routes
 from app.lesson_api import register_lesson_routes
 from app.onboarding import application_destination
@@ -322,6 +323,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def history():
         return repo.history()
 
+    register_account_routes(app, repo, settings, identity, lock, audio_dir)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
     register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits)

@@ -1,0 +1,142 @@
+{
+  "checked_at": "2026-10-12T08:55:02.609562+00:00",
+  "read_only": true,
+  "credential_source": "existing private operator database configuration; Render env equality not verified",
+  "principal": [
+    "postgres",
+    "postgres"
+  ],
+  "auth_privileges": {
+    "users": {
+      "select": true,
+      "delete": true,
+      "update": true
+    },
+    "sessions": {
+      "select": true,
+      "delete": true,
+      "update": true
+    },
+    "refresh_tokens": {
+      "select": true,
+      "delete": true,
+      "update": true
+    },
+    "flow_state": {
+      "select": true,
+      "delete": true,
+      "update": true
+    },
+    "scim_users": {
+      "select": true,
+      "delete": true,
+      "update": true
+    }
+  },
+  "app_privileges": [
+    {
+      "table": "accent_control",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "accent_reservations",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "adaptation_events",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "assessment_evidence",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "attempts",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "audio_assets",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "coach_audio",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "conversation_followups",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "conversation_turns",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "conversations",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "evaluation_results",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "exercises",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "learner_profiles",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "lesson_exercises",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "lesson_lifecycles",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "schema_migrations",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "training_sessions",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "turn_assessments",
+      "select": true,
+      "delete": true
+    },
+    {
+      "table": "users",
+      "select": true,
+      "delete": true
+    }
+  ],
+  "storage_counts": {
+    "buckets": 0,
+    "objects": 0,
+    "multipart_uploads": 0,
+    "multipart_parts": 0
+  },
+  "auth_audit_rows": 0,
+  "identified_audit_cleanup_jobs": 0,
+  "auth_users_row_lock_update_grant": true
+}

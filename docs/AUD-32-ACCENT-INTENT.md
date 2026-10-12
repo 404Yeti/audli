@@ -1,8 +1,9 @@
 # AUD-32 — Accent intent interpretation
 
-Review baseline: production `f2a36388ff8ec348c5a9a4d215e8d56d56ed71b1`.
+Reproduction baseline: production `f2a36388ff8ec348c5a9a4d215e8d56d56ed71b1`.
+Release compatibility baseline: `0890253d9dcb39fbff9df7d77db61afc5829f647`, including AUD-33.
 Related work: AUD-20, AUD-29, AUD-30, AUD-31.
-This change is local and must be reviewed before release. No paid provider calls.
+The owner authorized the scoped production release on 2026-10-12. No paid provider calls.
 
 ## Reproduced cause and evidence
 
@@ -94,7 +95,7 @@ existing pause/deadline rules still expire unused consent.
 
 ## Verification
 
-Final non-paid verification:
+Implementation verification before integrating AUD-33:
 
 - Full backend suite: **761 passed, 4 skipped**. The four skips are the SQLite
   variants of PostgreSQL row-lock timeouts, session-pooler timeouts, startup
@@ -128,9 +129,23 @@ routing behavior. Mock audio cannot establish human-perceived accent quality.
 
 ## Release and remaining limits
 
-Release review is pending; nothing was pushed, merged or deployed. The change is
-backend-only; frontend checks verify compatibility and do not require a new UI
-release. No production preferences, progress, controls or recordings were changed.
+The release branch incorporates current production, including AUD-33, without
+conflicts. AUD-33's typed-name routes, authenticated ownership, onboarding
+checkpoint fields and frontend are retained unchanged. Existing schema-3 lesson
+checkpoints need no conversion. The release diff does not change provider
+configuration, tutor voice, fleet controls, storage schema or passage audio
+generation/replay. Backend rollback must retain AUD-33's checkpoint fields.
+
+Release verification and deployment revisions are recorded on AUD-32 and its PR.
+Integrated release checks: full backend **785 passed, 4 SQLite skips**;
+PostgreSQL selection **239 passed, 1 SQLite skip, 263 deselected**, including
+the four database-only cases; Chromium **72 passed**. The first PostgreSQL run
+was invalidated when the disposable server lost its lock file and shut down;
+the complete selection passed after restarting it. No production database write
+was involved. Frontend unit checks, ESLint, TypeScript and production build passed.
+Public production checks cover health, authentication rejection, hostile-origin
+rejection, disabled API schema and the shipped Settings/typed-name client. They
+do not submit authenticated learner speech or mutate learner progress/preferences.
 
 The interpreter deliberately uses bounded deterministic grammar. Untested or
 unreliably recognized freeform phrasing does not become permission by inference.

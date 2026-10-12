@@ -209,6 +209,12 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         with operation(settings, 'SpeechService.sanitize_generated_audio'):
             audio = await sanitize_generated_audio(audio, kind)
         content.passage_voice = routing
+        if (lesson and routing.accent == 'default'
+                and lesson.accent_consent.state in ('accepted', 'expired')
+                and lesson.accent_consent.exercise_number == lesson.exercises_completed):
+            # The requested voice could not be committed (including expiry or
+            # a kill-switch race). The introduction must describe this audio.
+            content.passage_voice.fallback = True
         audio_name = exercise_id + '.' + kind
         path = audio_dir / audio_name
         path.write_bytes(audio)

@@ -301,6 +301,18 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 if accent_preferences and accent_preferences.status == 'no_preference':
                     expire(lesson)
                     accent_reply = 'Of course. I won’t suggest accent practice again. We’ll use our usual passage voice.'
+            if lesson.accent_confirmation and lesson.accent_resolved and lesson.accent_consent.state == 'none':
+                # Stay at a response-taking checkpoint so the existing voice
+                # loop speaks one clarification and records its answer.
+                if lesson.phase == 'WELCOME':
+                    lesson.accent_topic_review_pending = bool(lesson.previous)
+                lesson.phase = 'REVIEW'
+                lesson.pending = None
+                return public(save(lesson, body.revision, interests, accent_preferences))
+            if accent_reply and lesson.accent_consent.state == 'accepted':
+                current = repo.current_exercise()
+                if current and not repo.completed(current['id']):
+                    accent_reply += ' We’ll finish your saved recording first.'
             if offer_after_preference(lesson, accent_preferences, available_voices):
                 if lesson.phase == 'REVIEW':
                     # Ask immediately in the existing response-taking phase. Keep

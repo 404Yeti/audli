@@ -55,6 +55,11 @@ def test_preference_offer_routes_only_explicit_acceptance(monkeypatch,repository
     assert accent.title() in item['prompt']
     item=reply(client,provider,item,audio_bytes,answer)
     assert authorized_accent(repo.lesson())==(accent if answer=='Yes' else None)
+    if answer in ('Maybe','I enjoy science'):
+        assert item['phase']=='REVIEW' and 'You can say yes or no' in item['prompt']
+        assert 'usual passage voice' not in item['prompt']
+        item=reply(client,provider,item,audio_bytes,answer)
+        assert not repo.lesson().accent_confirmation  # One clarification only.
     item=action(client,item,'heard');assert item['phase']=='TRANSITION'
     item=action(client,item,'heard')
     calls=[]

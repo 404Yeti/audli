@@ -235,9 +235,8 @@ def test_spoken_selection_interruption_uncertainty_and_fallback(repository_facto
     item=respond(client,pending,audio_bytes)
     assert repo.lesson().passage_accent=='australian'
     item=action(client,item,'heard')
-    assert item['phase']=='REVIEW'
-    item=respond(client,item,audio_bytes)
-    item=action(client,item,'heard'); item=action(client,item,'heard')
+    assert item['phase']=='TRANSITION'  # Clear welcome acceptance needs no second consent.
+    item=action(client,item,'heard')
     # Missing route after selection must safely fall back without network access.
     settings.passage_voices={}
     item=action(client,item,'exercise')
@@ -294,9 +293,8 @@ def test_selected_passage_persists_audio_replay_retry_and_cancellation(repositor
     client=ASGIClient(create_app(settings,provider,repo),provider)
     item=respond(client,start(client),audio_bytes)
     item=action(client,item,'heard')
-    assert item['phase']=='REVIEW'
-    item=respond(client,item,audio_bytes)
-    item=action(client,item,'heard');item=action(client,item,'heard')
+    assert item['phase']=='TRANSITION'
+    item=action(client,item,'heard')
     response=client.post(f"/api/lessons/{item['id']}/exercise",json={'revision':item['revision']})
     if interrupted:
         assert response.status_code==409 and repo.current_exercise() is None

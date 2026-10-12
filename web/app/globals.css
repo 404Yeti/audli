@@ -236,3 +236,6 @@ dd .text-button { display: block; padding-left: 0; }
 .onboarding-name > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .onboarding-name input { flex: 1; min-width: 140px; width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font: inherit; font-size: 16px; }
 .onboarding-name button { font-size: 14px; }
+.onboarding-reset-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.onboarding-reset-dialog input { box-sizing: border-box; width: 100%; min-height: 44px; }
+.onboarding-reset-dialog button { min-height: 44px; }

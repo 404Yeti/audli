@@ -17,6 +17,7 @@ from app.repository import create_repository, SQLProgressRepository
 from app.services.provider import AIProvider
 from app.conversation_api import register_conversation_routes
 from app.onboarding_api import register_onboarding_routes
+from app.onboarding_reset import register_onboarding_reset_routes
 from app.lesson_api import register_lesson_routes
 from app.onboarding import application_destination
 from app.security import LocalRequestGuard
@@ -323,6 +324,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return repo.history()
 
     register_onboarding_routes(app, repo, ai, lock, settings)
+    register_onboarding_reset_routes(app, repo, lock)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
     register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits)
     return app

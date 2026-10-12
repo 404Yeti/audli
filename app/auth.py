@@ -1,5 +1,9 @@
 """Supabase Auth verification and isolated request-scoped repository identities."""
+import asyncio
+from hashlib import sha256
 from contextvars import ContextVar
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 from uuid import UUID
 
 import httpx
@@ -60,6 +64,11 @@ class LearnerAuthentication:
     def __init__(self, app, identity, repository, request_repository):
         self.app, self.identity = app, identity
         self.repository, self.request_repository = repository, request_repository
+        # A separate transaction-bound lease works with Supabase transaction pooling
+        # and does not consume the application pool while awaiting a provider.
+        self.lease_engine = (create_engine(repository.engine.url, poolclass=NullPool,
+            connect_args={'connect_timeout': 5, 'prepare_threshold': None})
+            if repository.engine.dialect.name == 'postgresql' else None)
 
     async def __call__(self, scope, receive, send):
         public = scope.get('path') in ('/api/health', '/api/auth/config')
@@ -70,11 +79,42 @@ class LearnerAuthentication:
         except HTTPException as error:
             headers = {'WWW-Authenticate': 'Bearer'} if error.status_code == 401 else {}
             return await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=headers)(scope, receive, send)
-        # Database initialization is idempotent and transactional. Do not create users
-        # until the Auth server has validated the token; no browser UUID is accepted.
-        scoped = self.repository.for_learner(learner_id)
-        token = self.request_repository.current.set(scoped)
+        lease = None
+        token = None
         try:
+            if self.lease_engine is not None:
+                key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
+                for _ in range(100):
+                    candidate = self.lease_engine.connect()
+                    try:
+                        candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
+                        acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
+                    except BaseException:
+                        candidate.close()
+                        raise
+                    if acquired:
+                        lease = candidate
+                        break
+                    candidate.close()
+                    await asyncio.sleep(.05)
+                if lease is None:
+                    raise HTTPException(409, 'Your account is saving another step. Wait and retry.')
+                # A request may have verified its JWT just before deletion committed.
+                # Check existence under the same lease before any learner upsert.
+                if not lease.execute(text('SELECT id FROM auth.users WHERE id = :owner'), {'owner': learner_id}).first():
+                    raise HTTPException(401, 'Your account is no longer available. Please sign in again.')
+            scoped = self.repository.for_learner(learner_id)
+            token = self.request_repository.current.set(scoped)
+            # Reads need the lease only while initializing. Mutations retain it
+            # through response completion so deletion/reset cannot overlap saves.
+            if scope['method'] in ('GET', 'HEAD') and lease is not None:
+                lease.close()
+                lease = None
             await self.app(scope, receive, send)
+        except HTTPException as error:
+            await JSONResponse({'detail': error.detail}, status_code=error.status_code)(scope, receive, send)
         finally:
-            self.request_repository.current.reset(token)
+            if token is not None:
+                self.request_repository.current.reset(token)
+            if lease is not None:
+                lease.close()

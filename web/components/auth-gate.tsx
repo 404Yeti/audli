@@ -7,7 +7,7 @@ import { isAuthRetryableFetchError, type SupabaseClient, type Session } from '@s
 import { authClient, authStorageKey, sessionIdentity } from '../lib/auth';
 import { api, currentAuthRevision, setAccessTokenProvider } from '../lib/api';
 
-const AccountContext = createContext<{ scope: string; email?: string; signOut?: () => Promise<void> }>({ scope: 'local' });
+const AccountContext = createContext<{ scope: string; email?: string; signOut?: (accountDeleted?: boolean) => Promise<void> }>({ scope: 'local' });
 export const useAccount = () => useContext(AccountContext);
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -125,7 +125,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     finally { setBusy(false); }
   }
 
-  async function logout() {
+  async function logout(accountDeleted = false) {
     if (!client) return;
     setBusy(true); setMessage('');
     blocked.current = true;
@@ -135,12 +135,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
     try { sessionStorage.removeItem('audli-session:' + accountIdentity.current); } catch { /* Optional local timing only. */ }
     try {
       const { error } = await client.auth.signOut({ scope: 'local' });
-      if (error) setMessage('Signed out here. Server logout was unavailable; close this browser tab if using a shared device.');
-    } catch { setMessage('Signed out here. Server logout was unavailable; close this browser tab if using a shared device.');
+      if (error && !accountDeleted) setMessage('Signed out here. Server logout was unavailable; close this browser tab if using a shared device.');
+    } catch { if (!accountDeleted) setMessage('Signed out here. Server logout was unavailable; close this browser tab if using a shared device.');
     } finally {
       // The SDK may leave local storage intact when its logout request fails.
       // Clear this client's credentials even when the Auth service is offline.
       clearCredentials();
+      if (accountDeleted) setMessage('Your account has been permanently deleted.');
       setBusy(false);
     }
   }

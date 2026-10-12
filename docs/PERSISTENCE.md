@@ -221,3 +221,7 @@ one shared row, leaving schema, budgets, learner data and replay audio intact.
 See AUD-20-GLOBAL-RELEASE-READINESS.md for exact release gates and in-flight behavior.
 
 Production pooler verification for AUD-20 found libpq startup timeout options were discarded. SharedAccentControls therefore applies transaction-local set_config for statement_timeout=750ms, lock_timeout=250ms, idle_in_transaction_session_timeout=2000ms and UTC before every read/write/recheck; the same settings were verified through production pooling.
+
+## Account deletion and onboarding test reset (AUD-34)
+
+See [AUD-34-ACCOUNT-MANAGEMENT.md](AUD-34-ACCOUNT-MANAGEMENT.md) for the inspected ownership/retention inventory, trusted atomic PostgreSQL/Auth deletion, cross-process request lease, cache and Storage guards, and the server-controlled `AUDLI_ONBOARDING_TEST_ACCOUNTS` allowlist. No new migration or browser privileged key is required. Finish open lessons before resetting; learning history and scores are preserved.

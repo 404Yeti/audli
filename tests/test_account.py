@@ -1,5 +1,7 @@
 """Account ownership, reset tokens, transactional erasure and Auth races; no live providers."""
 import asyncio
+import base64
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,7 +10,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import select, text
 
-from app.account import erase_application_data, reset_onboarding, delete_account, reauthenticate
+from app.account import erase_application_data, reset_onboarding, delete_account, reauthenticate, require_live_session, RESET_FIELDS
 from app.auth import SupabaseIdentity
 from app.main import create_app
 from app.models import LearnerProfile, Transcription
@@ -76,6 +78,7 @@ def test_reset_preserves_learning_and_rejects_stale_tokens(repository_factory):
     assert after.onboarding.welcome == 'introduction' and not after.onboarding.typed_name
     assert after.difficulty == before.difficulty and after.listening_profile == before.listening_profile
     assert after.completed_attempts == 5
+    assert after.model_dump(exclude=set(RESET_FIELDS)) == before.model_dump(exclude=set(RESET_FIELDS))
     with pytest.raises(HTTPException) as error:
         reset_onboarding(repo, 12)
     assert error.value.status_code == 409
@@ -184,6 +187,10 @@ def test_postgres_two_workers_serialize_reset_and_reject_deleted_tokens(reposito
         pytest.skip('Postgres cross-worker integration')
     owner = repo.learner_id
     auth_schema(repo.engine, [owner])
+    session_id = str(uuid4())
+    with repo.engine.begin() as db:
+        db.execute(text('INSERT INTO auth.sessions VALUES (:id, :owner)'), {'id': session_id, 'owner': owner})
+    payload = base64.urlsafe_b64encode(json.dumps({'session_id': session_id}).encode()).decode().rstrip('=')
     settings = settings_for(tmp_path, persistence='postgres', database_url=repo.engine.url.render_as_string(hide_password=False))
     def respond(request):
         if request.url.path.endswith('/logout'):
@@ -196,7 +203,7 @@ def test_postgres_two_workers_serialize_reset_and_reject_deleted_tokens(reposito
     async def run():
         auth_clients = [httpx.AsyncClient(transport=httpx.MockTransport(respond)) for _ in range(2)]
         apps = [create_app(settings, FakeProvider(), repository=repo, auth_client=client) for client in auth_clients]
-        headers = {'Authorization': 'Bearer valid'}
+        headers = {'Authorization': 'Bearer header.' + payload + '.verified-by-auth-fixture'}
         clients = [httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver', headers=headers) for app in apps]
         try:
             responses = await asyncio.gather(*[client.post('/api/account/restart-onboarding',
@@ -334,3 +341,100 @@ def test_deletion_validation_never_echoes_passwords(tmp_path):
         assert response.status_code == 422 and 'secret-value' not in response.text
     finally:
         app.state.repository.close(); asyncio.run(auth.aclose())
+
+
+@pytest.mark.parametrize('factor_stage', ['original', 'password'])
+def test_mfa_deletion_refused_without_lowering_assurance(tmp_path, factor_stage):
+    from pydantic import SecretStr
+    from starlette.requests import Request
+    owner = str(uuid4()); calls = []
+    def respond(request):
+        calls.append(request.url.path)
+        user = {'id': owner, 'email': 'test@example.com'}
+        if (request.url.path.endswith('/user') and factor_stage == 'original') or (
+                request.url.path.endswith('/token') and factor_stage == 'password'):
+            user['factors'] = [{'status': 'verified', 'factor_type': 'totp'}]
+        if request.url.path.endswith('/user'):
+            return httpx.Response(200, json=user)
+        if request.url.path.endswith('/logout'):
+            return httpx.Response(204)
+        return httpx.Response(200, json={'access_token': 'temporary', 'user': user})
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            request = Request({'type': 'http', 'headers': [(b'authorization', b'Bearer original')]})
+            with pytest.raises(HTTPException) as error:
+                await reauthenticate(SupabaseIdentity(settings_for(tmp_path), client), request, SecretStr('password'), owner)
+            assert error.value.status_code == 403
+            assert 'robbie@audli.ai' in error.value.detail and 'Keep MFA enabled' in error.value.detail
+    asyncio.run(run())
+    if factor_stage == 'original':
+        assert calls == ['/auth/v1/user']
+    else:
+        assert calls[-1].endswith('/logout')
+
+
+def test_malformed_reauthentication_token_is_refused_safely(tmp_path):
+    from pydantic import SecretStr
+    from starlette.requests import Request
+    owner = str(uuid4())
+    def respond(request):
+        if request.url.path.endswith('/user'):
+            return httpx.Response(200, json={'id': owner, 'email': 'test@example.com'})
+        assert not request.url.path.endswith('/logout')
+        return httpx.Response(200, json={'access_token': 123, 'user': {'id': owner}})
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            with pytest.raises(HTTPException) as error:
+                await reauthenticate(SupabaseIdentity(settings_for(tmp_path), client),
+                    Request({'type': 'http', 'headers': [(b'authorization', b'Bearer original')]}), SecretStr('password'), owner)
+            assert error.value.status_code == 403
+    asyncio.run(run())
+
+
+def test_deletion_requires_live_owned_session(repository_factory):
+    from starlette.requests import Request
+    repo = repository_factory()
+    if repo.engine.dialect.name != 'postgresql':
+        pytest.skip('Postgres session ownership check')
+    other = str(uuid4()); auth_schema(repo.engine, [repo.learner_id, other])
+    own_session, foreign_session, revoked_session = (str(uuid4()) for _ in range(3))
+    with repo.engine.begin() as db:
+        for session, owner in ((own_session, repo.learner_id), (foreign_session, other)):
+            db.execute(text('INSERT INTO auth.sessions VALUES (:id, :owner)'), {'id': session, 'owner': owner})
+    for session in (own_session, foreign_session, revoked_session, None):
+        payload = base64.urlsafe_b64encode(json.dumps({'session_id': session}).encode()).decode().rstrip('=')
+        request = Request({'type': 'http', 'headers': [(b'authorization', ('Bearer header.' + payload + '.verified').encode())]})
+        if session == own_session:
+            require_live_session(repo, request)
+        else:
+            with pytest.raises(HTTPException) as error:
+                require_live_session(repo, request)
+            assert error.value.status_code == 401
+
+
+def test_deletion_refuses_foreign_audio_reference_and_file_failure(repository_factory, exercise, tmp_path, monkeypatch):
+    repo = repository_factory()
+    if repo.engine.dialect.name != 'postgresql':
+        pytest.skip('Postgres deletion cache integration')
+    other = repository_factory(str(uuid4()))
+    auth_schema(repo.engine, [repo.learner_id, other.learner_id])
+    own_id = seed(repo, exercise); other_id = seed(other, exercise)
+    own_name = own_id + '.wav'
+    cache = tmp_path / 'cache'; cache.mkdir(); (cache / own_name).write_bytes(b'cache')
+    with repo.engine.begin() as db:
+        db.execute(s.exercises.update().where(s.exercises.c.id == other_id).values(audio_name=own_name))
+    with pytest.raises(HTTPException) as error:
+        delete_account(repo, cache)
+    assert error.value.status_code == 503 and (cache / own_name).read_bytes() == b'cache'
+    assert repo.profile().name == other.profile().name == 'Robin'
+    with repo.engine.begin() as db:
+        db.execute(s.exercises.update().where(s.exercises.c.id == other_id).values(audio_name=other_id + '.wav'))
+    def refuse_unlink(path, *args, **kwargs):
+        raise PermissionError('simulated unreadable cache')
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, 'unlink', refuse_unlink)
+        with pytest.raises(PermissionError):
+            delete_account(repo, cache)
+    assert repo.profile().name == other.profile().name == 'Robin'
+    with repo.engine.connect() as db:
+        assert db.execute(text('SELECT count(*) FROM auth.users')).scalar_one() == 2

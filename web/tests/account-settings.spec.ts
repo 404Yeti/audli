@@ -49,6 +49,8 @@ test('mobile deletion needs password and exact confirmation, then clears the ses
   const writes = await setup(page);
   await page.getByRole('button', { name: 'Delete Account', exact: true }).click();
   const dialog = page.getByRole('dialog'); await expect(dialog).toContainText('permanently');
+  await expect(dialog).toContainText('Keep MFA enabled');
+  await expect(dialog.getByRole('link', { name: 'Audli support' })).toHaveAttribute('href', 'mailto:robbie@audli.ai?subject=Audli%20account%20deletion');
   await expect(page.getByLabel('Confirm your current password')).toBeFocused();
   await expect(dialog.getByRole('button', { name: 'Permanently delete account' })).toBeDisabled();
   await page.getByLabel('Confirm your current password').fill('fresh-password');
@@ -100,7 +102,9 @@ test('active lesson conflict prevents reset and keeps the current account', asyn
 test('desktop confirmation traps focus and Escape cancels without a request', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const writes = await setup(page); await page.getByRole('button', { name: 'Delete Account', exact: true }).click();
+  await page.keyboard.press('Shift+Tab'); await expect(page.getByRole('link', { name: 'Audli support' })).toBeFocused();
   await page.keyboard.press('Shift+Tab'); await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab'); await expect(page.getByRole('link', { name: 'Audli support' })).toBeFocused();
   await page.keyboard.press('Tab'); await expect(page.getByLabel('Confirm your current password')).toBeFocused();
   await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Delete Account', exact: true })).toBeFocused();

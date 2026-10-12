@@ -63,7 +63,7 @@ export function AccountSettings({ disabled }: { disabled: boolean }) {
     {action && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="account-dialog-title" aria-describedby="account-dialog-description" className="exit-dialog account-dialog" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); close(); }
       if (event.key === 'Tab') {
-        const elements = event.currentTarget.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled)');
+        const elements = event.currentTarget.querySelectorAll<HTMLElement>('a[href], input:not(:disabled), button:not(:disabled)');
         if (!elements.length) { event.preventDefault(); return; }
         const first = elements[0], last = elements[elements.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -72,8 +72,9 @@ export function AccountSettings({ disabled }: { disabled: boolean }) {
     }}>
       <h2 id="account-dialog-title">{action === 'delete' ? 'Permanently delete your account?' : 'Restart onboarding?'}</h2>
       <p id="account-dialog-description">{action === 'delete'
-        ? 'This permanently deletes your account, profile, preferences, onboarding, lessons, attempts, and saved audio. You cannot undo this. Security logs and existing backups may remain until their retention periods expire.'
+        ? 'This permanently deletes your account, profile, preferences, onboarding, lessons, attempts, and saved audio. You cannot undo this. Security logs, provider records, and existing backups may remain under their retention policies.'
         : controls?.reset_description}</p>
+      {action === 'delete' && <p>Accounts protected by MFA need support-assisted deletion. Keep MFA enabled and contact <a href="mailto:robbie@audli.ai?subject=Audli%20account%20deletion">Audli support</a>. Never send your password or recovery codes.</p>}
       {action === 'restart' && <p>Finish your current lesson first. You can then test both spoken and typed preferred names again.</p>}
       <form onSubmit={event => { event.preventDefault(); void submit(); }}>
         {action === 'delete' && <><label htmlFor="delete-password">Confirm your current password</label><input autoFocus id="delete-password" type="password" autoComplete="current-password" required maxLength={1024} disabled={busy} value={password} onChange={event => setPassword(event.target.value)}/></>}

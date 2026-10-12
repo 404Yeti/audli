@@ -1,8 +1,11 @@
 """Account operations: authenticated owner only; no browser administrative credentials."""
 from hashlib import sha256
+import base64
+import json
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
+from uuid import UUID
 
 import httpx
 from fastapi import HTTPException, Request
@@ -32,6 +35,25 @@ RESET_FIELDS = ('name', 'target_language', 'goal', 'interests', 'target_situatio
 RESET_DESCRIPTION = ('Your preferred name, English language choice, listening goal, interests, target situations, '
                      'accent preferences, initial onboarding snapshot, and all onboarding answers and checkpoints will reset. '
                      'Your account, lessons, attempts, learning scores, difficulty, and accessibility settings stay saved.')
+MFA_SUPPORT = ('Self-service deletion does not support multi-factor authentication yet. '
+               'Keep MFA enabled and contact robbie@audli.ai to request account deletion. '
+               'Support must verify your identity with MFA; never send your password or recovery codes.')
+
+
+def require_live_session(repo, request):
+    """Bind the already Auth-verified JWT to a still-live, owned session."""
+    if repo.engine.dialect.name != 'postgresql':
+        return
+    try:
+        payload = request.headers['authorization'].split(' ', 1)[1].split('.')[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
+        session_id = str(UUID(claims['session_id']))
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        raise HTTPException(401, 'Sign in again before deleting your account.') from None
+    with repo.engine.connect() as db:
+        if not db.execute(text('SELECT id FROM auth.sessions WHERE id = :session AND user_id = :owner'),
+                          {'session': session_id, 'owner': repo.learner_id}).first():
+            raise HTTPException(401, 'Sign in again before deleting your account.')
 
 
 def reset_onboarding(repo, revision):
@@ -112,8 +134,13 @@ def delete_account(repo, audio_dir):
         names += db.execute(select(s.exercises.c.audio_name).where(s.exercises.c.user_id == owner)).scalars().all()
         names += db.execute(select(s.coach_audio.c.audio_name).join(s.exercises)
                             .where(s.exercises.c.user_id == owner)).scalars().all()
-        if db.execute(select(s.audio_assets.c.audio_name).where(s.audio_assets.c.audio_name.in_(names),
-                          s.audio_assets.c.user_id != owner)).first():
+        foreign_assets = db.execute(select(s.audio_assets.c.audio_name).where(s.audio_assets.c.audio_name.in_(names),
+                          s.audio_assets.c.user_id != owner)).first()
+        foreign_exercises = db.execute(select(s.exercises.c.audio_name).where(s.exercises.c.audio_name.in_(names),
+                          s.exercises.c.user_id != owner)).first()
+        foreign_coaching = db.execute(select(s.coach_audio.c.audio_name).join(s.exercises)
+                          .where(s.coach_audio.c.audio_name.in_(names), s.exercises.c.user_id != owner)).first()
+        if foreign_assets or foreign_exercises or foreign_coaching:
             raise HTTPException(503, 'Audio ownership requires review. Your account has not been deleted.')
         root = Path(audio_dir).resolve()
         for name in set(names):
@@ -143,6 +170,8 @@ async def reauthenticate(identity, request, password, owner):
         user = user_response.json()
         if user.get('id') != owner:
             raise HTTPException(403, 'Reauthentication did not match your account.')
+        if any(f.get('status') == 'verified' for f in user.get('factors', [])):
+            raise HTTPException(403, MFA_SUPPORT)
         response = await identity.client.post(identity.url.removesuffix('/user') + '/token?grant_type=password',
             headers={'apikey': identity.key}, json={'email': user.get('email'), 'password': password.get_secret_value()})
         if response.status_code in (400, 401, 403, 422):
@@ -154,15 +183,15 @@ async def reauthenticate(identity, request, password, owner):
         # Never accept credentials that authenticate a different user or MFA at aal1.
         if result.get('user', {}).get('id') != owner or not isinstance(token, str) or not token:
             raise HTTPException(403, 'Reauthentication did not match your account.')
-        factors = user.get('factors', [])
+        factors = result.get('user', {}).get('factors', [])
         if any(f.get('status') == 'verified' for f in factors):
-            raise HTTPException(403, 'Contact support to delete an account protected by multi-factor authentication.')
+            raise HTTPException(403, MFA_SUPPORT)
     except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
         raise HTTPException(503, 'Reauthentication is unavailable. Your account has not been deleted.') from None
     finally:
         # A password check creates a temporary session. Attempt local revocation even if
         # subsequent cleanup fails; it is never returned to/stored by the browser.
-        if 'token' in locals() and token:
+        if 'token' in locals() and isinstance(token, str) and token:
             try:
                 await identity.client.post(identity.url.removesuffix('/user') + '/logout?scope=local',
                     headers={'apikey': identity.key, 'Authorization': 'Bearer ' + token})
@@ -199,6 +228,7 @@ def register_account_routes(app, repo, settings, identity, lock, audio_dir):
         if identity is None:
             raise HTTPException(403, 'Sign in to an account before deleting it.')
         async with lock:
+            require_live_session(repo, request)
             await reauthenticate(identity, request, body.password, repo.learner_id)
             try:
                 return delete_account(repo, audio_dir)

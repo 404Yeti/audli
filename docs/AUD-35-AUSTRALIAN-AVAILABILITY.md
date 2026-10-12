@@ -1,8 +1,10 @@
 # AUD-35 — Australian passage availability
 
 Investigation baseline: production `be53624c968a2ef401f9a4ca172c292f56e19541`.
-Related: AUD-20 and AUD-32. No deployment, paid synthesis, preference/progress
-write, budget change, or voice substitution is authorized/performed for this work.
+Related: AUD-20 and AUD-32. Investigation performed no deployment, paid synthesis,
+preference/progress write, budget change, or voice substitution. The owner has
+now authorized the scoped production release; paid provider test calls remain
+unauthorized.
 
 ## Confirmed failure
 
@@ -114,7 +116,14 @@ configuration changes, migration, credit/budget increase or voice switch is need
 to correct the observed skip. Future provider rejection needs its own evidence;
 do not infer it from this skipped call or silently retry another voice.
 
-AUD-35 remains In Review after local verification. Real production Clara playback
+Release review confirms GitHub main and Render production remain at the baseline
+above, including AUD-32 and AUD-33. Only the six AUD-35 implementation,
+regression-test and documentation files differ. No subsequent merged changes
+require integration. Release checks are rerun before merge; deployment revision
+and production health evidence will be recorded on AUD-35 after deployment.
+
+AUD-35 remains In Review pending deployment verification. Real production Clara playback
 at adaptive rate `0.8`, current production-key synthesis authorization, and actual
 provider fallback remain explicitly unverified. Owner-authorized paid/manual
-verification after a separately approved deployment is still required.
+verification after deployment is still required; the owner will manually test
+Australian playback at adaptive rate `0.8`.

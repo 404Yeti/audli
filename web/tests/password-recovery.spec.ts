@@ -65,7 +65,7 @@ test('login exposes a minimal mobile-friendly reset request without learner acce
   await page.getByRole('button', { name: 'Send reset link' }).click();
   await expect(page.getByRole('status')).toContainText('If an account exists');
   expect(fixture.authRequests.filter(x => x.path.endsWith('/recover'))).toHaveLength(1);
-  expect(fixture.authRequests[0].redirect).toBe('http://127.0.0.1:3100/auth/recovery');
+  expect(fixture.authRequests[0].redirect).toBe(new URL('/auth/recovery', page.url()).href);
   expect(fixture.learnerRequests).toEqual([]);
 });
 

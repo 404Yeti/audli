@@ -119,7 +119,7 @@ def test_explicit_request_precedes_discovery_and_unrelated_negative_words(
         'preferred' if context == 'offer' else 'unspecified')
 
 
-@pytest.mark.parametrize('text', ['Can we use Scottish for the next passage?',
+@pytest.mark.parametrize('text', ['Can we use Welsh for the next passage?',
                                 'Can we try a Singaporean accent?'])
 def test_unsupported_request_never_substitutes_an_offered_accent(
         repository_factory, tmp_path, audio_bytes, text):

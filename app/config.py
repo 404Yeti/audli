@@ -5,6 +5,7 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.accent_practice import VerifiedPassageVoice
 from app.accents import LABELS
+from app.accent_registry import routing_allowed
 from app.security import parse_browser_origin
 from sqlalchemy.engine import make_url
 
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     speech_model: str = 'gpt-4o-mini-tts'
     voice: str = 'coral'
     accent_practice_enabled: bool = False
+    expanded_accent_library_enabled: bool = False
+    expanded_passage_review_dir: Path = Path('data/voice-evaluation/aud38-approved')
     passage_review_dir: Path = Path('data/voice-evaluation/aud20-validation-20261010')
     passage_tts_model: Literal['eleven_flash_v2_5'] = 'eleven_flash_v2_5'
     passage_tts_timeout_seconds: float = Field(default=20, gt=0, le=60)
@@ -67,7 +70,8 @@ class Settings(BaseSettings):
 
     @property
     def available_passage_voices(self) -> dict[str, VerifiedPassageVoice]:
-        return self.passage_voices if self.accent_practice_enabled else {}
+        return {accent: voice for accent, voice in self.passage_voices.items()
+            if routing_allowed(accent, voice.voice_id)} if self.accent_practice_enabled else {}
 
     @property
     def browser_origins(self) -> tuple[str, ...]:
@@ -75,6 +79,20 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def thresholds(self):
+        if self.expanded_accent_library_enabled:
+            from app.passage_validation import approved_configuration
+            from app.accent_registry import SELECTED_VOICES
+            try:
+                expanded = approved_configuration(self.expanded_passage_review_dir)
+                if set(expanded) != set(SELECTED_VOICES):
+                    raise ValueError('Incomplete expanded approval')
+                for accent, evidence in expanded.items():
+                    configured = self.passage_voices.get(accent)
+                    if configured and configured.voice_id != evidence['voice_id']:
+                        raise ValueError('Expanded voice identity mismatch')
+                    self.passage_voices[accent] = VerifiedPassageVoice(**evidence)
+            except (OSError, ValueError, KeyError, TypeError):
+                raise ValueError('Expanded accent library requires complete owner-approved sample hashes') from None
         if any(key not in LABELS for key in self.passage_voices):
             raise ValueError('Unknown passage accent')
         if self.passage_voices and (self.provider == 'demo' or not self.elevenlabs_api_key
@@ -86,6 +104,8 @@ class Settings(BaseSettings):
             from app.passage_validation import approved_configuration
             try:
                 approved = approved_configuration(self.passage_review_dir)
+                if self.expanded_passage_review_dir.exists():
+                    approved.update(approved_configuration(self.expanded_passage_review_dir))
             except (OSError, ValueError, KeyError, TypeError):
                 raise ValueError('Readable complete human passage review evidence is required') from None
             if not self.passage_voices or any(approved.get(accent, {}).get('voice_id') != voice.voice_id

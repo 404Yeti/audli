@@ -22,18 +22,18 @@ _VARIETY = '(?:' + '|'.join(ALIASES.values()) + ')'
 _AFFIRMATIVE = r'(?:yes|yeah|yep|sure|okay|ok|absolutely|sounds good)'
 _POLITE = r'(?: please| thanks| thank you)?'
 _PREFIX = re.compile(
-    r"^(?:please )?(?:(?:can|could|would) (?:we|you|i) (?:please )?(?:use|try|practice|do|hear|listen to)|"
-    r"(?:i want|i'd like|i would like) to (?:use|try|practice|do|hear|listen to)|"
-    r"(?:i want|i'd like|i would like)(?= .+\b(?:practice|passage|exercise|recording)\b)|"
-    r"let's (?:use|try|practice|do|hear|listen to)|use|try|practice|switch(?: to)?|listen to|hear)\s+(.+)$")
+    r"^(?:please )?(?:(?:can|could|would) (?:we|you|i) (?:please )?(?:use|try|practice|practise|do|hear|listen to)|"
+    r"(?:i want|i'd like|i would like) to (?:use|try|practice|practise|do|hear|listen to)|"
+    r"(?:i want|i'd like|i would like)(?= .+\b(?:practice|practise|passage|exercise|recording)\b)|"
+    r"let's (?:use|try|practice|practise|do|hear|listen to)|use|try|practice|practise|switch(?: to)?|listen to|hear)\s+(.+)$")
 _OBJECT = re.compile(
     r'(?:an? |the )?(?P<variety>' + _VARIETY + r')'
-    r'(?: english)?(?: (?:listening )?(?:accents?|voice|recording|passage|exercise))?(?: practice)?'
+    r'(?: english)?(?: (?:listening )?(?:accents?|voice|recording|passage|exercise))?(?: practi[cs]e)?'
     r'(?: for (?:(?:the|our) )?(?:next|new) (?:listening )?(?:passage|exercise|recording))?'
     r'(?: (?:today|now|instead))?' + _POLITE + r'(?: about (?P<topic>.+))?$')
 _ACCEPT = re.compile(
     rf'(?:{_AFFIRMATIVE}{_POLITE}|(?:{_AFFIRMATIVE} )?'
-    r"(?:let's (?:do|try) (?:it|that)|(?:(?:i'd|i would) like|i want) to (?:try|practice) (?:it|that)|"
+    r"(?:let's (?:do|try) (?:it|that)|(?:(?:i'd|i would) like|i want) to (?:try|practice|practise) (?:it|that)|"
     r'that sounds good))' + _POLITE + '$')
 _DECLINE = re.compile(
     r"(?:no(?: thanks)?(?: not today)?|not today|skip(?: it| that)?|nope|cancel|"
@@ -54,8 +54,9 @@ def _preference(text, accents=None, status='preferred'):
 
 
 def _unknown_variety(text):
+    text = re.sub(r'\b' + _VARIETY + r'\b', 'known', text)
     names = re.findall(r'\b([a-z]+)\s+(?:english\s+)?(?:accents?|english)\b', text)
-    return any(name not in ('an', 'the', 'another', 'different', 'one', 'any',
+    return any(name not in ('known', 'an', 'the', 'another', 'different', 'one', 'any',
                            'usual', 'normal', 'default', 'english', 'requested', 'fast', 'slow', 'spoken')
                and not normalize(name) for name in names)
 

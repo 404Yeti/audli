@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 from tempfile import NamedTemporaryFile
@@ -143,7 +144,16 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @app.get('/api/health')
     async def health():
-        return {'status': 'ok', 'provider': settings.provider}
+        return {'status': 'ok', 'provider': settings.provider,
+                'revision': os.getenv('RENDER_GIT_COMMIT'),
+                'expanded_accent_library_enabled': settings.expanded_accent_library_enabled,
+                'available_passage_accents': sorted(settings.available_passage_voices),
+                'passage_voice_ids': {accent: voice.voice_id for accent, voice in settings.available_passage_voices.items()},
+                'tutor_tts_provider': settings.tutor_tts_provider,
+                'tutor_voice_id': settings.elevenlabs_voice_id,
+                'passage_tts_model': settings.passage_tts_model,
+                'passage_tts_daily_characters': settings.passage_tts_daily_characters,
+                'passage_tts_max_concurrent': settings.passage_tts_max_concurrent}
 
     @app.get('/api/auth/config')
     async def auth_config():

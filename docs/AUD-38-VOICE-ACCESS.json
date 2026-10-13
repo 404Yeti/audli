@@ -1,0 +1,82 @@
+{
+  "paid_synthesis_calls": 0,
+  "voices": [
+    {
+      "accent": "indian",
+      "voice_id": "fydPJq00SigRIaPxWgiS",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "scottish",
+      "voice_id": "csXxiUN2BUFflsCaDxPM",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "canadian",
+      "voice_id": "RorawgRgSS2YxWqy31vY",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "new_zealand",
+      "voice_id": "pDZ0CqONaFi2LrK1f413",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "chinese",
+      "voice_id": "1a0nAYA3FcNQcMMfbddY",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "japanese",
+      "voice_id": "DiHqGqDdN8tWkUxlsPeg",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "filipino",
+      "voice_id": "7IA6NDxeqmtXCKLKb5nf",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "nigerian",
+      "voice_id": "8P18CIVcRlwP98FOjZDm",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "southern",
+      "voice_id": "9XNfIsDIvdnSURk8DW4z",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "new_york",
+      "voice_id": "QzTKubutNn9TjrB7Xb2Q",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    },
+    {
+      "accent": "boston",
+      "voice_id": "UZvBfqEdvCFLqsBOo9Zr",
+      "http_status": 200,
+      "identity": true,
+      "english_flash": true
+    }
+  ]
+}

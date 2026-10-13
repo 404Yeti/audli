@@ -2,15 +2,7 @@
 import re
 from app.models import AccentPreferences
 
-LABELS = {'british': 'British English', 'american': 'American English',
-    'australian': 'Australian English', 'scottish': 'Scottish English',
-    'indian': 'Indian English', 'irish': 'Irish English', 'canadian': 'Canadian English',
-    'new_zealand': 'New Zealand English', 'welsh': 'Welsh English', 'south_african': 'South African English'}
-ALIASES = {'british': r'british|britain|england|uk',
-    'american': r'american|america|usa|us accent', 'australian': r'australian|australia|aussie',
-    'scottish': r'scottish|scotland|scots', 'indian': r'indian|india', 'irish': r'irish|ireland',
-    'canadian': r'canadian|canada', 'new_zealand': r'new zealand|kiwi',
-    'welsh': r'welsh|wales', 'south_african': r'south african|south africa'}
+from app.accent_registry import LABELS, ALIASES
 UNAVAILABLE = 'Accent-specific recordings aren’t available yet, so today’s audio will use our usual voice.'
 
 def normalize(text: str) -> list[str]:
@@ -20,6 +12,8 @@ def normalize(text: str) -> list[str]:
             if not re.search(r'\b(?:not|no|except|rather than)\s+$', text[:match.start()], re.I):
                 result.append(key)
                 break
+    if any(key in result for key in ('southern', 'new_york', 'boston')):
+        result = [key for key in result if key != 'american']
     return result
 
 def no_preference(text: str) -> bool:

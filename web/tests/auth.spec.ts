@@ -453,3 +453,18 @@ test('ending an interrupted typed save permits retry without a stale continuatio
   await page.getByRole('button',{name:'Save and continue'}).click();await expect(page.getByLabel('What should I call you?',{exact:true})).toHaveCount(0);await speaking(page);
   expect(fixture.snapshot().profile.name).toBe('Đặng Hà');
 });
+
+
+test('AUD-38 Settings exposes and saves all approved accent preferences', async ({ page }) => {
+  const fixture = await setupAuth(page);
+  await signIn(page);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  for (const name of ['Indian','Scottish','Canadian','New Zealand','Chinese','Japanese','Filipino','Nigerian','Southern US','New York','Boston']) {
+    await page.getByRole('checkbox', { name, exact: true }).check();
+  }
+  await page.getByRole('button', { name: 'Save accent preferences' }).click();
+  await expect(page.getByText('Accent preferences saved.')).toBeVisible();
+  const writes = fixture.requests.filter(x => x.path === '/api/profile/accent-preferences');
+  expect(writes).toHaveLength(1);
+  expect(JSON.parse(writes[0].body!)).toEqual({ accents: ['indian','scottish','canadian','new_zealand','chinese','japanese','filipino','nigerian','southern','new_york','boston'] });
+});

@@ -3,6 +3,7 @@ import csv
 import hashlib
 import json
 from typing import Literal
+from app.accent_registry import Accent, SELECTED_VOICES
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
@@ -25,7 +26,7 @@ class OwnerApproval(BaseModel):
     statement: str = Field(min_length=40)
     numerical_ratings_waived: Literal[True]
     results_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
-    voices: dict[Literal['australian', 'british', 'irish'], OwnerVoiceApproval]
+    voices: dict[Accent, OwnerVoiceApproval]
 
 
 def owner_approval(output, ledger_bytes):
@@ -47,10 +48,11 @@ def approved_configuration(output):
     rating_path=output/'ratings.csv'
     ratings=list(csv.DictReader(rating_path.open())) if rating_path.exists() else []
     approved={}
-    for accent in ('australian','british','irish'):
+    for accent in ('australian','british','irish', *SELECTED_VOICES):
         clips=[row for row in ledger['rows'] if row['accent']==accent]
-        valid=(len(clips)==4
-            and {(c.get('passage'),c.get('rate')) for c in clips}=={('coast',.75),('coast',1.0),('library',.75),('library',1.0)}
+        required = {('library', .8)} if accent in SELECTED_VOICES else {('coast',.75),('coast',1.0),('library',.75),('library',1.0)}
+        valid=(len(clips)==len(required)
+            and {(c.get('passage'),c.get('rate')) for c in clips}==required
             and all(c.get('model')=='eleven_flash_v2_5' for c in clips)
             and len({c.get('voice_id') for c in clips})==1)
         owner_voice=approval.voices.get(accent) if approval else None
@@ -58,7 +60,10 @@ def approved_configuration(output):
             and owner_voice.voice_id==clips[0]['voice_id']
             and owner_voice.name==clips[0].get('name')
             and owner_voice.sample_hashes=={c['sample_id']:c.get('sha256') for c in clips}
-            and len(owner_voice.sample_hashes)==4)
+            and len(owner_voice.sample_hashes)==len(required))
+        if accent in SELECTED_VOICES:
+            valid = bool(valid and owner_passed and clips[0]['voice_id']==SELECTED_VOICES[accent].voice_id
+                and ledger.get('review_kind')=='aud38-owner-approved-smoke')
         for clip in clips:
             path=output/(clip['sample_id']+'.mp3')
             if clip['status']!='saved' or not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest()!=clip.get('sha256'):

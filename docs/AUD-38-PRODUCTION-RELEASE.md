@@ -27,3 +27,15 @@ If code rollback is required, revert the focused AUD38 release commit through th
 Final counts, release commit/PR and deployment/production receipts will be appended after success. AUD38 remains In Progress until those checks succeed.
 
 Predeployment evidence:full SQLite/disposable PostgreSQL17.11 backend1321 passed,7 backend-specific skips; final expansion/health checks2 passed. Focused expansion/preferences/intent SQLite+PostgreSQL268 passed. Browser standard cases137 passed across the warmed-suite run and corrected-origin password case; integrated real HTTP/media case1 passed (138 browser cases total). Frontend58-unit-test suite, TypeScript, ESLint and production Webpack build passed. Read-only ElevenLabs access/model check:all11 exact IDs HTTP200, English Flash2.5 supported;0 paid calls. Read-only production fleet control enabled,daily5000,concurrent1; preserved.
+
+## Production outcome
+
+Release PR[24](https://github.com/404Yeti/audli/pull/24) merged as `b4726d4fed43677ca759531dc547945aa5b1ea2c`. Render code deployment `dep-db7324navr4c73c15d10` and configuration-only activation `dep-db735o6k1f9s73c2ra7g` live. Vercel production deployment7039711837 succeeded at https://audli-li3o9bv81-robert-leybas-projects.vercel.app for the same commit. Both direct API and primary app routes report that exact revision.
+
+Merged only expansion flag=true; no secret,voice,budget,concurrency,billing or database configuration changes. All14 actual production mappings exactly match registry; tutor yKYzqEa22xh5PdidhN70/providerElevenLabs, existing normal passageCoral, Flash2.5 and budgets5000 daily/1 concurrent preserved. Durable fleet control unchanged.
+
+Non-billable production checks18/18 passed before activation and18/18 after activation:health/authmode, unauthorized/invalid-token reads and preference writes, transcript denial and hostile-origin write rejection. No production authenticated learner mutation or paid synthesis. Public health cannot exercise spoken consent or paid audio. Authenticated ownership/consent/routing/replay verified locally on SQLite/PostgreSQL with providers/auth fixtures. Live paid production spoken request→STT→synthesis→replay and quota fallback remain unverified.
+
+All11 new accents enabled:Indian,Scottish,Canadian,New Zealand,Chinese,Japanese,Filipino,Nigerian,Southern US,New York,Boston. Owner listening approval recorded; Clara remains unchanged and replacement isAUD39. Logs inspected after activation:no errors/tracebacks or unexpected accent fallback; tutor configuration unchanged. Receipts:docs/AUD-38-PRODUCTION-SMOKE.json,docs/AUD-38-CODE-DEPLOYMENT-SMOKE.json,docs/AUD-38-PRODUCTION-DEPLOYMENT.json.
+
+Browser integrated real-media check1 passed; combined standard/integrated coverage138 passed. Extra no-saved-preference lesson/replay checks32 passed on SQLite/PostgreSQL. Frontend58 units/build/typecheck/lint passed; full backend1321 passed,7 backend-specific skips. No critical regression remains.

@@ -1,0 +1,207 @@
+{
+  "checked_at": "2026-10-13T13:33:29.616336+00:00",
+  "success": true,
+  "checks": [
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/health",
+      "http_status": 200,
+      "expected": 200,
+      "health": {
+        "status": "ok",
+        "provider": "openai",
+        "revision": "b4726d4fed43677ca759531dc547945aa5b1ea2c",
+        "expanded_accent_library_enabled": true,
+        "available_passage_accents": [
+          "australian",
+          "boston",
+          "british",
+          "canadian",
+          "chinese",
+          "filipino",
+          "indian",
+          "irish",
+          "japanese",
+          "new_york",
+          "new_zealand",
+          "nigerian",
+          "scottish",
+          "southern"
+        ],
+        "passage_voice_ids": {
+          "australian": "tyepWYJJwJM9TTFIg5U7",
+          "british": "onwK4e9ZLuTAKqWW03F9",
+          "irish": "DbwWo4rVEd5NrejHYUnm",
+          "indian": "fydPJq00SigRIaPxWgiS",
+          "scottish": "csXxiUN2BUFflsCaDxPM",
+          "canadian": "RorawgRgSS2YxWqy31vY",
+          "new_zealand": "pDZ0CqONaFi2LrK1f413",
+          "chinese": "1a0nAYA3FcNQcMMfbddY",
+          "japanese": "DiHqGqDdN8tWkUxlsPeg",
+          "filipino": "7IA6NDxeqmtXCKLKb5nf",
+          "nigerian": "8P18CIVcRlwP98FOjZDm",
+          "southern": "9XNfIsDIvdnSURk8DW4z",
+          "new_york": "QzTKubutNn9TjrB7Xb2Q",
+          "boston": "UZvBfqEdvCFLqsBOo9Zr"
+        },
+        "tutor_tts_provider": "elevenlabs",
+        "tutor_voice_id": "yKYzqEa22xh5PdidhN70",
+        "passage_tts_model": "eleven_flash_v2_5",
+        "passage_tts_daily_characters": 5000,
+        "passage_tts_max_concurrent": 1
+      }
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/auth/config",
+      "http_status": 200,
+      "expected": 200
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/profile",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/lessons/current",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/history",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/exercises/nonexistent/transcript",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/profile/accent-preferences",
+      "http_status": 401,
+      "expected": 401,
+      "authentication": "absent"
+    },
+    {
+      "host": "https://audli-api.onrender.com",
+      "path": "/api/profile/accent-preferences",
+      "http_status": 401,
+      "expected": 401,
+      "authentication": "invalid"
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/health",
+      "http_status": 200,
+      "expected": 200,
+      "health": {
+        "status": "ok",
+        "provider": "openai",
+        "revision": "b4726d4fed43677ca759531dc547945aa5b1ea2c",
+        "expanded_accent_library_enabled": true,
+        "available_passage_accents": [
+          "australian",
+          "boston",
+          "british",
+          "canadian",
+          "chinese",
+          "filipino",
+          "indian",
+          "irish",
+          "japanese",
+          "new_york",
+          "new_zealand",
+          "nigerian",
+          "scottish",
+          "southern"
+        ],
+        "passage_voice_ids": {
+          "australian": "tyepWYJJwJM9TTFIg5U7",
+          "british": "onwK4e9ZLuTAKqWW03F9",
+          "irish": "DbwWo4rVEd5NrejHYUnm",
+          "indian": "fydPJq00SigRIaPxWgiS",
+          "scottish": "csXxiUN2BUFflsCaDxPM",
+          "canadian": "RorawgRgSS2YxWqy31vY",
+          "new_zealand": "pDZ0CqONaFi2LrK1f413",
+          "chinese": "1a0nAYA3FcNQcMMfbddY",
+          "japanese": "DiHqGqDdN8tWkUxlsPeg",
+          "filipino": "7IA6NDxeqmtXCKLKb5nf",
+          "nigerian": "8P18CIVcRlwP98FOjZDm",
+          "southern": "9XNfIsDIvdnSURk8DW4z",
+          "new_york": "QzTKubutNn9TjrB7Xb2Q",
+          "boston": "UZvBfqEdvCFLqsBOo9Zr"
+        },
+        "tutor_tts_provider": "elevenlabs",
+        "tutor_voice_id": "yKYzqEa22xh5PdidhN70",
+        "passage_tts_model": "eleven_flash_v2_5",
+        "passage_tts_daily_characters": 5000,
+        "passage_tts_max_concurrent": 1
+      }
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/auth/config",
+      "http_status": 200,
+      "expected": 200
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/profile",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/lessons/current",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/history",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/exercises/nonexistent/transcript",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/profile/accent-preferences",
+      "http_status": 401,
+      "expected": 401,
+      "authentication": "absent"
+    },
+    {
+      "host": "https://app.audli.ai",
+      "path": "/api/profile/accent-preferences",
+      "http_status": 401,
+      "expected": 401,
+      "authentication": "invalid"
+    },
+    {
+      "check": "origin_write_without_auth_denied",
+      "origin": "https://app.audli.ai",
+      "http_status": 401,
+      "expected": 401
+    },
+    {
+      "check": "origin_write_without_auth_denied",
+      "origin": "https://evil.example",
+      "http_status": 403,
+      "expected": 403
+    }
+  ],
+  "paid_synthesis_calls": 0,
+  "learner_writes": 0,
+  "exact_voice_mapping_verification": "All14 provider IDs match registry; tutor/model/budgets unchanged"
+}

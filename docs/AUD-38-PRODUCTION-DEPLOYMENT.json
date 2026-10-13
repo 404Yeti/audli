@@ -1,0 +1,44 @@
+{
+  "release_commit": "b4726d4fed43677ca759531dc547945aa5b1ea2c",
+  "release_pr": "https://github.com/404Yeti/audli/pull/24",
+  "render_code_deploy": "dep-db7324navr4c73c15d10",
+  "render_enabled_deploy": "dep-db735o6k1f9s73c2ra7g",
+  "render_status": "live",
+  "vercel_github_deployment": 7039711837,
+  "vercel_status": "success",
+  "vercel_url": "https://audli-li3o9bv81-robert-leybas-projects.vercel.app",
+  "rollback_revision": "609529235b8badea8403fd8f763f69cc004a0b79",
+  "enabled_voices": {
+    "british": "onwK4e9ZLuTAKqWW03F9",
+    "australian": "tyepWYJJwJM9TTFIg5U7",
+    "irish": "DbwWo4rVEd5NrejHYUnm",
+    "indian": "fydPJq00SigRIaPxWgiS",
+    "scottish": "csXxiUN2BUFflsCaDxPM",
+    "canadian": "RorawgRgSS2YxWqy31vY",
+    "new_zealand": "pDZ0CqONaFi2LrK1f413",
+    "chinese": "1a0nAYA3FcNQcMMfbddY",
+    "japanese": "DiHqGqDdN8tWkUxlsPeg",
+    "filipino": "7IA6NDxeqmtXCKLKb5nf",
+    "nigerian": "8P18CIVcRlwP98FOjZDm",
+    "southern": "9XNfIsDIvdnSURk8DW4z",
+    "new_york": "QzTKubutNn9TjrB7Xb2Q",
+    "boston": "UZvBfqEdvCFLqsBOo9Zr"
+  },
+  "expansion_flag": true,
+  "paid_production_synthesis_calls": 0,
+  "production_learner_writes": 0,
+  "durable_control": {
+    "enabled": true,
+    "daily_limit": 5000,
+    "concurrent_limit": 1
+  },
+  "backend": {
+    "passed": 1321,
+    "skipped": 7
+  },
+  "frontend_unit_passed": 58,
+  "browser_passed": 138,
+  "owner_listening_approval": true,
+  "live_audio_scenarios": "Not tested: authenticated production spoken request/STT/one-passage synthesis/replay and actual production provider-quota fallback; require separate paid-test authorization or owner manual testing",
+  "log_review": "No ERROR/Traceback or unexpected provider/eligibility/limit fallback in inspected post-activation window; tutor configuration unchanged"
+}

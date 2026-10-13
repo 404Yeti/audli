@@ -2,7 +2,7 @@
 
 Owner approval:explicit listening approval and production release authorization for all11 IDs,2026-10-13. No additional paid production synthesis authorized. All11 evaluated samples matched registry IDs and SHA-256 receipts before inclusion in the release evidence. No tutor/Clara replacement or billing change.
 
-## Known-good rollback baseline
+## Pre-release baseline and compatible rollback
 
 Git revision `609529235b8badea8403fd8f763f69cc004a0b79` confirmed live on Render and Vercel before release. Render baseline deployment `dep-db6dpc3rjlhs73blb4tg`, service `srv-db270erbc2fs73fg85gg`, Robert's confirmed workspace `tea-dauqlhd9fdbs739vmkv0`. Vercel baseline production `https://audli-lms7opns5-robert-leybas-projects.vercel.app`, GitHub deployment7014919974, success. Production origins `https://audli-api.onrender.com` and `https://app.audli.ai`.
 
@@ -20,7 +20,9 @@ No production paid synthesis. Local fixture tests establish consent/routing/fall
 
 For a routing/consent/health failure first set `AUDLI_EXPANDED_ACCENT_LIBRARY_ENABLED=false` on the existing Render service (merge, never replace all envvars), deploy runtime settings and verify only legacy three mappings remain. This removes the11 automatically added mappings while preserving existing budgets, kill switch, learner data and British/Irish/Clara support. Never delete or reset production tables/audio.
 
-If code rollback is required, revert the focused AUD38 release commit through the usual PR workflow and let main integrations redeploy. Alternatively select the exact known-good revision609529235b8badea8403fd8f763f69cc004a0b79 on Render and promote the baseline Vercel deployment above. Keep expansion flag false. Confirm deployed revision, health, Supabase auth denial/ownership, legacy mappings and logs. No schema migration is part of AUD38; rollback requires no data migration. Existing global fleet disable remains the emergency all-accent kill switch if consent safety is in doubt; prefer expansion-only disable when legacy behavior is healthy.
+The exact compatible known-good rollback revision is `b4726d4fed43677ca759531dc547945aa5b1ea2c` with `AUDLI_EXPANDED_ACCENT_LIBRARY_ENABLED=false`: this code/configuration was verified before activation in docs/AUD-38-CODE-DEPLOYMENT-SMOKE.json. Its expanded profile vocabulary can still read new learner preferences, while only British/Irish/Clara route for newly generated passages. The current documentation-only revision has identical application code, so expansion-only disable normally needs no Git rollback. If a platform revision rollback is required, use Render code deployment `dep-db7324navr4c73c15d10` and Vercel `https://audli-li3o9bv81-robert-leybas-projects.vercel.app` at that compatible revision, with the flag off.
+
+Do not blindly downgrade to pre-release609529235b8badea8403fd8f763f69cc004a0b79 or revert the entire expansion patch after new preferences have been saved: its older literal schema cannot read all new accent names. Any deeper code rollback must retain and test the forward-compatible profile/registry vocabulary. Never rewrite/delete learner preferences to accommodate an older binary. Confirm revision, health, auth denial/ownership, legacy mappings and logs. No DDL migration is part of AUD38. Existing global fleet disable remains the emergency all-accent kill switch if consent safety is in doubt; prefer expansion-only disable when legacy behavior is healthy.
 
 ## Verification evidence
 

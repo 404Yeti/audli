@@ -7,7 +7,7 @@
   "vercel_github_deployment": 7039711837,
   "vercel_status": "success",
   "vercel_url": "https://audli-li3o9bv81-robert-leybas-projects.vercel.app",
-  "rollback_revision": "609529235b8badea8403fd8f763f69cc004a0b79",
+  "rollback_revision": "b4726d4fed43677ca759531dc547945aa5b1ea2c",
   "enabled_voices": {
     "british": "onwK4e9ZLuTAKqWW03F9",
     "australian": "tyepWYJJwJM9TTFIg5U7",
@@ -40,5 +40,7 @@
   "browser_passed": 138,
   "owner_listening_approval": true,
   "live_audio_scenarios": "Not tested: authenticated production spoken request/STT/one-passage synthesis/replay and actual production provider-quota fallback; require separate paid-test authorization or owner manual testing",
-  "log_review": "No ERROR/Traceback or unexpected provider/eligibility/limit fallback in inspected post-activation window; tutor configuration unchanged"
+  "log_review": "No ERROR/Traceback or unexpected provider/eligibility/limit fallback in inspected post-activation window; tutor configuration unchanged",
+  "pre_release_baseline": "609529235b8badea8403fd8f763f69cc004a0b79",
+  "rollback_configuration": "AUDLI_EXPANDED_ACCENT_LIBRARY_ENABLED=false; retain expanded preference vocabulary and all learner data"
 }

@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { LessonLifetime } from '../lib/api';
 
 export type AccentPreferences = { status: 'unspecified' | 'preferred' | 'no_preference'; accents: string[] };
-const choices = [['british', 'British'], ['australian', 'Australian'], ['irish', 'Irish']] as const;
+const choices = [['british', 'British'], ['australian', 'Australian'], ['irish', 'Irish'], ['indian', 'Indian'], ['scottish', 'Scottish'],
+  ['canadian', 'Canadian'], ['new_zealand', 'New Zealand'], ['chinese', 'Chinese'],
+  ['japanese', 'Japanese'], ['filipino', 'Filipino'], ['nigerian', 'Nigerian'],
+  ['southern', 'Southern US'], ['new_york', 'New York'], ['boston', 'Boston']] as const;
 
 export function AccentSettings({ preferences, onSaved }: { preferences?: AccentPreferences; onSaved: (value: AccentPreferences) => void }) {
   const [selected, setSelected] = useState<string[]>(preferences?.accents ?? []);

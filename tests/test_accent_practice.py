@@ -262,18 +262,22 @@ def test_declining_offer_does_not_change_topics_or_scores(repository_factory,tmp
     assert item['phase']=='TRANSITION' and 'accent' not in item['prompt']
     assert repo.profile().model_dump()==before
 
+from app.accent_registry import SELECTED_VOICES
+EXPANDED_IDS = {**CANDIDATE_IDS, **{a:v.voice_id for a,v in SELECTED_VOICES.items()}}
+
 @pytest.mark.parametrize('accent,failed,interrupted',[
     ('australian',False,False),('british',False,False),('irish',False,False),
-    ('australian',True,False),('irish',False,True)])
+    ('australian',True,False),('irish',False,True)] + [(a,False,False) for a in SELECTED_VOICES])
 def test_selected_passage_persists_audio_replay_retry_and_cancellation(repository_factory,tmp_path,audio_bytes,monkeypatch,accent,failed,interrupted):
     from conftest import ASGIClient, FakeProvider
     from app.main import create_app
     from app.models import Transcription
     repo=repository_factory();profile=repo.profile();profile.onboarding_status='complete'
-    profile.accent_preferences=AccentPreferences(status='preferred',accents=[accent]);repo.save_profile(profile)
+    profile.accent_preferences=(AccentPreferences() if accent in SELECTED_VOICES else
+        AccentPreferences(status='preferred',accents=[accent]));repo.save_profile(profile)
     before=repo.profile().model_dump()
     provider=FakeProvider()
-    async def transcript(*args): return Transcription(text=f'Let’s practice {accent}',confidence=.99)
+    async def transcript(*args): return Transcription(text=f'Let’s practice {accent.replace("_", " ")}',confidence=.99)
     provider.transcribe=transcript
     calls=[]
     class Client:
@@ -288,7 +292,7 @@ def test_selected_passage_persists_audio_replay_retry_and_cancellation(repositor
     real_client = httpx.AsyncClient
     monkeypatch.setattr('app.accent_practice.httpx.AsyncClient',
         lambda **kwargs: real_client(**kwargs) if 'transport' in kwargs else Client())
-    candidate=VerifiedPassageVoice(voice_id=CANDIDATE_IDS[accent],validation='Routing fixture only: not human voice approval')
+    candidate=VerifiedPassageVoice(voice_id=EXPANDED_IDS[accent],validation='Routing fixture only: not human voice approval')
     settings=Settings(_env_file=None,data_dir=tmp_path,elevenlabs_api_key='test',accent_practice_enabled=True,passage_tts_daily_characters=100000,passage_voices={accent:candidate})
     client=ASGIClient(create_app(settings,provider,repo),provider)
     item=respond(client,start(client),audio_bytes)
@@ -307,7 +311,7 @@ def test_selected_passage_persists_audio_replay_retry_and_cancellation(repositor
         item=response.json();exercise=item['exercise'];used=exercise['passage_voice']
         assert used['accent']==('default' if failed else accent)
         assert used['fallback']==failed
-        if not failed: assert used['voice_id']==CANDIDATE_IDS[accent]
+        if not failed: assert used['voice_id']==EXPANDED_IDS[accent]
         original=client.get(exercise['audio_url']).content
         settings.passage_voices={}
         assert action(client,item,'exercise')['exercise']==exercise
@@ -316,7 +320,7 @@ def test_selected_passage_persists_audio_replay_retry_and_cancellation(repositor
         assert client.get('/api/lessons/current').json()['exercise']==exercise
         assert client.get(f"/api/exercises/{exercise['id']}/transcript").status_code==403
         assert json.loads(repo.exercise(exercise['id'])['content'])['passage_voice']==used
-    assert calls==['https://api.elevenlabs.io/v1/text-to-speech/'+CANDIDATE_IDS[accent]]
+    assert calls==['https://api.elevenlabs.io/v1/text-to-speech/'+EXPANDED_IDS[accent]]
     assert settings.elevenlabs_voice_id=='yKYzqEa22xh5PdidhN70'
     assert repo.profile().model_dump()==before
 

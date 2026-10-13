@@ -36,9 +36,9 @@ def test_authenticated_settings_persist_and_drive_future_offers(accounts, accent
     assert offer(repo.profile().accent_preferences, [], {accent: object() for accent in accents}) == (accents[0] if accents else None)
 
 
-@pytest.mark.parametrize('body', [{'accents': ['scottish']}, {'accents': ['invalid']},
+@pytest.mark.parametrize('body', [{'accents': ['invalid']},
     {'accents': ['british'], 'learner_id': USER_A}, {'accents': ['british'], 'passage_accent': 'british'},
-    {'accents': ['british'] * 4}, {'accents': 'british'}, {}])
+    {'accents': ['british'] * 18}, {'accents': 'british'}, {}])
 def test_settings_schema_rejects_unowned_or_unsupported_fields(accounts, body):
     a, _, _ = accounts
     before = a.get('/api/profile').json()

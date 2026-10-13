@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "decision_id": "AUD-38-owner-listening-production-release-20261013",
+  "authority": "product_owner",
+  "decision": "approved",
+  "scope": "all_authenticated_learners",
+  "approved_at": "2026-10-13T11:52:27.053635+00:00",
+  "source": "Owner instruction: AUD-38 Production Release: Expanded Accent Library, 2026-10-13",
+  "statement": "The owner explicitly approved all eleven new accent voices from Waves1,2,3 for production release after listening review. Approval binds the actual one-passage rate0.8 samples; no larger acoustic matrix or paid production synthesis is claimed.",
+  "numerical_ratings_waived": true,
+  "results_sha256": "c126793056b1ec20a4b2529454ac17c9e860c957e7fbe8855d60f2a96474ef90",
+  "voices": {
+    "indian": {
+      "voice_id": "fydPJq00SigRIaPxWgiS",
+      "name": "Pooja - Upbeat UGC Creator",
+      "sample_hashes": {
+        "AUD38-indian": "55eff4b29017bbdaca0215bc54e3bc22c0103f4bfe8229c144dcd127c3335c9c"
+      }
+    },
+    "scottish": {
+      "voice_id": "csXxiUN2BUFflsCaDxPM",
+      "name": "Chris - Scottish Casual",
+      "sample_hashes": {
+        "AUD38-scottish": "0cf17ff7d946dc8bacf4e07d27d738d90b9042686e9007a120dbce9cc7b5bf48"
+      }
+    },
+    "canadian": {
+      "voice_id": "RorawgRgSS2YxWqy31vY",
+      "name": "Catherine - Educational & Conversational",
+      "sample_hashes": {
+        "AUD38-canadian": "0334a30480b9c6f7171fcb8e4dbb720a5a40e1213ba396f89fd476107d75bd88"
+      }
+    },
+    "new_zealand": {
+      "voice_id": "pDZ0CqONaFi2LrK1f413",
+      "name": "Torey Slatter",
+      "sample_hashes": {
+        "AUD38-new_zealand": "c56b82eca83607932002b0a6ab1b032e9ac579d969e95ad142d8b81b3d6bb89f"
+      }
+    },
+    "chinese": {
+      "voice_id": "1a0nAYA3FcNQcMMfbddY",
+      "name": "Ziyu - Friendly but Unclear",
+      "sample_hashes": {
+        "AUD38-chinese": "eef1f426634cf21c47f275a9d3a94a7db844b8e59181e03ddc5bf32d442baa91"
+      }
+    },
+    "japanese": {
+      "voice_id": "DiHqGqDdN8tWkUxlsPeg",
+      "name": "Yuki - Gentle and Precise",
+      "sample_hashes": {
+        "AUD38-japanese": "95edc6d98ab81e55e395fb7794cb612df7459e010e3f030815332336c4f602a4"
+      }
+    },
+    "filipino": {
+      "voice_id": "7IA6NDxeqmtXCKLKb5nf",
+      "name": "Amara - English FIlipino Calm Narrator",
+      "sample_hashes": {
+        "AUD38-filipino": "d20138d23d459471af2a6074481bf8f566628c8c36433ec44c81c0615b3b565d"
+      }
+    },
+    "nigerian": {
+      "voice_id": "8P18CIVcRlwP98FOjZDm",
+      "name": "Ola - Nigerian Storyteller",
+      "sample_hashes": {
+        "AUD38-nigerian": "499f1147c4afa4c39d1ed75a02fb4507021b9b0ec58ab62c9f5f0c3acc836151"
+      }
+    },
+    "southern": {
+      "voice_id": "9XNfIsDIvdnSURk8DW4z",
+      "name": "Wade - Southern Backwoods Neighbor",
+      "sample_hashes": {
+        "AUD38-southern": "335d3731bfc90ec39445c5f3207ea56498d8b7497e81233dad7b62c5977ea74e"
+      }
+    },
+    "new_york": {
+      "voice_id": "QzTKubutNn9TjrB7Xb2Q",
+      "name": "Jerry B. - New York Italian Mobster",
+      "sample_hashes": {
+        "AUD38-new_york": "246e2914d6439ce8dc38ee42bd901011d8d2b24a7bcd7f5f9a5eed26f2112712"
+      }
+    },
+    "boston": {
+      "voice_id": "UZvBfqEdvCFLqsBOo9Zr",
+      "name": "Jerry B. - Boston Accent Conversational Voice",
+      "sample_hashes": {
+        "AUD38-boston": "5bb93bacc1e8587138bb136d201d85a13f4cf5be86e02d0ae08c67e61d113800"
+      }
+    }
+  }
+}

@@ -7,15 +7,34 @@ test('real backend multi-exercise lesson plays each introduction and displays pe
   test.skip(process.env.AUDLI_INTEGRATED_LESSON !== '1', 'Run separately using lesson-media.playwright.config.ts');
   await installVoice(page,{realPlayback:true});
   await page.addInitScript(() => {
-    const blobs = new WeakMap<Blob,string>(), sources = new Map<string,string>();
+    const blobs = new WeakMap<Blob,string>(), chunks = new WeakMap<object,string>(), sources = new Map<string,string>();
     const trace: { event:string; path:string; time:number }[] = [];
     (window as unknown as {mediaTrace:typeof trace}).mediaTrace = trace;
     const fetch = window.fetch.bind(window), create = URL.createObjectURL.bind(URL);
     window.fetch = async (...args) => {
       const response = await fetch(...args), blob = response.blob.bind(response);
       response.blob = async () => {const data = await blob();blobs.set(data,String(args[0]));return data;};
+      // measuredAudioBody reads the stream and assembles a Blob without calling
+      // response.blob(). Preserve that real byte path in the playback tracer too.
+      const body = response.body as {getReader():ReadableStreamDefaultReader<Uint8Array>} | null;
+      if(body) {
+        const getReader=body.getReader.bind(body);
+        body.getReader=()=>{
+          const reader=getReader(), read=reader.read.bind(reader);
+          reader.read=async()=>{const result=await read();if(result.value)chunks.set(result.value,String(args[0]));return result;};
+          return reader;
+        };
+      }
       return response;
     };
+    const NativeBlob=window.Blob;
+    window.Blob=new Proxy(NativeBlob,{construct(target,args){
+      const value=Reflect.construct(target,args) as Blob;
+      const parts=args[0] as BlobPart[] | undefined;
+      const path=parts?.map(part=>typeof part==='object' ? chunks.get(part) ?? blobs.get(part as Blob) : undefined).find(Boolean);
+      if(path)blobs.set(value,path);
+      return value;
+    }});
     URL.createObjectURL = value => {const url = create(value);if(value instanceof Blob)sources.set(url,blobs.get(value)??'');return url;};
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function() {

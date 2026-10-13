@@ -1,4 +1,5 @@
 from typing import Annotated, Literal
+from app.accent_registry import Accent
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,12 +54,12 @@ class AccentPreferences(StrictModel):
     version: Literal[1] = 1
     source: Literal['learner_stated'] = 'learner_stated'
     response: str = Field(default='', max_length=8000)
-    accents: list[Literal['british', 'american', 'australian', 'scottish', 'indian', 'irish', 'canadian', 'new_zealand', 'welsh', 'south_african']] = Field(default_factory=list, max_length=10)
+    accents: list[Accent] = Field(default_factory=list, max_length=17)
     status: Literal['unspecified', 'preferred', 'no_preference'] = 'unspecified'
 
 class AccentPreferenceUpdate(StrictModel):
     # An explicitly submitted empty selection means no particular difficulty.
-    accents: list[Literal['british', 'australian', 'irish']] = Field(max_length=3)
+    accents: list[Accent] = Field(max_length=17)
 
 class LearnerProfile(StrictModel):
     accent_preferences: AccentPreferences = Field(default_factory=AccentPreferences)

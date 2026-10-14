@@ -10,6 +10,7 @@ from app.security import parse_browser_origin
 from sqlalchemy.engine import make_url
 
 class Settings(BaseSettings):
+    planner_enabled: bool = True
     model_config = SettingsConfigDict(env_prefix='AUDLI_', env_file='.env', extra='ignore', hide_input_in_errors=True)
     openai_api_key: SecretStr | None = Field(default=None, validation_alias='OPENAI_API_KEY')
     environment: Literal['development', 'production'] = 'development'

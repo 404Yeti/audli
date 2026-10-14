@@ -296,8 +296,8 @@ def test_explicit_002_to_003_upgrade_preserves_learner_state(repository_factory)
     root=repository_factory();config=settings();lesson=scope(root,config)
     before=root.profile().model_dump();snapshot=root.lesson().model_dump()
     with root.engine.begin() as db:
-        s.accent_reservations.drop(db);s.accent_control.drop(db)
-        db.execute(s.versions.delete().where(s.versions.c.version==3))
+        s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db)
+        db.execute(s.versions.delete().where(s.versions.c.version>=3))
     if root.engine.dialect.name=='postgresql':
         from scripts.migrate_postgres import migrate
         from app.storage.adapters import PostgresRepository

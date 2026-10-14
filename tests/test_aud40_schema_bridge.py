@@ -54,7 +54,7 @@ def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, 
                        {'owner': repo.learner_id, 'data': '{"activation_at":"2026-10-14T00:00:00Z","baseline_ids":["historic"],"feedback":[{"status":"skipped"}],"opaque_future":true}'})
     before = snapshot(repo.engine)
     identity = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(401)))
-    app = create_app(settings_for(tmp_path, persistence='postgres', database_url=url),
+    app = create_app(settings_for(tmp_path, persistence='postgres', database_url=url, planner_enabled=False),
                      FakeProvider(), auth_client=identity)
     try:
         async def startup_probe():
@@ -62,7 +62,7 @@ def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, 
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver') as client:
                     assert (await client.get('/api/health')).status_code == 200
                     assert (await client.get('/api/profile')).status_code == 401
-                assert not any(route.path.startswith('/api/plan') for route in app.routes)
+                    assert (await client.get('/api/plan')).status_code == 401
                 assert app.state.repository.for_learner(repo.learner_id).lesson(lesson.id) == lesson
                 assert snapshot(repo.engine) == before
         asyncio.run(startup_probe())

@@ -3,7 +3,7 @@ import ast
 from pathlib import Path
 import os
 
-certified = '4e8514a18a5eb54b81a76d5e53f682c759d239c7'
+certified = 'ce55cbc5766174d117f7fa006320d04dabbb55a3'
 selected = certified
 for node in ast.parse(Path('app/storage/adapters.py').read_text()).body:
     if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'POSTGRES_COMPATIBLE_VERSIONS' for target in node.targets):

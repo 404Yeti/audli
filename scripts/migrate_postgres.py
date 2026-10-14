@@ -12,11 +12,11 @@ def migrate(settings: Settings):
         with psycopg.connect(url, autocommit=True, connect_timeout=10) as db:
             exists = db.execute("SELECT to_regclass('public.schema_migrations')").fetchone()[0]
             versions = db.execute('SELECT version FROM schema_migrations ORDER BY version').fetchall() if exists else []
-            if versions not in ([], [(1,)], [(1,), (2,)], [(1,), (2,), (3,)]):
+            if versions not in ([], [(1,)], [(1,), (2,)], [(1,), (2,), (3,)], [(1,), (2,), (3,), (4,)]):
                 raise ValueError('Unsupported schema version')
             changed = False
             root = Path(__file__).resolve().parents[1] / 'docs'
-            for version, name in ((1, 'postgres.sql'), (2, 'postgres-002.sql'), (3, 'postgres-003.sql')):
+            for version, name in ((1, 'postgres.sql'), (2, 'postgres-002.sql'), (3, 'postgres-003.sql'), (4, 'postgres-004.sql')):
                 if (version,) not in versions:
                     db.execute((root / name).read_text(), prepare=False)
                     changed = True

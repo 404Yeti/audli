@@ -221,3 +221,20 @@ one shared row, leaving schema, budgets, learner data and replay audio intact.
 See AUD-20-GLOBAL-RELEASE-READINESS.md for exact release gates and in-flight behavior.
 
 Production pooler verification for AUD-20 found libpq startup timeout options were discarded. SharedAccentControls therefore applies transaction-local set_config for statement_timeout=750ms, lock_timeout=250ms, idle_in_transaction_session_timeout=2000ms and UTC before every read/write/recheck; the same settings were verified through production pooling.
+
+## AUD-40 migration 004
+
+The full planner requires ledger 001–004. Apply docs/postgres-004.sql only after
+backup/restore certification and a deployed schema003/004-compatible bridge.
+Migration004 is additive, stores only owned lesson outlines/check-in metadata,
+and does not update historical lessons. The migration timestamp is the durable
+check-in activation baseline. RLS and browser-role revocations protect roadmap
+storage; server-verified request ownership controls API access.
+
+Planner refresh runs in a separate bounded transaction after authoritative lesson
+persistence. Failures log only an exception class and recover on later refresh;
+lesson start uses the ordinary generation path during planner outages.
+Set AUDLI_PLANNER_ENABLED=false to disable planning/check-ins while retaining
+ordinary lessons. Preserve schema004 and roadmap/history data on rollback.
+The certified rollback backend is ce55cbc5766174d117f7fa006320d04dabbb55a3.
+Do not deploy the full planner before production004 is verified.

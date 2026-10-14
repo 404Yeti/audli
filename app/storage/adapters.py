@@ -15,9 +15,7 @@ from app.storage.repository import SQLProgressRepository, profile_values, utcnow
 from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
-SCHEMA_VERSION = 3
-# Migration 004 adds only planner storage; this bridge never reads or writes it.
-POSTGRES_COMPATIBLE_VERSIONS = ([1, 2, 3], [1, 2, 3, 4])
+SCHEMA_VERSION = 4
 
 
 def initialize_accent_control(db):
@@ -48,7 +46,7 @@ def initialize_sqlite(repo):
         existing = set(inspect(db).get_table_names())
         if 'schema_migrations' in existing:
             versions = sorted(db.execute(select(s.versions.c.version)).scalars().all())
-            if versions not in ([1], [1, 2], [1, 2, 3]):
+            if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4]):
                 raise RuntimeError('Unsupported SQLite schema version')
             s.metadata.create_all(db)
             for version in range(max(versions) + 1, SCHEMA_VERSION + 1):
@@ -166,8 +164,8 @@ class PostgresRepository(SQLProgressRepository):
             stage = 'database connection'
             with engine.connect() as db:
                 stage = 'schema version validation'
-                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in POSTGRES_COMPATIBLE_VERSIONS:
-                    detail = ('Expected migrations 001, 002 and 003, optionally followed by 004. Apply missing migrations with '
+                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) != list(range(1, SCHEMA_VERSION + 1)):
+                    detail = ('Expected migrations 001, 002, 003 and 004. Apply missing migrations with '
                               'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')
                 stage = 'required table and column validation'

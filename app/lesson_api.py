@@ -43,7 +43,10 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
 
     def save(lesson, revision, interests=None, accent_preferences=None):
         try:
-            return repo.save_lesson(lesson, revision, interests, accent_preferences)
+            saved = repo.save_lesson(lesson, revision, interests, accent_preferences)
+            if saved.status == 'completed' and settings.planner_enabled:
+                repo.optional_roadmap()
+            return saved
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
@@ -84,6 +87,9 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
 
+    from app.planner_api import register_planner_routes
+    register_planner_routes(app, repo, ai, lock, settings, speech)
+
     @app.get('/api/lessons/current')
     async def current():
         lesson = repo.lesson()
@@ -102,9 +108,13 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             profile = repo.profile()
             if profile.onboarding_status != 'complete':
                 raise HTTPException(409, 'Complete your spoken onboarding first.')
+            roadmap = repo.optional_roadmap() if settings.planner_enabled else None
+            planned = roadmap.upcoming[0] if roadmap else None
             at = now()
             lesson = Lesson(id=str(uuid4()), started_at=at, active_since=at,
-                name=profile.name, focus=profile.focus, previous=repo.previous_lesson())
+                name=profile.name, focus=planned.focus if planned else profile.focus,
+                plan_topic=planned.topic if planned else None, plan_number=planned.number if planned else None,
+                previous=repo.previous_lesson())
             available_voices = await passage_limits.voices()
             history = repo.accent_lesson_history()
             lesson.accent_discovery = discover(profile.accent_preferences, history, available_voices)
@@ -259,6 +269,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                             interests = None
                     lesson.reflection = text
                     interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
+                    if interest and lesson.plan_number is not None:
+                        lesson.plan_topic = interest
                     lesson.review_response = (f'I’ll keep {interest} in mind as we choose our listening topics.'
                                               if interest else 'We can continue with today’s listening.')
                     lesson.phase = 'REVIEW_ACK'
@@ -361,6 +373,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 interests = extracted.interests  # Never replace goals, identity, scores or difficulty.
                 lesson.reflection = text
                 interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
+                if interest and lesson.plan_number is not None:
+                    lesson.plan_topic = interest
                 lesson.review_response = (f'I’ll keep {interest} in mind as we choose our listening topics.'
                                           if interest else 'We can continue with today’s listening.')
                 lesson.phase = 'REVIEW_ACK'

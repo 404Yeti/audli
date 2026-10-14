@@ -156,3 +156,8 @@ accent_reservations = Table('accent_reservations', metadata,
     CheckConstraint("state IN ('active','success','failed','cancelled','abandoned')", name='accent_reservation_state'))
 Index('accent_reservations_by_lease', accent_reservations.c.lease_until)
 Index('accent_reservations_by_state_lease', accent_reservations.c.state, accent_reservations.c.lease_until)
+# Migration 004: one owned, versioned rolling roadmap; no passage scripts/audio.
+roadmaps = Table('learner_roadmaps', metadata,
+    Column('user_id', identifier, ForeignKey('users.id'), primary_key=True),
+    Column('revision', Integer, nullable=False), Column('data', document, nullable=False),
+    CheckConstraint('revision >= 0', name='roadmap_revision_valid'))

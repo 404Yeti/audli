@@ -239,3 +239,11 @@ dd .text-button { display: block; padding-left: 0; }
 .onboarding-reset-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
 .onboarding-reset-dialog input { box-sizing: border-box; width: 100%; min-height: 44px; }
 .onboarding-reset-dialog button { min-height: 44px; }
+
+.adaptive-plan { text-align: left; padding-bottom: 110px; }
+.adaptive-plan h2 { margin-top: 28px; font-size: 20px; }
+.adaptive-plan ol { padding-left: 24px; }
+.adaptive-plan li { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: white; }
+.adaptive-plan li h3 { margin: 0 0 10px; font-size: 18px; }
+.adaptive-plan li p { margin: 8px 0; }
+.adaptive-plan .secondary { margin: 10px 8px 0 0; }

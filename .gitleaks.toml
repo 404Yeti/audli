@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+# These recovery hashes are literal, unsigned fixtures, not credential material.
+# Restrict the exception to both the exact values and the two fixture files.
+[[allowlists]]
+description = "Deterministic password recovery fixture hashes"
+condition = "AND"
+paths = ['''^tests/password-recovery\.test\.mjs$''', '''^web/tests/password-recovery\.spec\.ts$''']
+regexTarget = "secret"
+regexes = ['''^0123456789abcdef(?:0123456789abcdef)?$''']

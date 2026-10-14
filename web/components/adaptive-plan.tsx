@@ -81,7 +81,6 @@ export function AdaptivePlan() {
         <button className="secondary" disabled={busy} onClick={() => void checkin(true)}>Not now</button>
         {busy && <><p>{plan.checkin.prompt}</p><button className="secondary" onClick={() => replay()}>Replay prompt</button><button className="secondary" onClick={() => { stop(); setBusy(false); }}>Stop</button></>}
       </>}
-      {!!plan.completed.length && <><h2>Completed lessons</h2><ol>{plan.completed.map(item => <li key={item.id}>{item.title} · {new Date(item.completed_at).toLocaleDateString()}</li>)}</ol></>}
     </>}
   </section>;
 }

@@ -6,7 +6,8 @@
       "fix/AUD-40-schema-compatibility-bridge": false,
       "ci/AUD-40-github-actions": false,
       "aud-40-planner-release": false,
-      "aud-40-plan-ux-polish": false
+      "aud-40-plan-ux-polish": false,
+      "aud-40-plan-forward": false
     }
   }
 }

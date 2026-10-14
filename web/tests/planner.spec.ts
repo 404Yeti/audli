@@ -12,7 +12,8 @@ test('plan shows roadmap and saves a spoken check-in before refreshing; skip is 
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
     if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: 'Maya', goal: 'Meetings', completed_attempts: 9 }, provider: 'demo' } });
-    if (path === '/api/history') return route.fulfill({ json: [] });
+    if (path === '/api/exercises/exercise-past/transcript') return route.fulfill({ json: { title: 'Work meetings', script: 'The meeting has moved to Tuesday.' } });
+    if (path === '/api/history') return route.fulfill({ json: [{ id: 'history-past', exercise_id: 'exercise-past', created_at: '2026-10-10T12:00:00Z', evaluation: { feedback: 'You understood the meeting changes.' } }] });
     if (path === '/api/exercises/current' || path === '/api/lessons/current') return route.fulfill({ json: null });
     if (path === '/api/plan/checkin/audio') { audioCalls++; return route.fulfill({ contentType: 'audio/wav', body: promptWav() }); }
     if (path === '/api/plan/checkin/attempts') { uploads++; revision++; return route.fulfill({ json: plan() }); }
@@ -39,7 +40,12 @@ test('plan shows roadmap and saves a spoken check-in before refreshing; skip is 
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
   await page.getByRole('button', { name: 'Not now' }).click();
   await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Completed lessons' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Completed lessons' })).toHaveCount(0);
+  await expect(page.getByText('Work meetings', { exact: false })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await expect(page.getByText('You understood the meeting changes.')).toBeVisible();
+  await page.getByRole('button', { name: 'Read transcript' }).click();
+  await expect(page.getByText('The meeting has moved to Tuesday.')).toBeVisible();
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
   expect(audioCalls).toBe(1);

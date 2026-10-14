@@ -14,7 +14,8 @@ Newly generated outlines alternate short updates, practical instructions and
 personal stories, with distinct comprehension tasks inside the existing focus.
 Contexts rotate by lesson number so each rolling refresh advances the context
 actually used at lesson start. Contexts are saved in the outline topic and reach on-demand lesson generation
-through the existing plan_topic path. Difficulty, scores, accent consent and
+through the existing plan_topic path. Explicit topic choices retain a new plan's
+context, while legacy lesson topics and all phase transitions stay unchanged. Difficulty, scores, accent consent and
 provider routing remain unchanged. Repeated reads do not regenerate older blocks;
 new variety appears only after natural completion/preference/feedback regeneration.
 No production plans are bulk refreshed, rewritten or reset.

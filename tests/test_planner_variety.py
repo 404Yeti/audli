@@ -5,6 +5,7 @@ from app.planner import outlines, PlannerFeedback
 from app.storage.planner import persist
 from test_persistence import repository_factory
 from test_planner import ready, complete
+from test_lesson_lifecycle import lesson_client
 
 
 @pytest.mark.parametrize('focus', ['main_idea','details','vocabulary','inference'])
@@ -55,3 +56,32 @@ def test_rolling_refresh_advances_the_context_actually_selected_at_lesson_start(
     # The next selected outline retains the context previously shown in slot two.
     assert blocks[0][1] == blocks[1][0]
     assert blocks[1][1] == blocks[2][0]
+
+
+@pytest.mark.parametrize('planned_topic, expected', [
+    ('travel: a short update', 'science: a short update'),
+    ('travel: practical instructions', 'science: practical instructions'),
+    ('travel: a personal story', 'science: a personal story'),
+    ('travel', 'science'),
+])
+def test_topic_choice_preserves_new_context_and_legacy_lesson_behavior(lesson_client, audio_bytes, planned_topic, expected):
+    from app.models import Transcription
+    from app.onboarding import ProfileExtraction
+    client=lesson_client; repo=client.app.state.repository
+    client.post('/api/lessons/start')
+    lesson=repo.lesson(); lesson.phase='REVIEW'; lesson.plan_topic=planned_topic
+    repo.save_lesson(lesson,lesson.revision)
+    async def transcribe(audio,filename):return Transcription(text='I enjoy science',confidence=.99)
+    async def extract(stage,text):return ProfileExtraction(name=None,target_language=None,goal=None,target_situations=None,interests=['science'])
+    client.provider.transcribe=transcribe;client.provider.extract_profile=extract
+    response=client.post(f'/api/lessons/{lesson.id}/attempts',data={'revision':lesson.revision},files={'audio':('response.wav',audio_bytes,'audio/wav')})
+    assert response.status_code==200
+    response=client.post(f'/api/lessons/{lesson.id}/answer',json={'revision':response.json()['revision']})
+    assert response.status_code==200 and response.json()['phase']=='REVIEW_ACK'
+    lesson=repo.lesson();assert lesson.plan_topic==expected and repo.profile().interests==['science']
+    lesson.phase='EXERCISE';repo.save_lesson(lesson,lesson.revision)
+    received=[];original=client.provider.generate
+    async def generate(profile):received.append(profile.interests);return await original(profile)
+    client.provider.generate=generate
+    response=client.post(f'/api/lessons/{lesson.id}/exercise',json={'revision':lesson.revision})
+    assert response.status_code==200 and received==[[expected]]

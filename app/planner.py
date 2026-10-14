@@ -67,6 +67,13 @@ LISTENING_TASKS = {
     'inference': ('Work out why the speaker shares this update', 'Infer why a step or precaution matters', 'Work out how the speaker feels from what they describe'),
 }
 
+def preferred_topic(preference: str, planned_topic: str | None) -> str:
+    """Retain a new plan's context on topic choice; legacy topics stay unchanged."""
+    context = next((item for item in CONTEXTS
+                    if planned_topic and planned_topic.endswith(': ' + item)), None)
+    selected = f'{preference}: {context}' if context else preference
+    return selected if len(selected) <= 160 else preference
+
 def outlines(profile, count, feedback, context):
     latest = next((item for item in reversed(feedback) if item.status == 'answered'), None)
     interests = latest.interests if latest and latest.interests is not None else profile.interests

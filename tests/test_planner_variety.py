@@ -45,3 +45,13 @@ def test_existing_saved_outlines_are_not_refreshed_by_generator_upgrade(reposito
     updated = repo.roadmap()
     assert len({x.topic for x in updated.upcoming}) == len({x.objective for x in updated.upcoming}) == 3
     assert repo.profile() == profile
+
+
+def test_rolling_refresh_advances_the_context_actually_selected_at_lesson_start():
+    profile = LearnerProfile(interests=['science'])
+    blocks = [outlines(profile, count, [], None) for count in range(3)]
+    assert len({block[0].topic for block in blocks}) == 3
+    assert len({block[0].objective for block in blocks}) == 3
+    # The next selected outline retains the context previously shown in slot two.
+    assert blocks[0][1] == blocks[1][0]
+    assert blocks[1][1] == blocks[2][0]

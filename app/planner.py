@@ -78,9 +78,9 @@ def outlines(profile, count, feedback, context):
     support = ' Take your time as you build confidence at your current pace.' if any(event.decision == 'easier' for event in recent) else ''
     accents = profile.accent_preferences.accents if profile.accent_preferences.status == 'preferred' else []
     return [PlannedLesson(number=count+i+1,
-        title=f'{topics[(count+i)%len(topics)].capitalize()}: {CONTEXTS[i]}',
+        title=f'{topics[(count+i)%len(topics)].capitalize()}: {CONTEXTS[(count+i)%3]}',
         # This saved context reaches on-demand generation via lesson.plan_topic.
-        topic=f'{topics[(count+i)%len(topics)]}: {CONTEXTS[i]}', focus=focus,
-        objective=f'{LISTENING_TASKS[focus][i]} in {CONTEXTS[i]} about {topics[(count+i)%len(topics)]}. This supports your goal: {profile.goal}.' + support,
+        topic=f'{topics[(count+i)%len(topics)]}: {CONTEXTS[(count+i)%3]}', focus=focus,
+        objective=f'{LISTENING_TASKS[focus][(count+i)%3]} in {CONTEXTS[(count+i)%3]} about {topics[(count+i)%len(topics)]}. This supports your goal: {profile.goal}.' + support,
         difficulty=profile.difficulty.model_copy(deep=True), accent_focus=accents[i%len(accents)] if accents else None)
         for i in range(3)]

@@ -1,5 +1,29 @@
 # AUD-28 — lint dependency remediation
 
+## Controlled CI integration and bridge release — 2026-10-14
+
+The owner now authorizes CI integration and bridge-only Render deployment after
+all mandatory gates. Production must remain on schema 003; production backup/
+restore, migration 004, full planner deployment and paid provider calls remain
+outside this task.
+
+Stage 1 passed: CI PR #28 merged as
+`7747127b09468bea8bd68d0db6a8b24889dfa1e3`. All eight main push checks succeeded:
+https://github.com/404Yeti/audli/actions/runs/38526767633.
+The workflow is present on main. Security remediation and strict eight-check
+administrator-enforced protection remain intact. Render's existing auto-deploy
+is live at this CI merge (`dep-db7imcqvcj2c73e51rt0`); health reports the expected
+revision with Supabase auth enabled. Backend source/requirements/Dockerfile have
+no diff from pre-integration production. Read-only production PostgreSQL 17.11
+verification confirms ledger [1,2,3] and no planner table.
+
+Stage 2 candidate updates the bridge from this main commit. The only merge
+conflicts were web/site Vercel configuration; both retain all preview-disable
+entries. Bridge backend source, requirements and Dockerfile must remain identical
+to certified `4e8514a18a5eb54b81a76d5e53f682c759d239c7`. All eight required checks
+must pass again on the exact updated head before protected merge/deployment.
+Deployment and final certification evidence will be recorded after those gates.
+
 ## Candidate and scope
 
 The previous stop remains valid for an upstream upgrade: `braces@3.0.3` is affected

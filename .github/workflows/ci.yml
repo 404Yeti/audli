@@ -1,0 +1,256 @@
+name: Audli CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audli-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENAI_API_KEY: ''
+  ELEVENLABS_API_KEY: ''
+  AUDLI_OPENAI_API_KEY: ''
+  AUDLI_ELEVENLABS_API_KEY: ''
+  AUDLI_DATABASE_URL: ''
+  SUPABASE_ACCESS_TOKEN: ''
+  AUDLI_ENVIRONMENT: development
+  AUDLI_PROVIDER: demo
+  AUDLI_PERSISTENCE: sqlite
+  AUDLI_AUTH_MODE: local
+  AUDLI_CI_OFFLINE: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Isolation, regressions and fault injection
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: |
+          python -m pytest -q ci/test_safety.py
+          python -m pytest -q
+          python -m pytest -q tests/test_api.py tests/test_persistence.py tests/test_onboarding_reset.py -k 'failure or rollback or invalid_evaluator'
+          if [[ -f tests/test_planner_preflight.py ]]; then
+            python -m pytest -q tests/test_planner_preflight.py
+          fi
+
+  postgres:
+    name: PostgreSQL integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: audli_ci
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U audli_ci -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      AUDLI_TEST_POSTGRES_URL: postgresql://audli_ci:disposable-ci-only@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Disposable database regressions and transactions
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: |
+          python -m pytest -q ci/test_safety.py
+          python -m pytest -q
+
+  schema:
+    name: Rollback schema ${{ matrix.schema }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        schema: ['003', '004']
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: audli_ci
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U audli_ci -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      AUDLI_TEST_POSTGRES_URL: postgresql://audli_ci:disposable-ci-only@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Select current compatible bridge or certified rollback
+        id: bridge
+        run: python3 ci/select-bridge.py >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.bridge.outputs.ref }}
+          path: compatibility
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r compatibility/requirements.txt
+      - name: Real schema startup, preservation, lessons, auth and accents
+        working-directory: compatibility
+        env:
+          AUDLI_TEST_POSTGRES_SCHEMA: ${{ matrix.schema == '004' && '4' || '3' }}
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}/compatibility
+        run: >-
+          python -m pytest -q tests/test_aud40_schema_bridge.py tests/test_schema_bridge.py
+          tests/test_lesson_lifecycle.py tests/test_auth.py tests/test_auth_mutation_lock.py
+          tests/test_accent_consent.py tests/test_accent_practice.py
+          tests/test_accent_global_release.py tests/test_onboarding_reset.py
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      # Build generates Next route declarations required by the standalone check.
+      - run: npm run build
+      - run: npm run typecheck
+
+  browser:
+    name: Browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install local acceptance server
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends espeak
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - name: Mocked browser regressions
+        run: npm run test:browser -- --workers=1
+        working-directory: web
+      - name: Native HTTP/audio acceptance with synthetic evidence and local espeak
+        env:
+          AUDLI_INTEGRATED_LESSON: '1'
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: npx playwright test --config=lesson-media.playwright.config.ts
+        working-directory: web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: browser-failure
+          path: |
+            web/test-results
+            web/playwright-report
+          retention-days: 7
+
+  security:
+    name: Security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Validate workflow and scan complete Git history for secrets
+        run: |
+          bash ci/install-tools.sh "$RUNNER_TEMP/ci-tools"
+          "$RUNNER_TEMP/ci-tools/actionlint" .github/workflows/ci.yml
+          "$RUNNER_TEMP/ci-tools/gitleaks" git --redact --no-banner --log-opts=--all
+      - name: Python advisory audit (any known vulnerability fails)
+        run: |
+          python -m pip install -r requirements.txt pip-audit
+          python -m pip_audit --progress-spinner off
+      - name: Web dependency audit (high and critical fail)
+        working-directory: web
+        run: npm audit --audit-level=high
+      - name: Marketing dependency audit (high and critical fail)
+        working-directory: site
+        run: npm audit --audit-level=high
+
+  required:
+    name: CI required
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [backend, postgres, schema, frontend, browser, security]
+    timeout-minutes: 5
+    steps:
+      - name: Every mandatory job must pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = {name: value['result'] for name, value in results.items() if value['result'] != 'success'}
+          if failed:
+              raise SystemExit(f'Mandatory CI jobs did not pass: {failed}')
+          print('All mandatory CI jobs passed.')
+          PY

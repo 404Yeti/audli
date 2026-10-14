@@ -46,6 +46,9 @@ def repository_factory(request, tmp_path):
         settings = Settings(persistence='postgres', database_url=url, learner_id=learner_id, _env_file=None)
         assert migrate(settings) is True
         assert migrate(settings) is False
+        if os.environ.get('AUDLI_TEST_POSTGRES_SCHEMA', '3') == '4':
+            with psycopg.connect(url, autocommit=True) as db:
+                db.execute((Path(__file__).parent / 'fixtures/postgres-004.sql').read_text())
         def create(owner=learner_id):
             repo = PostgresRepository(url, owner)
             opened.append(repo)

@@ -45,7 +45,7 @@ const base = {
 
 export default defineConfig([
   base,
-  ...ts.configs.recommended.map(config => ({ ...config, files: ['**/*.ts', '**/*.tsx'] })),
-  { files: ['**/*.ts', '**/*.tsx'], rules: { '@typescript-eslint/no-unused-vars': 'warn', '@typescript-eslint/no-unused-expressions': 'warn' } },
+  ...ts.configs.recommended,
+  { rules: { '@typescript-eslint/no-unused-vars': 'warn', '@typescript-eslint/no-unused-expressions': 'warn' } },
   globalIgnores(['.next/**', '.next-browser-tests/**', 'next-env.d.ts', 'playwright-report/**', 'test-results/**', 'out/**', 'build/**']),
 ]);

@@ -231,6 +231,7 @@ jobs:
         working-directory: web
         run: npm audit --audit-level=high
       - name: Marketing dependency audit (high and critical fail)
+        if: success() || failure()
         working-directory: site
         run: npm audit --audit-level=high
 

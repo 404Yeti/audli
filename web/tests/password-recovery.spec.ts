@@ -93,6 +93,9 @@ test('verified one-time link updates password once without persisting or replaci
   fixture.release(); await expect(page.getByLabel('New password', { exact: true })).toBeVisible();
   await fillPassword(page); await page.getByRole('button', { name: 'Update password' }).click();
   await expect(page.getByRole('button', { name: 'Updating…' })).toBeDisabled();
+  // Updating renders before the PUT reaches the delayed fixture. Wait for its
+  // resolver, rather than accidentally releasing the preceding verify request.
+  await expect.poll(() => fixture.authRequests.filter(x => x.method === 'PUT').length).toBe(1);
   fixture.release(); await expect(page.getByRole('heading', { name: 'Password updated.' })).toBeVisible();
   expect(fixture.authRequests.filter(x => x.method === 'PUT').map(x => x.body)).toMatchObject([{ password: 'a-new-password' }]);
   expect(fixture.authRequests.find(x => x.method === 'PUT')?.authorization).toBe(`Bearer ${recoveryToken}`);

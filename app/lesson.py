@@ -28,6 +28,9 @@ class AccentConsent(StrictModel):
     exercise_number: int | None = Field(default=None, ge=0)
 
 class Lesson(StrictModel):
+    # Preserve AUD-40 snapshots on rollback; these fields do not select content.
+    plan_topic: str | None = Field(default=None, max_length=160)
+    plan_number: int | None = Field(default=None, ge=1)
     version: Literal[1] = 1
     id: str
     revision: int = Field(default=0, ge=0)

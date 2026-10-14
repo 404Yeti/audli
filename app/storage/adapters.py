@@ -16,6 +16,8 @@ from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
 SCHEMA_VERSION = 3
+# Migration 004 adds only planner storage; this bridge never reads or writes it.
+POSTGRES_COMPATIBLE_VERSIONS = ([1, 2, 3], [1, 2, 3, 4])
 
 
 def initialize_accent_control(db):
@@ -164,8 +166,8 @@ class PostgresRepository(SQLProgressRepository):
             stage = 'database connection'
             with engine.connect() as db:
                 stage = 'schema version validation'
-                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) != list(range(1, SCHEMA_VERSION + 1)):
-                    detail = ('Expected migrations 001, 002 and 003. Apply missing migrations with '
+                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in POSTGRES_COMPATIBLE_VERSIONS:
+                    detail = ('Expected migrations 001, 002 and 003, optionally followed by 004. Apply missing migrations with '
                               'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')
                 stage = 'required table and column validation'

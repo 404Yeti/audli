@@ -21,8 +21,10 @@ are suppressed in both existing Vercel configurations.
   and for later schema-004-only applications, these checks use immutable certified
   rollback `4e8514a18a5eb54b81a76d5e53f682c759d239c7`. The full PostgreSQL integration
   check separately tests the current application's own migration runner/schema.
-- **Frontend**: Node 22, `npm ci`, units, ESLint, webpack production build, then
+- **Frontend**: Node 22, `npm ci`, units, ESLint plus Oxlint and lint-coverage regressions, webpack production build, then
   standalone TypeScript (the build generates Next route declaration files).
+  Marketing also runs lint, lint coverage, build and TypeScript. See
+  `docs/AUD-28-SECURITY-READINESS.md` for the dependency replacement and rule coverage.
 - **Browser**: Chromium installation and a single serial worker; all ordinary
   mocked browser cases, then separate native HTTP/media acceptance using synthetic
   evidence/transcription and local espeak. Both use the existing test servers;

@@ -153,9 +153,18 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run lint
+      - run: npm run test:lint
       # Build generates Next route declarations required by the standalone check.
       - run: npm run build
       - run: npm run typecheck
+      - name: Marketing lint, coverage, build and TypeScript
+        working-directory: site
+        run: |
+          npm ci
+          npm run lint
+          npm run test:lint
+          npm run build
+          npm run typecheck
 
   browser:
     name: Browser

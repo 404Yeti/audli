@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { planStatus, checkinStatus } from '../web/lib/planner.ts';
-const base = {readiness:'ready', block_progress:1, checkin:{status:'not_due',available:false}};
-assert.match(checkinStatus(base), /2 completed lessons/);
-assert.match(planStatus({...base,readiness:'resume_lesson'}), /Resume/);
-assert.match(checkinStatus({...base,checkin:{status:'due',available:false}}), /between lessons/);
-assert.match(checkinStatus({...base,checkin:{status:'answered'}}), /saved/);
-assert.match(checkinStatus({...base,checkin:{status:'skipped'}}), /skipped/);
+import { planStatus, difficultyDescription } from '../web/lib/planner.ts';
+assert.match(planStatus({readiness:'resume_lesson'}), /Resume/);
+const difficulty = {vocabulary_level:'B1',duration_seconds:45,speech_rate:.75,information_density:1};
+const before = structuredClone(difficulty);
+assert.equal(difficultyDescription(difficulty), 'Intermediate · Short listening practice · Slower pace');
+assert.deepEqual(difficulty, before);
+assert.match(difficultyDescription({...difficulty,vocabulary_level:'A1',duration_seconds:90,speech_rate:1}), /Beginner.*longer.*Natural/);
+assert.match(difficultyDescription({...difficulty,vocabulary_level:'C1',duration_seconds:150,speech_rate:1.1}), /Advanced.*Extended.*Brisk/);
 console.log('Planner presentation checks passed.');

@@ -5,7 +5,7 @@ test('plan shows roadmap and saves a spoken check-in before refreshing; skip is 
   await installVoice(page, { autoPlayback: true });
   let status = 'due', revision = 1, uploads = 0, answers = 0, audioCalls = 0;
   const plan = () => ({ revision, completed_lessons: 3, block_progress: 0, focus: 'Catch details for meetings', readiness: 'ready',
-    upcoming: ['Meeting changes', 'Travel arrangements', 'Science news'].map((title, i) => ({ number: i + 4, title: status === 'answered' ? `Travel practice ${i + 1}` : title, topic: 'travel', focus: 'details', objective: 'Catch important details', difficulty: { speech_rate: .9, duration_seconds: 45, vocabulary_level: 'B1', information_density: 1 }, accent_focus: i === 0 ? 'british' : null })),
+    upcoming: ['Meeting changes', 'Travel arrangements', 'Science news'].map((title, i) => ({ number: i + 4, title: status === 'answered' ? `Travel practice ${i + 1}` : title, topic: 'travel', focus: 'details', objective: ['Catch the key names, times and changes in an update.', 'Follow important steps in order.', 'Notice what happened and which details explain it.'][i], difficulty: { speech_rate: .9, duration_seconds: 45, vocabulary_level: 'B1', information_density: 1 }, accent_focus: i === 0 ? 'british' : null })),
     completed: [{ id: 'past', title: 'Work meetings', focus: 'details', completed_at: '2026-10-10T12:00:00Z' }],
     checkin: { status, after_lesson: status === 'due' ? 3 : null, available: status === 'due', prompt: 'How did the difficulty feel? Would you like different topics?', pending: uploads && !answers && status === 'due' ? { text: 'More travel please', confidence: .99, uncertainty: [] } : null } });
   await page.route('**/api/**', async route => {
@@ -24,19 +24,23 @@ test('plan shows roadmap and saves a spoken check-in before refreshing; skip is 
   await page.goto('/');
   await page.getByRole('button', { name: 'Review your next lessons' }).click();
   await expect(page.getByRole('heading', { name: 'Next three lessons' })).toBeVisible();
-  await expect(page.getByText('3 lessons completed', { exact: false })).toBeVisible();
+  await expect(page.getByText(/toward your next check-in|Next optional check-in|Listening check-in|lessons completed/)).toHaveCount(0);
+  await expect(page.getByText('Intermediate · Short listening practice · Slower pace')).toHaveCount(3);
+  await expect(page.getByText(/45-second|90%|B1/)).toHaveCount(0);
   await expect(page.getByText('Optional accent interest:', { exact: false })).toContainText('Audli will ask');
-  await page.getByRole('button', { name: 'Start spoken check-in' }).click();
-  await expect(page.getByText('Check-in saved.', { exact: false })).toBeVisible({ timeout: 15000 });
+  if (process.env.AUDLI_PLAN_SCREENSHOT) await page.screenshot({ path: process.env.AUDLI_PLAN_SCREENSHOT, fullPage: true });
+  await page.getByRole('button', { name: 'Share feedback' }).click();
+  await expect(page.getByRole('heading', { name: 'Travel practice 1' })).toBeVisible({ timeout: 15000 });
   expect(uploads).toBe(1); expect(answers).toBe(1); expect(audioCalls).toBe(1);
   await expect(page.getByRole('heading', { name: 'Travel practice 1' })).toBeVisible();
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Start spoken check-in' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Share feedback' })).toHaveCount(0);
   status = 'due'; uploads = 0; answers = 0; revision++;
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
-  await page.getByRole('button', { name: 'Skip check-in' }).click();
-  await expect(page.getByText('Check-in skipped.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Not now' }).click();
+  await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Completed lessons' })).toBeVisible();
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Skip check-in' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
   expect(audioCalls).toBe(1);
 });

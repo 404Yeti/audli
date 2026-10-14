@@ -5,7 +5,8 @@
       "feat/AUD-34-onboarding-reset": false,
       "fix/AUD-40-schema-compatibility-bridge": false,
       "ci/AUD-40-github-actions": false,
-      "aud-40-planner-release": false
+      "aud-40-planner-release": false,
+      "aud-40-plan-ux-polish": false
     }
   }
 }

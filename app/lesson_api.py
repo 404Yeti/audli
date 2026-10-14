@@ -87,6 +87,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
 
+    from app.planner import preferred_topic
     from app.planner_api import register_planner_routes
     register_planner_routes(app, repo, ai, lock, settings, speech)
 
@@ -270,7 +271,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     lesson.reflection = text
                     interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
                     if interest and lesson.plan_number is not None:
-                        lesson.plan_topic = interest
+                        lesson.plan_topic = preferred_topic(interest, lesson.plan_topic)
                     lesson.review_response = (f'I’ll keep {interest} in mind as we choose our listening topics.'
                                               if interest else 'We can continue with today’s listening.')
                     lesson.phase = 'REVIEW_ACK'
@@ -374,7 +375,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 lesson.reflection = text
                 interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
                 if interest and lesson.plan_number is not None:
-                    lesson.plan_topic = interest
+                    lesson.plan_topic = preferred_topic(interest, lesson.plan_topic)
                 lesson.review_response = (f'I’ll keep {interest} in mind as we choose our listening topics.'
                                           if interest else 'We can continue with today’s listening.')
                 lesson.phase = 'REVIEW_ACK'

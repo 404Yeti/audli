@@ -25,7 +25,7 @@ def ready(repo):
 def test_roadmap_lifecycle_and_restart_preserve_history(repository_factory):
     repo = repository_factory(); ready(repo)
     first = repo.roadmap()
-    assert len(first.upcoming) == 3 and first.upcoming[0].topic == 'science'
+    assert len(first.upcoming) == 3 and first.upcoming[0].topic == 'science: a short update'
     assert repo.roadmap() == first
     lesson = complete(repo)
     assert len(repo.roadmap().completed_ids) == 1
@@ -35,7 +35,7 @@ def test_roadmap_lifecycle_and_restart_preserve_history(repository_factory):
     difficulty = repo.profile().difficulty
     answered = repo.roadmap(revision=plan.revision, feedback={'status':'answered', 'response':'More travel and main ideas please', 'interests':['travel'], 'focus':'main_idea'})
     assert due(answered) is None
-    assert all(item.topic == 'travel' and item.focus == 'main_idea' and item.difficulty == difficulty for item in answered.upcoming)
+    assert all(item.topic.startswith('travel: ') and item.focus == 'main_idea' and item.difficulty == difficulty for item in answered.upcoming)
     with pytest.raises(ValueError): repo.roadmap(revision=plan.revision, feedback={'status':'skipped'})
     profile = repo.profile(); profile.onboarding_status = 'in_progress'; profile.goal = 'New goal'; repo.save_profile(profile)
     restarted = repo.roadmap(); assert len(restarted.completed_ids) == 3 and restarted.feedback == answered.feedback
@@ -102,7 +102,7 @@ def test_natural_answer_updates_plan_only_and_invalid_upload(lesson_client, audi
     result = client.post('/api/plan/checkin/answer', json={'revision':attempt['revision']})
     assert result.status_code == 200, result.text
     assert result.json()['checkin']['status'] == 'answered'
-    assert all(item['topic'] == 'travel' and item['focus'] == 'main_idea' for item in result.json()['upcoming'])
+    assert all(item['topic'].startswith('travel: ') and item['focus'] == 'main_idea' for item in result.json()['upcoming'])
     assert repo.profile() == before
     assert repo.roadmap().pending is None
     assert client.post('/api/plan/checkin/audio', json={'revision':result.json()['revision']}).status_code == 409
@@ -134,7 +134,7 @@ def test_estimates_follow_evidence_and_on_demand_generation_uses_outline(lesson_
     assert repo.current_exercise() is None
     lesson = client.post('/api/lessons/start').json()
     stored = repo.lesson(lesson['id'])
-    assert stored.plan_number == 1 and stored.plan_topic == 'travel' and stored.focus == 'inference'
+    assert stored.plan_number == 1 and stored.plan_topic == 'travel: a short update' and stored.focus == 'inference'
     # Reach generation using a checkpoint, without calling any live provider.
     stored.phase = 'EXERCISE'; repo.save_lesson(stored, stored.revision)
     captured = []
@@ -145,7 +145,7 @@ def test_estimates_follow_evidence_and_on_demand_generation_uses_outline(lesson_
     client.provider.generate = generate
     result = client.post(f'/api/lessons/{stored.id}/exercise', json={'revision':stored.revision})
     assert result.status_code == 200, result.text
-    assert captured[0].interests == ['travel'] and captured[0].focus == 'inference'
+    assert captured[0].interests == ['travel: a short update'] and captured[0].focus == 'inference'
     assert client.get('/api/plan').json()['completed_lessons'] == 0
     assert client.get(f"/api/exercises/{result.json()['exercise']['id']}/transcript").status_code == 403
 

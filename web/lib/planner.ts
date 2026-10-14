@@ -10,11 +10,11 @@ export type Plan = {
 export function planStatus(plan: Plan): string {
   if (plan.readiness === 'onboarding') return 'Complete onboarding to begin.';
   if (plan.readiness === 'resume_lesson') return 'Resume your current lesson first.';
-  return 'Ready to start. Content and audio are prepared when you begin.';
+  return 'Ready when you are.';
 }
-export function checkinStatus(plan: Plan): string {
-  if (plan.checkin.status === 'due') return plan.checkin.available ? 'An optional spoken check-in is ready.' : 'Your optional check-in will be ready between lessons.';
-  if (plan.checkin.status === 'answered') return 'Check-in saved. Your next lessons include your feedback.';
-  if (plan.checkin.status === 'skipped') return 'Check-in skipped. Your plan uses your listening evidence.';
-  return `Next optional check-in in ${3 - plan.block_progress} completed lessons.`;
+export function difficultyDescription(difficulty: Plan['upcoming'][number]['difficulty']): string {
+  const levels: Record<string, string> = { A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate', B2: 'Upper intermediate', C1: 'Advanced', C2: 'Proficient' };
+  const length = difficulty.duration_seconds <= 60 ? 'Short listening practice' : difficulty.duration_seconds <= 120 ? 'A little longer listening practice' : 'Extended listening practice';
+  const pace = difficulty.speech_rate < .95 ? 'Slower pace' : difficulty.speech_rate <= 1.05 ? 'Natural pace' : 'Brisk pace';
+  return `${levels[difficulty.vocabulary_level] ?? 'Practice at your level'} · ${length} · ${pace}`;
 }

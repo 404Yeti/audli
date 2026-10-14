@@ -1,5 +1,6 @@
 """Storage-independent operations shared by the SQLite and Postgres adapters."""
 import json
+import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -80,19 +81,32 @@ class SQLProgressRepository:
         self.engine.dispose()
 
     @contextmanager
-    def transaction(self):
+    def transaction(self, *, planner=False):
         with self.engine.connect() as db:
             # SQLite needs the write lock before reading; Postgres uses row locks.
             if self.engine.dialect.name == 'sqlite':
-                db.exec_driver_sql('BEGIN IMMEDIATE')
+                if planner:
+                    db.exec_driver_sql('PRAGMA busy_timeout=250')
+                try:
+                    db.exec_driver_sql('BEGIN IMMEDIATE')
+                except Exception:
+                    if planner:
+                        db.exec_driver_sql('PRAGMA busy_timeout=20000')
+                    raise
             else:
                 db.begin()
             try:
+                if planner and self.engine.dialect.name == 'postgresql':
+                    db.exec_driver_sql("SET LOCAL lock_timeout='250ms'")
+                    db.exec_driver_sql("SET LOCAL statement_timeout='1000ms'")
                 yield db
                 db.commit()
             except Exception:
                 db.rollback()
                 raise
+            finally:
+                if planner and self.engine.dialect.name == 'sqlite':
+                    db.exec_driver_sql('PRAGMA busy_timeout=20000')
 
     def upsert(self, db, table, values, keys):
         insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
@@ -410,6 +424,22 @@ class SQLProgressRepository:
             self.upsert(db, s.coach_audio, dict(exercise_id=exercise_id, cue_id=cue_id, audio_name=audio_name), ['exercise_id', 'cue_id'])
             if audio is not None:
                 self.save_audio(db, audio_name, audio)
+
+    def optional_roadmap(self):
+        """Recoverable best-effort refresh, outside authoritative lesson transactions."""
+        try:
+            roadmap = self.roadmap()
+            if roadmap is None or len(roadmap.upcoming) != 3:
+                raise ValueError('Planner outlines unavailable')
+            return roadmap
+        except Exception as exc:
+            # No exception messages, SQL parameters, owner IDs or learner text.
+            logging.getLogger('audli').warning('Planner refresh deferred; exception=%s', type(exc).__name__)
+            return None
+
+    def roadmap(self, **kwargs):
+        from app.storage.planner import access
+        return access(self, **kwargs)
 
     def lesson(self, lesson_id=None, completed=False):
         from app.lesson import Lesson

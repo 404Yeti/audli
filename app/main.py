@@ -202,6 +202,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 repo.attach_lesson_exercise(lesson, current['id'])
             return public_exercise(current)
         profile = repo.profile()
+        if lesson and lesson.plan_topic:
+            profile = profile.model_copy(deep=True)
+            profile.interests = [lesson.plan_topic]
+            profile.focus = lesson.focus
         with operation(settings, 'ExerciseGenerator.generate'):
             content = await ai().generate(profile)
         d = profile.difficulty

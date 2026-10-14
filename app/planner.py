@@ -1,0 +1,73 @@
+"""Deterministic outlines; learner feedback guides practice, never scores or difficulty."""
+import re
+from datetime import datetime
+from typing import Literal
+from pydantic import Field
+from app.models import StrictModel, Difficulty, Dimension, Transcription, ListeningProfile, AccentPreferences, Adaptation
+from app.lesson import FOCUS, safe_label
+
+CHECKIN_PROMPT = 'How did the difficulty feel over your last three lessons? Would you like different topics or a different kind of listening practice? You can skip this check-in.'
+
+class PlannedLesson(StrictModel):
+    number: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+    topic: str = Field(min_length=1, max_length=160)
+    focus: Dimension
+    objective: str
+    difficulty: Difficulty
+    accent_focus: str | None = None
+
+class PlannerFeedback(StrictModel):
+    activation_at: datetime | None = None
+    after_lesson: int = Field(ge=3)
+    status: Literal['answered', 'skipped']
+    response: str = Field(default='', max_length=8000)
+    interests: list[str] | None = None
+    focus: Dimension | None = None
+
+class PlanningContext(StrictModel):
+    goal: str
+    interests: list[str]
+    situations: list[str]
+    accents: AccentPreferences
+    comprehension: ListeningProfile
+    difficulty: Difficulty
+    focus: Dimension
+    onboarding_status: Literal['not_started', 'in_progress', 'profile_saved', 'complete']
+    recent_adaptations: list[Adaptation]
+
+class Roadmap(StrictModel):
+    version: Literal[1] = 1
+    revision: int = Field(default=0, ge=0)
+    activation_at: datetime | None = None
+    baseline_ids: list[str] = Field(default_factory=list)
+    completed_ids: list[str] = Field(default_factory=list)
+    upcoming: list[PlannedLesson] = Field(default_factory=list, max_length=3)
+    feedback: list[PlannerFeedback] = Field(default_factory=list)
+    pending: Transcription | None = None
+    context: PlanningContext | None = None
+
+def qualifying_count(roadmap: Roadmap) -> int:
+    return len(set(roadmap.completed_ids) - set(roadmap.baseline_ids))
+
+def requested_focus(text):
+    # Optional preference only. No inference about comprehension from self-report.
+    for dimension, words in [('main_idea', r'main (idea|point)|gist'), ('details', r'details|dates|times'),
+                             ('vocabulary', r'vocabulary|words in context'), ('inference', r'implied|inference')]:
+        if re.search(words, text, re.I):
+            return dimension
+    return None
+
+def outlines(profile, count, feedback, context):
+    latest = next((item for item in reversed(feedback) if item.status == 'answered'), None)
+    interests = latest.interests if latest and latest.interests is not None else profile.interests
+    topics = [label for item in interests + profile.target_situations if (label := safe_label(item))]
+    topics = list(dict.fromkeys(topics)) or ['everyday conversations']
+    focus = latest.focus if latest and latest.focus else profile.focus
+    recent = context.recent_adaptations[:3] if context else []
+    support = ' Consolidate at your current pace after recent difficulty adjustments.' if any(event.decision == 'easier' for event in recent) else ''
+    accents = profile.accent_preferences.accents if profile.accent_preferences.status == 'preferred' else []
+    return [PlannedLesson(number=count+i+1, title=f'{topics[(count+i)%len(topics)].capitalize()}: {FOCUS[focus]}',
+        topic=topics[(count+i)%len(topics)], focus=focus, objective=f'Practice {FOCUS[focus]} to support your goal: {profile.goal}.' + support,
+        difficulty=profile.difficulty.model_copy(deep=True), accent_focus=accents[i%len(accents)] if accents else None)
+        for i in range(3)]

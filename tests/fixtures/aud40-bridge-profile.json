@@ -1,0 +1,54 @@
+{
+  "accent_preferences": {
+    "version": 1,
+    "source": "learner_stated",
+    "response": "",
+    "accents": [
+      "british",
+      "australian"
+    ],
+    "status": "preferred"
+  },
+  "name": "Bridge learner",
+  "target_language": "en",
+  "goal": "Understand everyday English",
+  "interests": [
+    "technology"
+  ],
+  "target_situations": [],
+  "onboarding_status": "complete",
+  "onboarding": {
+    "welcome": null,
+    "name_question_revision": 7,
+    "typed_name": true,
+    "accents_asked": false,
+    "answered_fields": [],
+    "clarification": null,
+    "clarification_count": 0,
+    "clarification_paused": false,
+    "version": 1,
+    "stage": "identity",
+    "revision": 8,
+    "pending": null
+  },
+  "initial_listening_profile": null,
+  "listening_profile": {
+    "overall": 0.7,
+    "main_idea": 0.7,
+    "details": 0.7,
+    "vocabulary": 0.7,
+    "inference": 0.7,
+    "natural_speed": null
+  },
+  "difficulty": {
+    "speech_rate": 0.75,
+    "duration_seconds": 45,
+    "vocabulary_level": "B1",
+    "information_density": 1,
+    "speaker_count": 1,
+    "accent_complexity": 1,
+    "background_noise": 0
+  },
+  "focus": "details",
+  "completed_attempts": 0
+}

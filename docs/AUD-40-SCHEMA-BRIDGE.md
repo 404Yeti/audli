@@ -131,8 +131,12 @@ for schema-004 coverage. Never use a production database for these fixtures.
 
 ## Rollback by stage
 
-- Before 004: failed bridge deployment may roll back to `0a2f515` while the verified
-  ledger is still 001–003. Stop the transition and leave the database untouched.
+- Before 004: use a certified bridge revision for rollback once the bridge has
+  persisted lesson snapshots containing optional plan fields, including nulls.
+  The older strict lesson reader rejects those fields even on schema 003. Returning
+  to `0a2f515` or the CI-only merge requires verifying that no such snapshots were
+  written; schema 003 alone is insufficient. Prefer a certified bridge revision
+  and leave the database untouched.
 - Backup/restore validation failure: stay on the healthy bridge and schema 003;
   do not migrate. Preserve production data and investigate the safety gate.
 - Failed transactional 004: inspect the ledger/table state; the migration is one

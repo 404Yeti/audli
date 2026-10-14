@@ -53,10 +53,14 @@ test('Next rule set is available and dangerous scripts still fail lint', () => {
   const folder = mkdtempSync(join(cwd, '.aud28-lint-'));
   try {
     const file = join(folder, 'unsafe.tsx');
-    writeFileSync(file, 'export default function View(){return <script src="/local.js"/>;}');
+    writeFileSync(file, '"use client"; export default async function View(){return <><a href="/">Home</a><head><title>Title</title></head><script src="/local.js"/></>;}');
     const result = spawnSync(process.execPath, [executable, '--config', join(cwd, '.oxlintrc.json'), '--format', 'json', file], { cwd, encoding: 'utf8' });
     assert.equal(result.status, 1, result.stderr);
-    assert.ok(JSON.parse(result.stdout).diagnostics.some(d => d.code === 'next(no-sync-scripts)' && d.severity === 'error'));
+    const diagnostics = JSON.parse(result.stdout).diagnostics;
+    for (const [rule, severity] of [
+      ['no-sync-scripts', 'error'], ['no-html-link-for-pages', 'error'],
+      ['no-async-client-component', 'warning'], ['no-head-element', 'warning'],
+    ]) assert.ok(diagnostics.some(d => d.code === `next(${rule})` && d.severity === severity), rule);
   } finally { rmSync(folder, { recursive: true, force: true }); }
 });
 

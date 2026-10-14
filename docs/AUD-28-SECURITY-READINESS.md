@@ -67,9 +67,25 @@ Sources: [Next ESLint configuration](https://nextjs.org/docs/app/api-reference/c
 
 Both lockfiles resolve without braces, micromatch, fast-glob, eslint-config-next or
 @next/eslint-plugin-next. Installation reports zero vulnerabilities. Every existing
-production dependency retains its exact locked version. Initial coverage tests
-pass five cases in each project. Full regression and actual Actions certification
-are pending at candidate creation; results will be recorded after completion.
+production dependency retains its exact locked version. Coverage tests pass five cases in each project, including internal Link navigation,
+async client components, head misuse and synchronous scripts. Local backend passes
+878 tests (7 expected skips), isolation 9, fault injection 7, schema 003 selection
+370 (14 skips), and schema 004 selection 369 (15 skips). Both frontend production
+builds and TypeScript checks pass. Full PostgreSQL and browser local runs continue
+at documentation time; actual Actions already ran both complete suites successfully.
+
+Initial remediation candidates passed all eight required checks:
+
+- PR #28, `9772ee65908936e9a7ed7dec636f85a978efcbaa`:
+  https://github.com/404Yeti/audli/actions/runs/38521800916
+- PR #27, `26b071a648f7b340a046048b98d3176d8dbd3e12`:
+  https://github.com/404Yeti/audli/actions/runs/38521984181
+
+Backend, PostgreSQL integration, Rollback schema 003, Rollback schema 004, Frontend,
+Browser, Security and CI required all succeeded. No missing/pending required
+context exists. Both bases are current main `0a2f515ee2d987bd3304af5d768df6f6d5117666`.
+The final coverage-test/documentation follow-up must also finish all eight checks;
+its exact heads and run evidence are recorded in PR/Linear release comments.
 
 No merge, deploy, production migration, production database access, paid provider
 call or billing change is part of this task. Security remains blocking on npm

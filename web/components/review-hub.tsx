@@ -79,7 +79,7 @@ export function ReviewHub() {
     <h1 ref={heading} tabIndex={-1}>{selected ? report?.lesson.title ?? selected.title : patterns ? 'Your listening patterns' : 'Your listening journey'}</h1>
     {!selected && !patterns && <p className="review-subtitle">See what you&apos;re understanding and where you&apos;re growing.</p>}
     {loading && <p role="status">{selected ? 'Loading your lesson report…' : 'Loading your listening review…'}</p>}
-    {error && <div className="review-card review-error" role="alert"><p>{error}</p><button className="secondary" disabled={loading} onClick={() => selected ? void open(selected) : void load(Boolean(cursor.current))}>Retry review</button></div>}
+    {error && <div className="review-card review-error" role="alert"><p>{error}</p><button className="secondary" disabled={loading} onClick={() => selected ? void open(selected) : void load()}>Retry review</button></div>}
     {selected ? report && <>
       <p className="review-subtitle">{report.lesson.completed ? reviewDate(report.lesson.completed_at, timezone) : 'Assessed practice from an unfinished lesson'}{report.lesson.levels.length > 0 && ` · ${report.lesson.levels.join(' / ')} material`}</p>
       {report.lesson.topics.length > 0 && <p>Topic: {report.lesson.topics.join(' · ')}</p>}

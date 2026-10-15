@@ -151,3 +151,17 @@ test('navigating away during Review loading discards the response', async ({ pag
   await page.waitForTimeout(850);
   await expect(page.getByRole('heading', { name: 'Your listening journey' })).toHaveCount(0);
 });
+
+test('an expired history cursor can recover by reloading Review', async ({ page }) => {
+  await setup(page);
+  await expect(page.getByRole('button', { name: /A change to the Monday meeting/ })).toBeVisible();
+  await page.route('**/api/review?*', async route => {
+    if (new URL(route.request().url()).searchParams.has('cursor')) return route.fulfill({ status: 422, json: { detail: 'Review history changed. Reload your review.' } });
+    return route.fallback();
+  });
+  await page.getByRole('button', { name: 'Show older lessons' }).click();
+  await expect(page.locator('.review-hub').getByRole('alert')).toContainText('Reload your review.');
+  await page.getByRole('button', { name: 'Retry review' }).click();
+  await expect(page.locator('.review-hub').getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /A change to the Monday meeting/ })).toBeVisible();
+});

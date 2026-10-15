@@ -40,6 +40,9 @@ class OnboardingProgress(StrictModel):
     welcome: Literal['introduction', 'status'] | None = None
     name_question_revision: int | None = Field(default=0, ge=0)
     typed_name: bool = False
+    goal_question_revision: int | None = Field(default=None, ge=0)
+    typed_goal: bool = False
+    goal_rescued: bool = False
     accents_asked: bool = False
     answered_fields: list[Literal['name', 'target_language', 'goal', 'target_situations', 'interests']] = Field(default_factory=list, max_length=5)
     clarification: Literal['name', 'target_language', 'goal', 'target_situations', 'interests', 'accents'] | None = None

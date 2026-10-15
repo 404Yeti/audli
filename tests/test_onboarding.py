@@ -161,7 +161,7 @@ def test_unsupported_language_does_not_advance(accounts, audio_bytes, language):
     assert a.post('/api/onboarding/answer', json={'revision':state['revision'],'text':'Maya Spanish','confirmed':True}).status_code == 422
     assert a.get('/api/onboarding').json() == state
 
-@pytest.mark.parametrize('stage', ['identity', 'needs', 'interests'])
+@pytest.mark.parametrize('stage', ['identity', 'interests'])
 def test_missing_structured_preferences_request_fresh_answer(accounts, audio_bytes, stage):
     a, _, _ = accounts
     configure(a)
@@ -183,7 +183,7 @@ def test_missing_structured_preferences_request_fresh_answer(accounts, audio_byt
 
 
 @pytest.mark.parametrize('stage,missing', [('identity','name'), ('identity','target_language'),
-    ('needs','goal'), ('needs','target_situations'), ('interests','interests')])
+    ('interests','interests')])
 def test_partial_preferences_merge_only_fresh_answers(accounts, audio_bytes, stage, missing):
     a, b, _ = accounts
     configure(a)

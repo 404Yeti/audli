@@ -15,7 +15,7 @@ from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
 from app.recognition import reliable_recognition
 from app.diagnostics import report_failure, operation, timed_lock
-from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
+from app.services.tutor_tts import TutorSpeech
 
 ACKNOWLEDGMENT = 'Okay, I heard you.'
 ACKNOWLEDGMENTS = {'assessment': ACKNOWLEDGMENT, 'followup': 'Okay, I’ve heard that.',
@@ -74,15 +74,16 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         lesson.exercise_id = None
 
     async def speech(text, key):
-        kind = 'wav' if settings.provider == 'demo' else 'mp3'
+        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice)
+        kind = tutor.kind
         # Cache is scoped to the verified owner and complete spoken message.
-        name = sha256((str(repo.learner_id) + ':' + tutor_cache_signature(settings) + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
+        name = sha256((str(repo.learner_id) + ':' + tutor.signature + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
         data = repo.audio_blob(name)
         if data is None:
             with operation(settings, 'lesson.tts_provider'):
-                generated = await ai().speak(text)
+                generated = await tutor.speak(text)
             with operation(settings, 'lesson.tts_sanitization'):
-                data = await sanitize_tutor_audio(generated, kind, ai())
+                data = await tutor.sanitize(generated)
             with operation(settings, 'lesson.audio_persistence'):
                 repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')

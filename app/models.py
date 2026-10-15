@@ -66,6 +66,7 @@ class AccentPreferenceUpdate(StrictModel):
     accents: list[Accent] = Field(max_length=17)
 
 class LearnerProfile(StrictModel):
+    tutor_voice: Literal['original', 'male'] = 'original'
     accent_preferences: AccentPreferences = Field(default_factory=AccentPreferences)
     name: str = Field(default='Listener', min_length=1, max_length=80)
     target_language: Literal['en'] = 'en'

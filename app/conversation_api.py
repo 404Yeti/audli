@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import Field, model_validator
-from app.services.tutor_tts import tutor_cache_signature, tutor_cue_cache_id, sanitize_tutor_audio
+from app.services.tutor_tts import TutorSpeech, tutor_cue_cache_id
 from app.conversation import validate_evidence, choose_followup, final_evaluation, adapt_final
 from app.feedback import final_feedback
 from app.lesson import public_topic, evidence_gaps, evidence_tip
@@ -16,6 +16,7 @@ from app.diagnostics import operation, timed_lock
 from app.models import StrictModel, Conversation, ConversationTurn, ExerciseContent
 from app.models import Transcription
 from app.recognition import reliable_recognition
+from app.tutor_voice import tutor_settings
 
 SUMMARY_PROMPT = 'Tell me what you understood. Use your own words; grammar does not matter.'
 
@@ -42,19 +43,20 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
     @app.post('/api/recognition/retry-audio')
     async def retry_audio():
         # Protected by the same authenticated request boundary as every /api resource.
-        kind = 'wav' if settings.provider == 'demo' else 'mp3'
+        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice)
+        kind = tutor.kind
         text = "I didn't quite catch that. Could you say it again?"
-        name = sha256((str(repo.learner_id) + ':retry-v1:' + tutor_cache_signature(settings) + ':' + text).encode()).hexdigest() + '.' + kind
+        name = sha256((str(repo.learner_id) + ':retry-v1:' + tutor.signature + ':' + text).encode()).hexdigest() + '.' + kind
         async with timed_lock(settings, retry_lock, 'retry.audio'):
             data = repo.audio_blob(name)
             if data is None:
-                data = await sanitize_tutor_audio(await ai().speak(text), kind, ai())
+                data = await tutor.sanitize(await tutor.speak(text))
                 repo.cache_lesson_audio(name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
 
     def audio_cache_id(cue_id, text):
         # Old evaluator-report audio must never replay as terminal feedback.
-        return tutor_cue_cache_id(settings, cue_id, text)
+        return tutor_cue_cache_id(tutor_settings(settings, repo.profile().tutor_voice), cue_id, text)
 
     def previous_advice(exercise_id):
         lesson = repo.lesson_for_exercise(exercise_id)
@@ -214,15 +216,16 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             exercise_or_404(exercise_id)
             check_checkpoint()
             text = cue(exercise_id, body.cue_id)
-            cache_id = audio_cache_id(body.cue_id, text)
+            tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice)
+            cache_id = tutor_cue_cache_id(tutor.settings, body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
             if not name or not restore_audio(name).exists():
                 with operation(settings, 'SpeechService.coach_audio'):
                     with operation(settings, 'turn.tts_provider'):
-                        data = await ai().speak(text)
-                    kind = 'wav' if settings.provider == 'demo' else 'mp3'
+                        data = await tutor.speak(text)
+                    kind = tutor.kind
                     with operation(settings, 'turn.tts_sanitization'):
-                        data = await sanitize_tutor_audio(data, kind, ai())
+                        data = await tutor.sanitize(data)
                 check_checkpoint()  # End can invalidate the lesson while the provider is running.
                 name = str(uuid4()) + '.' + kind
                 path = audio_dir / name

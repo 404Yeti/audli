@@ -315,3 +315,14 @@ dd .text-button { display: block; padding-left: 0; }
 @media (min-width: 768px) { .welcome-walkthrough { padding-top: 40px; padding-bottom: 40px; } .walkthrough-illustration { width: 280px; height: 280px; } }
 @media (max-height: 700px) { .walkthrough-illustration { width: 170px; height: 170px; margin-bottom: 20px; } .walkthrough-content { padding: 20px 0; } }
 @media (prefers-reduced-motion: reduce) { .walkthrough-slide { animation: none; } .walkthrough-indicators span { transition: none; } }
+
+.tutor-voice-settings { margin: 14px 0 20px; }
+.tutor-voice-settings fieldset { border: 0; margin: 0; padding: 0; }
+.tutor-voice-settings legend { font-weight: 600; margin-bottom: 10px; }
+.tutor-voice-choice { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 16px; padding: 4px 10px; margin: 10px 0; background: white; }
+.tutor-voice-choice:has(input:checked) { border-color: var(--blue); background: var(--soft-blue); }
+.tutor-voice-choice label { display: flex; align-items: center; gap: 10px; flex: 1; min-height: 54px; margin: 0; cursor: pointer; }
+.tutor-voice-choice input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--blue); }
+.tutor-voice-choice span { font-size: 14px; }
+.tutor-voice-choice small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+.tutor-voice-choice .text-button { padding: 8px; flex-shrink: 0; }

@@ -286,3 +286,32 @@ dd .text-button { display: block; padding-left: 0; }
   .review-hub .review-card { padding: 16px; }
   .review-hub .review-summary dl { gap: 16px; }
 }
+
+/* First-run introduction: compose the approved mascot, colors and type. */
+.welcome-walkthrough { max-width: 560px; display: flex; flex-direction: column; padding: 24px 28px max(24px, env(safe-area-inset-bottom)); }
+.welcome-walkthrough header { flex-shrink: 0; height: 44px; margin: 0; }
+.walkthrough-skip { background: transparent; color: var(--muted); padding-inline: 16px; }
+.walkthrough-content { flex: 1; display: flex; align-items: center; padding: 28px 0; touch-action: pan-y; }
+.walkthrough-slide { width: 100%; text-align: center; animation: walkthrough-enter 180ms ease-out; }
+.walkthrough-illustration { width: 244px; height: 244px; margin: 0 auto 32px; border-radius: 50%; display: grid; place-items: center; background: var(--soft-blue); }
+.walkthrough-1 { background: var(--soft-coral); }
+.walkthrough-2 { background: var(--soft-teal); }
+.walkthrough-illustration .audli-mascot { margin: 0; }
+.walkthrough-label { color: #087f73; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; }
+.walkthrough-slide h1 { font-size: clamp(28px, 7.5vw, 36px); line-height: 1.16; letter-spacing: -.035em; max-width: 400px; margin: 0 auto 18px; outline-offset: 6px; }
+.walkthrough-slide h1:focus { outline: none; }
+.walkthrough-description { font-size: 16px; line-height: 1.65; max-width: 360px; margin: 0 auto; }
+.walkthrough-footer { width: 100%; }
+.walkthrough-indicators { display: flex; justify-content: center; gap: 2px; }
+.walkthrough-indicators button { display: grid; place-items: center; width: 44px; padding: 0; background: transparent; }
+.walkthrough-indicators span { display: block; width: 6px; height: 6px; border-radius: 99px; background: #cbd5e1; transition: width 180ms ease, background 180ms ease; }
+.walkthrough-indicators [aria-current] span { width: 22px; background: var(--teal); }
+.walkthrough-actions { display: flex; gap: 12px; margin-top: 16px; }
+.walkthrough-actions button { margin: 0; }
+.walkthrough-actions .secondary { width: auto; min-width: 88px; }
+.walkthrough-note { text-align: center; font-size: 12px; margin: 22px 0 0; }
+.walkthrough-error { color: #993e2d; text-align: center; }
+@keyframes walkthrough-enter { from { opacity: .5; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (min-width: 768px) { .welcome-walkthrough { padding-top: 40px; padding-bottom: 40px; } .walkthrough-illustration { width: 280px; height: 280px; } }
+@media (max-height: 700px) { .walkthrough-illustration { width: 170px; height: 170px; margin-bottom: 20px; } .walkthrough-content { padding: 20px 0; } }
+@media (prefers-reduced-motion: reduce) { .walkthrough-slide { animation: none; } .walkthrough-indicators span { transition: none; } }

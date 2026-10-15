@@ -8,10 +8,11 @@ import { SessionShell } from './product-shell';
 import { useAccount } from './auth-gate';
 import { conversationIntent } from '../lib/conversation-intent';
 import { measureTurn, turnTiming, measuredAudioBody } from '../lib/turn-timing';
+import { WelcomeWalkthrough, type WalkthroughStep } from './welcome-walkthrough';
 import { AudliMascot } from './audli-mascot';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
-type Checkpoint = { goal_entry_available?: boolean; goal_question_revision?: number; name_entry_available?: boolean; name_question_revision?: number | null; profile: Profile; stage: string; welcome?: 'introduction' | 'status' | null; revision: number; prompt: string; destination: string; pending: Recognition | null; clarification_paused?: boolean };
+type Checkpoint = { walkthrough?: 0 | 1 | 2 | null; goal_entry_available?: boolean; goal_question_revision?: number; name_entry_available?: boolean; name_question_revision?: number | null; profile: Profile; stage: string; welcome?: 'introduction' | 'status' | null; revision: number; prompt: string; destination: string; pending: Recognition | null; clarification_paused?: boolean };
 const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 export function SpokenOnboarding({ onComplete }: { onComplete: (operation: LessonOperation) => Promise<void> }) {
@@ -28,6 +29,8 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
   const running = useRef(false);
+  const walkthroughSaving = useRef(false);
+  const [savingWalkthrough, setSavingWalkthrough] = useState(false);
   const minimum = useRef(.65);
   const retained = useRef<{ audio: Blob; revision: number } | null>(null);
   async function restore(operation: LessonOperation) {
@@ -36,7 +39,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     operation.assertCurrent(); minimum.current = settings.recognition_min_confidence ?? .65;
     setCheckpoint(data); setBusy(false);
     if (data.destination === 'session_ready') await onComplete(operation);
-    else if (!data.clarification_paused && !intent.ended() && (data.profile.onboarding_status === 'in_progress' || data.stage === 'review')) void start();
+    else if (data.walkthrough == null && !data.clarification_paused && !intent.ended() && (data.profile.onboarding_status === 'in_progress' || data.stage === 'review')) void start();
   }
   const initialRestore = useEffectEvent(restore);
   useEffect(() => {
@@ -46,6 +49,27 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     void initialRestore(operation).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.release());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  async function navigateWalkthrough(step: WalkthroughStep) {
+    if (!checkpoint || walkthroughSaving.current) return;
+    walkthroughSaving.current = true; setSavingWalkthrough(true); setError('');
+    const operation = voice.begin();
+    try {
+      const data = await operation.api<Checkpoint>('/onboarding/walkthrough', json({ revision: checkpoint.revision, step }));
+      operation.assertCurrent(); setCheckpoint(data);
+      // Continue to the existing spoken-onboarding entry screen. Its explicit
+      // gesture retains the browser's audio permission and microphone behavior.
+      if (data.destination === 'session_ready') await onComplete(operation);
+    } catch (error) {
+      if (operation.current) {
+        setError((error as Error).message);
+        try { const data = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); setCheckpoint(data); }
+        catch { /* Retry the same step when connectivity returns. */ }
+      }
+    } finally {
+      if (operation.current) { walkthroughSaving.current = false; setSavingWalkthrough(false); }
+      operation.release();
+    }
+  }
   async function promptAudio(operation: LessonOperation, data: Checkpoint): Promise<{ data: Checkpoint; played: boolean }> {
     voice.thinking();
     const started = performance.now();
@@ -205,6 +229,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     <button className="primary" type="submit" disabled={savingName || !name.trim()}>{savingName ? 'Saving…' : 'Save and continue'}</button></div>
   </form>;
   function end() { goalSubmission.current = false; setSavingGoal(false); nameSubmission.current = false; setSavingName(false); voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
+  if (checkpoint?.walkthrough != null) return <WelcomeWalkthrough step={checkpoint.walkthrough} busy={savingWalkthrough} error={error} onNavigate={step => void navigateWalkthrough(step)}/>;
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{checkpoint?.prompt}</p>{nameEntry}{goalEntry}{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start(true)}>Retry conversation</button>{retained.current && <button className="secondary" onClick={() => { retained.current = null; void start(true); }}>Record again</button>}</div>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/></>;

@@ -4,6 +4,8 @@
 
 Inspected current main e583a35, not the unrelated work in the shared developer checkout. The beta student's device-specific failure is not reproduced: no device, OS/browser version, permission state or precise symptom was supplied. Automated Chromium media mocks establish application behavior, not real hardware, Safari, Android, Chrome or Edge device certification.
 
+Two new browser regressions were also run against the original main page/lifecycle: both failed (rejected audio never opened a new capture; suspended context never offered interruption recovery). The same cases pass with this fix.
+
 Confirmed application defects:
 
 - A rejected upload (413/415/422: oversized, unsupported, undecodable, short or silent audio) remained in the retained-recording cache. Retry resubmitted the same rejected bytes indefinitely. All three recording flows now invalidate only definitively rejected audio; network/server/transcription failures preserve it.

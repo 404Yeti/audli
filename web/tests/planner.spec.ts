@@ -13,6 +13,8 @@ test('plan shows roadmap and saves a spoken check-in before refreshing; skip is 
     if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
     if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: 'Maya', goal: 'Meetings', completed_attempts: 9 }, provider: 'demo' } });
     if (path === '/api/exercises/exercise-past/transcript') return route.fulfill({ json: { title: 'Work meetings', script: 'The meeting has moved to Tuesday.' } });
+    if (path === '/api/review') return route.fulfill({ json: { summary: { completed_lessons: 1, structured_lessons: 1, earlier_practice: 0, practice_days: 1, undated_lessons: 0, timezone_used: 'UTC', timezone_fallback: false, current_practice_level: 'B1' }, insight: 'Complete a few more lessons to discover your listening patterns.', patterns: [], lessons: [{ id: 'past', kind: 'lesson', title: 'Work meetings', completed: true, completed_at: '2026-10-10T12:00:00Z', levels: ['B1'], topics: [], takeaway: 'You understood the meeting changes.', assessed_passages: 1 }], assessed_practice: [], next_cursor: null } });
+    if (path === '/api/review/lesson/past') return route.fulfill({ json: { lesson: { id: 'past', title: 'Work meetings', completed: true, completed_at: '2026-10-10T12:00:00Z', levels: ['B1'], topics: [] }, passages: [{ exercise_id: 'exercise-past', title: 'Work meetings', units: [], assessment_available: false, next_focus: 'Listen again.', transcript_url: '/api/exercises/exercise-past/transcript', audio_url: null }] } });
     if (path === '/api/history') return route.fulfill({ json: [{ id: 'history-past', exercise_id: 'exercise-past', created_at: '2026-10-10T12:00:00Z', evaluation: { feedback: 'You understood the meeting changes.' } }] });
     if (path === '/api/exercises/current' || path === '/api/lessons/current') return route.fulfill({ json: null });
     if (path === '/api/plan/checkin/audio') { audioCalls++; return route.fulfill({ contentType: 'audio/wav', body: promptWav() }); }
@@ -44,7 +46,8 @@ test('plan shows roadmap and saves a spoken check-in before refreshing; skip is 
   await expect(page.getByText('Work meetings', { exact: false })).toHaveCount(0);
   await page.getByRole('button', { name: 'Review', exact: true }).click();
   await expect(page.getByText('You understood the meeting changes.')).toBeVisible();
-  await page.getByRole('button', { name: 'Read transcript' }).click();
+  await page.getByRole('button', { name: /Work meetings/ }).click();
+  await page.getByRole('button', { name: 'Passage transcript' }).click();
   await expect(page.getByText('The meeting has moved to Tuesday.')).toBeVisible();
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);

@@ -247,3 +247,42 @@ dd .text-button { display: block; padding-left: 0; }
 .adaptive-plan li h3 { margin: 0 0 10px; font-size: 18px; }
 .adaptive-plan li p { margin: 8px 0; }
 .adaptive-plan .secondary { margin: 10px 8px 0 0; }
+
+/* Review owns its responsive surfaces without changing Plan or lesson layout. */
+.review-hub { display: grid; gap: 20px; min-width: 0; }
+.review-hub h1 { font-size: clamp(24px, 4vw, 32px); line-height: 1.2; overflow-wrap: anywhere; }
+.review-hub h2 { font-size: 19px; line-height: 1.3; margin: 0 0 12px; }
+.review-hub h3 { font-size: 16px; line-height: 1.4; margin: 0 0 8px; }
+.review-hub p { margin: 0 0 12px; }
+.review-hub p:last-child { margin-bottom: 0; }
+.review-hub .review-subtitle { margin-top: -8px; }
+.review-hub .review-card { padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: white; min-width: 0; }
+.review-hub .review-summary dl { display: flex; flex-wrap: wrap; gap: 20px 28px; margin: 0; }
+.review-hub dt { margin: 0; color: var(--muted); font-size: 12px; }
+.review-hub dd { margin: 4px 0 0; }
+.review-hub .review-summary dd { font-size: 28px; font-weight: 650; color: var(--navy); }
+.review-hub .review-insight { background: var(--soft-teal); }
+.review-hub .review-insight p, .review-hub .review-takeaway { color: var(--navy); }
+.review-hub .review-strength { color: #087f73; }
+.review-hub .review-caption { color: var(--muted); font-size: 12px; font-weight: 400; }
+.review-hub .review-lessons { padding: 0; margin: 0; list-style: none; display: grid; gap: 12px; }
+.review-hub .review-lesson-link { width: 100%; display: grid; text-align: left; gap: 6px; color: var(--navy); }
+.review-hub .review-lesson-link:hover { border-color: var(--blue); background: var(--soft-blue); }
+.review-hub .review-lesson-title { display: flex; justify-content: space-between; gap: 12px; font-size: 16px; }
+.review-hub button, .review-hub blockquote, .review-hub dd { overflow-wrap: anywhere; }
+.review-hub .review-takeaway { font-size: 13px; font-weight: 400; }
+.review-hub .review-pattern-list { display: grid; gap: 12px; margin: 0; }
+.review-hub .review-pattern-list dt { font-size: 16px; font-weight: 600; color: var(--navy); }
+.review-hub .review-back { justify-self: start; padding-left: 0; }
+.review-hub .review-passage { display: grid; gap: 16px; min-width: 0; }
+.review-hub .review-evidence-group { margin-bottom: 24px; }
+.review-hub .review-evidence-group ul { padding-left: 20px; margin: 0; }
+.review-hub .review-evidence-group li { margin-top: 12px; }
+.review-hub blockquote { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid var(--line); font-size: 13px; }
+.review-hub .review-script { white-space: pre-wrap; color: var(--navy); }
+.review-hub .review-error { background: var(--soft-coral); }
+.review-hub .text-button { max-width: 100%; text-align: left; }
+@media (max-width: 360px) {
+  .review-hub .review-card { padding: 16px; }
+  .review-hub .review-summary dl { gap: 16px; }
+}

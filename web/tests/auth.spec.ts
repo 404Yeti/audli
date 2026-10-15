@@ -468,3 +468,26 @@ test('AUD-38 Settings exposes and saves all approved accent preferences', async 
   expect(writes).toHaveLength(1);
   expect(JSON.parse(writes[0].body!)).toEqual({ accents: ['indian','scottish','canadian','new_zealand','chinese','japanese','filipino','nigerian','southern','new_york','boston'] });
 });
+
+test('late Review report cannot cross an authenticated account change', async ({ page }) => {
+  await installVoice(page); await setupAuth(page); await signIn(page);
+  const lesson = { id: 'alice-private', kind: 'lesson', completed: true, completed_at: '2026-10-14T12:00:00Z', title: 'Alice private lesson', topics: [], levels: [], takeaway: 'Saved evidence.', assessed_passages: 1 };
+  await page.route('**/api/review?*', route => route.fulfill({ json: {
+    summary: { completed_lessons: route.request().headers()['authorization'] === `Bearer ${token}` ? 1 : 0, structured_lessons: 1, earlier_practice: 0, practice_days: 1, undated_lessons: 0, timezone_used: 'UTC', timezone_fallback: false, current_practice_level: null },
+    insight: 'Complete a few more lessons to discover your listening patterns.', patterns: [], lessons: route.request().headers()['authorization'] === `Bearer ${token}` ? [lesson] : [], assessed_practice: [], next_cursor: null,
+  } }));
+  let release: (() => void) | null = null;
+  await page.route('**/api/review/lesson/alice-private', async route => {
+    await new Promise<void>(resolve => { release = resolve; });
+    await route.fulfill({ json: { lesson, passages: [] } }).catch(() => {});
+  });
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await page.getByRole('button', { name: /Alice private lesson/ }).click();
+  await expect(page.getByText('Loading your lesson report…')).toBeVisible();
+  await switchToB(page);
+  await expect.poll(() => release !== null).toBe(true);
+  (release as unknown as () => void)();
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your journey starts here' })).toBeVisible();
+  await expect(page.getByText('Alice private lesson', { exact: true })).toHaveCount(0);
+});

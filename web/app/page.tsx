@@ -1,5 +1,6 @@
 'use client';
 import { AdaptivePlan, PlanningInvitation } from '../components/adaptive-plan';
+import { ReviewHub } from '../components/review-hub';
 import { OnboardingReset } from '../components/onboarding-reset';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { AuthGate, useAccount } from '../components/auth-gate';
@@ -22,7 +23,6 @@ type ProfileResponse = { destination: string; profile: Profile; provider: string
 type Exercise = { id: string; audio_url: string; completed_attempt_id: string | null };
 type Attempt = { id: string; transcription: Recognition; confirmed_text?: string | null };
 type Conversation = { state: ConversationPhase; cue_id: string | null; prompt: string | null; active_followup: { id: string } | null; pending_attempt: Attempt | null; result: unknown; topic?: string | null };
-type History = { id: string; exercise_id: string; created_at: string; evaluation: { feedback: string }; adaptation: { focus?: string } };
 const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const focusCopy: Record<string, string> = { main_idea: 'Follow the speaker’s main point.', details: 'Catch the details that change the meaning.', vocabulary: 'Understand useful words in context.', inference: 'Hear what the speaker means beyond the words.' };
 export default function AudliPage() { return <AuthGate><ApplicationFlow/></AuthGate>; }
@@ -59,7 +59,6 @@ function Product() {
   const account = useAccount();
   const voice = useVoiceLifecycle();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [history, setHistory] = useState<History[]>([]);
   const [destination, setDestination] = useState<Destination>('Home');
   const [active, setActive] = useState(false);
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
@@ -83,10 +82,10 @@ function Product() {
   const storageKey = 'audli-session:' + account.scope;
   const intent = conversationIntent(account.scope, 'lesson');
   async function refresh(operation: LessonOperation) {
-    const [data, exercise, past] = await operation.wait(() => Promise.all([
-      operation.api<ProfileResponse>('/profile'), operation.api<Exercise | null>('/exercises/current'), operation.api<History[]>('/history'),
+    const [data, exercise] = await operation.wait(() => Promise.all([
+      operation.api<ProfileResponse>('/profile'), operation.api<Exercise | null>('/exercises/current'),
     ]));
-    operation.assertCurrent(); setProfile(data.profile); setHistory(past); current.current = exercise; minimum.current = data.recognition_min_confidence ?? .65;
+    operation.assertCurrent(); setProfile(data.profile); current.current = exercise; minimum.current = data.recognition_min_confidence ?? .65;
   }
   async function restore(operation: LessonOperation) {
     await refresh(operation);
@@ -293,10 +292,6 @@ function Product() {
   }
   async function navigate(value: Destination) {
     setDestination(value); setTranscript(null); setError('');
-    if (value !== 'Review') return;
-    const operation = voice.begin();
-    try { const data = await operation.api<History[]>('/history'); operation.assertCurrent(); setHistory(data); }
-    catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); }
   }
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button></div>}
@@ -307,7 +302,7 @@ function Product() {
     {destination === 'Home' && <section className="home-view"><h1>{`Good to see you${profile?.name ? ', ' + profile.name : ''}.`}</h1><AudliMascot/>
       <PlanningInvitation open={() => setDestination('Plan')}/><h2>Today’s listening lesson</h2><p>10 minutes · English · adapted for you</p><button className="primary" disabled={busy || !profile} onClick={() => void start()}>Start today’s session</button><p className="home-support">Your next lesson will build from what Audli heard last time.</p>
     </section>}
-    {destination === 'Review' && <section className="shell-view"><h1>What your ears are learning</h1><p>A simple look at recent listening—not a dashboard.</p>{history.length ? [...history].reverse().slice(0,5).map(item => <article className="review-observation" key={item.id}><h2>{new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(item.created_at))}</h2><p>{item.evaluation.feedback}</p><button className="text-button" onClick={() => void reviewTranscript(item.exercise_id)}>Read transcript</button></article>) : <><AudliMascot/><p>Your listening observations will appear after your first session.</p></>}{transcript && <details className="review-transcript" open><summary>{transcript.title}</summary><p>{transcript.script}</p></details>}</section>}
+    {destination === 'Review' && <ReviewHub key={account.scope}/>}
     {destination === 'Plan' && <AdaptivePlan/>}
     {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dd><OnboardingReset disabled={busy || active}/></dd><dt>Accent difficulties</dt><dd><AccentSettings preferences={profile?.accent_preferences} onSaved={value => setProfile(current => current ? { ...current, accent_preferences: value } : current)}/></dd><dt>Voice & playback</dt><dd>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
     {busy && <p role="status">Loading your listening space…</p>}{error && <div role="alert" className="session-error">{error}<button className="secondary" onClick={retry}>Retry connection</button></div>}

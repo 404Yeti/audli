@@ -712,3 +712,18 @@ test('Google callback network failure offers a bounded retry without learner acc
   await expect(page.getByRole('link',{name:'Back to sign in'})).toBeVisible({timeout:25000});
   expect(fixture.requests).toEqual([]);
 });
+test('Google stalled callback retry starts a fresh document without stale exchange continuation',async({page})=>{
+  test.setTimeout(45000);
+  const fixture=await setupAuth(page);
+  await page.route('**/auth/v1/token**',async route=>{
+    await new Promise(resolve=>setTimeout(resolve,25000));
+    await route.abort().catch(()=>{});
+  });
+  await beginGoogle(page);
+  await expect(page.getByRole('link',{name:'Back to sign in'})).toBeVisible({timeout:25000});
+  await page.evaluate(()=>{(window as unknown as {oldGoogleDocument:boolean}).oldGoogleDocument=true;});
+  await page.getByRole('link',{name:'Back to sign in'}).click();
+  await expect(page.getByRole('button',{name:'Continue with Google'})).toBeVisible();
+  expect(await page.evaluate(()=>(window as unknown as {oldGoogleDocument?:boolean}).oldGoogleDocument)).toBeUndefined();
+  expect(fixture.requests).toEqual([]);
+});

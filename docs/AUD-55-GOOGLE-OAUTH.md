@@ -40,7 +40,7 @@ References: [Google provider setup](https://supabase.com/docs/guides/auth/social
 
 ## Verification evidence
 
-Local: 42 backend auth tests passed; frontend unit suite, lint and TypeScript passed; all 7 Google browser tests passed. Tests include new-user onboarding, returning-user resume, real SDK PKCE plumbing, email regression after Google, account switching, consent denial, invalid/unsolicited callbacks, network failure and responsive layouts. Hosted provider linking is explicitly pending above.
+Local: 42 backend auth tests passed; frontend unit suite, lint and TypeScript passed; all 8 Google browser tests passed. Tests include new-user onboarding, returning-user resume, real SDK PKCE plumbing, email regression after Google, account switching, consent denial, invalid/unsolicited callbacks, network failure, stalled-exchange retry and responsive layouts. Hosted provider linking is explicitly pending above.
 
 Screenshots: [mobile sign-in](aud55/google-signin-390.png), [mobile registration](aud55/google-registration-390.png), [desktop sign-in](aud55/google-signin-1440.png), [desktop registration](aud55/google-registration-1440.png). Synthetic browser fixture; no real learner data.
 

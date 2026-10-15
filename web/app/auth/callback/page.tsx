@@ -40,5 +40,6 @@ export default function GoogleCallback() {
       }
     })();
   }, []);
-  return <main className="auth-screen"><section className="card"><strong className="wordmark">audli</strong><h1>{error ? 'Let’s try that again.' : 'Connecting your account…'}</h1><p role="status">{error || 'Finishing Google sign-in.'}</p>{error && <Link className="primary auth-link" href="/?signin=1" prefetch={false}>Back to sign in</Link>}</section></main>;
+  // A full document retry discards any stalled SDK exchange before starting again.
+  return <main className="auth-screen"><section className="card"><strong className="wordmark">audli</strong><h1>{error ? 'Let’s try that again.' : 'Connecting your account…'}</h1><p role="status">{error || 'Finishing Google sign-in.'}</p>{error && <Link className="primary auth-link" href="/?signin=1" prefetch={false} onClick={event => { event.preventDefault(); window.location.replace('/?signin=1'); }}>Back to sign in</Link>}</section></main>;
 }

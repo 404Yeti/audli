@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { LessonLifetime } from '../lib/api';
+import { LessonLifetime, type LessonOperation } from '../lib/api';
 import { useAccount } from './auth-gate';
 
 type Controls = { restart_available: boolean; reset_description?: string; onboarding_revision?: number };
-export function OnboardingReset({ disabled }: { disabled: boolean }) {
+export function OnboardingReset({ onConfirm, onRestart }: { onConfirm: () => void; onRestart: (operation: LessonOperation) => Promise<void> }) {
   const account = useAccount();
   const lifetime = useRef<LessonLifetime | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -26,8 +26,9 @@ export function OnboardingReset({ disabled }: { disabled: boolean }) {
     setOpen(false); setConfirmation(''); setError(''); trigger.current?.focus();
   }
   async function submit() {
-    if (!lifetime.current?.current || !open || !controls?.restart_available || busy || disabled
+    if (!lifetime.current?.current || !open || !controls?.restart_available || busy
         || !Number.isInteger(controls.onboarding_revision) || confirmation !== 'RESTART ONBOARDING') return;
+    onConfirm();
     const operation = lifetime.current.begin(); setBusy(true); setError('');
     try {
       const result = await operation.api<{ destination: string; revision: number }>('/onboarding/restart', {
@@ -38,13 +39,13 @@ export function OnboardingReset({ disabled }: { disabled: boolean }) {
       if (result.destination !== 'onboarding' || result.revision !== (controls.onboarding_revision as number) + 1)
         throw new Error('Restart could not be confirmed. Reload before trying again.');
       try { sessionStorage.removeItem('audli-session:' + account.scope); } catch { /* Optional local timing. */ }
-      window.location.reload();
+      await onRestart(operation);
     } catch (cause) { if (operation.current) setError((cause as Error).message); }
     finally { if (operation.current) setBusy(false); operation.release(); }
   }
   if (!controls?.restart_available || !Number.isInteger(controls.onboarding_revision) || !controls.reset_description) return null;
   return <section aria-label="Restart onboarding">
-    <button className="secondary" disabled={disabled || busy} onClick={event => {
+    <button className="secondary" disabled={busy} onClick={event => {
       trigger.current = event.currentTarget; setError(''); setOpen(true);
     }}>Restart Onboarding</button>
     {open && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="reset-dialog-title" aria-describedby="reset-dialog-description" className="exit-dialog onboarding-reset-dialog" onKeyDown={event => {
@@ -58,13 +59,12 @@ export function OnboardingReset({ disabled }: { disabled: boolean }) {
       }
     }}>
       <h2 id="reset-dialog-title">Restart onboarding?</h2>
-      <p id="reset-dialog-description">{controls.reset_description}</p>
-      <p>Finish your current lesson first. Your spoken introduction and preferred-name question will begin again.</p>
+      <p id="reset-dialog-description">{"You'll start Audli's setup again. If you're in the middle of a lesson, that lesson will end and any unfinished progress may be lost. Your completed lessons and learning history will stay saved."}</p>
       <form onSubmit={event => { event.preventDefault(); void submit(); }}>
         <label htmlFor="reset-confirmation">Type RESTART ONBOARDING to confirm</label>
         <input autoFocus id="reset-confirmation" autoComplete="off" disabled={busy} value={confirmation} onChange={event => setConfirmation(event.target.value)}/>
         {error && <p role="alert">{error}</p>}
-        <button className="primary" disabled={disabled || busy || confirmation !== 'RESTART ONBOARDING'}>{busy ? 'Please wait…' : 'Confirm restart'}</button>
+        <button className="primary" disabled={busy || confirmation !== 'RESTART ONBOARDING'}>{busy ? 'Please wait…' : 'Restart onboarding'}</button>
         <button type="button" className="secondary" disabled={busy} onClick={close}>Cancel</button>
       </form>
     </section></div>}

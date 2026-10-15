@@ -257,3 +257,22 @@ test('delayed token acquisition cannot send a request after the account generati
   try { await rejected; assert.equal(sent, false); }
   finally { lifetime.close(); setAccessTokenProvider(null); globalThis.fetch = original; }
 });
+
+test('same-account onboarding cancellation rejects late responses and permits fresh requests', async () => {
+  const { LessonLifetime, cancelPendingOperations } = await import('../web/lib/api.ts');
+  const original = globalThis.fetch;
+  let resolve;
+  globalThis.fetch = () => new Promise(done => { resolve = done; });
+  const lifetime = new LessonLifetime();
+  const old = lifetime.begin();
+  try {
+    const pending = old.api('/lessons/old/heard', { method: 'POST' });
+    cancelPendingOperations();
+    assert.equal(old.current, false);
+    resolve(new Response(JSON.stringify({ status: 'completed' })));
+    await assert.rejects(pending, { name: 'AbortError' });
+    const fresh = lifetime.begin();
+    assert.equal(fresh.current, true);
+    fresh.cancel();
+  } finally { lifetime.close(); globalThis.fetch = original; }
+});

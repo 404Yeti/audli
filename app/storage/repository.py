@@ -199,11 +199,13 @@ class SQLProgressRepository:
             raise ValueError('Attempt not found for this learner')
         return row
 
-    def save_exercise(self, exercise_id, content, difficulty, audio_name, audio=None, lesson=None):
+    def save_exercise(self, exercise_id, content, difficulty, audio_name, audio=None, lesson=None, onboarding_revision=None):
         session_id = str(uuid4())
         with self.transaction() as db:
             self.check_audio_owner(db, audio_name)
             profile = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id).with_for_update()).mappings().one()
+            if onboarding_revision is not None and profile['data']['onboarding']['revision'] != onboarding_revision:
+                raise ValueError('Onboarding changed; discard generated exercise')
             open_lesson = db.execute(select(s.lessons).where(and_(s.lessons.c.user_id == self.learner_id,
                 s.lessons.c.status != 'completed')).with_for_update()).mappings().first()
             if open_lesson:

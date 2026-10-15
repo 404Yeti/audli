@@ -11,7 +11,7 @@ import { AudliLoadingScreen } from '../components/audli-loading-screen';
 import { startup } from '../lib/startup';
 import { AudliMascot } from '../components/audli-mascot';
 import { BottomNavigation, SessionShell, type Destination } from '../components/product-shell';
-import { ApiError, LessonLifetime, type LessonOperation } from '../lib/api';
+import { ApiError, cancelPendingOperations, LessonLifetime, type LessonOperation } from '../lib/api';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
 import { recordingUpload, sendRecording, InterruptedRecording } from '../lib/recording';
@@ -31,12 +31,25 @@ const focusCopy: Record<string, string> = { main_idea: 'Follow the speaker’s m
 export default function AudliPage() { return <AuthGate><ApplicationFlow/></AuthGate>; }
 
 function ApplicationFlow() {
+  const account = useAccount();
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const motionKey = 'audli-reduced-motion:' + account.scope.split(':')[0];
+  useEffect(() => {
+    if (reducedMotion) document.documentElement.dataset.reducedMotion = 'true';
+    else delete document.documentElement.dataset.reducedMotion;
+    return () => { delete document.documentElement.dataset.reducedMotion; };
+  }, [reducedMotion]);
+  function updateMotion(value: boolean) {
+    setReducedMotion(value);
+    try { localStorage.setItem(motionKey, String(value)); } catch { /* Optional browser preference. */ }
+  }
   const [destination, setDestination] = useState<string | null>(null);
   const [error, setError] = useState('');
   const owner = useRef<LessonLifetime | null>(null);
   async function load(operation: LessonOperation) {
     const data = await operation.api<ProfileResponse>('/profile'); operation.assertCurrent();
     if (!['onboarding','session_ready'].includes(data.destination)) throw new Error('Your listening space could not be restored.');
+    try { setReducedMotion(localStorage.getItem(motionKey) === 'true'); } catch { /* Optional browser preference. */ }
     setDestination(data.destination); setError('');
   }
   const restore = useEffectEvent(load);
@@ -54,10 +67,10 @@ function ApplicationFlow() {
   }
   if (!destination) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => void retry()}/>;
   if (destination === 'onboarding') return <SpokenOnboarding onComplete={load}/>;
-  return <Product/>;
+  return <Product onRestart={load} reducedMotion={reducedMotion} setReducedMotion={updateMotion}/>;
 }
 
-function Product() {
+function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (operation: LessonOperation) => Promise<void>; reducedMotion: boolean; setReducedMotion: (value: boolean) => void }) {
   const account = useAccount();
   const voice = useVoiceLifecycle();
   const [initialized, setInitialized] = useState(false);
@@ -74,7 +87,6 @@ function Product() {
   const [topic, setTopic] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<{ title: string; script: string } | null>(null);
   const [eligibleExercise, setEligibleExercise] = useState<string | null>(null);
-  const [reducedMotion, setReducedMotion] = useState(false);
   const current = useRef<Exercise | null>(null);
   const lesson = useRef<LessonCheckpoint | null>(null);
   const ending = useRef<Promise<void> | null>(null);
@@ -110,11 +122,6 @@ function Product() {
     void startup(() => initialRestore(operation)).then(() => { operation.assertCurrent(); setInitialized(true); }).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.cancel());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => {
-    if (reducedMotion) document.documentElement.dataset.reducedMotion = 'true';
-    else delete document.documentElement.dataset.reducedMotion;
-    return () => { delete document.documentElement.dataset.reducedMotion; };
-  }, [reducedMotion]);
   async function playCue(operation: LessonOperation, exercise: Exercise, state: Conversation) {
     voice.thinking();
     setPrompt(state.prompt ?? '');
@@ -290,6 +297,14 @@ function Product() {
         .finally(() => { operation.release(); ending.current = null; });
     }
   }
+  function cancelForOnboarding() {
+    cancelPendingOperations();
+    document.querySelectorAll('audio').forEach(player => player.pause());
+    voice.stop(); running.current = false; retained.current = null; personalCapture.current = null;
+    intent.end(); lesson.current = null; current.current = null; ending.current = null;
+    setActive(false); setBusy(false); setCompletion(null); setTranscript(null); setEligibleExercise(null);
+    setTopic(null); setPrompt(''); setError('');
+  }
   async function reviewTranscript(exerciseId: string) {
     const operation = voice.begin(); setError('');
     try { const data = await operation.api<{ title: string; script: string }>(`/exercises/${exerciseId}/transcript`); operation.assertCurrent(); setTranscript(data); }
@@ -321,7 +336,7 @@ function Product() {
     </section>}
     {destination === 'Review' && <ReviewHub key={account.scope}/>}
     {destination === 'Plan' && <AdaptivePlan/>}
-    {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dd><OnboardingReset disabled={busy || active}/></dd><dt>Voice & playback</dt><dd><TutorVoiceSettings/>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accent difficulties</dt><dd><AccentSettings preferences={profile?.accent_preferences} onSaved={value => setProfile(current => current ? { ...current, accent_preferences: value } : current)}/></dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
+    {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dd><OnboardingReset onConfirm={cancelForOnboarding} onRestart={onRestart}/></dd><dt>Voice & playback</dt><dd><TutorVoiceSettings/>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accent difficulties</dt><dd><AccentSettings preferences={profile?.accent_preferences} onSaved={value => setProfile(current => current ? { ...current, accent_preferences: value } : current)}/></dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
     {busy && <p role="status">Loading your listening space…</p>}{error && <div role="alert" className="session-error">{error}<button className="secondary" onClick={retry}>Retry connection</button></div>}
     <BottomNavigation destination={destination} onNavigate={value => void navigate(value)}/><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/>
   </main>;

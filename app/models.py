@@ -37,6 +37,7 @@ class Transcription(StrictModel):
     source: Literal['openai', 'demo_manual', 'learner_confirmed'] = 'openai'
 
 class OnboardingProgress(StrictModel):
+    walkthrough: Literal[0, 1, 2, 'complete', 'skipped'] = 0
     welcome: Literal['introduction', 'status'] | None = None
     name_question_revision: int | None = Field(default=0, ge=0)
     typed_name: bool = False

@@ -92,20 +92,22 @@ for(const delayed of ['preflight','recording','generation'] as const){
   });
 }
 
-async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>[1]={},legacy=false,withWelcome=false){
+async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>[1]={},legacy=false,withWelcome=false,withWalkthrough=false){
   await installVoice(page,options);const fixture=await setupAuth(page);
   const profile={name:'Listener',goal:'Everyday English',target_language:'en',interests:[] as string[],target_situations:[] as string[],onboarding_status:legacy?'profile_saved':'not_started',completed_attempts:0};
+  let walkthrough:0|1|2|null=withWalkthrough?0:null;
   let welcome:'introduction'|'status'|null=null;let accentResponse='Scottish and Australian';
   const accentPreferences={response:'',accents:[] as string[],status:'unspecified'};
   let stage='identity',revision=0,pending:{text:string;confidence:number;uncertainty:string[]}|null=null;
   let failVoice=false,failUpload=false,failComplete=false,uncertain=false,delayAudio=false,releaseAudio:(()=>void)|undefined;
   const revisions:number[]=[];
   let incomplete=0,clarification=false,clarificationCount=0,paused=false,uncertainGoals=false;
-  const snapshot=()=>({goal_entry_available:profile.onboarding_status==='in_progress'&&stage==='needs',goal_question_revision:2,name_entry_available:profile.onboarding_status==='in_progress'&&stage==='identity'&&!welcome&&!clarification,name_question_revision:0,profile:{...profile,accent_preferences:{...accentPreferences}},stage,welcome,revision,pending,clarification_paused:paused,prompt:welcome==='introduction'?"Hey! I’m Audli, your listening buddy. We’ll practice listening together.":welcome==='status'?"My status bubbles say ‘Audli is speaking’, ‘Listening to you’, or ‘Thinking’. You don’t need to watch them.":stage==='accents'?'Are there any English accents you find tricky? You can say skip.':clarification?'What language do you want to train? Audli currently trains English listening.':stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
+  const snapshot=()=>({walkthrough,goal_entry_available:profile.onboarding_status==='in_progress'&&stage==='needs',goal_question_revision:2,name_entry_available:profile.onboarding_status==='in_progress'&&stage==='identity'&&!welcome&&!clarification,name_question_revision:0,profile:{...profile,accent_preferences:{...accentPreferences}},stage,welcome,revision,pending,clarification_paused:paused,prompt:welcome==='introduction'?"Hey! I’m Audli, your listening buddy. We’ll practice listening together.":welcome==='status'?"My status bubbles say ‘Audli is speaking’, ‘Listening to you’, or ‘Thinking’. You don’t need to watch them.":stage==='accents'?'Are there any English accents you find tricky? You can say skip.':clarification?'What language do you want to train? Audli currently trains English listening.':stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
   await page.route('**/api/profile',route=>route.fulfill({json:route.request().headers()['authorization']===`Bearer ${tokenB}`?{destination:'session_ready',profile:{...profile,name:'Bob'},provider:'openai'}:{destination:snapshot().destination,profile,provider:'openai'}}));
   await page.route('**/api/onboarding**',async route=>{
     const path=new URL(route.request().url()).pathname;fixture.requests.push({path,authorization:route.request().headers()['authorization'],method:route.request().method(),body:route.request().postData()});
     if(path.endsWith('/audio')){const requested=route.request().postDataJSON().revision;revisions.push(requested);if(delayAudio){delayAudio=false;await new Promise<void>(resolve=>{releaseAudio=resolve;});}if(requested!==revision)return route.fulfill({status:409,json:{detail:'Onboarding changed'}});if(failVoice)return route.fulfill({status:503,json:{detail:'Voice unavailable'}});return route.fulfill({contentType:'audio/wav',body:promptWav()});}
+    if(path.endsWith('/walkthrough')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Onboarding changed'}});walkthrough=typeof body.step==='number'?body.step:null;revision++;}
     if(path.endsWith('/goal')){const body=route.request().postDataJSON();profile.goal=body.skip?'Understand everyday English':body.text;profile.target_situations=['everyday conversations'];stage='interests';pending=null;revision++;}
     if(path.endsWith('/name')){profile.name=route.request().postDataJSON().name.normalize('NFC').trim().replace(/\s+/g,' ');clarification=true;pending=null;revision++;}
     if(path.endsWith('/start')&&profile.onboarding_status!=='in_progress'){profile.onboarding_status='in_progress';if(withWelcome&&!legacy)welcome='introduction';revision++;}
@@ -116,7 +118,7 @@ async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>
     if(path.endsWith('/complete')){if(profile.onboarding_status!=='complete'){profile.onboarding_status='complete';revision++;}if(failComplete){failComplete=false;return route.fulfill({status:503,json:{detail:'Response interrupted. Progress is safe.'}});}}
     return route.fulfill({json:snapshot()});
   });
-  await signIn(page);await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+  await signIn(page);if(withWalkthrough)await expect(page.getByRole('heading',{name:'Train your ears for real English.'})).toBeVisible();else await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
   return {...fixture,revisions,snapshot,finishWelcomeElsewhere(){welcome=welcome==='introduction'?'status':null;revision++;},accentAnswer(text:string){accentResponse=text;},incompleteAnswers(count=1){incomplete=count;},failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainGoals(){uncertainGoals=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
 }
 async function onboardingTurn(page:Page){await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);}
@@ -572,4 +574,48 @@ test('uncertain goal recognition has a bounded retry budget and safely continues
   expect(fixture.requests.filter(x=>x.path.endsWith('/goal'))).toHaveLength(1);
   // Only identity and interests were extracted. Unreliable goals supplied no evidence.
   expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(2);
+});
+
+for (const width of [320,390,1440]) {
+  test(`walkthrough navigation refresh completion and screenshots ${width}px`,async({page})=>{
+    await page.setViewportSize({width,height:900});
+    const fixture=await setupOnboarding(page,{},false,true,true);
+    await page.screenshot({path:`../docs/screenshots/AUD-45-listen-${width}.png`,fullPage:true,animations:'disabled',style:'nextjs-portal { display: none; }'});
+    await page.getByRole('button',{name:'Next',exact:true}).focus();await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading',{name:'Tell Audli what you understood.'})).toBeFocused();
+    await page.screenshot({path:`../docs/screenshots/AUD-45-respond-${width}.png`,fullPage:true,animations:'disabled',style:'nextjs-portal { display: none; }'});
+    await page.reload();await expect(page.getByRole('heading',{name:'Tell Audli what you understood.'})).toBeVisible();
+    await page.getByRole('button',{name:'Back',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Train your ears for real English.'})).toBeVisible();
+    await page.getByRole('button',{name:'Next',exact:true}).click();await page.getByRole('button',{name:'Next',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Get better with every lesson.'})).toBeVisible();
+    await page.screenshot({path:`../docs/screenshots/AUD-45-improve-${width}.png`,fullPage:true,animations:'disabled',style:'nextjs-portal { display: none; }'});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.getByRole('button',{name:"Let's get started",exact:true}).click();
+    await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+    await page.reload();await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+    expect((await probe(page)).mediaCalls).toBe(0);
+    expect(fixture.requests.some(x=>/audio|attempts|answer|start$/.test(x.path))).toBe(false);
+    await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await speaking(page);
+    expect(fixture.snapshot().welcome).toBe('introduction');
+  });
+}
+
+test('walkthrough swipe reduced motion skip and account isolation across login',async({page})=>{
+  const fixture=await setupOnboarding(page,{},false,true,true);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  expect(await page.locator('.walkthrough-slide').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  const carousel=page.locator('.walkthrough-content');
+  await carousel.dispatchEvent('touchstart',{touches:[{identifier:1,clientX:280,clientY:300}]});
+  await carousel.dispatchEvent('touchend',{changedTouches:[{identifier:1,clientX:80,clientY:310}]});
+  await expect(page.getByRole('heading',{name:'Tell Audli what you understood.'})).toBeVisible();
+  await carousel.dispatchEvent('touchstart',{touches:[{identifier:1,clientX:80,clientY:300}]});
+  await carousel.dispatchEvent('touchend',{changedTouches:[{identifier:1,clientX:280,clientY:310}]});
+  await expect(page.getByRole('heading',{name:'Train your ears for real English.'})).toBeVisible();
+  await page.getByRole('button',{name:'Skip',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+  await externalLogout(page);await signIn(page);
+  await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+  await switchToB(page);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.path.endsWith('/walkthrough'))).toEqual([]);
+  expect((await probe(page)).mediaCalls).toBe(0);
 });

@@ -69,6 +69,17 @@ def name_entry_available(profile):
             and 'name' not in profile.onboarding.answered_fields)
 
 
+class WalkthroughUpdate(Revision):
+    step: Literal[0, 1, 2, 'complete', 'skipped']
+
+    @field_validator('step', mode='before')
+    @classmethod
+    def valid_step(cls, value):
+        if isinstance(value, bool) or isinstance(value, float):
+            raise ValueError('Choose a walkthrough step or completion action.')
+        return value
+
+
 class Answer(Revision):
     text: str = Field(min_length=1, max_length=8000)
     confirmed: Literal[True]

@@ -7,7 +7,8 @@
       "ci/AUD-40-github-actions": false,
       "aud-40-planner-release": false,
       "aud-40-plan-ux-polish": false,
-      "aud-40-plan-forward": false
+      "aud-40-plan-forward": false,
+      "feat/AUD-45-welcome": false
     }
   }
 }

@@ -7,14 +7,21 @@ from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
-from app.onboarding import Revision, Answer, TypedName, GoalAnswer, apply_goal, name_entry_available, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
+from app.onboarding import Revision, WalkthroughUpdate, Answer, TypedName, GoalAnswer, apply_goal, name_entry_available, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
 
 
 def register_onboarding_routes(app, repo, ai, lock, settings):
+    def walkthrough_available(profile):
+        return (profile.onboarding_status == 'not_started' and profile.onboarding.stage == 'identity'
+                and not profile.onboarding.welcome and not profile.onboarding.pending
+                and profile.completed_attempts == 0 and not profile.onboarding.answered_fields
+                and type(profile.onboarding.walkthrough) is int)
+
     def public(profile):
         return {'profile': profile, 'stage': profile.onboarding.stage,
                 'revision': profile.onboarding.revision,
                 'welcome': profile.onboarding.welcome,
+                'walkthrough': profile.onboarding.walkthrough if walkthrough_available(profile) else None,
                 'name_entry_available': name_entry_available(profile),
                 'goal_entry_available': profile.onboarding_status == 'in_progress' and profile.onboarding.stage == 'needs',
                 'goal_question_revision': profile.onboarding.goal_question_revision if profile.onboarding.goal_question_revision is not None else 0,
@@ -55,6 +62,16 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
     async def state():
         return public(repo.profile())
 
+    @app.post('/api/onboarding/walkthrough')
+    async def walkthrough(body: WalkthroughUpdate):
+        async with lock:
+            profile = repo.profile()
+            if not walkthrough_available(profile):
+                return public(profile)
+            profile = check(body.revision)
+            profile.onboarding.walkthrough = body.step
+            return save(profile, body.revision)
+
     @app.post('/api/onboarding/start')
     async def start(body: Revision):
         async with lock:
@@ -64,7 +81,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                     and profile.onboarding.revision == 0):
                 return public(profile)
             profile = check(body.revision)
-            if profile.onboarding_status == 'not_started' and profile.onboarding.revision == 0:
+            if profile.onboarding_status == 'not_started' and not profile.onboarding.welcome:
                 profile.onboarding.welcome = 'introduction'
             has_saved_name = profile.name != 'Listener' or profile.onboarding_status == 'profile_saved'
             profile.onboarding_status = 'in_progress'

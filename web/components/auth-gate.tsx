@@ -6,7 +6,8 @@ import { STARTUP_TIMEOUT_MS } from '../lib/startup';
 import Link from 'next/link';
 import { AudliMascot } from './audli-mascot';
 import { isAuthRetryableFetchError, type SupabaseClient, type Session } from '@supabase/supabase-js';
-import { authClient, authStorageKey, sessionIdentity } from '../lib/auth';
+import { authClient, authStorageKey, googleAuthClient, sessionIdentity } from '../lib/auth';
+import { googlePendingKey, googleRedirect, googleStorageKey } from '../lib/google-oauth';
 import { api, currentAuthRevision, setAccessTokenProvider } from '../lib/api';
 
 const AccountContext = createContext<{ scope: string; email?: string; signOut?: () => Promise<void> }>({ scope: 'local' });
@@ -69,6 +70,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     void api<{ mode: string }>('/auth/config').then(config => {
       if (!active) return;
       if (query.get('signin') === '1') setLanding(false);
+      if (query.get('oauth') === 'failed') { setLanding(false); setMessage('Google sign-in could not be completed. Please try again or use email.'); }
       if (config.mode === 'local') {
         const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
         if (process.env.NODE_ENV === 'production' && !loopback) throw new Error('The server must enable authenticated access for this deployment.');
@@ -115,6 +117,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setAccessTokenProvider(null);
     };
   }, []);
+
+  async function authenticateGoogle() {
+    setBusy(true); setMessage('');
+    try {
+      const redirectTo = googleRedirect(window.location.origin);
+      sessionStorage.setItem(googlePendingKey, String(Date.now()));
+      const { error } = await googleAuthClient().auth.signInWithOAuth({
+        provider: 'google', options: { redirectTo, scopes: 'openid email profile' },
+      });
+      if (error) throw error;
+    } catch {
+      try { sessionStorage.removeItem(googlePendingKey); sessionStorage.removeItem(googleStorageKey + '-code-verifier'); } catch { /* Storage unavailable. */ }
+      setMessage('Google sign-in could not connect. Please try again or use email.');
+    } finally { setBusy(false); }
+  }
 
   async function authenticate() {
     if (!client) return;
@@ -166,6 +183,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     <>
       <AudliMascot small/><h1>{signup ? 'Train your ears with Audli.' : 'Welcome back.'}</h1><p>{signup ? 'Create your account and start listening.' : 'Sign in and pick up where your ears left off.'}</p>
       {message && <p role="status">{message}</p>}
+      <button type="button" className="secondary google-signin" disabled={busy} onClick={() => void authenticateGoogle()}><svg aria-hidden="true" width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M43.61 24.46c0-1.36-.12-2.66-.35-3.92H24v7.42h11a9.4 9.4 0 0 1-4.08 6.17v5.13h6.61c3.87-3.56 6.08-8.8 6.08-14.8Z"/><path fill="#34A853" d="M24 44c5.51 0 10.13-1.83 13.51-4.94l-6.61-5.13c-1.83 1.23-4.18 1.97-6.9 1.97-5.32 0-9.83-3.59-11.44-8.42H5.74v5.29A20 20 0 0 0 24 44Z"/><path fill="#FBBC05" d="M12.56 27.48A12 12 0 0 1 11.93 24c0-1.21.21-2.38.63-3.48v-5.29H5.74A20 20 0 0 0 4 24c0 3.22.77 6.27 2.14 8.97l6.42-5.49Z"/><path fill="#EA4335" d="M24 12.1c3.01 0 5.69 1.04 7.83 3.08l5.87-5.87A19.7 19.7 0 0 0 24 4 20 20 0 0 0 5.74 15.23l6.82 5.29C14.17 15.69 18.68 12.1 24 12.1Z"/></svg> Continue with Google</button>
+      <p className="auth-divider">or continue with email</p>
       <form onSubmit={event => { event.preventDefault(); void authenticate(); }}>
         <label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} />
         <label htmlFor="password">Password</label><input id="password" type="password" autoComplete={signup ? 'new-password' : 'current-password'} required minLength={signup ? 8 : undefined} value={password} onChange={event => setPassword(event.target.value)} />

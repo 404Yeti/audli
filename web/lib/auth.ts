@@ -64,3 +64,16 @@ export function authClient(): SupabaseClient {
   } });
   return client;
 }
+
+let google: SupabaseClient | null = null;
+export function googleAuthClient(): SupabaseClient {
+  if (google) return google;
+  const { url, key } = authConfiguration();
+  // Temporary same-tab PKCE credentials never enter the learner channel.
+  // Preserve the existing implicit email confirmation/recovery behavior.
+  google = createClient(url, key, { auth: {
+    storageKey: 'audli-google-oauth', storage: window.sessionStorage,
+    flowType: 'pkce', detectSessionInUrl: false, autoRefreshToken: false,
+  } });
+  return google;
+}

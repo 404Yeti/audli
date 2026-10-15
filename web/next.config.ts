@@ -5,7 +5,7 @@ const config: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   experimental: { proxyTimeout: 300000, useTypeScriptCli: false },
   async headers() {
-    return ['/auth/recovery', '/forgot-password'].map(source => ({ source, headers: [
+    return ['/auth/recovery', '/forgot-password', '/auth/callback'].map(source => ({ source, headers: [
       { key: 'Referrer-Policy', value: 'no-referrer' },
       { key: 'Cache-Control', value: 'no-store' },
       { key: 'X-Robots-Tag', value: 'noindex, nofollow' },

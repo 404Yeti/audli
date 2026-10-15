@@ -340,3 +340,6 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .startup-recovery p { margin: 0; }
 .startup-recovery button { min-height: 54px; }
 @media (prefers-reduced-motion: reduce) { .startup-presence .mascot-body { animation: none; } }
+
+.google-signin { width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; }
+.auth-divider { text-align: center; font-size: 14px; }

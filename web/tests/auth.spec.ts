@@ -98,7 +98,7 @@ for(const delayed of ['preflight','recording','generation'] as const){
   });
 }
 
-async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>[1]={},legacy=false,withWelcome=false,withWalkthrough=false){
+async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>[1]={},legacy=false,withWelcome=false,withWalkthrough=false,google=false){
   await installVoice(page,options);const fixture=await setupAuth(page);
   const profile={name:'Listener',goal:'Everyday English',target_language:'en',interests:[] as string[],target_situations:[] as string[],onboarding_status:legacy?'profile_saved':'not_started',completed_attempts:0};
   let walkthrough:0|1|2|null=withWalkthrough?0:null;
@@ -124,7 +124,7 @@ async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>
     if(path.endsWith('/complete')){if(profile.onboarding_status!=='complete'){profile.onboarding_status='complete';revision++;}if(failComplete){failComplete=false;return route.fulfill({status:503,json:{detail:'Response interrupted. Progress is safe.'}});}}
     return route.fulfill({json:snapshot()});
   });
-  await signIn(page);if(withWalkthrough)await expect(page.getByRole('heading',{name:'Train your ears for real English.'})).toBeVisible();else await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
+  if(google)await beginGoogle(page);else await signIn(page);if(withWalkthrough)await expect(page.getByRole('heading',{name:'Train your ears for real English.'})).toBeVisible();else await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
   return {...fixture,revisions,snapshot,finishWelcomeElsewhere(){welcome=welcome==='introduction'?'status':null;revision++;},accentAnswer(text:string){accentResponse=text;},incompleteAnswers(count=1){incomplete=count;},failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainGoals(){uncertainGoals=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
 }
 async function onboardingTurn(page:Page){await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);}
@@ -646,4 +646,84 @@ test('stalled session restoration times out without mounting private content and
   await page.unroute('https://audli-auth-test.supabase.co/auth/v1/token**');
   await page.getByRole('button', { name: 'Retry connection' }).click();
   await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+});
+
+async function beginGoogle(page:Page,result='code=google-code') {
+  let authorize:URL|undefined;
+  await page.route('https://audli-auth-test.supabase.co/auth/v1/authorize**',async route=>{
+    authorize=new URL(route.request().url());
+    await route.fulfill({status:302,headers:{location:`http://127.0.0.1:3100/auth/callback?${result}`}});
+  });
+  await page.getByRole('button',{name:'Continue with Google',exact:true}).click();
+  return ()=>authorize;
+}
+test('Google PKCE returns linked learner by verified ID; email and isolation survive',async({page})=>{
+  const fixture=await setupAuth(page);const exchange=page.waitForRequest(r=>r.url().includes('grant_type=pkce'));
+  const authorize=await beginGoogle(page);const body=(await exchange).postDataJSON();
+  expect(body.auth_code).toBe('google-code');expect(body.code_verifier.length).toBeGreaterThan(40);
+  await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();
+  expect(authorize()?.searchParams.get('code_challenge_method')).toBe('s256');
+  expect(authorize()?.searchParams.get('redirect_to')).toBe('http://127.0.0.1:3100/auth/callback');
+  expect(authorize()?.searchParams.get('scopes')).toBe('openid email profile');
+  expect(fixture.requests.every(r=>r.authorization===`Bearer ${token}`)).toBe(true);
+  expect(await page.evaluate(()=>sessionStorage.getItem('audli-google-oauth'))).toBeNull();
+  await signOut(page);await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();
+  await expect(page.getByText('Alice',{exact:false})).toHaveCount(0);
+});
+for(const failure of ['error=access_denied&error_description=SECRET_PROVIDER_DETAIL','code=bad-code']) {
+  test(`Google callback safely recovers from ${failure.split('=')[0]}`,async({page})=>{
+    const fixture=await setupAuth(page);
+    await page.route('**/auth/v1/token**',route=>route.fulfill({status:400,json:{error:'invalid_grant',error_description:'SECRET_PROVIDER_DETAIL'}}));
+    await beginGoogle(page,failure);await expect(page.getByRole('link',{name:'Back to sign in'})).toBeVisible();
+    expect(page.url()).toBe('http://127.0.0.1:3100/auth/callback');
+    await expect(page.getByText('SECRET_PROVIDER_DETAIL')).toHaveCount(0);expect(fixture.requests).toEqual([]);
+    await page.getByRole('link',{name:'Back to sign in'}).click();await expect(page.getByRole('button',{name:'Continue with Google'})).toBeEnabled();
+  });
+}
+test('unsolicited Google callback never exchanges code or exposes learners',async({page})=>{
+  const fixture=await setupAuth(page);let exchanges=0;
+  await page.route('**/auth/v1/token**',route=>{exchanges++;return route.abort();});
+  await page.goto('/auth/callback?code=unsolicited&next=https://evil.example');
+  await expect(page.getByRole('link',{name:'Back to sign in'})).toBeVisible();expect(exchanges).toBe(0);expect(fixture.requests).toEqual([]);
+});
+test('Google sign-in and registration fit mobile and desktop',async({page},testInfo)=>{
+  await setupAuth(page);
+  for(const width of [390,1440]) {
+    await page.setViewportSize({width,height:900});
+    for(const signup of [false,true]) {
+      await expect(page.getByRole('button',{name:'Continue with Google'})).toBeVisible();
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+      const path=testInfo.outputPath(`google-${signup?'registration':'signin'}-${width}.png`);
+      await page.screenshot({path,fullPage:true});await testInfo.attach(`google-${signup?'registration':'signin'}-${width}`,{path,contentType:'image/png'});
+      await page.getByRole('button',{name:signup?'Already have an account? Sign in':'New to Audli? Create an account'}).click();
+    }
+  }
+});
+
+test('new Google learner enters existing onboarding without generating a lesson',async({page})=>{
+  const fixture=await setupOnboarding(page,{},false,false,false,true);
+  expect(fixture.snapshot().profile.onboarding_status).toBe('not_started');
+  expect(fixture.requests.filter(r=>r.method!=='GET')).toEqual([]);
+});
+test('Google callback network failure offers a bounded retry without learner access',async({page})=>{
+  const fixture=await setupAuth(page);
+  await page.route('**/auth/v1/token**',route=>route.abort('internetdisconnected'));
+  await beginGoogle(page);
+  await expect(page.getByRole('link',{name:'Back to sign in'})).toBeVisible({timeout:25000});
+  expect(fixture.requests).toEqual([]);
+});
+test('Google stalled callback retry starts a fresh document without stale exchange continuation',async({page})=>{
+  test.setTimeout(45000);
+  const fixture=await setupAuth(page);
+  await page.route('**/auth/v1/token**',async route=>{
+    await new Promise(resolve=>setTimeout(resolve,25000));
+    await route.abort().catch(()=>{});
+  });
+  await beginGoogle(page);
+  await expect(page.getByRole('link',{name:'Back to sign in'})).toBeVisible({timeout:25000});
+  await page.evaluate(()=>{(window as unknown as {oldGoogleDocument:boolean}).oldGoogleDocument=true;});
+  await page.getByRole('link',{name:'Back to sign in'}).click();
+  await expect(page.getByRole('button',{name:'Continue with Google'})).toBeVisible();
+  expect(await page.evaluate(()=>(window as unknown as {oldGoogleDocument?:boolean}).oldGoogleDocument)).toBeUndefined();
+  expect(fixture.requests).toEqual([]);
 });

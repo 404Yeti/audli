@@ -48,7 +48,13 @@ async function externalLogout(page:Page){
   await page.evaluate(()=>{localStorage.removeItem('audli-auth-session');const channel=new BroadcastChannel('audli-auth-session');channel.postMessage({event:'SIGNED_OUT',session:null});channel.close();});
   await showSignIn(page);
 }
-async function switchToB(page:Page){await externalLogout(page);await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();}
+async function switchToB(page:Page){
+  await externalLogout(page);
+  // Home now mounts only after hydration; its optional plan read starts at that
+  // mount. Settle B's own read before asserting no continuation from A.
+  const plan = page.waitForResponse(response => new URL(response.url()).pathname === '/api/plan' && response.request().headers()['authorization'] === `Bearer ${tokenB}`);
+  await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();await plan;
+}
 async function speaking(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Speaking');}
 async function listening(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Listening');}
 
@@ -62,7 +68,7 @@ test('signup requires email confirmation and initializes no learner',async({page
   await expect(page.getByRole('status')).toContainText('Check your email');expect(fixture.requests).toEqual([]);
 });
 test('invalid persisted session fails closed and requires sign-in',async({page})=>{
-  const fixture=await setupAuth(page);await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();fixture.expire();await page.reload();await expect(page.getByRole('status')).toContainText('session expired');await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toHaveCount(0);
+  const fixture=await setupAuth(page);const plan=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/plan');await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();await plan;fixture.expire();await page.reload();await expect(page.getByRole('status')).toContainText('session expired');await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toHaveCount(0);
 });
 test('auth connection failure exposes only recovery',async({page})=>{
   await page.route('**/api/auth/config',route=>route.fulfill({status:502,contentType:'text/html',body:'Unavailable'}));await page.goto('/');await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible();await expect(page.getByRole('button',{name:'Start today’s session'})).toHaveCount(0);
@@ -618,4 +624,26 @@ test('walkthrough swipe reduced motion skip and account isolation across login',
   await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
   await switchToB(page);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.path.endsWith('/walkthrough'))).toEqual([]);
   expect((await probe(page)).mediaCalls).toBe(0);
+});
+
+test('stalled session restoration times out without mounting private content and reload recovers', async ({ page }) => {
+  await setupAuth(page); await signIn(page);
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('audli-auth-session')!);
+    saved.expires_at = Math.floor(Date.now() / 1000) - 60;
+    localStorage.setItem('audli-auth-session', JSON.stringify(saved));
+  });
+  await page.clock.install();
+  let refreshing = false;
+  await page.route('https://audli-auth-test.supabase.co/auth/v1/token**', () => { refreshing = true; });
+  await page.reload();
+  await expect(page.getByRole('status')).toHaveText('Getting Audli ready…');
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toHaveCount(0);
+  await expect.poll(() => refreshing).toBe(true);
+  await page.clock.fastForward(20_001);
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('account is taking too long');
+  await page.unroute('https://audli-auth-test.supabase.co/auth/v1/token**');
+  await page.getByRole('button', { name: 'Retry connection' }).click();
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
 });

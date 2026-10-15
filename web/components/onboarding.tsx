@@ -9,6 +9,8 @@ import { useAccount } from './auth-gate';
 import { conversationIntent } from '../lib/conversation-intent';
 import { measureTurn, turnTiming, measuredAudioBody } from '../lib/turn-timing';
 import { WelcomeWalkthrough, type WalkthroughStep } from './welcome-walkthrough';
+import { AudliLoadingScreen } from './audli-loading-screen';
+import { startup } from '../lib/startup';
 import { AudliMascot } from './audli-mascot';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
@@ -45,8 +47,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   useEffect(() => {
     const operation = voice.begin();
     // Restored state is applied after the authenticated request resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void initialRestore(operation).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.release());
+    void startup(() => initialRestore(operation)).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.cancel());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function navigateWalkthrough(step: WalkthroughStep) {
@@ -229,6 +230,10 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     <button className="primary" type="submit" disabled={savingName || !name.trim()}>{savingName ? 'Saving…' : 'Save and continue'}</button></div>
   </form>;
   function end() { goalSubmission.current = false; setSavingGoal(false); nameSubmission.current = false; setSavingName(false); voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
+  if (!checkpoint && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => {
+    const operation = voice.begin(); setError('');
+    void startup(() => restore(operation)).catch(error => { if (operation.current) setError(error.message); }).finally(() => operation.cancel());
+  }}/>;
   if (checkpoint?.walkthrough != null) return <WelcomeWalkthrough step={checkpoint.walkthrough} busy={savingWalkthrough} error={error} onNavigate={step => void navigateWalkthrough(step)}/>;
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{checkpoint?.prompt}</p>{nameEntry}{goalEntry}{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start(true)}>Retry conversation</button>{retained.current && <button className="secondary" onClick={() => { retained.current = null; void start(true); }}>Record again</button>}</div>}

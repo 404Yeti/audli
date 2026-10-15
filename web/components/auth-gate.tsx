@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AudliLoadingScreen } from './audli-loading-screen';
+import { STARTUP_TIMEOUT_MS } from '../lib/startup';
 import Link from 'next/link';
 import { AudliMascot } from './audli-mascot';
 import { isAuthRetryableFetchError, type SupabaseClient, type Session } from '@supabase/supabase-js';
@@ -44,6 +46,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let active = true;
     let unsubscribe: (() => void) | undefined;
     let supabase: SupabaseClient | undefined;
+    const startupDeadline = window.setTimeout(() => {
+      if (!active) return;
+      active = false; unsubscribe?.();
+      setAccessTokenProvider(null);
+      setMode('failed');
+      setMessage('Your account is taking too long to connect. Please try again.');
+    }, STARTUP_TIMEOUT_MS);
     const expire = () => {
       if (!active || blocked.current) return;
       blocked.current = true;
@@ -63,7 +72,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (config.mode === 'local') {
         const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
         if (process.env.NODE_ENV === 'production' && !loopback) throw new Error('The server must enable authenticated access for this deployment.');
-        setMode('local'); return;
+        window.clearTimeout(startupDeadline); setMode('local'); return;
       }
       if (config.mode !== 'supabase') throw new Error('Sign-in is not configured.');
       supabase = authClient();
@@ -87,6 +96,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setClient(supabase); setMode('supabase');
       const { data } = supabase.auth.onAuthStateChange((_event, next) => {
         if (!active) return;
+        window.clearTimeout(startupDeadline);
         if (blocked.current) { setReady(true); return; }
         if (accountIdentity.current !== sessionIdentity(next)) {
           accountIdentity.current = sessionIdentity(next);
@@ -96,9 +106,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
       });
       unsubscribe = () => data.subscription.unsubscribe();
     }).catch(error => {
+      window.clearTimeout(startupDeadline);
       if (active) { setMode('failed'); setMessage(error instanceof Error ? error.message : 'Sign-in is unavailable. Please retry.'); }
     });
     return () => {
+      window.clearTimeout(startupDeadline);
       active = false; unsubscribe?.(); window.removeEventListener('audli-session-expired', expire);
       setAccessTokenProvider(null);
     };
@@ -145,20 +157,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }
 
+  if (mode === 'loading' || (mode === 'supabase' && !ready && !session)) return <AudliLoadingScreen/>;
+  if (mode === 'failed') return <AudliLoadingScreen error={message} onRetry={() => window.location.reload()}/>;
   if (mode === 'local') return children;
   if (mode === 'supabase' && session) return <AccountContext.Provider value={{ scope: sessionIdentity(session)!, email: session.user.email, signOut: logout }}><div key={sessionIdentity(session)}>{children}</div></AccountContext.Provider>;
   if (mode === 'supabase' && ready && landing && !message) return <main className="landing"><strong className="wordmark">audli</strong><AudliMascot/><h1>Train your ears.</h1><p>AI listening practice that adapts to what you actually understand.</p><button className="primary" onClick={() => { setSignup(true); setLanding(false); }}>Start listening</button><button className="text-button" onClick={() => { setSignup(false); setLanding(false); }}>I already have an account</button><footer>Eyes optional. Ears essential.</footer></main>;
   return <main className="auth-screen"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><section className="card">
-    {mode === 'loading' || (mode === 'supabase' && !ready) ? <p role="status">Connecting to your account…</p> : <>
+    <>
       <AudliMascot small/><h1>{signup ? 'Train your ears with Audli.' : 'Welcome back.'}</h1><p>{signup ? 'Create your account and start listening.' : 'Sign in and pick up where your ears left off.'}</p>
       {message && <p role="status">{message}</p>}
-      {mode === 'failed' ? <button className="secondary" onClick={() => window.location.reload()}>Retry connection</button> : <form onSubmit={event => { event.preventDefault(); void authenticate(); }}>
+      <form onSubmit={event => { event.preventDefault(); void authenticate(); }}>
         <label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} />
         <label htmlFor="password">Password</label><input id="password" type="password" autoComplete={signup ? 'new-password' : 'current-password'} required minLength={signup ? 8 : undefined} value={password} onChange={event => setPassword(event.target.value)} />
         <button className="primary" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Sign up' : 'Sign in'}</button>
         {!signup && <Link className="text-button auth-link" href="/forgot-password" prefetch={false}>Forgot password?</Link>}
         <button type="button" className="text-button" disabled={busy} onClick={() => { setSignup(!signup); setMessage(''); }}>{signup ? 'Already have an account? Sign in' : 'New to Audli? Create an account'}</button>
-      </form>}
-    </>}
+      </form>
+    </>
   </section></main>;
 }

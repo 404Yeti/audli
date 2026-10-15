@@ -7,6 +7,8 @@ import { AuthGate, useAccount } from '../components/auth-gate';
 import { TutorVoiceSettings } from '../components/tutor-voice-settings';
 import { AccentSettings, type AccentPreferences } from '../components/accent-settings';
 import { SpokenOnboarding } from '../components/onboarding';
+import { AudliLoadingScreen } from '../components/audli-loading-screen';
+import { startup } from '../lib/startup';
 import { AudliMascot } from '../components/audli-mascot';
 import { BottomNavigation, SessionShell, type Destination } from '../components/product-shell';
 import { ApiError, LessonLifetime, type LessonOperation } from '../lib/api';
@@ -42,16 +44,15 @@ function ApplicationFlow() {
     const lifetime = new LessonLifetime(); owner.current = lifetime;
     const operation = lifetime.begin();
     // State updates occur only after authenticated profile resolution.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void restore(operation).catch(error => { if (operation.current) setError(error.message); }).finally(() => operation.release());
+    void startup(() => restore(operation)).catch(error => { if (operation.current) setError(error.message); }).finally(() => operation.cancel());
     return () => lifetime.close();
   }, []);
   async function retry() {
     if (!owner.current?.current) return;
-    const operation = owner.current.begin();
-    try { await load(operation); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); }
+    const operation = owner.current.begin(); setError('');
+    try { await startup(() => load(operation)); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.cancel(); }
   }
-  if (!destination) return <main className="restore-screen"><AudliMascot state="Thinking"/><p role="status">Loading your listening space…</p>{error && <div role="alert">{error}<button className="secondary" onClick={retry}>Retry connection</button></div>}</main>;
+  if (!destination) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => void retry()}/>;
   if (destination === 'onboarding') return <SpokenOnboarding onComplete={load}/>;
   return <Product/>;
 }
@@ -59,6 +60,7 @@ function ApplicationFlow() {
 function Product() {
   const account = useAccount();
   const voice = useVoiceLifecycle();
+  const [initialized, setInitialized] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [destination, setDestination] = useState<Destination>('Home');
   const [active, setActive] = useState(false);
@@ -105,8 +107,7 @@ function Product() {
   useEffect(() => {
     const operation = voice.begin();
     // State updates occur only after the external checkpoint resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void initialRestore(operation).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.release());
+    void startup(() => initialRestore(operation)).then(() => { operation.assertCurrent(); setInitialized(true); }).catch(error => { if (operation.current) { setError(error.message); setBusy(false); } }).finally(() => operation.cancel());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -295,12 +296,20 @@ function Product() {
     catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); }
   }
   async function retry() {
+    if (!initialized) {
+      const operation = voice.begin(); setError('');
+      try { await startup(() => restore(operation)); operation.assertCurrent(); setInitialized(true); }
+      catch (error) { if (operation.current) setError((error as Error).message); }
+      finally { operation.cancel(); }
+      return;
+    }
     if (active) { await start(false); }
     else { const operation = voice.begin(); try { await refresh(operation); setError(''); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); } }
   }
   async function navigate(value: Destination) {
     setDestination(value); setTranscript(null); setError('');
   }
+  if (!initialized && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => void retry()}/>;
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}

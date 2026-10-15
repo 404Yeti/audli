@@ -101,3 +101,29 @@ def test_legacy_paused_goal_recovery_preserves_existing_preferences(accounts,rep
     assert saved['profile']['goal']=='Understand family calls'
     assert saved['profile']['target_situations']==['family calls']
     assert a.post('/api/onboarding/goal',json={'question_revision':state['goal_question_revision'],'skip':True}).json()==saved
+
+@pytest.mark.parametrize('text,goal,situations',[
+    ('I want to understand meetings','Understand meetings',['meetings']),
+    ('I want to improve my writing','Improve writing',None),
+    ('I want to speak better','Improve speaking',None),
+    ('I want to win a marathon',None,None),
+    ('Maybe, I am not sure',None,None),
+    ('skip',None,None),
+])
+def test_spoken_goal_scenarios_reach_first_lesson(accounts,audio_bytes,text,goal,situations):
+    a,_,_=accounts
+    configure(a)
+    state=spoken(a,start(a),audio_bytes)
+    async def extract(stage,answer):
+        if stage=='needs':
+            return ProfileExtraction(name=None,target_language=None,goal=goal,target_situations=situations,interests=None)
+        from test_onboarding import extraction
+        return extraction(stage,answer)
+    a.provider.extract_profile=extract
+    state=spoken(a,state,audio_bytes,text)
+    assert state['stage']=='interests' and not state['clarification_paused']
+    assert state['profile']['completed_attempts']==0
+    state=spoken(a,state,audio_bytes)
+    state=spoken(a,state,audio_bytes,'skip')
+    assert a.post('/api/onboarding/complete',json={'revision':state['revision']}).json()['destination']=='session_ready'
+    assert a.post('/api/lessons/start',json={}).status_code==200

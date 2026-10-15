@@ -100,7 +100,7 @@ async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>
   let stage='identity',revision=0,pending:{text:string;confidence:number;uncertainty:string[]}|null=null;
   let failVoice=false,failUpload=false,failComplete=false,uncertain=false,delayAudio=false,releaseAudio:(()=>void)|undefined;
   const revisions:number[]=[];
-  let incomplete=0,clarification=false,clarificationCount=0,paused=false;
+  let incomplete=0,clarification=false,clarificationCount=0,paused=false,uncertainGoals=false;
   const snapshot=()=>({goal_entry_available:profile.onboarding_status==='in_progress'&&stage==='needs',goal_question_revision:2,name_entry_available:profile.onboarding_status==='in_progress'&&stage==='identity'&&!welcome&&!clarification,name_question_revision:0,profile:{...profile,accent_preferences:{...accentPreferences}},stage,welcome,revision,pending,clarification_paused:paused,prompt:welcome==='introduction'?"Hey! I’m Audli, your listening buddy. We’ll practice listening together.":welcome==='status'?"My status bubbles say ‘Audli is speaking’, ‘Listening to you’, or ‘Thinking’. You don’t need to watch them.":stage==='accents'?'Are there any English accents you find tricky? You can say skip.':clarification?'What language do you want to train? Audli currently trains English listening.':stage==='review'?'Your listening preferences are saved.':'Tell me about your listening goals.',destination:profile.onboarding_status==='complete'?'session_ready':'onboarding'});
   await page.route('**/api/profile',route=>route.fulfill({json:route.request().headers()['authorization']===`Bearer ${tokenB}`?{destination:'session_ready',profile:{...profile,name:'Bob'},provider:'openai'}:{destination:snapshot().destination,profile,provider:'openai'}}));
   await page.route('**/api/onboarding**',async route=>{
@@ -111,13 +111,13 @@ async function setupOnboarding(page:Page,options:Parameters<typeof installVoice>
     if(path.endsWith('/start')&&profile.onboarding_status!=='in_progress'){profile.onboarding_status='in_progress';if(withWelcome&&!legacy)welcome='introduction';revision++;}
     if(path.endsWith('/heard')){welcome=welcome==='introduction'?'status':null;revision++;}
     if(path.endsWith('/retry-clarification')){paused=false;clarificationCount=0;revision++;}
-    if(path.endsWith('/attempts')){if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Transcription failed. Recording is safe.'}});}pending={text:stage==='accents'?accentResponse:'Maya English work meetings and science',confidence:uncertain?.2:.95,uncertainty:uncertain?['unclear']:[]};uncertain=false;revision++;}
+    if(path.endsWith('/attempts')){if(failUpload){failUpload=false;return route.fulfill({status:503,json:{detail:'Transcription failed. Recording is safe.'}});}pending={text:stage==='accents'?accentResponse:'Maya English work meetings and science',confidence:(uncertain||(uncertainGoals&&stage==='needs'))?.2:.95,uncertainty:uncertain?['unclear']:[]};uncertain=false;revision++;}
     if(path.endsWith('/answer')){const body=route.request().postDataJSON();if(body.revision!==revision)return route.fulfill({status:409,json:{detail:'Stale revision'}});if(incomplete>0){incomplete--;profile.name='Maya';clarification=true;paused=clarificationCount===2;clarificationCount=Math.min(2,clarificationCount+1);pending=null;revision++;return route.fulfill({json:snapshot()});}clarification=false;clarificationCount=0;if(stage==='identity'){if(profile.name==='Listener')profile.name='Maya';stage='needs';}else if(stage==='needs'){profile.goal='Understand meetings';profile.target_situations=['work meetings'];stage='interests';}else if(stage==='accents'){accentPreferences.response=body.text;accentPreferences.accents=body.text==='skip'?[]:['australian','scottish'];accentPreferences.status=body.text==='skip'?'no_preference':'preferred';stage='review';profile.onboarding_status='profile_saved';}else{profile.interests=['science'];stage=withWelcome?'accents':'review';if(!withWelcome)profile.onboarding_status='profile_saved';}pending=null;revision++;}
     if(path.endsWith('/complete')){if(profile.onboarding_status!=='complete'){profile.onboarding_status='complete';revision++;}if(failComplete){failComplete=false;return route.fulfill({status:503,json:{detail:'Response interrupted. Progress is safe.'}});}}
     return route.fulfill({json:snapshot()});
   });
   await signIn(page);await expect(page.getByRole('button',{name:'Let’s talk',exact:true})).toBeVisible();
-  return {...fixture,revisions,snapshot,finishWelcomeElsewhere(){welcome=welcome==='introduction'?'status':null;revision++;},accentAnswer(text:string){accentResponse=text;},incompleteAnswers(count=1){incomplete=count;},failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
+  return {...fixture,revisions,snapshot,finishWelcomeElsewhere(){welcome=welcome==='introduction'?'status':null;revision++;},accentAnswer(text:string){accentResponse=text;},incompleteAnswers(count=1){incomplete=count;},failSpeech(){failVoice=true;},restoreSpeech(){failVoice=false;},failTranscription(){failUpload=true;},interruptCompletion(){failComplete=true;},uncertainGoals(){uncertainGoals=true;},uncertainNext(){uncertain=true;},delaySpeech(){delayAudio=true;},get audioPending(){return !!releaseAudio;},advanceRevision(){revision++;},releaseAudio(){releaseAudio?.();}};
 }
 async function onboardingTurn(page:Page){await speaking(page);await endAudio(page);await listening(page);await page.clock.runFor(2700);await speaking(page);}
 async function completeOnboarding(page:Page){await page.getByRole('button',{name:'Let’s talk',exact:true}).click();for(let i=0;i<3;i++)await onboardingTurn(page);await endAudio(page);await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();}
@@ -500,6 +500,10 @@ for (const skip of [false,true]) {
     await page.getByRole('button',{name:'Let’s talk',exact:true}).click();await onboardingTurn(page);
     const input=page.getByLabel('Your goal (optional)',{exact:true});await expect(input).toBeVisible();
     await input.fill('仕事の会話 — café 👂');
+    const recordings=(await probe(page)).recorders;await page.clock.runFor(3000);
+    await expect(input).toHaveValue('仕事の会話 — café 👂');
+    expect((await probe(page)).recorders).toBe(recordings);
+    expect(fixture.snapshot().stage).toBe('needs');
     if(skip)await page.getByRole('button',{name:'Skip for now',exact:true}).click();
     else await page.getByRole('button',{name:'Save goal and continue',exact:true}).click();
     await expect(input).toHaveCount(0);await speaking(page);
@@ -553,4 +557,19 @@ test('failed goal transcription leaves typing and skip available',async({page})=
   await expect(page.locator('main').getByRole('alert')).toContainText('Transcription failed');
   await page.getByRole('button',{name:'Skip for now',exact:true}).click();await speaking(page);
   expect(fixture.snapshot().stage).toBe('interests');
+});
+
+
+test('uncertain goal recognition has a bounded retry budget and safely continues',async({page})=>{
+  const fixture=await setupOnboarding(page,{autoPlayback:true});fixture.uncertainGoals();await page.clock.install();
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
+  for(let i=0;i<30;i++) {
+    await page.clock.runFor(1000);await page.waitForTimeout(20);
+    if(await page.getByRole('heading',{name:'Good to see you, Maya.'}).count())break;
+  }
+  await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();
+  expect(fixture.snapshot().profile.goal).toBe('Understand everyday English');
+  expect(fixture.requests.filter(x=>x.path.endsWith('/goal'))).toHaveLength(1);
+  // Only identity and interests were extracted. Unreliable goals supplied no evidence.
+  expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(2);
 });

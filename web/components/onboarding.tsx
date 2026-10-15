@@ -160,6 +160,14 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
       operation.release();
     }
   }
+  function editGoal(value: string) {
+    setGoal(value);
+    // Choosing text freezes this question while the learner composes an answer.
+    // Any already-committed voice result can still be replaced using its token.
+    if (running.current) {
+      voice.stop(); retained.current = null; running.current = false;
+    }
+  }
   async function saveGoal(skip = false) {
     if (!checkpoint || goalSubmission.current) return;
     goalSubmission.current = true; setSavingGoal(true);
@@ -186,7 +194,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   const goalEntry = checkpoint?.goal_entry_available && <form className="onboarding-name" onSubmit={event => { event.preventDefault(); void saveGoal(); }}>
     <label htmlFor="listening-goal">Your goal (optional)</label>
     <p id="goal-help">Tell Audli by voice, type a goal, or skip for now. We’ll practice understanding spoken English.</p>
-    <div><input id="listening-goal" name="listening-goal" aria-describedby="goal-help" maxLength={500} value={goal} onChange={event => setGoal(event.target.value)} disabled={savingGoal} />
+    <div><input id="listening-goal" name="listening-goal" aria-describedby="goal-help" maxLength={500} value={goal} onChange={event => editGoal(event.target.value)} disabled={savingGoal} />
     <button className="primary" type="submit" disabled={savingGoal || !goal.trim()}>{savingGoal ? 'Saving…' : 'Save goal and continue'}</button>
     <button className="secondary" type="button" disabled={savingGoal} onClick={() => void saveGoal(true)}>Skip for now</button></div>
   </form>;

@@ -333,3 +333,29 @@ def test_operator_transfer_preserves_ids_history_audio_and_refuses_overwrite(acc
     with pytest.raises(ValueError, match='not empty'):
         transfer_legacy_learner(root, USER_A, USER_B, apply=True)
     assert b.get('/api/history').json() == before
+
+def test_google_identity_ownership_uses_verified_uuid_even_for_matching_email():
+    """Provider/email metadata must never merge two server-verified UUIDs."""
+    from types import SimpleNamespace
+    from pydantic import SecretStr
+    from app.auth import SupabaseIdentity
+
+    async def handler(request):
+        user_id = USER_A if request.headers['authorization'] == 'Bearer account-a' else USER_B
+        return httpx.Response(200, json={
+            'id': user_id, 'email': 'same@example.com',
+            'email_confirmed_at': '2026-10-15T00:00:00Z',
+            'app_metadata': {'provider': 'google', 'providers': ['email', 'google']},
+            'user_metadata': {'learner_id': USER_A},
+        })
+
+    async def verify():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            identity = SupabaseIdentity(SimpleNamespace(
+                supabase_url='https://example.supabase.co',
+                supabase_publishable_key=SecretStr('sb_publishable_test'),
+            ), client=client)
+            assert await identity.verify([(b'authorization', b'Bearer account-a')]) == USER_A
+            assert await identity.verify([(b'authorization', b'Bearer account-b')]) == USER_B
+
+    asyncio.run(verify())

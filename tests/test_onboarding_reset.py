@@ -201,7 +201,7 @@ def test_postgres_workers_serialize_reset_and_lesson_saving(repository_factory, 
         clients = [httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver',
                                    headers={'Authorization': 'Bearer valid'}) for app in apps]
         try:
-            # One winner; the other reset cannot reuse the previous revision.
+            # Concurrent retries acknowledge the same reset without incrementing twice.
             results = await asyncio.gather(*[client.post('/api/onboarding/restart',
                 json={'confirmation': 'RESTART ONBOARDING', 'revision': 0}) for client in clients])
             assert sorted(response.status_code for response in results) == [200, 200]

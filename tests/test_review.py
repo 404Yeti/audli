@@ -233,6 +233,8 @@ def test_cursor_order_counts_all_pages_and_insert_is_not_duplicated(review_clien
     assert not ({e['id'] for e in first['lessons']} & {e['id'] for e in second['lessons']})
     assert first['lessons'][-1]['completed_at'] > second['lessons'][0]['completed_at']
     assert client.get('/api/review?cursor=not-a-cursor').status_code == 422
+    assert client.get('/api/review/lesson/not-a-uuid').status_code == 422
+    assert client.get('/api/review/not-a-kind/' + str(uuid4())).status_code == 422
     for query in ['limit=0', 'limit=31', 'timezone=' + 'x' * 101]:
         assert client.get('/api/review?' + query).status_code == 422
 
@@ -336,3 +338,19 @@ def test_recorded_accent_only_and_final_followup_not_intermediate(review_client,
     report = client.get(f'/api/review/lesson/{entry_id}').json()['passages'][0]
     assert report['accent'] is None
     assert report['units'][0]['status'] == 'demonstrated'
+
+
+def test_malformed_cross_owner_link_cannot_expose_or_hide_another_learners_history(accounts, exercise):
+    a, b, _ = accounts
+    a.get('/api/profile'); b.get('/api/profile')
+    owner = a.app.state.repository.for_learner(USER_A)
+    other = a.app.state.repository.for_learner(USER_B)
+    own_lesson, _ = seed(owner, exercise, count=0)
+    other_session, other_ids = seed(other, exercise, kind='earlier_practice')
+    with owner.transaction() as db:
+        # The historical schema links exercises by ID; reads still enforce both owners.
+        db.execute(s.lesson_exercises.insert().values(exercise_id=other_ids[0], lesson_id=own_lesson, user_id=USER_A))
+    assert a.get(f'/api/review/lesson/{own_lesson}').json()['passages'] == []
+    assert b.get('/api/review').json()['summary']['earlier_practice'] == 1
+    assert b.get(f'/api/review/earlier_practice/{other_session}').json()['passages'][0]['exercise_id'] == other_ids[0]
+    assert a.get(f'/api/review/earlier_practice/{other_session}').status_code == 404

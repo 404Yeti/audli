@@ -1,23 +1,34 @@
 """Owned batch reads; no writes, providers, audio blobs, or intermediate judgments."""
 from sqlalchemy import select, and_, exists
 from app.storage import schema as s
-from app.review import Entry, timestamp, chronological
+from app.review import Entry, Kind, timestamp, chronological, text
 from app.storage.repository import aware
 
 
-def inventory(repo, db) -> list[Entry]:
-    lessons = db.execute(select(s.lessons.c.id, s.lessons.c.status,
-        s.lessons.c.data['completed_at'].as_string().label('completed_at'),
-        s.lessons.c.data['plan_topic'].as_string().label('title'))
-        .where(s.lessons.c.user_id == repo.learner_id)).mappings()
-    entries = [Entry(row['id'], 'lesson', row['status'] == 'completed', timestamp(row['completed_at']), row['title']) for row in lessons]
-    # Any link suppresses legacy counting, even if its lesson is incomplete.
-    linked = exists(select(s.lesson_exercises.c.exercise_id).join(s.exercises,
-        s.lesson_exercises.c.exercise_id == s.exercises.c.id).where(and_(
-        s.exercises.c.session_id == s.sessions.c.id, s.exercises.c.user_id == repo.learner_id)))
-    sessions = db.execute(select(s.sessions.c.id, s.sessions.c.completed_at).where(and_(
-        s.sessions.c.user_id == repo.learner_id, s.sessions.c.status == 'completed', ~linked))).mappings()
-    entries.extend(Entry(row['id'], 'earlier_practice', True, timestamp(aware(row['completed_at'])) if row['completed_at'] else None) for row in sessions)
+def inventory(repo, db, *, kind: Kind | None = None, entry_id: str | None = None) -> list[Entry]:
+    entries = []
+    if kind != 'earlier_practice':
+        query = select(s.lessons.c.id, s.lessons.c.status,
+            s.lessons.c.data['completed_at'].as_string().label('completed_at'),
+            s.lessons.c.data['plan_topic'].as_string().label('title')).where(s.lessons.c.user_id == repo.learner_id)
+        if entry_id is not None:
+            query = query.where(s.lessons.c.id == entry_id)
+        lessons = db.execute(query).mappings()
+        entries.extend(Entry(row['id'], 'lesson', row['status'] == 'completed',
+            timestamp(row['completed_at']), text(row['title'])) for row in lessons)
+    if kind != 'lesson':
+        # An owned link suppresses legacy counting, including unfinished lessons.
+        linked = exists(select(s.lesson_exercises.c.exercise_id).join(s.exercises,
+            s.lesson_exercises.c.exercise_id == s.exercises.c.id).where(and_(
+            s.exercises.c.session_id == s.sessions.c.id, s.exercises.c.user_id == repo.learner_id,
+            s.lesson_exercises.c.user_id == repo.learner_id)))
+        query = select(s.sessions.c.id, s.sessions.c.completed_at).where(and_(
+            s.sessions.c.user_id == repo.learner_id, s.sessions.c.status == 'completed', ~linked))
+        if entry_id is not None:
+            query = query.where(s.sessions.c.id == entry_id)
+        sessions = db.execute(query).mappings()
+        entries.extend(Entry(row['id'], 'earlier_practice', True,
+            timestamp(aware(row['completed_at'])) if row['completed_at'] else None) for row in sessions)
     return chronological(entries)
 
 

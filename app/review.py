@@ -275,7 +275,7 @@ def insight(patterns: list[ListeningPattern]) -> str:
     focus = next((p for p in patterns if p.label == 'Needs more practice'), None)
     parts = []
     if strength:
-        parts.append(f'{strength.title} were consistently demonstrated in repeated saved assessments.')
+        parts.append(f'Your responses consistently demonstrated understanding of {strength.title.lower()} in repeated saved assessments.')
     if focus:
         parts.append(f'A useful area to practice is {focus.title.lower()}.')
     return ' '.join(parts) or 'Complete a few more lessons to discover your listening patterns.'

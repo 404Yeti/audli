@@ -1,5 +1,6 @@
 """Authenticated, provider-free Review views over existing persistence."""
 from typing import Annotated, Literal
+from uuid import UUID
 from fastapi import HTTPException, Query
 from sqlalchemy import select
 from app.storage import schema as s
@@ -42,9 +43,10 @@ def register_review_routes(app, repo):
             next_cursor=page[-1].key if page and offset + limit < len(completed) else None)
 
     @app.get('/api/review/{kind}/{entry_id}', response_model=LessonReport)
-    async def report(kind: Literal['lesson', 'earlier_practice'], entry_id: str):
+    async def report(kind: Literal['lesson', 'earlier_practice'], entry_id: UUID):
+        identifier = str(entry_id)
         with repo.engine.connect() as db:
-            entry = next((entry for entry in inventory(repo, db) if entry.kind == kind and entry.id == entry_id), None)
+            entry = next((entry for entry in inventory(repo, db, kind=kind, entry_id=identifier) if entry.kind == kind and entry.id == identifier), None)
             if entry is None:
                 raise HTTPException(404, 'Lesson report not found.')
             hydrate(repo, db, [entry])

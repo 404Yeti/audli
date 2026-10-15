@@ -1,12 +1,13 @@
 """Preferences only: no listening score or adaptation is inferred from speech."""
 from typing import Literal
 import unicodedata
+import re
 from pydantic import Field, field_validator
 from app.models import StrictModel
 from app.accents import extract as extract_accents
 
 WELCOME = {
-    'introduction': "Hey! I’m Audli, your listening buddy. I’m here to help you understand spoken English better, whether you’re watching movies, talking to people, or hearing different accents. We’ll practice listening together, and I’ll help you improve as we go.",
+    'introduction': "Hi! I’m Audli. I help you improve your English listening with short audio stories and conversations. You’ll listen, tell me what you understood, and I’ll help you improve.",
     'status': "My status bubbles say ‘Audli is speaking’, ‘Listening to you’, or ‘Thinking’. You don’t need to watch them: I’ll finish speaking before I listen. When I’m listening, that’s your turn to talk!",
 }
 
@@ -33,7 +34,7 @@ class ProfileExtraction(StrictModel):
 
 PROMPTS = {
     'identity': "Before we start, what should I call you, and what language do you want to train? Audli currently trains English listening.",
-    'needs': "Why are you learning English, and what do you most want to understand better? Tell me about situations where listening is hardest or most important for you.",
+    'needs': "What would you like to understand better in English? You can tell me your goal, type it here, or skip for now.",
     'interests': "What topics do you enjoy listening to? A few interests are enough, or say you have no preference.",
     'accents': "Are there any English accents you find tricky? Maybe British, American, Australian, Scottish, Indian, or something else? It’s okay if you’re not sure, or you can say skip.",
     'review': "Your listening preferences are saved. You're ready to train your ears. Your first listening exercise will help us find your starting point.",
@@ -86,7 +87,10 @@ CLARIFICATIONS = {
 def onboarding_prompt(profile):
     if profile.onboarding.welcome:
         return WELCOME[profile.onboarding.welcome]
-    return CLARIFICATIONS.get(profile.onboarding.clarification, PROMPTS[profile.onboarding.stage])
+    prompt = CLARIFICATIONS.get(profile.onboarding.clarification, PROMPTS[profile.onboarding.stage])
+    if profile.onboarding.stage == 'interests' and profile.onboarding.goal_rescued:
+        return "Thanks for sharing! I focus on listening, so we’ll start with understanding everyday English and explore topics you enjoy. " + prompt
+    return prompt
 
 def apply_accent_answer(profile, text):
     profile = profile.model_copy(deep=True)
@@ -112,6 +116,8 @@ def apply_accent_answer(profile, text):
 def apply_extraction(profile, extraction):
     extraction = ProfileExtraction.model_validate(extraction)
     stage = profile.onboarding.stage
+    if stage == 'needs':
+        return apply_goal(profile, extraction.goal, extraction.target_situations)
     fields = {'identity': ('name', 'target_language'), 'needs': ('goal', 'target_situations'),
               'interests': ('interests',)}.get(stage)
     if fields is None:
@@ -145,6 +151,9 @@ def apply_extraction(profile, extraction):
     progress.stage = {'identity': 'needs', 'needs': 'interests', 'interests': 'accents'}[stage]
     if progress.stage == 'accents' and (progress.accents_asked or profile.accent_preferences.status != 'unspecified'):
         progress.stage = 'review'
+    if progress.stage == 'needs':
+        progress.goal_question_revision = progress.revision + 1
+        progress.typed_goal = False
     progress.answered_fields = []
     progress.clarification = None
     progress.clarification_count = 0
@@ -157,3 +166,33 @@ def apply_extraction(profile, extraction):
 def application_destination(profile):
     """One authoritative lifecycle decision, independent of exercise existence."""
     return 'session_ready' if profile.onboarding_status == 'complete' else 'onboarding'
+
+
+class GoalAnswer(StrictModel):
+    question_revision: int = Field(ge=0)
+    text: str = Field(default='', max_length=500)
+    skip: bool = False
+
+    @field_validator('text')
+    @classmethod
+    def goal_text(cls, value):
+        # Preserve international writing, including combining marks and joiners.
+        if any(unicodedata.category(c) == 'Cc' and c not in '\n\r\t' for c in value):
+            raise ValueError('Please enter a goal without control characters.')
+        return value.strip()
+
+
+def apply_goal(profile, goal=None, situations=None):
+    profile = profile.model_copy(deep=True)
+    progress = profile.onboarding
+    # A goal is a preference, never a prerequisite or evidence of ability.
+    profile.goal = goal or profile.goal
+    profile.target_situations = situations or profile.target_situations or ['everyday conversations']
+    progress.goal_rescued = not goal or not situations or bool(re.search(r'\b(writ\w*|speak\w*|grammar|pronunciation)\b', goal, re.I))
+    progress.stage = 'interests'
+    progress.pending = None
+    progress.answered_fields = []
+    progress.clarification = None
+    progress.clarification_count = 0
+    progress.clarification_paused = False
+    return profile

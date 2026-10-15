@@ -37,7 +37,7 @@ def test_welcome_checkpoint_restarts_and_cannot_listen_before_finished(accounts,
     a, b, _ = accounts
     initial = a.get('/api/onboarding').json()
     state = a.post('/api/onboarding/start', json={'revision':initial['revision']}).json()
-    assert state['welcome'] == 'introduction' and 'listening buddy' in state['prompt']
+    assert state['welcome'] == 'introduction' and 'short audio stories and conversations' in state['prompt']
     assert a.post('/api/onboarding/attempts', data={'revision':state['revision']},
         files={'audio':('x.wav',audio_bytes,'audio/wav')}).status_code == 409
     assert repository_factory(USER_A).profile().onboarding.welcome == 'introduction'

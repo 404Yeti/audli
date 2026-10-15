@@ -7,7 +7,7 @@ from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
-from app.onboarding import Revision, Answer, TypedName, name_entry_available, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
+from app.onboarding import Revision, Answer, TypedName, GoalAnswer, apply_goal, name_entry_available, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
 
 
 def register_onboarding_routes(app, repo, ai, lock, settings):
@@ -16,6 +16,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 'revision': profile.onboarding.revision,
                 'welcome': profile.onboarding.welcome,
                 'name_entry_available': name_entry_available(profile),
+                'goal_entry_available': profile.onboarding_status == 'in_progress' and profile.onboarding.stage == 'needs',
+                'goal_question_revision': profile.onboarding.goal_question_revision if profile.onboarding.goal_question_revision is not None else profile.onboarding.revision,
                 'name_question_revision': profile.onboarding.name_question_revision,
                 'prompt': onboarding_prompt(profile),
                 'clarification_paused': profile.onboarding.clarification_paused,
@@ -112,6 +114,26 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                     goal=None, target_situations=None, interests=None))
             return save(profile, revision)
 
+    @app.post('/api/onboarding/goal')
+    async def goal(body: GoalAnswer):
+        async with lock:
+            profile = repo.profile()
+            progress = profile.onboarding
+            token = progress.goal_question_revision
+            if token is None and progress.stage == 'needs':
+                token = progress.revision  # Resume checkpoints from older releases.
+            if (profile.onboarding_status != 'in_progress' or progress.welcome
+                    or token != body.question_revision or progress.stage not in ('needs', 'interests')):
+                raise HTTPException(409, 'Continue from your saved onboarding question.')
+            if not body.skip and not body.text:
+                raise HTTPException(422, 'Type your goal or choose Skip for now.')
+            if progress.typed_goal:
+                return public(profile)  # First explicit submission wins, including retries.
+            revision = progress.revision
+            profile = apply_goal(profile, None if body.skip else body.text)
+            profile.onboarding.typed_goal = True
+            return save(profile, revision)
+
     @app.post('/api/onboarding/attempts')
     async def transcribe(audio: UploadFile, revision: int = Form(ge=0)):
         try:
@@ -129,6 +151,10 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                         raise HTTPException(503, 'I had trouble transcribing your recording. Please try again.') from None
                 if profile.onboarding.stage == 'needs':
                     profile.onboarding.name_question_revision = None
+                    if profile.onboarding.goal_question_revision is None:
+                        profile.onboarding.goal_question_revision = revision
+                elif profile.onboarding.stage == 'interests':
+                    profile.onboarding.goal_question_revision = None
                 profile.onboarding.pending = transcription
                 return save(profile, revision)
         finally:
@@ -146,6 +172,8 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 raise HTTPException(422, "I didn't quite catch that. Could you say it again?")
             if not body.text.strip():
                 raise HTTPException(422, 'Please check recognition or record again.')
+            if profile.onboarding.stage == 'needs' and body.text.strip().casefold().rstrip('.!?') in ('skip', 'skip for now', 'no preference', 'not sure', "i don’t know", "i don't know"):
+                return save(apply_goal(profile), body.revision)
             if profile.onboarding.stage == 'accents':
                 return save(apply_accent_answer(profile, body.text.strip()), body.revision)
             with operation(settings, 'onboarding.extraction_provider'):

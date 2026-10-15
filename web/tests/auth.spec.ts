@@ -635,12 +635,14 @@ test('stalled session restoration times out without mounting private content and
     localStorage.setItem('audli-auth-session', JSON.stringify(saved));
   });
   await page.clock.install();
-  await page.route('https://audli-auth-test.supabase.co/auth/v1/token**', () => {});
+  let refreshing = false;
+  await page.route('https://audli-auth-test.supabase.co/auth/v1/token**', () => { refreshing = true; });
   await page.reload();
   await expect(page.getByRole('status')).toHaveText('Getting Audli ready…');
   await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toHaveCount(0);
+  await expect.poll(() => refreshing).toBe(true);
   await page.clock.fastForward(20_001);
-  await expect(page.getByRole('alert')).toContainText('account is taking too long');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('account is taking too long');
   await page.unroute('https://audli-auth-test.supabase.co/auth/v1/token**');
   await page.getByRole('button', { name: 'Retry connection' }).click();
   await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();

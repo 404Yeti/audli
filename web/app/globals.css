@@ -332,7 +332,7 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .audli-loading-screen .wordmark { font-size: 32px; }
 .startup-presence { width: min(256px, 100%); margin: 32px 0 20px; }
 .startup-presence .audli-mascot { width: 100%; margin: 0; }
-.startup-presence .mascot-body { animation: mascot-think 3s ease-in-out infinite; }
+.startup-presence .audli-mascot .mascot-body { animation: mascot-think 3s ease-in-out infinite; }
 .startup-presence[data-failed="true"] .mascot-body { animation: none; }
 .startup-status { font-size: 15px; line-height: 1.6; margin: 0; max-width: 280px; }
 .startup-recovery { width: min(326px, 100%); }

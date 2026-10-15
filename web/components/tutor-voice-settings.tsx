@@ -57,7 +57,7 @@ export function TutorVoiceSettings() {
       if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
       previewUrl.current = url; player.src = url;
       setPreviewLabel(choices.find(choice => choice.value === voice)!.label);
-      await player.play(); operation.assertCurrent();
+      await operation.wait(() => player.play(), () => player.pause());
     } catch { if (operation.current) setError('Voice preview is unavailable. Your saved preference is unchanged. Try again later.'); }
     finally { if (operation.current) { previewPending.current = false; setPreviewing(null); } operation.release(); }
   }

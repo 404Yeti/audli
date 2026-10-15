@@ -197,6 +197,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return public_exercise(row) if row else None
 
     async def prepare_exercise(lesson=None):
+        profile = repo.profile()
+        if profile.onboarding.revision > 0 and profile.onboarding_status != 'complete':
+            raise HTTPException(409, 'Complete your spoken onboarding first.')
         current = repo.current_exercise()
         if current and not repo.completed(current['id']):
             if lesson is not None:
@@ -235,7 +238,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         path = audio_dir / audio_name
         path.write_bytes(audio)
         try:
-            repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio, lesson=lesson)
+            repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio, lesson=lesson, onboarding_revision=profile.onboarding.revision)
         except Exception:
             path.unlink(missing_ok=True)
             raise

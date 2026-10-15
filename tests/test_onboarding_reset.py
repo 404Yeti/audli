@@ -1,5 +1,6 @@
 """Reset authorization, preservation, replay and persistence races; no live providers."""
 import asyncio
+import json
 from uuid import uuid4
 import httpx
 import pytest
@@ -7,7 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from app.onboarding_reset import reset_onboarding, RESET_FIELDS
 from app.main import create_app
-from app.models import Transcription
+from app.models import Transcription, ExerciseContent
 from app.storage import schema as s
 from conftest import ASGIClient, FakeProvider
 from test_persistence import repository_factory
@@ -39,18 +40,18 @@ def test_reset_preserves_learning_and_rejects_stale_tokens(repository_factory):
     assert after.difficulty == before.difficulty and after.listening_profile == before.listening_profile
     assert after.completed_attempts == 5
     assert after.model_dump(exclude=set(RESET_FIELDS)) == before.model_dump(exclude=set(RESET_FIELDS))
-    with pytest.raises(HTTPException) as error:
-        reset_onboarding(repo, 12)
-    assert error.value.status_code == 409
+    assert reset_onboarding(repo, 12)['revision'] == 13
+    assert repo.profile() == after
     assert reset_onboarding(repo, 13)['revision'] == 14
 
 
-def test_reset_rejects_unfinished_exercise(repository_factory, exercise):
+def test_reset_abandons_unfinished_exercise(repository_factory, exercise):
     repo = repository_factory(); seed(repo, exercise)
-    with pytest.raises(HTTPException) as error:
-        reset_onboarding(repo, 12)
-    assert error.value.status_code == 409
-    assert repo.profile().name == 'Robin'
+    reset_onboarding(repo, 12)
+    assert repo.current_exercise() is None
+    assert repo.profile().name == 'Listener'
+    assert repo.profile().completed_attempts == 3
+    assert not repo.history()
 
 
 def test_production_reset_is_authenticated_and_per_owned_account(repository_factory, tmp_path):
@@ -144,10 +145,11 @@ def test_reset_and_account_erasure_routes_cannot_be_confused(tmp_path):
         app.state.repository.close(); asyncio.run(auth.aclose())
 
 
-def test_reset_failure_rolls_back_and_resume_preserves_new_checkpoint(repository_factory, tmp_path, monkeypatch):
+def test_reset_failure_rolls_back_and_resume_preserves_new_checkpoint(repository_factory, tmp_path, monkeypatch, exercise):
     repo = repository_factory(); provider = FakeProvider()
     app = create_app(settings_for(tmp_path).model_copy(update={'auth_mode': 'local'}), provider, repository=repo)
     client = ASGIClient(app, provider)
+    exercise_id = seed(repo, exercise)
     profile = repo.profile(); profile.name = 'Before'; profile.onboarding.revision = 12
     repo.save_profile(profile); before = repo.profile()
     from contextlib import contextmanager
@@ -161,7 +163,7 @@ def test_reset_failure_rolls_back_and_resume_preserves_new_checkpoint(repository
         patch.setattr(repo, 'transaction', fail_after_update)
         with pytest.raises(RuntimeError):
             reset_onboarding(repo, 12)
-    assert repo.profile() == before
+    assert repo.profile() == before and repo.exercise(exercise_id) is not None
     assert client.post('/api/onboarding/restart', json={'confirmation': 'RESTART ONBOARDING', 'revision': 12}).status_code == 200
     state = client.post('/api/onboarding/start', json={'revision': 13}).json()
     heard = client.post('/api/onboarding/heard', json={'revision': state['revision']}).json()
@@ -171,16 +173,18 @@ def test_reset_failure_rolls_back_and_resume_preserves_new_checkpoint(repository
 
 
 @pytest.mark.parametrize('status', ['active', 'paused'])
-def test_reset_rejects_open_lesson_even_without_current_exercise(repository_factory, status):
+def test_reset_abandons_open_lesson_even_without_current_exercise(repository_factory, status):
     from app.lesson import Lesson, now
     repo = repository_factory()
     lesson = Lesson(id=str(uuid4()), started_at=now(), active_since=now() if status == 'active' else None,
                     name='Robin', focus='details', phase='WELCOME', status=status)
     repo.create_lesson(lesson)
     before = repo.profile()
-    with pytest.raises(HTTPException) as error:
-        reset_onboarding(repo, before.onboarding.revision)
-    assert error.value.status_code == 409 and repo.profile() == before
+    reset_onboarding(repo, before.onboarding.revision)
+    assert repo.lesson() is None and repo.lesson(lesson.id) is None
+    assert repo.profile().completed_attempts == before.completed_attempts
+    with pytest.raises(ValueError):
+        repo.save_lesson(lesson, lesson.revision)
 
 
 def test_postgres_workers_serialize_reset_and_lesson_saving(repository_factory, tmp_path):
@@ -197,10 +201,10 @@ def test_postgres_workers_serialize_reset_and_lesson_saving(repository_factory, 
         clients = [httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver',
                                    headers={'Authorization': 'Bearer valid'}) for app in apps]
         try:
-            # One winner; the other reset cannot reuse the previous revision.
+            # Concurrent retries acknowledge the same reset without incrementing twice.
             results = await asyncio.gather(*[client.post('/api/onboarding/restart',
                 json={'confirmation': 'RESTART ONBOARDING', 'revision': 0}) for client in clients])
-            assert sorted(response.status_code for response in results) == [200, 409]
+            assert sorted(response.status_code for response in results) == [200, 200]
             saving = asyncio.Event(); finish = asyncio.Event()
             @apps[0].post('/api/test-persistence')
             async def persist_lesson():
@@ -216,8 +220,8 @@ def test_postgres_workers_serialize_reset_and_lesson_saving(repository_factory, 
             await asyncio.sleep(.15)
             assert not reset.done() and repo.profile().onboarding.revision == 1
             finish.set(); assert (await save).status_code == 200
-            assert (await reset).status_code == 409
-            assert repo.lesson().name == 'Saved before reset' and repo.profile().onboarding.revision == 1
+            assert (await reset).status_code == 200
+            assert repo.lesson() is None and repo.profile().onboarding.revision == 2
             assert (await clients[0].get('/api/profile')).status_code == 200
         finally:
             for client in clients + auth_clients:
@@ -327,3 +331,89 @@ def test_reset_invalidates_stale_voice_and_completion_requests(repository_factor
     stale = client.post('/api/onboarding/attempts', data={'revision': old},
                         files={'audio': ('response.wav', audio_bytes, 'audio/wav')})
     assert stale.status_code == 409 and repo.profile() == after
+
+
+def test_restart_discards_pending_evidence_and_rejects_old_lesson_callbacks(repository_factory, tmp_path, audio_bytes):
+    from app.lesson import Lesson, now
+    from test_conversation import begin, answer, scripted
+    repo = repository_factory(); provider = FakeProvider()
+    client = ASGIClient(create_app(settings_for(tmp_path).model_copy(update={'auth_mode': 'local'}),
+                                  provider, repository=repo), provider)
+    scripted(client, [{'inference': 'insufficient_evidence'}])
+    exercise = begin(client)
+    _, _, pending = answer(client, exercise, audio_bytes)
+    assert pending.status_code == 200 and pending.json()['active_followup']
+    at = now()
+    lesson = Lesson(id=str(uuid4()), started_at=at, active_since=at, name='Robin', focus='details', phase='EXERCISE')
+    repo.create_lesson(lesson); repo.attach_lesson_exercise(lesson, exercise['id'])
+    other = repo.for_learner(str(uuid4()))
+    seed(other, ExerciseContent.model_validate(json.loads(repo.exercise(exercise['id'])['content'])))
+    other_before = other.current_exercise()
+    before = repo.profile()
+    body = {'confirmation': 'RESTART ONBOARDING', 'revision': before.onboarding.revision}
+    result = client.post('/api/onboarding/restart', json=body)
+    assert result.status_code == 200
+    assert client.post('/api/onboarding/restart', json=body).json() == result.json()
+    assert repo.lesson() is None and repo.current_exercise() is None
+    assert other.current_exercise() == other_before
+    assert repo.profile().completed_attempts == before.completed_attempts and repo.history() == []
+    for path in ('heard', 'answer', 'advance', 'exercise', 'resume', 'end', 'audio'):
+        response = client.post(f'/api/lessons/{lesson.id}/{path}', json={'revision': lesson.revision})
+        assert response.status_code == 404, (path, response.text)
+    for path in ('conversation', 'audio'):
+        assert client.get(f"/api/exercises/{exercise['id']}/{path}").status_code == 404
+    assert client.post('/api/exercises').status_code == 409
+    assert client.post('/api/lessons/start').status_code == 409
+    assert repo.profile().completed_attempts == before.completed_attempts
+    assert client.get('/api/profile').json()['destination'] == 'onboarding'
+
+
+def test_generation_started_before_restart_cannot_save_after_it(repository_factory, tmp_path):
+    repo = repository_factory(); provider = FakeProvider()
+    profile = repo.profile(); profile.onboarding_status = 'complete'; repo.save_profile(profile)
+    async def run():
+        entered = asyncio.Event(); release = asyncio.Event()
+        original = provider.generate
+        async def delayed(profile):
+            entered.set(); await release.wait()
+            return await original(profile)
+        provider.generate = delayed
+        app = create_app(settings_for(tmp_path).model_copy(update={'auth_mode': 'local'}), provider, repository=repo)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver') as client:
+            generating = asyncio.create_task(client.post('/api/exercises'))
+            await entered.wait()
+            # Fault injection bypasses the request lease to exercise the final
+            # persistence guard independently of API-worker serialization.
+            reset_onboarding(repo, 0)
+            after = repo.profile()
+            release.set()
+            assert (await generating).status_code != 200
+            assert repo.current_exercise() is None and repo.profile() == after
+    asyncio.run(run())
+
+
+def test_delayed_assessment_after_restart_cannot_award_progress(repository_factory, tmp_path, audio_bytes):
+    from test_conversation import begin, assessment
+    repo = repository_factory(); provider = FakeProvider()
+    app = create_app(settings_for(tmp_path).model_copy(update={'auth_mode': 'local'}), provider, repository=repo)
+    client = ASGIClient(app, provider)
+    exercise = begin(client)
+    uploaded = client.post(f"/api/exercises/{exercise['id']}/attempts",
+        files={'audio': ('response.wav', audio_bytes, 'audio/wav')}).json()
+    async def run():
+        entered = asyncio.Event(); release = asyncio.Event()
+        async def delayed(content, turns):
+            entered.set(); await release.wait()
+            return assessment(content, turns)
+        provider.assess = delayed
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver') as client:
+            request = asyncio.create_task(client.post(f"/api/attempts/{uploaded['id']}/assess",
+                json={'text': uploaded['transcription']['text'], 'confirmed': True}))
+            await entered.wait()
+            reset_onboarding(repo, repo.profile().onboarding.revision)
+            after = repo.profile()
+            release.set()
+            assert (await request).status_code != 200
+            assert repo.profile() == after and not repo.history() and not repo.session_history()
+            assert repo.current_exercise() is None
+    asyncio.run(run())

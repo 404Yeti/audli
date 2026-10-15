@@ -26,13 +26,35 @@ def reset_onboarding(repo, revision):
                          .with_for_update()).mappings().one()
         profile = LearnerProfile.model_validate(row['data'])
         if profile.onboarding.revision != revision:
+            # Retry of the same reset is safe until the new onboarding advances.
+            if (profile.onboarding.revision == revision + 1
+                    and profile.onboarding_status == 'not_started'):
+                return {'destination': 'onboarding', 'revision': profile.onboarding.revision}
             raise HTTPException(409, 'Onboarding changed. Reload before restarting.')
-        if db.execute(select(s.lessons.c.id).where(s.lessons.c.user_id == repo.learner_id,
-                         s.lessons.c.status != 'completed')).first():
-            raise HTTPException(409, 'Finish your current lesson before restarting onboarding.')
-        exercise = repo.current_exercise()
-        if exercise and not repo.completed(exercise['id']):
-            raise HTTPException(409, 'Finish your current exercise before restarting onboarding.')
+        # Discard only unevaluated work. Existing request leases serialize this
+        # transaction with provider-backed saves across authenticated API workers.
+        # Removed IDs make delayed callbacks fail ownership/existence checks.
+        unfinished = list(db.execute(select(s.exercises.c.id, s.exercises.c.session_id)
+            .where(s.exercises.c.user_id == repo.learner_id,
+                ~select(s.attempts.c.id).where(s.attempts.c.exercise_id == s.exercises.c.id,
+                    s.attempts.c.status == 'evaluated').exists())).all())
+        ids = [item.id for item in unfinished]
+        if ids:
+            for table in (s.evidence, s.turns, s.assessments, s.conversations,
+                          s.followups, s.coach_audio, s.lesson_exercises, s.attempts):
+                db.execute(table.delete().where(table.c.exercise_id.in_(ids)))
+            db.execute(s.exercises.delete().where(s.exercises.c.id.in_(ids),
+                s.exercises.c.user_id == repo.learner_id))
+            sessions = [item.session_id for item in unfinished if item.session_id]
+            db.execute(s.sessions.delete().where(s.sessions.c.id.in_(sessions),
+                s.sessions.c.user_id == repo.learner_id, s.sessions.c.status == 'active',
+                ~select(s.exercises.c.id).where(s.exercises.c.session_id == s.sessions.c.id).exists()))
+        open_lessons = select(s.lessons.c.id).where(s.lessons.c.user_id == repo.learner_id,
+            s.lessons.c.status != 'completed')
+        db.execute(s.lesson_exercises.delete().where(s.lesson_exercises.c.user_id == repo.learner_id,
+            s.lesson_exercises.c.lesson_id.in_(open_lessons)))
+        db.execute(s.lessons.delete().where(s.lessons.c.user_id == repo.learner_id,
+            s.lessons.c.status != 'completed'))
         defaults = LearnerProfile()
         for field in RESET_FIELDS:
             setattr(profile, field, getattr(defaults, field))

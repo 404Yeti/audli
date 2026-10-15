@@ -162,13 +162,17 @@ def test_restart_api_preserves_completed_history_and_checkin(lesson_client):
     assert after.listening_profile == before.listening_profile and after.difficulty == before.difficulty
     assert after.completed_attempts == before.completed_attempts and repo.accent_lesson_history() == history
     assert len(repo.roadmap().completed_ids) == 3 and due(repo.roadmap()) is None
-    assert client.post('/api/onboarding/restart', json={'confirmation':'RESTART ONBOARDING','revision':before.onboarding.revision}).status_code == 409
+    assert client.post('/api/onboarding/restart', json={'confirmation':'RESTART ONBOARDING','revision':before.onboarding.revision}).status_code == 200
+    assert repo.profile() == after
     assert client.get('/api/plan').json()['readiness'] == 'onboarding'
     assert client.post('/api/onboarding/start', json={'revision':after.onboarding.revision}).status_code == 200
 
 
-def test_restart_does_not_interrupt_a_lesson(lesson_client):
+def test_restart_abandons_lesson_without_planner_completion(lesson_client):
     client = lesson_client; repo = client.app.state.repository
     lesson = client.post('/api/lessons/start').json(); before = repo.profile()
-    assert client.post('/api/onboarding/restart', json={'confirmation':'RESTART ONBOARDING','revision':before.onboarding.revision}).status_code == 409
-    assert repo.profile() == before and repo.lesson().id == lesson['id']
+    assert client.post('/api/onboarding/restart', json={'confirmation':'RESTART ONBOARDING','revision':before.onboarding.revision}).status_code == 200
+    assert repo.lesson() is None and repo.lesson(lesson['id']) is None
+    assert repo.profile().completed_attempts == before.completed_attempts
+    assert client.get('/api/plan').json()['completed_lessons'] == 0
+    assert repo.profile().onboarding_status == 'not_started'

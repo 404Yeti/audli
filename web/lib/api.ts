@@ -3,6 +3,12 @@ let authRevision = 0;
 const pendingOperations = new Set<AbortController>();
 export function currentAuthRevision() { return authRevision; }
 
+/** End pending work before starting a new onboarding run in the same account. */
+export function cancelPendingOperations() {
+  for (const controller of pendingOperations) controller.abort();
+  pendingOperations.clear();
+}
+
 export function setAccessTokenProvider(provider: (() => Promise<string | null>) | null) {
   accessToken = provider;
   authRevision++;

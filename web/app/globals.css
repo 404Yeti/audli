@@ -326,3 +326,17 @@ dd .text-button { display: block; padding-left: 0; }
 .tutor-voice-choice span { font-size: 14px; }
 .tutor-voice-choice small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
 .tutor-voice-choice .text-button { padding: 8px; flex-shrink: 0; }
+
+/* Initial entry only; share the approved wordmark, Pip and paper palette. */
+main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; border: 0; border-radius: 0; padding: max(32px, env(safe-area-inset-top)) 24px max(32px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.audli-loading-screen .wordmark { font-size: 32px; }
+.startup-presence { width: min(256px, 100%); margin: 32px 0 20px; }
+.startup-presence .audli-mascot { width: 100%; margin: 0; }
+.startup-presence .mascot-body { animation: mascot-think 3s ease-in-out infinite; }
+.startup-presence[data-failed="true"] .mascot-body { animation: none; }
+.startup-status { font-size: 15px; line-height: 1.6; margin: 0; max-width: 280px; }
+.startup-recovery { width: min(326px, 100%); }
+.startup-recovery h1 { font-size: 22px; margin-bottom: 12px; }
+.startup-recovery p { margin: 0; }
+.startup-recovery button { min-height: 54px; }
+@media (prefers-reduced-motion: reduce) { .startup-presence .mascot-body { animation: none; } }

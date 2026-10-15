@@ -619,3 +619,23 @@ test('walkthrough swipe reduced motion skip and account isolation across login',
   await switchToB(page);expect(fixture.requests.filter(x=>x.authorization===`Bearer ${tokenB}`&&x.path.endsWith('/walkthrough'))).toEqual([]);
   expect((await probe(page)).mediaCalls).toBe(0);
 });
+
+test('stalled session restoration times out without mounting private content and reload recovers', async ({ page }) => {
+  await setupAuth(page); await signIn(page);
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('audli-auth-session')!);
+    saved.expires_at = Math.floor(Date.now() / 1000) - 60;
+    localStorage.setItem('audli-auth-session', JSON.stringify(saved));
+  });
+  await page.clock.install();
+  await page.route('https://audli-auth-test.supabase.co/auth/v1/token**', () => {});
+  await page.reload();
+  await expect(page.getByRole('status')).toHaveText('Getting Audli ready…');
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toHaveCount(0);
+  await page.clock.fastForward(20_001);
+  await expect(page.getByRole('alert')).toContainText('account is taking too long');
+  await page.unroute('https://audli-auth-test.supabase.co/auth/v1/token**');
+  await page.getByRole('button', { name: 'Retry connection' }).click();
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+});

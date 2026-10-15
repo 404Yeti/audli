@@ -299,6 +299,7 @@ dd .text-button { display: block; padding-left: 0; }
 .walkthrough-illustration .audli-mascot { margin: 0; }
 .walkthrough-label { color: #087f73; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; }
 .walkthrough-slide h1 { font-size: clamp(28px, 7.5vw, 36px); line-height: 1.16; letter-spacing: -.035em; max-width: 400px; margin: 0 auto 18px; outline-offset: 6px; }
+.walkthrough-slide h1:focus { outline: none; }
 .walkthrough-description { font-size: 16px; line-height: 1.65; max-width: 360px; margin: 0 auto; }
 .walkthrough-footer { width: 100%; }
 .walkthrough-indicators { display: flex; justify-content: center; gap: 2px; }

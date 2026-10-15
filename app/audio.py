@@ -58,14 +58,14 @@ async def validate_upload(upload: UploadFile, settings: Settings):
     return data, f'response.{kind}'
 
 
-async def sanitize_generated_audio(data: bytes, kind: str) -> bytes:
+async def sanitize_generated_audio(data: bytes, kind: str, *, max_seconds: int = 150) -> bytes:
     """Decode generated speech and discard tags that could carry the hidden script."""
     with tempfile.TemporaryDirectory(prefix='audli-speech-') as directory:
         source = Path(directory) / 'source'
         destination = Path(directory) / f'clip.{kind}'
         source.write_bytes(data)
         args = [get_ffmpeg_exe(), '-v', 'error', '-nostdin', '-i', str(source), '-vn',
-                '-map_metadata', '-1', '-t', '150']
+                '-map_metadata', '-1', '-t', str(max_seconds)]
         if kind == 'mp3':
             args += ['-codec:a', 'libmp3lame', '-id3v2_version', '0', '-write_id3v1', '0']
         args += [str(destination)]

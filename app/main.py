@@ -341,6 +341,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def history():
         return repo.history()
 
+    from app.tutor_voice_api import register_tutor_voice_routes
+    register_tutor_voice_routes(app, repo, lock, settings)
     register_review_routes(app, repo)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_onboarding_reset_routes(app, repo, lock)

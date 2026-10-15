@@ -124,7 +124,7 @@ class SQLProgressRepository:
     def profile(self):
         with self.engine.connect() as db:
             row = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id)).mappings().one()
-            return LearnerProfile(accent_preferences=row['data'].get('accent_preferences', {}), onboarding=row['data'].get('onboarding', {}), name=row['name'], target_language=row['target_language'], goal=row['goal'],
+            return LearnerProfile(tutor_voice=row['data'].get('tutor_voice', 'original'), accent_preferences=row['data'].get('accent_preferences', {}), onboarding=row['data'].get('onboarding', {}), name=row['name'], target_language=row['target_language'], goal=row['goal'],
                 interests=row['interests'], target_situations=row['target_situations'],
                 onboarding_status=row['onboarding_status'], initial_listening_profile=row['initial_listening_profile'],
                 listening_profile={key: row[key] for key in ('overall', 'main_idea', 'details', 'vocabulary', 'inference', 'natural_speed')},
@@ -134,6 +134,17 @@ class SQLProgressRepository:
     def save_profile(self, profile: LearnerProfile):
         with self.transaction() as db:
             db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id).values(**profile_values(profile)))
+
+    def save_tutor_voice(self, voice):
+        """Change only this owner's voice against the latest locked snapshot."""
+        with self.transaction() as db:
+            row = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id)
+                .with_for_update()).mappings().one()
+            current = LearnerProfile.model_validate(row['data'])
+            current.tutor_voice = voice
+            db.execute(update(s.profiles).where(s.profiles.c.user_id == self.learner_id)
+                .values(**profile_values(current)))
+        return current.tutor_voice
 
     def save_accent_preferences(self, preferences):
         """Update only this owner's preference against current, locked learner state."""
@@ -283,6 +294,8 @@ class SQLProgressRepository:
             if conversation is not None and conversation.exercise_id != exercise['id']:
                 raise ValueError('Conversation does not belong to this attempt')
             updated = profile.model_copy(deep=True)
+            # A preference changed while evidence was evaluated must survive completion.
+            updated.tutor_voice = current['data'].get('tutor_voice', 'original')
             if updated.initial_listening_profile is None and not getattr(evaluation, 'insufficient_evidence', []):
                 updated.initial_listening_profile = updated.listening_profile.model_copy(deep=True)
             db.execute(update(s.attempts).where(s.attempts.c.id == attempt_id).values(status='evaluated', confirmed_text=text))

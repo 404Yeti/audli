@@ -4,6 +4,7 @@ import { ReviewHub } from '../components/review-hub';
 import { OnboardingReset } from '../components/onboarding-reset';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { AuthGate, useAccount } from '../components/auth-gate';
+import { TutorVoiceSettings } from '../components/tutor-voice-settings';
 import { AccentSettings, type AccentPreferences } from '../components/accent-settings';
 import { SpokenOnboarding } from '../components/onboarding';
 import { AudliMascot } from '../components/audli-mascot';
@@ -311,7 +312,7 @@ function Product() {
     </section>}
     {destination === 'Review' && <ReviewHub key={account.scope}/>}
     {destination === 'Plan' && <AdaptivePlan/>}
-    {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dd><OnboardingReset disabled={busy || active}/></dd><dt>Accent difficulties</dt><dd><AccentSettings preferences={profile?.accent_preferences} onSaved={value => setProfile(current => current ? { ...current, accent_preferences: value } : current)}/></dd><dt>Voice & playback</dt><dd>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
+    {destination === 'Settings' && <section className="shell-view"><h1>Settings</h1><dl><dt>Account</dt><dd>{account.email ?? 'Local development account'}{account.signOut && <button className="text-button" onClick={() => void account.signOut?.()}>Sign out</button>}</dd><dd><OnboardingReset disabled={busy || active}/></dd><dt>Voice & playback</dt><dd><TutorVoiceSettings/>Audli speaks automatically. Replay is available while Audli is speaking.</dd><dt>Accent difficulties</dt><dd><AccentSettings preferences={profile?.accent_preferences} onSaved={value => setProfile(current => current ? { ...current, accent_preferences: value } : current)}/></dd><dt>Accessibility</dt><dd><label className="toggle"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)}/>Reduce motion</label><p>System reduced-motion preferences always apply.</p></dd><dt>Privacy</dt><dd>Your microphone recording is discarded after transcription. Your listening progress is saved to your account.</dd><dt>Help</dt><dd>Allow microphone access in your browser to speak with Audli.</dd></dl></section>}
     {busy && <p role="status">Loading your listening space…</p>}{error && <div role="alert" className="session-error">{error}<button className="secondary" onClick={retry}>Retry connection</button></div>}
     <BottomNavigation destination={destination} onNavigate={value => void navigate(value)}/><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/>
   </main>;

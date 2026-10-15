@@ -12,6 +12,7 @@ import httpx
 from app.audio import sanitize_generated_audio, signature_matches
 from app.config import Settings
 from app.services.provider import AIProvider
+from app.tutor_voice import TutorVoice, tutor_settings
 
 tts_measurements: ContextVar[list[dict] | None] = ContextVar('tts_measurements', default=None)
 MAX_TUTOR_CHARACTERS = 4000
@@ -35,6 +36,22 @@ async def sanitize_tutor_audio(data: bytes, kind: str, provider: AIProvider) -> 
     if isinstance(provider, TutorTTSProvider):
         return data
     return await sanitize_generated_audio(data, kind)
+
+
+class TutorSpeech:
+    """One voice snapshot for both the cache key and synthesis of a single cue."""
+    def __init__(self, settings: Settings, provider: AIProvider, preference: TutorVoice):
+        self.settings = tutor_settings(settings, preference)
+        self.provider = (TutorTTSProvider(provider.base, self.settings, provider.eleven_client)
+                         if isinstance(provider, TutorTTSProvider) else provider)
+        self.signature = tutor_cache_signature(self.settings)
+        self.kind = 'wav' if settings.provider == 'demo' else 'mp3'
+
+    async def speak(self, text: str) -> bytes:
+        return await self.provider.speak(text)
+
+    async def sanitize(self, data: bytes) -> bytes:
+        return await sanitize_tutor_audio(data, self.kind, self.provider)
 
 
 def tutor_cue_cache_id(settings: Settings, cue_id: str, text: str) -> str:

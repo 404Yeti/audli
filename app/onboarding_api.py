@@ -3,7 +3,7 @@ from fastapi import HTTPException, UploadFile, Form
 from fastapi.responses import Response
 from hashlib import sha256
 from app.audio import validate_upload
-from app.services.tutor_tts import tutor_cache_signature, sanitize_tutor_audio
+from app.services.tutor_tts import TutorSpeech
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
 from app.recognition import reliable_recognition
@@ -234,17 +234,18 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             profile = check(body.revision)
             require_active(profile)
             text = onboarding_prompt(profile)
-            kind = 'wav' if settings.provider == 'demo' else 'mp3'
+            tutor = TutorSpeech(settings, ai(), profile.tutor_voice)
+            kind = tutor.kind
             # Only application-owned static prompts are reused. Include the complete
             # voice configuration so changed settings cannot replay old speech.
             key = ':'.join((str(repo.learner_id), 'onboarding-prompt-v1', settings.provider,
-                            settings.speech_model, settings.voice, tutor_cache_signature(settings), text))
+                            settings.speech_model, settings.voice, tutor.signature, text))
             name = sha256(key.encode()).hexdigest() + '.' + kind
             data = repo.audio_blob(name)
             if data is None:
                 with operation(settings, 'onboarding.tts_provider'):
-                    data = await ai().speak(text)
+                    data = await tutor.speak(text)
                 with operation(settings, 'onboarding.tts_sanitization'):
-                    data = await sanitize_tutor_audio(data, kind, ai())
+                    data = await tutor.sanitize(data)
                 repo.cache_lesson_audio(name, data)
             return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')

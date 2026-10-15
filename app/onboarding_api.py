@@ -123,7 +123,10 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 with operation(settings, 'onboarding.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
                 with operation(settings, 'onboarding.transcription'):
-                    transcription = Transcription.model_validate(await ai().transcribe(data, filename))
+                    try:
+                        transcription = Transcription.model_validate(await ai().transcribe(data, filename))
+                    except Exception:
+                        raise HTTPException(503, 'I had trouble transcribing your recording. Please try again.') from None
                 if profile.onboarding.stage == 'needs':
                     profile.onboarding.name_question_revision = None
                 profile.onboarding.pending = transcription

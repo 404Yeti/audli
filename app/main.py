@@ -275,7 +275,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 with operation(settings, 'turn.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
                 with operation(settings, 'turn.transcription'):
-                    transcription = await ai().transcribe(data, filename)
+                    try:
+                        transcription = await ai().transcribe(data, filename)
+                    except Exception:
+                        raise HTTPException(503, 'I had trouble transcribing your recording. Please try again.') from None
             finally:
                 await audio.close()
             attempt_id = repo.add_attempt(exercise_id, transcription)

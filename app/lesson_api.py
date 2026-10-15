@@ -224,7 +224,10 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 with operation(settings, 'lesson.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
                 with operation(settings, 'lesson.transcription'):
-                    lesson.pending = Transcription.model_validate(await ai().transcribe(data, filename))
+                    try:
+                        lesson.pending = Transcription.model_validate(await ai().transcribe(data, filename))
+                    except Exception:
+                        raise HTTPException(503, 'I had trouble transcribing your recording. Please try again.') from None
                 with operation(settings, 'lesson.pending_persistence'):
                     return public(save(lesson, revision))
         finally:

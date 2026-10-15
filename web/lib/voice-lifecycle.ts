@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { authenticatedFetch, currentAuthRevision, LessonLifetime, type LessonOperation } from './api';
-import { captureRecording } from './recording';
+import { captureRecording, recordingDiagnostic, InterruptedRecording } from './recording';
+import { microphoneError } from './session';
 import { turnDetector } from './hands-free';
 import { measureTurn, turnTiming, speechLatency, measuredAudioBody } from './turn-timing';
 import { PreparedAudio } from './prepared-audio';
@@ -183,9 +184,10 @@ export function useVoiceLifecycle() {
   }
   async function listen(operation: LessonOperation): Promise<Blob> {
     operation.assertCurrent(); audio.current?.pause();
+    if (document.visibilityState === 'hidden') throw new Error('Return to Audli and retry your recording.');
     setState('Thinking'); setActivity(false);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('Recording requires HTTPS and a supported browser.');
-    const input = await operation.wait(() => navigator.mediaDevices.getUserMedia({ audio: true }), stream => stream.getTracks().forEach(track => track.stop()));
+    const input = await operation.wait(() => navigator.mediaDevices.getUserMedia({ audio: true }).catch(error => { throw microphoneError(error); }), stream => stream.getTracks().forEach(track => track.stop()));
     operation.assertCurrent(() => input.getTracks().forEach(track => track.stop()));
     try {
       return await operation.wait(() => new Promise<Blob>((resolve, reject) => {
@@ -193,20 +195,37 @@ export function useVoiceLifecycle() {
         let interval: ReturnType<typeof setInterval> | undefined;
         let resumeTimer: ReturnType<typeof setTimeout> | undefined;
         let capture: ReturnType<typeof captureRecording> | undefined;
+        let interrupted = false;
         let disposed = false, stoppedAt: number | null = null, lastVoiceAt = performance.now();
         const cleanup = () => {
           if (disposed) return; disposed = true;
           if (interval) clearInterval(interval);
           if (resumeTimer) clearTimeout(resumeTimer);
+          document.removeEventListener('visibilitychange', visibilityChanged);
+          window.removeEventListener('pagehide', pageHidden);
+          if (context) context.onstatechange = null;
           source?.disconnect(); void context?.close().catch(() => {});
           capture?.dispose(); input.getTracks().forEach(track => track.stop());
           operation.signal.removeEventListener('abort', cancelled); disposeRecording.current = null;
         };
         const cancelled = () => { cleanup(); reject(new DOMException('Recording cancelled.', 'AbortError')); };
+        const interrupt = () => {
+          if (disposed || interrupted) return;
+          interrupted = true;
+          recordingDiagnostic('capture_interrupted');
+          if (interval) clearInterval(interval);
+          if (capture) capture.stop();
+          else { cleanup(); reject(new Error('Recording was interrupted. Return to Audli and try again.')); }
+        };
+        const visibilityChanged = () => { if (document.visibilityState === 'hidden') interrupt(); };
+        const pageHidden = () => interrupt();
+        document.addEventListener('visibilitychange', visibilityChanged);
+        window.addEventListener('pagehide', pageHidden);
         disposeRecording.current = cancelled; operation.signal.addEventListener('abort', cancelled, { once: true });
         try {
           if (typeof AudioContext === 'undefined') throw new Error('Automatic turn detection is unavailable in this browser. Please use a supported browser.');
           context = new AudioContext();
+          context.onstatechange = () => { if (capture && context?.state !== 'running') interrupt(); };
           const analyser = context.createAnalyser(); analyser.fftSize = 1024;
           source = context.createMediaStreamSource(input); source.connect(analyser);
           const samples = new Float32Array(analyser.fftSize);
@@ -215,7 +234,7 @@ export function useVoiceLifecycle() {
             if (disposed || !operation.current) return;
             if (context?.state !== 'running') throw new Error('Microphone turn detection could not start. Please retry.');
             if (resumeTimer) clearTimeout(resumeTimer);
-            capture = captureRecording(input, blob => { if (stoppedAt != null) turnTiming('recording_finalization', stoppedAt); cleanup(); resolve(blob); }, message => { cleanup(); reject(new Error(message)); });
+            capture = captureRecording(input, blob => { if (stoppedAt != null) turnTiming('recording_finalization', stoppedAt); cleanup(); if (interrupted) reject(new InterruptedRecording(blob)); else resolve(blob); }, message => { cleanup(); reject(new Error(interrupted ? 'Recording was interrupted. Return to Audli and try again.' : message)); });
             await capture.ready;
             if (disposed || !operation.current) return;
             if (!input.getAudioTracks().some(track => track.readyState === 'live' && track.enabled))
@@ -225,6 +244,7 @@ export function useVoiceLifecycle() {
             setState('Listening'); setActivity(false);
             interval = setInterval(() => {
               if (!operation.current) { cancelled(); return; }
+              if (context?.state !== 'running' || !input.getAudioTracks().some(track => track.readyState === 'live' && track.enabled && !track.muted)) { interrupt(); return; }
               analyser.getFloatTimeDomainData(samples);
               const rms = Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length);
               const turn = detect(Date.now(), rms); setActivity(turn.activity);
@@ -235,7 +255,7 @@ export function useVoiceLifecycle() {
                 if (interval) clearInterval(interval); capture?.stop();
               }
             }, 50);
-          }).catch(() => { cleanup(); reject(new Error('Microphone recording could not start. Please retry.')); });
+          }).catch(error => { cleanup(); reject(error); });
         } catch (error) { cleanup(); reject(error); }
       }));
     } catch (error) { input.getTracks().forEach(track => track.stop()); throw error; }

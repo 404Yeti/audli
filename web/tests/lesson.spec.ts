@@ -140,7 +140,7 @@ test('refresh restores pending answer and original session timing without rereco
   expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(1);
 });
 test('denied microphone is recoverable and does not generate or start a session',async({page})=>{
-  const fixture=await setup(page,{denied:true});await page.getByRole('button',{name:'Start today’s session'}).click();await expect(page.locator('main').getByRole('alert')).toContainText('Microphone access was denied');
+  const fixture=await setup(page,{denied:true});await page.getByRole('button',{name:'Start today’s session'}).click();await expect(page.locator('main').getByRole('alert')).toContainText('Audli needs microphone access');
   expect(fixture.requests.some(x=>x.path.endsWith('/conversation/listened'))).toBe(false);await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
 });
 test('TTS failure leaves the server-issued question recoverable',async({page})=>{
@@ -300,4 +300,65 @@ test('suspended context times out safely, offers Retry and discards late resume'
   expect((await probe(page)).tracks).toBe((await probe(page)).mediaCalls);
   await page.evaluate(()=>(window as unknown as Record<string,()=>void>).releaseContext());
   await page.waitForTimeout(50);expect((await probe(page)).recorders).toBe(0);
+});
+
+
+for (const [options, message] of [[{denied:true}, 'Audli needs microphone access'], [{unavailable:true}, 'No microphone is available']] as const) {
+  test(`microphone preflight: ${message}`,async({page})=>{
+    await setup(page,options);await page.getByRole('button',{name:'Start today’s session'}).click();
+    await expect(page.locator('.session-error')).toContainText(message);
+    expect((await probe(page)).recorders).toBe(0);
+    await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
+  });
+}
+
+test('empty recording exits Listening and can record again without restarting the lesson',async({page})=>{
+  const fixture=await setup(page,{empty:true});await page.clock.install();await beginListening(page);
+  await page.clock.runFor(2700);await expect(page.locator('.session-error')).toContainText('did not produce usable audio');
+  expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(0);
+  await state(page,'Thinking');await page.getByRole('button',{name:'Retry conversation'}).click();
+  await state(page,'Speaking');await endAudio(page);await state(page,'Listening');expect((await probe(page)).recorders).toBe(2);
+});
+
+test('server-rejected audio is replaced on retry rather than resubmitted forever',async({page})=>{
+  const fixture=await setup(page);await page.clock.install();
+  await page.route('**/api/exercises/clip1/attempts',route=>route.fulfill({status:422,json:{detail:'The recording seems silent. Check your microphone and try again.'}}));
+  await beginListening(page);await page.clock.runFor(2700);await expect(page.locator('.session-error')).toContainText('seems silent');
+  await page.unroute('**/api/exercises/clip1/attempts');
+  await page.getByRole('button',{name:'Retry conversation'}).click();await state(page,'Speaking');await endAudio(page);await state(page,'Listening');
+  expect((await probe(page)).recorders).toBe(2);await finishTurn(page);
+  expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(1);
+});
+
+for(const interruption of ['stopRecorder','suspendContext','hidden','blur']) {
+  test(`capture handles ${interruption} without a stuck recorder or overlapping playback`,async({page})=>{
+    const fixture=await setup(page);await page.clock.install();await beginListening(page);
+    await page.evaluate(kind=>{
+      if(kind==='hidden'){Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});document.dispatchEvent(new Event('visibilitychange'));}
+      else if(kind==='blur') window.dispatchEvent(new Event('blur'));
+      else (window as unknown as Record<string,()=>void>)[kind]();
+    },interruption);
+    if(interruption==='blur'){await state(page,'Listening');await page.clock.runFor(2700);}
+    if(interruption==='suspendContext' || interruption==='hidden') {
+      await expect(page.locator('.session-error')).toContainText('Recording was interrupted');
+      expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(0);
+      await expect(page.getByRole('button',{name:'Record again',exact:true})).toBeVisible();
+      await page.evaluate(()=>Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'}));
+      await page.getByRole('button',{name:'Retry conversation'}).click();await state(page,'Speaking');await endAudio(page);
+    }
+    await state(page,'Speaking');expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(1);
+    expect((await probe(page)).tracks).toBe((await probe(page)).mediaCalls);
+    expect((await probe(page)).overlaps).toBe(0);
+  });
+}
+
+test('transcription failure keeps audio for retry and offers an explicit fresh recording',async({page})=>{
+  await setup(page);await page.clock.install();let uploads=0;const bodies:string[]=[];
+  await page.route('**/api/exercises/clip1/attempts',route=>{uploads++;bodies.push(route.request().postDataBuffer()!.toString());return route.fulfill({status:503,json:{detail:'I had trouble transcribing your recording. Please try again.'}});});
+  await beginListening(page);await page.clock.runFor(2700);await expect(page.locator('.session-error')).toContainText('transcribing');
+  await page.getByRole('button',{name:'Retry conversation'}).click();await state(page,'Speaking');await endAudio(page);
+  await expect.poll(()=>uploads).toBe(2);expect((await probe(page)).recorders).toBe(1);
+  for(const body of bodies)expect(body).toContain('spoken answer');
+  await page.getByRole('button',{name:'Record again',exact:true}).click();await state(page,'Speaking');await endAudio(page);await state(page,'Listening');
+  expect((await probe(page)).recorders).toBe(2);
 });

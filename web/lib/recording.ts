@@ -1,6 +1,8 @@
-/** Temporary, development-only metadata diagnostics. Never pass audio or transcripts. */
+/** Opt-in metadata diagnostics. Never pass audio, device labels or transcripts. */
 export function recordingDiagnostic(event: string, metadata: Record<string, string | number | boolean> = {}) {
-  if (process.env.NODE_ENV === 'development') console.debug('[Audli recording]', event, metadata);
+  if (process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_AUDLI_RECORDING_DIAGNOSTICS !== '1') return;
+  const browser = typeof navigator === 'undefined' ? undefined : navigator.userAgent.match(/(Edg|CriOS|Chrome|FxiOS|Firefox|Version)\/([\d.]+)/);
+  console.debug('[Audli recording]', event, { ...metadata, ...(browser ? { browser: browser[1], browserVersion: browser[2] } : {}) });
 }
 
 const MIME_EXTENSIONS: Record<string, string> = {
@@ -46,6 +48,10 @@ export function captureRecording(
   failure: (message: string) => void,
   Recorder: typeof MediaRecorder = MediaRecorder,
 ) {
+  if (!input.getAudioTracks().some(track => track.readyState === 'live' && track.enabled)) {
+    input.getTracks().forEach(track => track.stop());
+    throw new Error('No active microphone is available. Check your microphone and try again.');
+  }
   let active: MediaRecorder;
   try {
     const mimeType = typeof Recorder.isTypeSupported === 'function'
@@ -56,6 +62,9 @@ export function captureRecording(
     input.getTracks().forEach(track => track.stop());
     throw error;
   }
+  let stopTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopping = false;
+  const startedAt = performance.now();
   let disposed = false;
   let failed = false;
   let started = false;
@@ -74,7 +83,7 @@ export function captureRecording(
   }, 5000);
   const chunks: Blob[] = [];
   const stopTracks = () => input.getTracks().forEach(track => track.stop());
-  const detach = () => { clearTimeout(startup); active.onstart = null; active.ondataavailable = null; active.onstop = null; active.onerror = null; chunks.length = 0; };
+  const detach = () => { clearTimeout(startup); clearTimeout(stopTimer); active.onstart = null; active.ondataavailable = null; active.onstop = null; active.onerror = null; chunks.length = 0; };
   active.onstart = () => {
     if (disposed || failed || active.state !== 'recording') return;
     started = true; clearTimeout(startup); resolveReady();
@@ -91,7 +100,7 @@ export function captureRecording(
     // The final dataavailable precedes stop. Build only after all chunks have arrived.
     const mimeType = active.mimeType || chunks.find(chunk => chunk.type)?.type || '';
     const blob = new Blob(chunks, { type: mimeType });
-    recordingDiagnostic('recorder_stopped', { chunkCount: chunks.length, blobSize: blob.size, mimeType: blob.type });
+    recordingDiagnostic('recorder_stopped', { chunkCount: chunks.length, blobSize: blob.size, mimeType: blob.type, durationMs: Math.round(performance.now() - startedAt) });
     detach();
     if (failed) return;
     if (!blob.size || !MIME_EXTENSIONS[blob.type.split(';')[0].trim().toLowerCase()]) {
@@ -119,7 +128,13 @@ export function captureRecording(
   return {
     ready,
     stop() {
-      if (!disposed && active.state !== 'inactive') {
+      if (!disposed && !stopping && active.state !== 'inactive') {
+        stopping = true;
+        stopTimer = setTimeout(() => {
+          if (disposed) return;
+          failed = true; detach(); stopTracks();
+          failure('Recording could not finish. Please try again.');
+        }, 5000);
         clearTimeout(startup);
         if (!started) rejectReady(new DOMException('Recording stopped before readiness.', 'AbortError'));
         active.stop();
@@ -133,4 +148,29 @@ export function captureRecording(
       detach(); stopTracks();
     },
   };
+}
+
+/** Only definitive audio validation failures invalidate a retained recording. */
+export async function sendRecording<T>(send: () => Promise<T>, invalid: () => void): Promise<T> {
+  recordingDiagnostic('upload_started');
+  try { const value = await send(); recordingDiagnostic('upload_transcription_succeeded'); return value; }
+  catch (error) {
+    const status = error && typeof error === 'object' && 'status' in error ? error.status : 0;
+    const rejected = status === 413 || status === 415 || status === 422;
+    if (rejected) invalid();
+    recordingDiagnostic('upload_failed', { category: rejected ? 'invalid_audio' : 'recoverable', status: typeof status === 'number' ? status : 0 });
+    if (rejected || (error instanceof Error && error.name === 'AbortError')) throw error;
+    // API messages distinguish transcription failures; network failures cannot establish delivery.
+    if (error instanceof Error && status) throw error;
+    throw new Error("Your recording couldn't be sent. You can try again.");
+  }
+}
+
+/** A finalized interrupted recording can be resent only after an explicit retry. */
+export class InterruptedRecording extends Error {
+  readonly blob: Blob;
+  constructor(blob: Blob) {
+    super('Recording was interrupted. You can send the captured recording again or record a new answer.');
+    this.blob = blob;
+  }
 }

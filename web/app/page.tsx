@@ -11,7 +11,7 @@ import { BottomNavigation, SessionShell, type Destination } from '../components/
 import { ApiError, LessonLifetime, type LessonOperation } from '../lib/api';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
-import { recordingUpload } from '../lib/recording';
+import { recordingUpload, sendRecording, InterruptedRecording } from '../lib/recording';
 import { conversationIntent } from '../lib/conversation-intent';
 import { measureTurn } from '../lib/turn-timing';
 import { microphonePermission } from '../lib/session';
@@ -125,9 +125,13 @@ function Product() {
   }
   async function captureAnswer(operation: LessonOperation, exercise: Exercise): Promise<Attempt> {
     let blob = retained.current?.exercise === exercise.id ? retained.current.blob : null;
-    if (!blob) { blob = await voice.listen(operation); operation.assertCurrent(); retained.current = { exercise: exercise.id, blob }; }
+    if (!blob) {
+      try { blob = await voice.listen(operation); }
+      catch (error) { if (operation.current && error instanceof InterruptedRecording) retained.current = { exercise: exercise.id, blob: error.blob }; throw error; }
+      operation.assertCurrent(); retained.current = { exercise: exercise.id, blob };
+    }
     voice.thinking();
-    const attempt = await measureTurn('upload_transcription', () => operation.api<Attempt>(`/exercises/${exercise.id}/attempts`, { method: 'POST', body: recordingUpload(blob!) }));
+    const attempt = await measureTurn('upload_transcription', () => sendRecording(() => operation.api<Attempt>(`/exercises/${exercise.id}/attempts`, { method: 'POST', body: recordingUpload(blob!) }), () => { retained.current = null; }));
     operation.assertCurrent(); retained.current = null; return attempt;
   }
   async function exerciseConversation(operation: LessonOperation, exercise: Exercise, intentionalRestart = false) {
@@ -230,9 +234,12 @@ function Product() {
         if (!value.pending) await voice.lessonSpeech(operation, value.id, value.revision);
         while (operation.current) {
           if (!value.pending) {
-            if (!personalCapture.current) personalCapture.current = await voice.listen(operation);
+            if (!personalCapture.current) {
+              try { personalCapture.current = await voice.listen(operation); }
+              catch (error) { if (operation.current && error instanceof InterruptedRecording) personalCapture.current = error.blob; throw error; }
+            }
             const form = recordingUpload(personalCapture.current); form.append('revision', String(value.revision));
-            value = await measureTurn('upload_transcription', () => operation.api<LessonCheckpoint>(`/lessons/${value.id}/attempts`, { method: 'POST', body: form }));
+            value = await measureTurn('upload_transcription', () => sendRecording(() => operation.api<LessonCheckpoint>(`/lessons/${value.id}/attempts`, { method: 'POST', body: form }), () => { personalCapture.current = null; }));
             operation.assertCurrent(); personalCapture.current = null; lesson.current = value;
           }
           if (!value.pending || !reliableRecognition(value.pending, minimum.current)) {
@@ -287,14 +294,14 @@ function Product() {
     catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); }
   }
   async function retry() {
-    if (active) { running.current = false; await start(false); }
+    if (active) { await start(false); }
     else { const operation = voice.begin(); try { await refresh(operation); setError(''); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); } }
   }
   async function navigate(value: Destination) {
     setDestination(value); setTranscript(null); setError('');
   }
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
-    <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button></div>}
+    <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
   if (completion) return <main className="lesson-completion" aria-labelledby="completion-title"><header><strong className="wordmark">audli</strong></header><AudliMascot state="Success"/><h1 id="completion-title" ref={completionHeading} tabIndex={-1}>Lesson completed</h1><p className="completion-encouragement">{completion.encouragement}</p><dl className="completion-results" aria-label="Today’s listening results"><div className="completion-card"><dt>Exercises completed</dt><dd className="completion-count">{completion.exercises_completed}</dd></div><div className="completion-card"><dt>Today’s listening focus</dt><dd>{focusCopy[completion.focus]}</dd></div>{completion.strength && <div className="completion-card"><dt>A demonstrated strength</dt><dd>{completion.strength}</dd></div>}{completion.improvement_focus && <div className="completion-card"><dt>Next listening focus</dt><dd>{completion.improvement_focus}</dd></div>}</dl><button className="primary" onClick={() => { setCompletion(null); lesson.current = null; try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ } }}>Return Home</button></main>;

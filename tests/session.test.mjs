@@ -29,5 +29,5 @@ test('permission preflight immediately releases every track without recording', 
 });
 test('denied and unsupported microphones provide actionable fallback', async () => {
   await assert.rejects(microphonePermission(undefined), /localhost or HTTPS/);
-  await assert.rejects(microphonePermission({async getUserMedia(){throw new Error('denied');}}), /spoken audio file/);
+  await assert.rejects(microphonePermission({async getUserMedia(){throw new Error('denied');}}), /Check your microphone/);
 });

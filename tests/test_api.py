@@ -123,3 +123,21 @@ def test_invalid_evaluator_output_preserves_attempt_and_allows_idempotent_retry(
     assert repeated.status_code == 200 and repeated.json() == retried.json()
     assert len(client.get('/api/history').json()) == 1
     assert repo.profile().completed_attempts == 1
+
+
+def test_transcription_failure_preserves_state_and_allows_same_audio_retry(client, audio_bytes):
+    exercise = client.post('/api/exercises').json()
+    original = client.provider.transcribe
+    async def fail(*args):
+        raise RuntimeError('PRIVATE TRANSCRIPT AND AUDIO MUST NOT APPEAR')
+    client.provider.transcribe = fail
+    path = f"/api/exercises/{exercise['id']}/attempts"
+    response = client.post(path, files={'audio': ('answer.wav', audio_bytes, 'audio/wav')})
+    assert response.status_code == 503
+    assert response.json()['detail'] == 'I had trouble transcribing your recording. Please try again.'
+    assert client.get('/api/history').json() == []
+    assert client.get(f"/api/exercises/{exercise['id']}/transcript").status_code == 403
+    client.provider.transcribe = original
+    response = client.post(path, files={'audio': ('answer.wav', audio_bytes, 'audio/wav')})
+    assert response.status_code == 200
+    assert client.get('/api/profile').json()['profile']['completed_attempts'] == 0

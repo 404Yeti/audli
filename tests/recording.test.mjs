@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { captureRecording, recordingPreview, previewSource, recordingUpload, recordingDiagnostic } from '../web/lib/recording.ts';
+import { captureRecording, recordingPreview, previewSource, recordingUpload, recordingDiagnostic, sendRecording } from '../web/lib/recording.ts';
+
+import { microphoneError } from '../web/lib/session.ts';
 
 function setup({ mimeType = 'audio/webm;codecs=opus', supported = 'audio/webm;codecs=opus', failStart = false, delayedStart = false } = {}) {
   let stoppedTracks = 0;
   let current;
-  const input = { getTracks: () => [{ stop() { stoppedTracks++; } }] };
+  const input = { getTracks: () => [{ stop() { stoppedTracks++; } }], getAudioTracks: () => [{ readyState: 'live', enabled: true }] };
   class Recorder {
     static isTypeSupported(type) { return type === supported; }
     constructor(stream, options) {
@@ -166,4 +168,42 @@ test('production emits no recording diagnostics', () => {
   process.env.NODE_ENV = 'production'; console.debug = (...args) => calls.push(args);
   try { recordingDiagnostic('recorder_started', { blobSize: 15, mimeType: 'audio/webm' }); assert.equal(calls.length, 0); }
   finally { process.env.NODE_ENV = previousMode; console.debug = previousDebug; }
+});
+
+
+test('stalled recorder finalization releases the microphone and reports a retryable failure', async context => {
+  context.mock.timers.enable({apis:['setTimeout']});
+  const captured = setup(); await captured.session.ready;
+  captured.session.stop(); context.mock.timers.tick(5000);
+  assert.equal(captured.blob, null); assert.match(captured.errors[0], /could not finish/);
+  assert.ok(captured.stoppedTracks); captured.active.finish(); assert.equal(captured.errors.length, 1);
+});
+
+test('unexpected stop publishes available audio once and permits a fresh capture', async () => {
+  const captured = setup(); await captured.session.ready;
+  captured.active.chunk(new Blob(['valid'], {type:'audio/webm'}));
+  captured.active.state = 'inactive'; captured.active.finish();
+  assert.equal(await captured.blob.text(), 'valid');
+  const next = setup(); await next.session.ready; next.session.dispose();
+});
+
+test('missing or disabled audio tracks fail before constructing a recorder', () => {
+  let stopped = false;
+  assert.throws(() => captureRecording({getTracks:()=>[{stop(){stopped=true;}}],getAudioTracks:()=>[]},()=>{},()=>{}, class {}), /No active microphone/);
+  assert.equal(stopped, true);
+});
+
+test('microphone errors distinguish denial, absent device and busy device', () => {
+  for (const [name, pattern] of [['NotAllowedError', /enable it/], ['NotFoundError', /Connect a microphone/], ['NotReadableError', /another app/]])
+    assert.match(microphoneError(new DOMException('private device label',name)).message,pattern);
+});
+
+test('upload retries preserve bytes for network and transcription failures; validation clears invalid audio', async () => {
+  for (const status of [0, 503, 422, 413, 415]) {
+    let retained = new Blob(['voice'], {type:'audio/webm'});
+    const original = retained;
+    await assert.rejects(sendRecording(async()=>{throw Object.assign(new Error('failure'),{status});},()=>{retained=null;}));
+    assert.equal(retained, [422,413,415].includes(status)?null:original);
+    if (retained) assert.equal(await sendRecording(async()=>retained.text(),()=>{}),'voice');
+  }
 });

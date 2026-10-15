@@ -10,7 +10,7 @@ provider calls, database changes, or minimum splash duration were added.
 Discovery: `AGENTS.md`, `docs/FIGMA_SLICE.md`, `docs/APPLICATION_FLOW.md`, existing
 mascot/motion/logo components, auth and onboarding browser tests, and Linear
 AUD-48. Live Figma file `6AfBOpHqAHcyKvaOXBxyxC` Components page and Idle logo
-`16:2` were reviewed; the existing mascot/wordmark remain the implementation.
+`16:2`, and Mascot System `TOyKOA5mrWAWI8WvvS7lvy` Idle `7:23` were reviewed; the existing mascot/wordmark remain the implementation.
 There is no dedicated approved startup composition in the discovered components.
 
 Startup gates:

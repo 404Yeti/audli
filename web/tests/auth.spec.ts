@@ -48,7 +48,13 @@ async function externalLogout(page:Page){
   await page.evaluate(()=>{localStorage.removeItem('audli-auth-session');const channel=new BroadcastChannel('audli-auth-session');channel.postMessage({event:'SIGNED_OUT',session:null});channel.close();});
   await showSignIn(page);
 }
-async function switchToB(page:Page){await externalLogout(page);await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();}
+async function switchToB(page:Page){
+  await externalLogout(page);
+  // Home now mounts only after hydration; its optional plan read starts at that
+  // mount. Settle B's own read before asserting no continuation from A.
+  const plan = page.waitForResponse(response => new URL(response.url()).pathname === '/api/plan' && response.request().headers()['authorization'] === `Bearer ${tokenB}`);
+  await signIn(page,userB.email);await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();await plan;
+}
 async function speaking(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Speaking');}
 async function listening(page:Page){await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Listening');}
 

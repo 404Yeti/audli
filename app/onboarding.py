@@ -185,6 +185,8 @@ class GoalAnswer(StrictModel):
 def apply_goal(profile, goal=None, situations=None):
     profile = profile.model_copy(deep=True)
     progress = profile.onboarding
+    if progress.goal_question_revision is None:
+        progress.goal_question_revision = 0  # Preserve legacy question identity across saves.
     # A goal is a preference, never a prerequisite or evidence of ability.
     profile.goal = goal or profile.goal
     profile.target_situations = situations or profile.target_situations or ['everyday conversations']

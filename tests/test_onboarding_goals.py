@@ -100,3 +100,4 @@ def test_legacy_paused_goal_recovery_preserves_existing_preferences(accounts,rep
     assert saved['stage']=='interests' and not saved['clarification_paused']
     assert saved['profile']['goal']=='Understand family calls'
     assert saved['profile']['target_situations']==['family calls']
+    assert a.post('/api/onboarding/goal',json={'question_revision':state['goal_question_revision'],'skip':True}).json()==saved

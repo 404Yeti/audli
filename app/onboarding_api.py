@@ -17,7 +17,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 'welcome': profile.onboarding.welcome,
                 'name_entry_available': name_entry_available(profile),
                 'goal_entry_available': profile.onboarding_status == 'in_progress' and profile.onboarding.stage == 'needs',
-                'goal_question_revision': profile.onboarding.goal_question_revision if profile.onboarding.goal_question_revision is not None else profile.onboarding.revision,
+                'goal_question_revision': profile.onboarding.goal_question_revision if profile.onboarding.goal_question_revision is not None else 0,
                 'name_question_revision': profile.onboarding.name_question_revision,
                 'prompt': onboarding_prompt(profile),
                 'clarification_paused': profile.onboarding.clarification_paused,
@@ -121,7 +121,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             progress = profile.onboarding
             token = progress.goal_question_revision
             if token is None and progress.stage == 'needs':
-                token = progress.revision  # Resume checkpoints from older releases.
+                token = 0  # Stable token for needs checkpoints from older releases.
             if (profile.onboarding_status != 'in_progress' or progress.welcome
                     or token != body.question_revision or progress.stage not in ('needs', 'interests')):
                 raise HTTPException(409, 'Continue from your saved onboarding question.')
@@ -152,7 +152,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                 if profile.onboarding.stage == 'needs':
                     profile.onboarding.name_question_revision = None
                     if profile.onboarding.goal_question_revision is None:
-                        profile.onboarding.goal_question_revision = revision
+                        profile.onboarding.goal_question_revision = 0
                 elif profile.onboarding.stage == 'interests':
                     profile.onboarding.goal_question_revision = None
                 profile.onboarding.pending = transcription

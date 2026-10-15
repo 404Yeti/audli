@@ -15,6 +15,8 @@ async function setup(page: Page, options: Parameters<typeof installVoice>[1] = {
     if(await lesson.handle(route))return;
     if(path==='/api/auth/config')return route.fulfill({json:{mode:'local'}});
     if(path==='/api/profile')return route.fulfill({json:{destination:'session_ready',profile:{name:'Robert',goal:'work conversations',completed_attempts:completed?1:0},provider:'openai'}});
+    if(path==='/api/review')return route.fulfill({json:{summary:{completed_lessons:completed?1:0,structured_lessons:completed?1:0,earlier_practice:0,practice_days:completed?1:0,undated_lessons:0,timezone_used:'UTC',timezone_fallback:false,current_practice_level:null},insight:'Complete a few more lessons to discover your listening patterns.',patterns:[],lessons:completed?[{id:'lesson',kind:'lesson',completed:true,completed_at:'2026-10-07T08:00:00Z',title:'Listening lesson',topics:[],levels:[],takeaway:'Saved listening assessment.',assessed_passages:1}]:[],assessed_practice:[],next_cursor:null}});
+    if(path==='/api/review/lesson/lesson')return route.fulfill({json:{lesson:{id:'lesson',kind:'lesson',completed:true,completed_at:'2026-10-07T08:00:00Z',title:'Listening lesson',topics:[],levels:[]},passages:[{exercise_id:'clip'+id,title:'Original passage',units:[],assessment_available:false,next_focus:'Listen for the reasons.',transcript_url:'/api/exercises/clip'+id+'/transcript',audio_url:null}]}});
     if(path==='/api/history')return route.fulfill({json:completed?[{id:'answer',exercise_id:'clip'+id,created_at:'2026-10-07T08:00:00Z',evaluation:{feedback:'You caught the main idea. Next time, listen for the reasons.'},adaptation:{focus:'details'}}]:[]});
     if(path==='/api/exercises/current')return route.fulfill({json:exercise()});
     if(path==='/api/exercises'){id++;phase='LISTENING';cue=null;pending=null;result=null;completed=false;turns=0;return route.fulfill({json:exercise()});}
@@ -45,7 +47,7 @@ async function finishTurn(page:Page){await page.clock.runFor(2700);await state(p
 test('approved Home is mascot-centered with four working destinations and no metrics',async({page})=>{
   await setup(page);await expect(page.getByRole('heading',{name:'Good to see you, Robert.'})).toBeVisible();
   await expect(page.locator('.audli-mascot svg')).toBeVisible();await expect(page.getByRole('button',{name:'Read transcript'})).toHaveCount(0);
-  for(const [name,heading] of [['Review','What your ears are learning'],['Plan','Your listening plan'],['Settings','Settings']]){await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();}
+  for(const [name,heading] of [['Review','Your listening journey'],['Plan','Your listening plan'],['Settings','Settings']]){await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();}
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.setViewportSize({width:320,height:740});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(320);
   await page.screenshot({path:'/tmp/aud17-home.png',fullPage:true});
 });
@@ -152,7 +154,7 @@ test('reduced motion keeps static poses and understandable state labels',async({
 });
 test('completed Review exposes only server-eligible transcript, with no score dashboard',async({page})=>{
   await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);await endAudio(page);await state(page,'Listening');await finishTurn(page);await page.clock.fastForward(600000);await endAudio(page);
-  await expect.poll(async()=>(await probe(page)).plays.length).toBe(5);await endAudio(page);await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();await page.getByRole('button',{name:'Return Home'}).click();await page.getByRole('button',{name:'Review',exact:true}).click();await page.getByRole('button',{name:'Read transcript'}).click();
+  await expect.poll(async()=>(await probe(page)).plays.length).toBe(5);await endAudio(page);await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();await page.getByRole('button',{name:'Return Home'}).click();await page.getByRole('button',{name:'Review',exact:true}).click();await page.getByRole('button',{name:/Listening lesson/}).click();await page.getByRole('button',{name:'Passage transcript'}).click();
   await expect(page.getByText('Only after completed assessment.')).toBeVisible();await expect(page.getByText('Observed comprehension:',{exact:false})).toHaveCount(0);
 });
 test('persisted learner-confirmed correction survives resuming an interrupted assessment',async({page})=>{

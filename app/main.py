@@ -20,6 +20,7 @@ from app.conversation_api import register_conversation_routes
 from app.onboarding_api import register_onboarding_routes
 from app.onboarding_reset import register_onboarding_reset_routes
 from app.lesson_api import register_lesson_routes
+from app.review_api import register_review_routes
 from app.onboarding import application_destination
 from app.security import LocalRequestGuard
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
@@ -337,6 +338,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def history():
         return repo.history()
 
+    register_review_routes(app, repo)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_onboarding_reset_routes(app, repo, lock)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)

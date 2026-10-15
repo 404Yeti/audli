@@ -68,7 +68,7 @@ test('signup requires email confirmation and initializes no learner',async({page
   await expect(page.getByRole('status')).toContainText('Check your email');expect(fixture.requests).toEqual([]);
 });
 test('invalid persisted session fails closed and requires sign-in',async({page})=>{
-  const fixture=await setupAuth(page);await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();fixture.expire();await page.reload();await expect(page.getByRole('status')).toContainText('session expired');await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toHaveCount(0);
+  const fixture=await setupAuth(page);const plan=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/plan');await signIn(page);await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toBeVisible();await plan;fixture.expire();await page.reload();await expect(page.getByRole('status')).toContainText('session expired');await expect(page.getByRole('heading',{name:'Good to see you, Alice.'})).toHaveCount(0);
 });
 test('auth connection failure exposes only recovery',async({page})=>{
   await page.route('**/api/auth/config',route=>route.fulfill({status:502,contentType:'text/html',body:'Unavailable'}));await page.goto('/');await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible();await expect(page.getByRole('button',{name:'Start today’s session'})).toHaveCount(0);

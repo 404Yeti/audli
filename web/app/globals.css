@@ -381,7 +381,7 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .session-presence { flex: 1 0 auto; min-width: 0; transition: flex-grow .28s ease, min-height .28s ease, padding .28s ease; }
 .session-presence .audli-mascot { transition: width .28s ease, margin .28s ease; }
 .session-shell[data-layout="focus"] .session-presence { flex-grow: 1; min-height: clamp(240px, 48svh, 480px); }
-.session-shell[data-layout="focus"] .session-presence .audli-mascot { width: clamp(240px, 38vw, 380px); }
+.session-shell[data-layout="focus"] .session-presence .audli-mascot { width: clamp(240px, 38vw, 420px); }
 .session-shell[data-layout="interaction"] .session-presence { flex-grow: .4; min-height: clamp(180px, 32svh, 340px); padding-bottom: 0; }
 .session-shell[data-layout="interaction"] .session-presence .audli-mascot { width: clamp(190px, 30vw, 290px); margin-block: 16px 20px; }
 .session-shell[data-layout="content"] .session-presence { flex-grow: 0; min-height: clamp(140px, 24svh, 240px); padding-bottom: 0; }

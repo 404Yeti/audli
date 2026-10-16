@@ -195,17 +195,8 @@ jobs:
         working-directory: web
       - run: npx playwright install --with-deps chromium webkit
         working-directory: web
-      - name: Mocked browser regressions
-        run: npm run test:browser -- --workers=1
-        working-directory: web
       - name: WebKit iPhone-oriented classroom and native codec acceptance
         run: npx playwright test --config=classroom-safari.playwright.config.ts --workers=1
-        working-directory: web
-      - name: Native HTTP/audio acceptance with synthetic evidence and local espeak
-        env:
-          AUDLI_INTEGRATED_LESSON: '1'
-          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
-        run: npx playwright test --config=lesson-media.playwright.config.ts
         working-directory: web
       - name: Save synthetic WebKit classroom screenshots
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -214,6 +205,15 @@ jobs:
           name: classroom-webkit-screenshots
           path: docs/screenshots/AUD-62-*.png
           retention-days: 7
+      - name: Mocked browser regressions
+        run: npm run test:browser -- --workers=1
+        working-directory: web
+      - name: Native HTTP/audio acceptance with synthetic evidence and local espeak
+        env:
+          AUDLI_INTEGRATED_LESSON: '1'
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: npx playwright test --config=lesson-media.playwright.config.ts
+        working-directory: web
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

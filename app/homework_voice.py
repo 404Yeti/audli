@@ -16,7 +16,7 @@ def spoken_decision(text: str) -> Decision | None:
     yes = r"(?:yes|yes please|sure|sure please|okay|ok|please do|i would like that|i'd like that|that sounds good)"
     if re.fullmatch(yes, value):
         return Decision(accept=True)
-    match = re.fullmatch(yes + r' (?:about|on) ([a-z0-9 ]{1,100})', value)
+    match = re.fullmatch(r'(?:' + yes + r' (?:about|on)|(?:i would like|i\x27d like|something|let\x27s listen) (?:about|on|to)) ([a-z0-9 ]{1,100}?)(?: instead)?', value)
     if match and not re.search(r'\b(no|not|skip|instead|but)\b', match[1]):
         return Decision(accept=True, topic=match[1])
     return None

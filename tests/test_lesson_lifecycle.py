@@ -102,14 +102,14 @@ def test_completed_lesson_grounded_closing_returning_review_and_preferences(less
     lesson = action(client, lesson, 'heard')
     assert lesson['phase'] == 'COMPLETED' and lesson['status'] == 'completed'
     assert client.get('/api/lessons/current').json() is None
-    returning = start(client); returning = respond(client, returning, audio_bytes); returning = action(client, returning, 'heard')
-    assert returning['phase'] == 'REVIEW' and 'Last time' in returning['prompt'] and 'demonstrated strength' in returning['prompt']
-    assert returning['prompt'].count('?') == 1
+    returning = start(client)
     async def transcribe(audio, filename): return Transcription(text='I enjoy science and travel',confidence=.99)
     client.provider.transcribe = transcribe
     before = client.get('/api/profile').json()['profile']
     returning = respond(client, returning, audio_bytes)
-    assert returning['phase'] == 'REVIEW_ACK'
+    returning = action(client, returning, 'heard')
+    assert returning['phase'] == 'REVIEW_ACK' and 'Last time' in returning['prompt'] and 'demonstrated strength' in returning['prompt']
+    assert returning['prompt'].count('?') == 0  # Recap, not another preference question.
     after = client.get('/api/profile').json()['profile']
     assert after['interests'] == ['I enjoy science and travel']
     assert after['difficulty'] == before['difficulty'] and after['completed_attempts'] == before['completed_attempts']

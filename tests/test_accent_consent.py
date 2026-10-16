@@ -61,7 +61,7 @@ def test_pre_passage_conversation_cancels_or_defaults(repository_factory,tmp_pat
     async def transcribe(*args):return Transcription(text='Yes',confidence=.99)
     provider.transcribe=transcribe
     client=ASGIClient(create_app(Settings(_env_file=None,data_dir=tmp_path,elevenlabs_api_key='test',accent_practice_enabled=True,passage_tts_daily_characters=100000,passage_voices={'british':VOICE}),provider,repo),provider)
-    item=start(client); stored=repo.lesson();stored.previous='Last time we practiced listening.'
+    item=start(client); stored=repo.lesson();stored.previous='Last time we practiced listening.';stored.topic_review_due=True  # Legacy response-taking checkpoint.
     repo.save_lesson(stored,stored.revision);item=client.get('/api/lessons/current').json()
     item=respond(client,item,audio_bytes)
     assert authorized_accent(repo.lesson())=='british'
@@ -164,7 +164,7 @@ def test_legacy_learner_can_explicitly_request_practice_during_discovery(reposit
 
 
 @pytest.mark.parametrize('confirmation', ['Yes', 'No thanks'])
-def test_returning_learner_retains_normal_topic_review_after_consent(repository_factory,tmp_path,audio_bytes,confirmation):
+def test_returning_learner_keeps_consent_through_recap_without_topic_question(repository_factory,tmp_path,audio_bytes,confirmation):
     repo=repository_factory();profile=repo.profile();profile.onboarding_status='complete'
     profile.accent_preferences=AccentPreferences(status='preferred',accents=['british']);repo.save_profile(profile)
     provider=FakeProvider()
@@ -175,11 +175,8 @@ def test_returning_learner_retains_normal_topic_review_after_consent(repository_
     repo.save_lesson(stored,stored.revision);item=client.get('/api/lessons/current').json()
     item=respond(client,item,audio_bytes);item=action(client,item,'heard')
     accepted_at=repo.lesson().accent_consent.accepted_at
-    assert item['phase']=='REVIEW' and 'enjoy listening' in item['prompt']
-    async def topic(*args):return Transcription(text='I enjoy science',confidence=.99)
-    provider.transcribe=topic
-    item=respond(client,item,audio_bytes)
-    assert repo.lesson().reflection=='I enjoy science'
+    assert item['phase']=='REVIEW_ACK' and '?' not in item['prompt']
+    assert repo.lesson().reflection is None
     assert authorized_accent(repo.lesson())==('british' if confirmation=='Yes' else None)
     assert repo.lesson().accent_consent.accepted_at==accepted_at
     item=action(client,item,'heard');assert item['phase']=='TRANSITION'

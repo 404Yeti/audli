@@ -116,8 +116,9 @@ for(const returning of [false,true])test(`${returning?'returning':'first-time'} 
   expect(fixture.spoken.some(text=>text.includes('thanks for asking'))).toBe(true);
   expect(fixture.spoken).not.toContain('Okay, I heard you.');
   expect(fixture.spoken).toContain('Let’s listen to the first recording.');
-  await expect(page.getByText('following the main idea',{exact:true})).toBeVisible();
   await expect(page.locator('textarea')).toHaveCount(0);expect((await probe(page)).clicks).toBe(1);
+  await page.locator('.wrapup-summary summary').click();
+  await expect(page.locator('.wrapup-summary')).toContainText('following the main idea');
   await page.reload();await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();expect((await probe(page)).plays).toHaveLength(0);
   await page.getByRole('button',{name:'Return Home'}).click();await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();
 });
@@ -215,14 +216,15 @@ test('processing acknowledgment is delayed and deduplicated across retry; topic 
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
 });
 
-for(const reducedMotion of [false,true])test(`completion cards and mascot respect ${reducedMotion?'reduced':'normal'} motion`,async({page})=>{
+for(const reducedMotion of [false,true])test(`compact completion summary and mascot respect ${reducedMotion?'reduced':'normal'} motion`,async({page})=>{
   await page.emulateMedia({reducedMotion:reducedMotion?'reduce':'no-preference'});
   await setup(page);await runToCompletion(page);
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeFocused();
-  await expect(page.locator('.completion-card')).toHaveCount(3);
-  await expect(page.locator('.completion-count')).toHaveText('1');
-  await expect(page.locator('.lesson-completion .audli-mascot')).toHaveAttribute('aria-hidden','true');
-  const body=page.locator('.lesson-completion .mascot-body');
+  await expect(page.locator('.wrapup-summary')).not.toHaveAttribute('open');
+  await page.locator('.wrapup-summary summary').click();
+  await expect(page.locator('.wrapup-summary')).toContainText('1 exercise completed');
+  await expect(page.locator('.lesson-wrapup .audli-mascot')).toHaveAttribute('aria-hidden','true');
+  const body=page.locator('.lesson-wrapup .mascot-body');
   const animation=await body.evaluate(node=>getComputedStyle(node).animationName);
   expect(animation).toBe(reducedMotion?'none':'completion-arrive, mascot-breathe');
   if(!reducedMotion)await page.screenshot({path:'/tmp/aud22-completion-polish.png',fullPage:true,animations:'disabled'});

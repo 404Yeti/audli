@@ -4,9 +4,14 @@ from pydantic import ValidationError
 from app.onboarding import Revision, ProfileExtraction
 from app.audio import validate_upload
 from app.models import Transcription
+from pydantic import Field
+from uuid import UUID
 from app.recognition import reliable_recognition
 from app.planner import CHECKIN_PROMPT, requested_focus, qualifying_count
 from app.storage.planner import due
+
+class TopicReply(Revision):
+    text: str = Field(min_length=1, max_length=200)
 
 
 def register_planner_routes(app, repo, ai, lock, settings, speech):
@@ -47,6 +52,33 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
         enabled()
         return public(repo.roadmap())
 
+    @app.post('/api/lessons/{lesson_id}/topic-checkin')
+    async def offer_checkin(lesson_id: UUID):
+        enabled()
+        lesson = repo.lesson(str(lesson_id))
+        if lesson is None:
+            raise HTTPException(404, 'Lesson not found.')
+        if lesson.status != 'completed':
+            return {'offered': False, 'plan': None}
+        roadmap = repo.roadmap(claim_lesson=str(lesson_id))
+        return {'offered': roadmap is not None, 'plan': public(roadmap) if roadmap else None}
+
+    async def preferences(revision, text):
+        if text.strip().lower().rstrip('.!') in {'keep them', 'keep these topics', 'same topics', 'no changes', 'no thanks', 'skip', 'not now'}:
+            return public(save(revision=revision, feedback={'status': 'skipped'}))
+        extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
+        return public(save(revision=revision, feedback={'status': 'answered', 'response': text,
+            'interests': extracted.interests, 'focus': requested_focus(text)}))
+
+    @app.post('/api/plan/checkin/text')
+    async def typed_checkin(body: TopicReply):
+        async with lock:
+            check(body.revision)
+            try:
+                return await preferences(body.revision, body.text)
+            except (ValidationError, ValueError):
+                raise HTTPException(422, 'Try a short topic or say keep them. Your lesson is saved.') from None
+
     @app.post('/api/plan/checkin/audio')
     async def checkin_audio(body: Revision):
         check(body.revision)
@@ -75,12 +107,9 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
                 raise HTTPException(422, 'Recognition is uncertain. Record again or skip this check-in.')
             text = roadmap.pending.text
             try:
-                preferences = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
+                return await preferences(body.revision, text)
             except (ValidationError, ValueError):
                 raise HTTPException(422, 'Your response is saved. Retry or skip this check-in.') from None
-            # Persist feedback and next outlines before any coaching audio.
-            return public(save(revision=body.revision, feedback={'status': 'answered', 'response': text,
-                'interests': preferences.interests, 'focus': requested_focus(text)}))
 
     @app.post('/api/plan/checkin/skip')
     async def skip(body: Revision):

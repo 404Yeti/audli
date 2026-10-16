@@ -360,3 +360,18 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .homework-actions button { min-height: 44px; max-width: 100%; white-space: normal; }
 .homework-card a { display: inline-block; padding-block: .75rem; text-decoration: underline; }
 .homework-card :focus-visible { outline: 3px solid #397bc4; outline-offset: 3px; }
+.lesson-wrapup .session-presence { flex: 0 0 auto; min-height: 180px; padding-bottom: 0; }
+.lesson-wrapup .session-presence .audli-mascot { width: clamp(140px, 24vw, 210px); margin: 12px auto; }
+.lesson-wrapup .audli-mascot[data-state="Success"] .mascot-body { animation: completion-arrive .65s ease-out 1, mascot-breathe 4s ease-in-out .65s infinite; }
+.wrapup-heading { font-size: 1.25rem; margin: .5rem 0; }
+.wrapup-heading:focus { outline: none; }
+.lesson-wrapup .listening-homework { margin-block: 1rem; }
+.lesson-wrapup .homework-card { border: 0; border-top: 1px solid var(--border); border-radius: 0; padding: 1rem 0; margin: 0; }
+.lesson-wrapup .homework-label { display: none; }
+.wrapup-reply { text-align: left; min-width: 0; }
+.wrapup-reply input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; margin-block: .5rem; }
+.wrapup-reply .homework-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.wrapup-reply .homework-actions button { min-height: 44px; width: auto; flex: 1; margin: 0; padding: 10px 12px; }
+.wrapup-reply .homework-actions .text-button { flex: 0 0 auto; }
+.wrapup-summary { font-size: .875rem; text-align: left; margin-top: .75rem; color: var(--muted); }
+.wrapup-summary summary { padding-block: .75rem; cursor: pointer; }

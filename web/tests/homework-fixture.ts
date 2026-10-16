@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test';
 import { installVoice, promptWav } from './voice-fixture';
 
-export async function setup(page: Page, completion = false, options: { capability?: unknown; configFailure?: boolean } = {}) {
-  await installVoice(page, { autoPlayback: true });
+export async function setup(page: Page, completion = false, options: { capability?: unknown; configFailure?: boolean; continuousVoice?: boolean } = {}) {
+  await installVoice(page, { autoPlayback: true, continuousVoice: options.continuousVoice });
   const state = { enabled: true, homeworkRequests: 0, configRequests: 0, status: 'offered', pending: false, decisions: 0, checks: 0, spoken: 0, confirmations: 0, voiceRequests: 0, acceptVoice: true, failVoice: false, lostResponse: false };
   const assignment = () => ({ id: 'assignment', lesson_id: 'lesson', status: state.status, discovery_in_progress: state.pending,
     objective: 'Listen for the main idea and two supporting details.', message: 'No suitable listening assignment is available right now. Your lesson is saved.',

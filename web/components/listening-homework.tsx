@@ -180,10 +180,11 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
     {!sharedVoice && <audio ref={audio} hidden/>}
     <p className="homework-label" role="status">Optional listening · {item.status === 'completed' ? 'Completed (self-reported)' : item.status}</p>
     {item.status === 'offered' && <>
-      {!pending && <p className="homework-invitation">Would you like a short listening assignment about something you’re interested in?</p>}
+      <p className={pending ? 'sr-only' : 'homework-invitation'}>Would you like a short listening assignment about something you’re interested in?</p>
       <div className="classroom-reply-controls">
         {!pending && <button className="primary" disabled={disabled} onClick={() => void runChoice(true)}>Speak</button>}
         {!pending && <button className="text-button compact-replay" disabled={disabled} onClick={() => void hearCue('invitation')} aria-label="Replay homework invitation">↻</button>}
+        {busy && voiceState === 'Speaking' && <button className="text-button compact-replay" aria-label="Replay current speech" onClick={(sharedVoice ?? localVoice).replay}>↻</button>}
         {busy && <button className="text-button" onClick={event => { if (event.detail < 2) cancelVoice(); }}>Stop optional listening</button>}
       </div>
       {!item.discovery_in_progress && <details className="typed-alternative" open={typedOpen} onToggle={event => setTypedOpen(event.currentTarget.open)}>
@@ -203,6 +204,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
           ? <a href={checkedUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" onClick={event => { if (!freshHomeworkUrl(item)) { event.preventDefault(); setCheckedUrl(null); void checkVideo(); } }}>Watch on YouTube<span className="sr-only"> (opens a new tab)</span></a>
           : <button className="text-button" disabled={locked} onClick={() => void checkVideo()}>Check video link</button>)}
         {item.status === 'assigned' && <button className="text-button compact-replay" disabled={locked} onClick={() => void hearCue('confirmation')} aria-label="Hear assignment">↻</button>}
+        {busy && voiceState === 'Speaking' && <button className="text-button compact-replay" aria-label="Replay current speech" onClick={(sharedVoice ?? localVoice).replay}>↻</button>}
         {busy && <button className="text-button" onClick={event => { if (event.detail < 2) cancelVoice(); }}>Stop optional listening</button>}
       </div>
       <details className="homework-details"><summary>Listening details</summary><p>{item.objective}</p><p>{item.content.publisher}</p><p>YouTube content and difficulty may vary. Audli won’t grade your understanding of this video.</p></details>

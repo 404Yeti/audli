@@ -53,8 +53,8 @@ test('repeated ambiguity stays optional with typed correction and no repeated sp
   await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
 });
 
-test('backup tutor voice is disclosed without another provider request',async({page})=>{
-  await setup(page,true);let audio=0;
+for (const completion of [true,false]) test(`backup tutor voice is disclosed in ${completion ? 'classroom' : 'Plan'} without another provider request`,async({page})=>{
+  await setup(page,completion);let audio=0;
   await page.route('**/api/homework/assignment/invitation-audio',route=>{audio++;return route.fulfill({contentType:'audio/wav',headers:{'X-Audli-Tutor-Fallback':'true','X-Audli-Tutor-Provider':'openai'},body:promptWav()});});
   await page.getByRole('button',{name:'Replay homework invitation'}).click();
   await expect(page.getByText('Backup voice used',{exact:true})).toBeVisible();
@@ -113,4 +113,22 @@ test('reduced motion disables shared layout transitions without disabling voice'
   await page.getByRole('button',{name:'Speak',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Science in everyday life'})).toBeVisible({timeout:10000});
   await expect(page.locator('audio')).toHaveCount(1);expect((await probe(page)).overlaps).toBe(0);
+});
+
+test('topic check-in uses the same secondary typed input without concurrent recording',async({page})=>{
+  const state=await setup(page,false,{continuousVoice:true});state.acceptVoice=false;
+  const plan={revision:1,checkin:{available:true,after_lesson:3,prompt:'Keep your topics or try something different?',pending:null}};
+  let typed=0, spoken=0;
+  await page.route('**/api/lessons/lesson/topic-checkin',route=>route.fulfill({json:{offered:true,plan}}));
+  await page.route('**/api/plan/checkin/audio',route=>route.fulfill({contentType:'audio/wav',body:promptWav()}));
+  await page.route('**/api/plan/checkin/attempts',route=>{spoken++;return route.fulfill({json:plan});});
+  await page.route('**/api/plan/checkin/text',route=>{typed++;expect(route.request().postDataJSON().text).toBe('science');return route.fulfill({json:{...plan,checkin:{available:false}}});});
+  await page.route('**/api/lessons/start',route=>route.fulfill({json:{id:'lesson',phase:'COMPLETED',status:'completed',focus:'details',exercises_completed:1,elapsed_seconds:600,encouragement:'Thanks for listening.'}}));
+  await page.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('button',{name:'Start today’s session'}).click();
+  await expect(page.getByRole('region',{name:'Listening topic check-in'})).toBeVisible();
+  await expect(page.getByRole('status').filter({hasText:'Listening to you'})).toBeVisible();
+  await page.getByText('Type instead',{exact:true}).click();await page.getByLabel('Your topic preference').fill('science');
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Listening topic check-in'})).toHaveCount(0);expect(typed).toBe(1);expect(spoken).toBe(0);
+  expect((await probe(page)).overlaps).toBe(0);await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
 });

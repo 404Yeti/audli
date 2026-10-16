@@ -39,7 +39,7 @@ Read-only, aggregate observations in the post-deployment window:
   and replayable, with explicit provenance; the next synthesis request retries
   the preferred voice. One primary attempt and one bounded genuine fallback
   remain; there are no automatic provider retry loops or live provider probes.
-- Audio responses carry only provider/fallback headers. The classroom and
+- Audio responses carry only provider/fallback headers. The classroom, Plan and
   onboarding show a compact “Backup voice used” disclosure when necessary;
   this records a past fallback, not a claim about the currently playing clip.
   Old-account responses cannot update the disclosure.
@@ -59,7 +59,7 @@ Read-only, aggregate observations in the post-deployment window:
   quota, owned persistence, cancellation and saved completion are unchanged.
 - Shared `SessionShell` modes are Focus, Interaction and Content. Layout-aware
   flex sizing, minimum heights and mascot widths transition subtly; audio stays
-  in the same DOM element. Reduced motion disables transitions. Normal flow
+  in the same DOM element. Reduced motion disables transitions. Normal flow, including the periodic topic check-in,
   favors voice; typed input is a native accessible disclosure. Assignment title
   is bounded to three readable lines, duration/source and a44px external link
   remain primary, with objective/publisher/disclosures available on expansion.
@@ -80,10 +80,10 @@ AUD-61 images provide the before reference; nine new images show all modes.
 
 ## Verification and remaining acceptance
 
-Final required CI results are recorded in the PR. Focused local checks:132 voice/
-homework backend cases passed;94 accent/consent cases passed, including Indian
-routing;43 browser cases passed with the WebKit-only codec case skipped under
-Chromium. Frontend unit, lint/coverage, TypeScript and build results are recorded
+Final required CI results are recorded in the PR. Focused local checks:132 voice/homework backend cases passed; the final 26 new voice cases passed;
+94 accent/consent cases passed, including Indian routing; 43 focused browser cases
+passed, followed by 10 final classroom cases. The WebKit-only codec case is
+explicitly skipped under Chromium. Frontend unit, lint/coverage, TypeScript and build results are recorded
 in the PR. Initial browser assertions were updated for secondary typed input and
 collapsed publisher details; clarification tests allow the actual two recording
 windows. Double-tapping Speak cannot accidentally cancel via its replacement Stop

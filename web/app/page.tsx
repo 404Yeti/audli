@@ -12,7 +12,7 @@ import { SpokenOnboarding } from '../components/onboarding';
 import { AudliLoadingScreen } from '../components/audli-loading-screen';
 import { startup } from '../lib/startup';
 import { AudliMascot } from '../components/audli-mascot';
-import { BottomNavigation, SessionShell, type Destination } from '../components/product-shell';
+import { BottomNavigation, TutorVoiceNotice, SessionShell, type Destination } from '../components/product-shell';
 import { ApiError, cancelPendingOperations, LessonLifetime, type LessonOperation } from '../lib/api';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
@@ -347,7 +347,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     </details>
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
 
-  return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header>
+  return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>
     {destination === 'Home' && <section className="home-view"><h1>{`Good to see you${profile?.name ? ', ' + profile.name : ''}.`}</h1><AudliMascot/>
       <PlanningInvitation open={() => setDestination('Plan')}/><h2>Today’s listening lesson</h2><p>10 minutes · English · adapted for you</p><button className="primary" disabled={busy || !profile} onClick={() => void start()}>Start today’s session</button><p className="home-support">Your next lesson will build from what Audli heard last time.</p>
     </section>}

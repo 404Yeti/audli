@@ -151,6 +151,11 @@ button { transition: background-color .18s ease, color .18s ease, box-shadow .18
 @keyframes sound-rhythm { 0%,100% { opacity: .55; transform: scaleX(.98); } 50% { opacity: 1; transform: scaleX(1.025); } }
 @keyframes mascot-success { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.02,.98); } }
 .landing, .onboarding-ready, .restore-screen { text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.onboarding-ready { position: relative; }
+.onboarding-ready > header { position: absolute; top: clamp(24px, 4vw, 40px); inset-inline: clamp(20px, 5vw, 40px); }
+.onboarding-account-menu { position: relative; }
+.onboarding-account-panel { position: absolute; top: calc(100% + 8px); right: 0; width: 220px; padding: 8px; border: 1px solid var(--line); border-radius: 18px; background: white; box-shadow: 0 8px 22px #0f172a14; z-index: 6; text-align: left; }
+.onboarding-account-panel button { display: block; width: 100%; text-align: left; }
 .landing .wordmark { align-self: flex-start; margin-bottom: auto; }
 .landing footer { margin-top: auto; padding-top: 40px; letter-spacing: .01em; }
 .landing .audli-mascot { margin-top: clamp(40px, 8vh, 80px); margin-bottom: 32px; }

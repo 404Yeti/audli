@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { installVoice, probe } from './voice-fixture';
 
-import { setup } from './homework-fixture';
+import { setup, typeReply } from './homework-fixture';
 
 for (const width of [320, 390, 1440]) test(`release screenshots and keyboard acceptance at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
   const state = await setup(page, true);
   await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeFocused();
-  await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Speak', exact: true })).toBeVisible();
   expect(state.spoken).toBe(0); // Restored completion never repeats an automatic invitation.
   await page.screenshot({ path: `../docs/screenshots/AUD-59-ready-offer-${width}.png`, fullPage: true });
-  await page.getByLabel('Your reply', { exact: true }).fill('yes please'); await page.getByRole('button', { name: 'Send' }).focus(); await page.keyboard.press('Enter');
+  await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeFocused();
   expect(state.decisions).toBe(1); await expect.poll(() => state.confirmations).toBe(1); // Saved before confirmation audio.
   await page.getByRole('button', { name: 'Return Home' }).click();
@@ -31,13 +31,13 @@ for (const width of [320, 390, 1440]) test(`release screenshots and keyboard acc
 test('refresh observes in-flight discovery and recovers a committed response lost on the network', async ({ page }) => {
   const state = await setup(page);
   state.pending = true; await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(page.getByText('Finding a short listening assignment…')).toBeVisible();
   state.pending = false; state.status = 'assigned';
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   expect(state.decisions).toBe(0); expect(state.spoken).toBe(0);
   state.status = 'offered'; state.lostResponse = true;
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
-  await page.getByLabel('Your reply', { exact: true }).fill('yes please'); await page.getByRole('button', { name: 'Send' }).click();
+  await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.locator('.homework-card').getByRole('alert')).toContainText('Reload your saved assignment');
   await page.getByRole('button', { name: 'Reload saved assignment' }).click();
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible(); expect(state.decisions).toBe(1);
@@ -48,7 +48,7 @@ test('decline persists silently; invitation audio plays only on explicit request
   await page.getByRole('button', { name: 'Replay homework invitation' }).click();
   await expect(page.getByRole('button', { name: 'Speak' })).toBeEnabled();
   expect(state.spoken).toBe(1); expect((await probe(page)).plays.length).toBe(1);
-  await page.getByLabel('Your reply', { exact: true }).fill('no thanks'); await page.getByRole('button', { name: 'Send' }).click();
+  await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeFocused();
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Replay homework invitation' })).toHaveCount(0); expect(state.spoken).toBe(1);
@@ -68,7 +68,7 @@ test('a stalled discovery response reaches a finite browser deadline', async ({ 
   test.setTimeout(45000);
   await setup(page);
   await page.route('**/api/homework/assignment/decision/text', () => { /* fault injection: server never responds */ });
-  await page.getByLabel('Your reply', { exact: true }).fill('yes please'); await page.getByRole('button', { name: 'Send' }).click();
+  await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.locator('.homework-card').getByRole('alert')).toContainText('Reload your saved assignment', { timeout: 30000 });
   await expect(page.getByRole('button', { name: 'Speak' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Reload saved assignment' })).toBeEnabled();
@@ -138,8 +138,8 @@ test('fresh completion sequences one invitation, spoken choice and confirmation;
 test('repeated delivered decision joins existing discovery and confirms once after polling', async ({ page }) => {
   const state = await setup(page, true);
   await page.route('**/api/homework/assignment/decision/text', route => route.fulfill({ json: { id: 'assignment', lesson_id: 'lesson', status: 'offered', discovery_in_progress: true, objective: 'Listen.' } }));
-  await page.getByLabel('Your reply', { exact: true }).fill('yes please'); await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByText('Finding a short listening assignment…')).toBeVisible();
   state.status = 'assigned';
   await expect.poll(() => state.confirmations).toBe(1);
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
@@ -180,7 +180,7 @@ test('an explicitly enabled bootstrap retains homework loading without another c
   await expect(page.getByRole('button', { name: 'Speak' })).toBeVisible();
   const loads = state.homeworkRequests; const bootstraps = state.configRequests;
   expect(loads).toBeGreaterThan(0); // Development Strict Mode may abort/restart the existing loader.
-  await page.getByLabel('Your reply', { exact: true }).fill('no thanks'); await page.getByRole('button', { name: 'Send' }).click();
+  await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
   expect(state.homeworkRequests).toBe(loads + 1);
   await page.getByRole('button', { name: 'Home', exact: true }).click();

@@ -1,17 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { setup } from './homework-fixture';
+import { setup, typeReply } from './homework-fixture';
 import { probe, promptWav } from './voice-fixture';
 
 for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topic choice at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
   const state = await setup(page, true);
   await expect(page.locator('.lesson-wrapup')).toBeVisible();
-  await expect(page.getByLabel('Your reply', { exact: true })).toBeVisible();
+  await expect(page.getByText('Type instead', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Find optional listening' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Hear invitation' })).toHaveCount(0);
   await expect(page.locator('audio')).toHaveCount(1);
   await page.screenshot({ path: `../docs/screenshots/AUD-61-wrapup-offer-${width}.png`, fullPage: true });
-  await page.getByLabel('Your reply', { exact: true }).fill('yes about science');
+  await typeReply(page, 'yes about science');
   await page.getByRole('button', { name: 'Send', exact: true }).focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   await expect.poll(() => state.confirmations).toBe(1);
@@ -33,7 +33,7 @@ test('typed refusal interrupts the microphone without submitting duplicate speec
   const state = await setup(page, true);
   await page.getByRole('button', { name: 'Speak', exact: true }).click();
   await expect(page.getByText('Listening for your choice…')).toBeVisible();
-  await page.getByLabel('Your reply', { exact: true }).fill('no thanks');
+  await typeReply(page, 'no thanks');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
   expect(state.voiceRequests).toBe(0); expect(state.decisions).toBe(1);
@@ -62,7 +62,7 @@ test('three-lesson topic check-in precedes homework once; reload never speaks it
 test('network failure leaves compact recovery and saved lesson available', async ({ page }) => {
   await setup(page, true);
   await page.route('**/api/homework/assignment/decision/text', route => route.abort('internetdisconnected'));
-  await page.getByLabel('Your reply', { exact: true }).fill('yes please');
+  await typeReply(page, 'yes please');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.locator('.homework-card').getByRole('alert')).toContainText('your lesson is saved');
   await expect(page.getByRole('button', { name: 'Return Home' })).toBeEnabled();
@@ -78,7 +78,7 @@ test('repeated typed submission joins one saved decision without duplicate reque
     decisions++; await held;
     await route.fulfill({ json: { id: 'assignment', lesson_id: 'lesson', status: 'skipped', objective: 'Listen.' } });
   });
-  await page.getByLabel('Your reply', { exact: true }).fill('no thanks');
+  await typeReply(page, 'no thanks');
   await page.getByRole('button', { name: 'Send', exact: true }).dblclick();
   await expect.poll(() => decisions).toBe(1);
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();

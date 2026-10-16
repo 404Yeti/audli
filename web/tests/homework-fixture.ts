@@ -44,3 +44,9 @@ export async function setup(page: Page, completion = false, options: { capabilit
   if (!completion) await page.getByRole('button', { name: 'Plan', exact: true }).click();
   return state;
 }
+
+export async function typeReply(page: Page, text: string) {
+  const field = page.getByLabel('Your reply', { exact: true });
+  if (!await field.isVisible()) await page.getByText('Type instead', { exact: true }).click();
+  await field.fill(text);
+}

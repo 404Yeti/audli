@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import httpx
+from httpx import HTTPStatusError, TimeoutException
 from pydantic import Field
 from app.models import StrictModel, PassageVoice
 from app.accents import LABELS
@@ -184,9 +185,14 @@ async def passage_audio(settings, provider, content, accent, limits=None, *, own
             except asyncio.CancelledError:
                 outcome = 'cancelled'
                 raise
-            except (httpx.HTTPError, ValueError, TimeoutError):
+            except (httpx.HTTPError, ValueError, TimeoutError) as error:
                 # Fixed categories only: no provider bodies, scripts, IDs, or secrets.
-                logging.getLogger('audli').warning('Accent passage outcome=provider_fallback')
+                from app.services.tutor_tts import failure_reason
+                status = error.response.status_code if isinstance(error, HTTPStatusError) else None
+                reason = (await failure_reason(error.response) if isinstance(error, HTTPStatusError)
+                          else 'timeout' if isinstance(error, (TimeoutError, TimeoutException))
+                          else 'network' if isinstance(error, httpx.HTTPError) else 'invalid_audio')
+                logging.getLogger('uvicorn.error').warning('Accent passage outcome=provider_fallback reason=%s status=%s', reason, status)
             finally:
                 await asyncio.shield(limits.call(limits.finish, reservation[0], outcome))
         else:

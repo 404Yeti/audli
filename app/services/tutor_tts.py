@@ -21,7 +21,7 @@ MAX_TUTOR_BYTES = 2 * 1024 * 1024
 
 def tutor_cache_signature(settings: Settings) -> str:
     """Exclude credentials; include every audio-affecting setting and fallback."""
-    config = {'version': 1, 'provider': settings.provider, 'tutor': settings.tutor_tts_provider,
+    config = {'version': 2, 'provider': settings.provider, 'tutor': settings.tutor_tts_provider,
         'openai_model': settings.speech_model, 'openai_voice': settings.voice,
         'fallback_voice': 'coral', 'rate': .9, 'instructions_version': 1}
     if settings.tutor_tts_provider == 'elevenlabs':
@@ -40,9 +40,9 @@ async def sanitize_tutor_audio(data: bytes, kind: str, provider: AIProvider) -> 
 
 class TutorSpeech:
     """One voice snapshot for both the cache key and synthesis of a single cue."""
-    def __init__(self, settings: Settings, provider: AIProvider, preference: TutorVoice):
+    def __init__(self, settings: Settings, provider: AIProvider, preference: TutorVoice, act: str = 'tutor'):
         self.settings = tutor_settings(settings, preference)
-        self.provider = (TutorTTSProvider(provider.base, self.settings, provider.eleven_client)
+        self.provider = (TutorTTSProvider(provider.base, self.settings, provider.eleven_client, act)
                          if isinstance(provider, TutorTTSProvider) else provider)
         self.signature = tutor_cache_signature(self.settings)
         self.kind = 'wav' if settings.provider == 'demo' else 'mp3'
@@ -52,6 +52,37 @@ class TutorSpeech:
 
     async def sanitize(self, data: bytes) -> bytes:
         return await sanitize_tutor_audio(data, self.kind, self.provider)
+
+    @property
+    def fallback(self) -> bool:
+        return bool(getattr(self.provider, 'last_fallback', False))
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return voice_headers(self.settings, self.fallback)
+
+
+def voice_headers(settings: Settings, fallback: bool = False) -> dict[str, str]:
+    return {'X-Audli-Tutor-Provider': 'openai' if fallback else settings.tutor_tts_provider,
+            'X-Audli-Tutor-Fallback': str(fallback).lower()}
+
+
+async def failure_reason(response: httpx.Response) -> str:
+    """Read a bounded error envelope and retain only a fixed provider status code."""
+    data = bytearray()
+    async for chunk in response.aiter_bytes():
+        data.extend(chunk[:16385 - len(data)])
+        if len(data) > 16384:
+            return 'http_rejected'
+    try:
+        detail = json.loads(data).get('detail', {})
+        status = detail.get('status') if isinstance(detail, dict) else None
+        if status in {'quota_exceeded', 'invalid_api_key', 'missing_permissions',
+                      'voice_not_found', 'paid_plan_required', 'detected_unusual_activity'}:
+            return status
+    except (ValueError, AttributeError, TypeError):
+        pass
+    return 'http_rejected'
 
 
 def tutor_cue_cache_id(settings: Settings, cue_id: str, text: str) -> str:
@@ -90,8 +121,10 @@ def emit_configuration(settings: Settings) -> None:
 
 
 class TutorTTSProvider:
-    def __init__(self, base: AIProvider, settings: Settings, client: httpx.AsyncClient | None = None):
+    def __init__(self, base: AIProvider, settings: Settings, client: httpx.AsyncClient | None = None, act: str = 'tutor'):
         self.base, self.settings = base, settings
+        self.last_fallback = False
+        self.act = act if act in {'tutor', 'onboarding', 'classroom', 'homework', 'feedback', 'recovery'} else 'tutor'
         self.eleven_client = client or httpx.AsyncClient(timeout=settings.tutor_tts_timeout_seconds,
             follow_redirects=False, transport=httpx.AsyncHTTPTransport(retries=0))
 
@@ -127,6 +160,7 @@ class TutorTTSProvider:
                 except ValueError:
                     pass
             if response.status_code != 200:
+                metrics['failure_reason'] = await failure_reason(response)
                 raise ValueError('Tutor synthesis rejected')
             audio = bytearray()
             async for chunk in response.aiter_bytes():
@@ -140,7 +174,7 @@ class TutorTTSProvider:
 
     async def attempt(self, provider: str, text: str, rate: float, fallback: bool) -> bytes:
         started = perf_counter()
-        metrics = {'provider': provider, 'fallback': fallback, 'input_characters': len(text),
+        metrics = {'provider': provider, 'act': self.act, 'fallback': fallback, 'input_characters': len(text),
             'first_audio_byte_ms': None, 'reported_cost_units': None, 'retries': 0}
         try:
             timeout = self.settings.tutor_tts_timeout_seconds if provider == 'elevenlabs' else self.settings.tutor_tts_fallback_timeout_seconds
@@ -162,8 +196,10 @@ class TutorTTSProvider:
         except asyncio.CancelledError:
             metrics['outcome'] = 'cancelled'
             raise
-        except Exception:
+        except Exception as error:
             metrics['outcome'] = 'failure'
+            metrics.setdefault('failure_reason', 'timeout' if isinstance(error, (TimeoutError, httpx.TimeoutException))
+                else 'network' if isinstance(error, httpx.HTTPError) else 'invalid_audio')
             # Suppress payload-bearing SDK errors, including chained exceptions.
             raise ValueError('Tutor speech temporarily unavailable') from None
         finally:
@@ -172,6 +208,7 @@ class TutorTTSProvider:
             emit(metrics)
 
     async def speak(self, text: str, speech_rate: float = .9) -> bytes:
+        self.last_fallback = False
         if not text.strip() or len(text) > MAX_TUTOR_CHARACTERS or not math.isfinite(speech_rate) or not .7 <= speech_rate <= 1.2:
             raise ValueError('Invalid tutor speech input')
         if self.settings.tutor_tts_provider == 'elevenlabs':
@@ -180,6 +217,7 @@ class TutorTTSProvider:
             except asyncio.CancelledError:
                 raise
             except ValueError:
+                self.last_fallback = True
                 emit({'event': 'fallback', 'provider': 'openai', 'retries': 0})
                 return await self.attempt('openai', text, speech_rate, True)
         return await self.attempt('openai', text, speech_rate, False)

@@ -1,3 +1,4 @@
+import { typeReply } from './homework-fixture';
 import { test, expect } from '@playwright/test';
 import { installVoice } from './voice-fixture';
 
@@ -28,7 +29,7 @@ for (const width of [320, 1440]) {
     await page.goto('/'); await page.getByRole('button', { name: 'Plan', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Next three lessons' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Optional listening', exact: true })).toBeVisible();
-    const topic = page.getByLabel('Your reply', { exact: true }); await topic.fill('yes about science');
+    await typeReply(page, 'yes about science');
     await page.getByRole('button', { name: 'Send' }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'How everyday science explains our world' })).toBeVisible();
@@ -36,7 +37,9 @@ for (const width of [320, 1440]) {
     const link = page.getByRole('link', { name: 'Watch on YouTube (opens a new tab)' });
     await expect(link).toHaveAttribute('href', 'https://www.youtube.com/watch?v=abcdefghijk');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    await expect(page.getByText('YouTube · About 3 min · Example publisher')).toBeVisible();
+    await expect(page.getByText('YouTube · About 3 min', {exact:true})).toBeVisible();
+    await page.getByText('Listening details', {exact:true}).click();
+    await expect(page.getByText('Example publisher', {exact:true})).toBeVisible();
     for (const title of ['Work updates', 'Travel stories', 'Science discoveries']) await expect(page.getByRole('heading', { name: title })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: `../docs/screenshots/AUD-59-plan-${width}.png`, fullPage: true });

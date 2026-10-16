@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AudliMascot, type MascotState } from './audli-mascot';
 import { minutesRemaining, SESSION_DURATION_MS } from '../lib/hands-free';
 
+export type ClassroomLayout = 'focus' | 'interaction' | 'content';
+
 export type Destination = 'Home' | 'Review' | 'Plan' | 'Settings';
 const icons: Record<Destination, string> = {
   Home: 'M3 10 12 3l9 7v10h-6v-7H9v7H3Z',
@@ -18,12 +20,12 @@ export function SessionCountdown({ startedAt }: { startedAt: number }) {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   return <p className="session-countdown" aria-label="Session time remaining">{now - startedAt >= SESSION_DURATION_MS ? 'Finishing this conversation' : `${minutesRemaining(startedAt, now)} min left`}</p>;
 }
-export function SessionShell({ state, activity, label, topic, startedAt, onEnd, onReplay, children, completed = false }: { state: MascotState; activity: boolean; label?: string; topic?: string | null; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode; completed?: boolean }) {
+export function SessionShell({ state, activity, label, topic, startedAt, onEnd, onReplay, children, completed = false, layout, backupVoice = false }: { state: MascotState; activity: boolean; label?: string; topic?: string | null; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode; completed?: boolean; layout?: ClassroomLayout; backupVoice?: boolean }) {
   const [confirmExit, setConfirmExit] = useState(false);
   const endButton = useRef<HTMLButtonElement | null>(null);
   function stay() { setConfirmExit(false); endButton.current?.focus(); }
-  return <main className={'session-shell' + (completed ? ' lesson-wrapup' : '')} data-state={state}><header><strong className="wordmark">audli</strong><button ref={endButton} className="text-button" onClick={() => completed ? onEnd() : setConfirmExit(true)}>{completed ? 'Return Home' : 'End'}</button></header>
-    <div className="session-presence"><AudliMascot state={state} activity={activity}/>{topic && <p className="session-topic" role="note" aria-label="Exercise topic" aria-live="polite">Topic: {topic}</p>}<p className="state-label" role="status">{label ?? ({ Idle: 'Train your ears.', Speaking: 'Audli is speaking', Listening: 'Listening to you', Thinking: 'Thinking', Success: 'Nice work.', Retry: 'Let’s try that again.' })[state]}</p></div>
+  return <main className={'session-shell' + (completed ? ' lesson-wrapup' : '')} data-state={state} data-layout={layout ?? (state === 'Retry' ? 'interaction' : 'focus')}><header><strong className="wordmark">audli</strong><button ref={endButton} className="text-button" onClick={() => completed ? onEnd() : setConfirmExit(true)}>{completed ? 'Return Home' : 'End'}</button></header>
+    <div className="session-presence"><AudliMascot state={state} activity={activity}/>{topic && <p className="session-topic" role="note" aria-label="Exercise topic" aria-live="polite">Topic: {topic}</p>}<p className="state-label" role="status">{label ?? ({ Idle: 'Train your ears.', Speaking: 'Audli is speaking', Listening: 'Listening to you', Thinking: 'Thinking', Success: 'Nice work.', Retry: 'Let’s try that again.' })[state]}</p>{backupVoice && <details className="voice-notice"><summary>Backup voice used</summary><p role="status">Audli’s usual voice was temporarily unavailable. A backup voice was needed; your progress is saved.</p></details>}</div>
     <div className="session-secondary">{children}</div>
     <div className="session-bottom">{startedAt != null && <SessionCountdown startedAt={startedAt}/>}<div className="session-controls">{onReplay && <button className="text-button" onClick={onReplay}>↻ Replay</button>}</div></div>
     {!completed && confirmExit && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="exit-title" className="exit-dialog" onKeyDown={event => {

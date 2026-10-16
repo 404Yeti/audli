@@ -1,6 +1,7 @@
 import os
 import asyncio
 import json
+import logging
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -228,6 +229,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         with operation(settings, 'SpeechService.sanitize_generated_audio'):
             audio = await sanitize_generated_audio(audio, kind)
         content.passage_voice = routing
+        logging.getLogger('uvicorn.error').info('Passage routing provider=%s requested=%s fallback=%s consent=%s',
+            routing.provider, bool(lesson and authorized_accent(lesson)), routing.fallback,
+            lesson.accent_consent.state if lesson else 'none')
         if (lesson and routing.accent == 'default'
                 and lesson.accent_consent.state in ('accepted', 'expired')
                 and lesson.accent_consent.exercise_number == lesson.exercises_completed):

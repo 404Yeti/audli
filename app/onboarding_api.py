@@ -234,7 +234,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             profile = check(body.revision)
             require_active(profile)
             text = onboarding_prompt(profile)
-            tutor = TutorSpeech(settings, ai(), profile.tutor_voice)
+            tutor = TutorSpeech(settings, ai(), profile.tutor_voice, 'onboarding')
             kind = tutor.kind
             # Only application-owned static prompts are reused. Include the complete
             # voice configuration so changed settings cannot replay old speech.
@@ -247,5 +247,6 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
                     data = await tutor.speak(text)
                 with operation(settings, 'onboarding.tts_sanitization'):
                     data = await tutor.sanitize(data)
-                repo.cache_lesson_audio(name, data)
-            return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
+                if not tutor.fallback:
+                    repo.cache_lesson_audio(name, data)
+            return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg', headers=tutor.headers)

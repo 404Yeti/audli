@@ -3,15 +3,17 @@ import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'rea
 import { authenticatedFetch, type LessonOperation } from '../lib/api';
 import type { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { recordingUpload } from '../lib/recording';
+import type { ClassroomLayout } from './product-shell';
 import type { Plan } from '../lib/planner';
 
 type Voice = ReturnType<typeof useVoiceLifecycle>;
-export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished }: { lessonId: string; autoVoice: boolean; voice: Voice; onFinished: () => void }) {
+export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onLayout }: { lessonId: string; autoVoice: boolean; voice: Voice; onFinished: () => void; onLayout?: (mode: ClassroomLayout) => void }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
+  useEffect(() => { onLayout?.(plan && !finished && !busy ? 'interaction' : 'focus'); }, [plan, finished, busy, onLayout]);
   const active = useRef<LessonOperation | null>(null);
   const submittingText = useRef(false);
   function done() { setFinished(true); onFinished(); }

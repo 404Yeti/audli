@@ -158,7 +158,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @app.get('/api/auth/config')
     async def auth_config():
-        return {'mode': settings.auth_mode}
+        return {'mode': settings.auth_mode, 'homework_enabled': settings.homework_enabled}
 
     @app.get('/api/profile')
     async def profile():

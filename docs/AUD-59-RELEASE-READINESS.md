@@ -1,5 +1,10 @@
 # Homework V0.1 release readiness
 
+The later owner preflight at `9710dd3` found an extra disabled-mode Supabase auth
+request. The [disabled-homework fix and instrumented evidence](AUD-59-DISABLED-HOMEWORK.md)
+now gate the loader using the existing bootstrap response. New-head hosted results
+are recorded in PR #42; all activation blockers below remain.
+
 Protected merge recommendation: **GO conditional on all eight required checks
 passing on the published head and owner review**, with homework disabled.
 Protected merge is distinct from release approval; hosted results are recorded

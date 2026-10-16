@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useAccount } from './auth-gate';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { recordingUpload } from '../lib/recording';
 import type { LessonOperation } from '../lib/api';
@@ -169,7 +170,17 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false }: { init
   </article>;
 }
 
-export function ListeningHomework({ lessonId, disabled = false, autoVoice = false }: { lessonId?: string; disabled?: boolean; autoVoice?: boolean }) {
+type HomeworkProps = { lessonId?: string; disabled?: boolean; autoVoice?: boolean };
+
+export function ListeningHomework(props: HomeworkProps) {
+  const account = useAccount();
+  // Do not mount effects/audio/state until the existing bootstrap explicitly opts in.
+  // Account keys and unmounting also discard saved homework and late continuations.
+  if (!account.homeworkEnabled) return null;
+  return <EnabledListeningHomework key={account.scope} {...props}/>;
+}
+
+function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = false }: HomeworkProps) {
   const [items, setItems] = useState<HomeworkAssignment[]>([]);
   const [enabled, setEnabled] = useState(false);
   const load = useEffectEvent(async (signal: AbortSignal) => {

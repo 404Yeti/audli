@@ -1,19 +1,25 @@
 import { test, expect, type Page } from '@playwright/test';
 import { installVoice, promptWav, probe } from './voice-fixture';
 
-async function setup(page: Page, completion = false) {
+async function setup(page: Page, completion = false, options: { capability?: unknown; configFailure?: boolean } = {}) {
   await installVoice(page, { autoPlayback: true });
-  const state = { enabled: true, status: 'offered', pending: false, decisions: 0, checks: 0, spoken: 0, confirmations: 0, voiceRequests: 0, acceptVoice: true, failVoice: false, lostResponse: false };
+  const state = { enabled: true, homeworkRequests: 0, configRequests: 0, status: 'offered', pending: false, decisions: 0, checks: 0, spoken: 0, confirmations: 0, voiceRequests: 0, acceptVoice: true, failVoice: false, lostResponse: false };
   const assignment = () => ({ id: 'assignment', lesson_id: 'lesson', status: state.status, discovery_in_progress: state.pending,
     objective: 'Listen for the main idea and two supporting details.', message: 'No suitable listening assignment is available right now. Your lesson is saved.',
     content: ['assigned', 'completed'].includes(state.status) ? { provider: 'youtube', provider_id: 'abcdefghijk', canonical_url: 'https://www.youtube.com/watch?v=abcdefghijk', title: 'Science in everyday life', publisher: 'Synthetic acceptance fixture', duration_seconds: 180, validated_at: new Date().toISOString() } : null });
   if (completion) await page.addInitScript(() => { if (!sessionStorage.getItem('readiness-initialized')) { sessionStorage.setItem('audli-session:local', 'lesson'); sessionStorage.setItem('readiness-initialized', '1'); } });
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
+    if (path.startsWith('/api/homework') || path.endsWith('/homework')) state.homeworkRequests++;
+    if (path === '/api/auth/config') {
+      state.configRequests++;
+      if (options.configFailure) return route.fulfill({ status: 503, json: { detail: 'Configuration unavailable' } });
+      return route.fulfill({ json: { mode: 'local', homework_enabled: 'capability' in options ? options.capability : state.enabled } });
+    }
     if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: 'Maya', goal: 'Meetings', completed_attempts: 3 }, provider: 'demo' } });
     if (path === '/api/exercises/current' || path === '/api/lessons/current') return route.fulfill({ json: null });
     if (path === '/api/lessons/lesson') return route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, encouragement: 'Thanks for listening, Maya.' } });
+    if (path === '/api/review') return route.fulfill({ json: { summary: { completed_lessons: 0, structured_lessons: 0, earlier_practice: 0, practice_days: 0, undated_lessons: 0, timezone_used: 'UTC', timezone_fallback: false, current_practice_level: null }, insight: 'Complete a lesson to see your listening journey.', patterns_version: 'review-patterns-v1', patterns: [], lessons: [], assessed_practice: [], next_cursor: null } });
     if (path === '/api/plan') return route.fulfill({ json: { revision: 1, focus: 'Notice the details that matter', readiness: 'ready', upcoming: ['Work updates', 'Travel stories', 'Science discoveries'].map((title, i) => ({ number: i + 1, title, objective: 'Listen for important details.', difficulty: { speech_rate: 1, duration_seconds: 60, vocabulary_level: 'B1', information_density: 1 } })), checkin: { available: false } } });
     if (path === '/api/homework') return route.fulfill({ json: { enabled: state.enabled, assignments: [assignment()] } });
     if (path === '/api/lessons/lesson/homework' || path === '/api/homework/assignment') return route.fulfill({ json: assignment() });
@@ -179,4 +185,46 @@ test('repeated delivered decision joins existing discovery and confirms once aft
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
   await page.reload(); await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
   expect(state.confirmations).toBe(1); expect(state.decisions).toBe(0);
+});
+
+
+for (const completion of [false, true]) for (const [name, capability] of [
+  ['disabled', false], ['unknown', undefined], ['malformed', 'true'], ['null', null],
+] as const) test(`${name} capability makes zero homework requests in ${completion ? 'completion' : 'Plan'}`, async ({ page }) => {
+  const state = await setup(page, completion, { capability });
+  await expect(page.getByRole('heading', { name: completion ? 'Lesson completed' : 'Next three lessons' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Optional listening', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: completion ? 'Return Home' : 'Review', exact: true }).click();
+  if (!completion) await expect(page.getByRole('heading', { name: 'Your listening journey' })).toBeVisible();
+  await page.getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Next three lessons' })).toBeVisible();
+  expect(state.homeworkRequests).toBe(0); expect(state.spoken).toBe(0); expect(state.confirmations).toBe(0);
+  expect((await probe(page)).mediaCalls).toBe(0);
+});
+
+test('failed bootstrap capability never loads homework', async ({ page }) => {
+  // A failed bootstrap retains the existing connection-retry screen, not opt-in.
+  await installVoice(page, { autoPlayback: true });
+  const homework: string[] = [];
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes('homework')) homework.push(path);
+    return route.fulfill({ status: 503, json: { detail: 'Configuration unavailable' } });
+  });
+  await page.goto('/'); await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible();
+  expect(homework).toEqual([]); expect((await probe(page)).mediaCalls).toBe(0);
+});
+
+test('an explicitly enabled bootstrap retains homework loading without another capability endpoint', async ({ page }) => {
+  const state = await setup(page, false, { capability: true });
+  await expect(page.getByRole('button', { name: 'Answer by voice' })).toBeVisible();
+  const loads = state.homeworkRequests; const bootstraps = state.configRequests;
+  expect(loads).toBeGreaterThan(0); // Development Strict Mode may abort/restart the existing loader.
+  await page.getByRole('button', { name: 'No thanks' }).click();
+  await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
+  expect(state.homeworkRequests).toBe(loads + 1);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
+  expect(state.configRequests).toBe(bootstraps);
 });

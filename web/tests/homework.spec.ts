@@ -10,7 +10,7 @@ for (const width of [320, 1440]) {
       content: status === 'assigned' || status === 'completed' ? { provider: 'youtube', provider_id: 'abcdefghijk', canonical_url: 'https://www.youtube.com/watch?v=abcdefghijk', title: 'How everyday science explains our world', publisher: 'Example publisher', duration_seconds: 180, validated_at: new Date().toISOString() } : null });
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
-      if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
+      if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local', homework_enabled: true } });
       if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: 'Maya', goal: 'Meetings', completed_attempts: 3 }, provider: 'demo' } });
       if (path === '/api/exercises/current' || path === '/api/lessons/current') return route.fulfill({ json: null });
       if (path === '/api/history') return route.fulfill({ json: [] });
@@ -53,7 +53,7 @@ test('disabled homework is absent and malformed provider links are never rendere
   let enabled = false;
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local' } });
+    if (path === '/api/auth/config') return route.fulfill({ json: { mode: 'local', homework_enabled: enabled } });
     if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: 'Maya' }, provider: 'demo' } });
     if (path === '/api/plan') return route.fulfill({ json: { focus: 'Listening', readiness: 'ready', upcoming: [], checkin: { available: false } } });
     if (path === '/api/homework') return route.fulfill({ json: { enabled, assignments: enabled ? [{ id: 'bad', status: 'assigned', objective: 'Listen.', content: { provider: 'youtube', provider_id: 'abcdefghijk', canonical_url: 'javascript:alert(1)', title: '<img src=x onerror=alert(1)>', publisher: 'Untrusted title', duration_seconds: 180, validated_at: new Date().toISOString() } }] : [] } });

@@ -544,3 +544,33 @@ def test_spoken_homework_disabled(tmp_path,audio_bytes):
         path=f'/api/homework/{uuid4()}'
         assert client.post(path+'/decision/attempts',files={'audio':('choice.wav',audio_bytes,'audio/wav')}).status_code==404
         assert client.post(path+'/confirmation-audio').status_code==404
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_existing_public_bootstrap_exposes_only_boolean_homework_capability(tmp_path,enabled):
+    with client_for(tmp_path,enabled=enabled) as client:
+        response=client.get('/api/auth/config')
+        assert response.status_code==200
+        assert response.json()=={'mode':'local','homework_enabled':enabled}
+
+
+def test_disabled_bootstrap_skips_owned_homework_and_auth_verification(tmp_path):
+    from test_auth import settings_for, auth_response, AccountClient
+    calls=[]
+    def verify(request): calls.append(request.url.path); return auth_response(request)
+    auth=httpx.AsyncClient(transport=httpx.MockTransport(verify))
+    app=create_app(settings_for(tmp_path,homework_enabled=False),FakeProvider(),auth_client=auth)
+    try:
+        client=AccountClient(app,FakeProvider(),'valid-a')
+        # Before: the old unconditional loader adds one external verification.
+        assert client.get('/api/homework').json()['enabled'] is False
+        assert calls==['/auth/v1/user']
+        calls.clear()
+        config=client.get('/api/auth/config').json()
+        assert config['homework_enabled'] is False
+        assert calls==[]  # Public bootstrap reuses existing request; no auth round trip.
+        # Protected endpoints remain protected even while the browser omits them.
+        assert ASGIClient(app,FakeProvider()).get('/api/homework').status_code==401
+        assert calls==[]
+    finally:
+        app.state.repository.close(); asyncio.run(auth.aclose())

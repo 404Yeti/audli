@@ -86,3 +86,21 @@ test('repeated typed submission joins one saved decision without duplicate reque
   await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
   expect(decisions).toBe(1);
 });
+
+test('completion dismisses a pending End dialog before the inline wrap-up', async ({ page }) => {
+  await setup(page);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const completed = { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, elapsed_seconds: 600, encouragement: 'Thanks for listening.' };
+  await page.route('**/api/lessons/start', route => route.fulfill({ json: { ...completed, phase: 'CLOSING', status: 'active', revision: 1, prompt: 'Thanks for listening today.' } }));
+  await page.route('**/api/lessons/lesson/audio', route => route.fulfill({ contentType: 'audio/wav', body: promptWav() }));
+  await page.route('**/api/lessons/lesson/heard', async route => { await held; await route.fulfill({ json: completed }); });
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Start today’s session' }).click();
+  await page.getByRole('button', { name: 'End', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  release();
+  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Return Home' })).toBeEnabled();
+});

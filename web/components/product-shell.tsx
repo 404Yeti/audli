@@ -26,7 +26,7 @@ export function SessionShell({ state, activity, label, topic, startedAt, onEnd, 
     <div className="session-presence"><AudliMascot state={state} activity={activity}/>{topic && <p className="session-topic" role="note" aria-label="Exercise topic" aria-live="polite">Topic: {topic}</p>}<p className="state-label" role="status">{label ?? ({ Idle: 'Train your ears.', Speaking: 'Audli is speaking', Listening: 'Listening to you', Thinking: 'Thinking', Success: 'Nice work.', Retry: 'Let’s try that again.' })[state]}</p></div>
     <div className="session-secondary">{children}</div>
     <div className="session-bottom">{startedAt != null && <SessionCountdown startedAt={startedAt}/>}<div className="session-controls">{onReplay && <button className="text-button" onClick={onReplay}>↻ Replay</button>}</div></div>
-    {confirmExit && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="exit-title" className="exit-dialog" onKeyDown={event => {
+    {!completed && confirmExit && <div className="dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="exit-title" className="exit-dialog" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); stay(); }
       if (event.key === 'Tab') {
         const buttons = event.currentTarget.querySelectorAll('button');

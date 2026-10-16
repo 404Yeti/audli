@@ -64,8 +64,9 @@ Focused results during implementation:
 -83 homework/planner/wrap-up backend tests passed;73 lifecycle tests passed.
 -27 existing homework browser cases passed, including disabled/unknown/failed
   capability, no duplicate discovery, spoken refusal/failure, polling/reload and
-  interrupted audio. Seven new wrap-up cases passed at320/390/1440px, including
-  sequential topic check-in, typed interruption of recording and duplicate-submit suppression.
+  interrupted audio. Eight new wrap-up cases passed at320/390/1440px, including
+  sequential topic check-in, typed interruption of recording, duplicate-submit suppression and dismissal of
+  an End dialog when completion arrives.
 -135 focused PostgreSQL/SQLite cases passed with one expected skip, including
   concurrent milestone claims and account isolation.
 - Frontend unit suites, ESLint/Oxlint, lint-coverage tests, TypeScript and production

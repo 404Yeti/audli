@@ -45,6 +45,11 @@ def register_homework_routes(app, repo, settings, database):
         enabled()
         return owned(store.offer, str(lesson_id))
 
+    @app.get('/api/homework/{assignment_id}', response_model=Assignment)
+    async def saved_assignment(assignment_id: UUID):
+        enabled()
+        return owned(store.get, str(assignment_id))
+
     @app.post('/api/homework/{assignment_id}/invitation-audio')
     async def invitation_audio(assignment_id: UUID):
         enabled()

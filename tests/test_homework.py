@@ -218,6 +218,8 @@ def test_authenticated_homework_isolation(tmp_path, repository_factory):
         assert ASGIClient(app,FakeProvider()).post(endpoint,json={}).status_code == 401
         assert b.post(endpoint,json={}).status_code == 404
         saved=a.post(endpoint,json={}).json(); identifier=saved['id']
+        assert b.get(f'/api/homework/{identifier}').status_code == 404
+        assert ASGIClient(app,FakeProvider()).get(f'/api/homework/{identifier}').status_code == 401
         for suffix,body in [('decision',{'accept':True}),('status',{'status':'completed'}),('validate',{})]:
             assert b.post(f'/api/homework/{identifier}/{suffix}',json=body).status_code == 404
         assert b.get('/api/homework').json()['assignments'] == []
@@ -371,3 +373,88 @@ def test_shared_video_metadata_never_contains_another_learners_topic(repository_
     assert store.get(second,saved[1].id).topic == 'science second private interest'
     for repo,item in [(first,saved[0]),(second,saved[1])]:
         assert store.get(repo,item.id).content.topic == '28'
+
+
+def test_refresh_observes_inflight_assignment_without_new_discovery(tmp_path):
+    with client_for(tmp_path) as client:
+        repo=client.app.state.repository; lesson=complete(repo)
+        offered=store.offer(repo,lesson.id)
+        _,token=store.reserve(repo,offered.id,True,'science',10)
+        response=client.get(f'/api/homework/{offered.id}')
+        assert response.status_code == 200 and response.json()['discovery_in_progress']
+        assert client.get('/api/homework').json()['assignments'][0]['discovery_in_progress']
+        assert client.post(f'/api/homework/{offered.id}/decision',json={'accept':True}).status_code == 409
+        store.finish(repo,offered.id,token,[parse_video(video(),'science')])
+        saved=client.get(f'/api/homework/{offered.id}').json()
+        assert saved['status'] == 'assigned' and not saved['discovery_in_progress']
+        assert client.app.state.homework_engine.provider.calls == 0
+        assert repo.lesson(lesson.id).status == 'completed'
+
+
+@pytest.mark.parametrize('mode',['empty','timeout','quota'])
+def test_discovery_failures_preserve_completed_lesson(tmp_path,mode):
+    with client_for(tmp_path) as client:
+        repo=client.app.state.repository; lesson=complete(repo); before=repo.profile()
+        offered=store.offer(repo,lesson.id)
+        async def failed(plan):
+            if mode=='timeout': raise TimeoutError()
+            if mode=='quota': raise DiscoveryUnavailable()
+            return []
+        client.app.state.homework_engine.discover=failed
+        result=client.post(f'/api/homework/{offered.id}/decision',json={'accept':True})
+        assert result.status_code == 200 and result.json()['status'] == 'unavailable'
+        assert repo.lesson(lesson.id).status == 'completed' and repo.profile() == before
+        assert not client.get(f'/api/homework/{offered.id}').json()['discovery_in_progress']
+
+
+def test_absent_credentials_make_no_external_requests():
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request:pytest.fail('Must not request without credentials'))) as client:
+            with pytest.raises(DiscoveryUnavailable): await YouTubeProvider('',client).search(plan())
+    asyncio.run(run())
+
+
+from test_lesson_lifecycle import lesson_client
+
+
+def test_normal_lesson_to_homework_plan_and_review_with_official_adapter_mocked(lesson_client,audio_bytes,tmp_path):
+    from test_lesson_lifecycle import exercises, complete_exercise, age, action
+    client=lesson_client; repo=client.app.state.repository
+    profile=repo.profile(); profile.interests=['science']; repo.save_profile(profile)
+    lesson=exercises(client,audio_bytes)
+    complete_exercise(client,lesson,audio_bytes)
+    lesson=age(client,lesson,520); lesson=action(client,lesson,'advance')
+    assert lesson['phase']=='CLOSING'
+    completed=action(client,lesson,'heard'); assert completed['status']=='completed'
+    before=repo.profile(); requests=[]; spoken=[]
+    def youtube(request):
+        requests.append(request)
+        if request.url.path.endswith('/search'):
+            assert 'science' in request.url.params['q']
+            return httpx.Response(200,json={'items':[{'id':{'videoId':ID}}]})
+        return httpx.Response(200,json={'items':[video()]})
+    transport=httpx.AsyncClient(transport=httpx.MockTransport(youtube))
+    async def speak(text,speech_rate=.9): spoken.append(text); return audio_bytes
+    client.provider.speak=speak
+    settings=Settings(provider='demo',data_dir=tmp_path,homework_enabled=True,homework_daily_search_limit=5,_env_file=None)
+    app=create_app(settings,client.provider,repo)
+    app.state.homework_engine.provider=YouTubeProvider('nonbillable-offline-fixture',transport)
+    ready_client=ASGIClient(app,client.provider)
+    try:
+        assert requests==[] and spoken==[]
+        offered=ready_client.post(f"/api/lessons/{completed['id']}/homework",json={}).json()
+        assert offered['status']=='offered' and requests==[] and spoken==[]
+        for _ in range(2): assert ready_client.post(f"/api/homework/{offered['id']}/invitation-audio").status_code==200
+        assert len(spoken)==1 # explicit replay uses cached speech
+        saved=ready_client.post(f"/api/homework/{offered['id']}/decision",json={'accept':True}).json()
+        assert saved['status']=='assigned' and len(requests)==2
+        assert ready_client.get('/api/homework').json()['assignments'][0]['id']==saved['id']
+        assert len(ready_client.get('/api/plan').json()['upcoming'])==3
+        review=ready_client.get('/api/review').json()
+        assert any(item['id']==completed['id'] and item['completed'] for item in review['lessons'])
+        assert ready_client.get(f"/api/review/lesson/{completed['id']}").status_code==200
+        assert ready_client.post(f"/api/homework/{saved['id']}/validate",json={}).json()['content']['canonical_url']==youtube_url(ID)
+        assert repo.profile()==before and repo.lesson(completed['id']).status=='completed'
+        assert len(spoken)==1 # no automatic assignment-confirmation speech exists
+    finally:
+        asyncio.run(transport.aclose())

@@ -23,6 +23,7 @@ def view(db, row):
         data = db.execute(select(s.listening_content.c.data).where(s.listening_content.c.id == row['content_id'])).scalar_one()
         content = ListeningContent.model_validate(data)
     return Assignment(id=row['id'], lesson_id=row['lesson_id'], status=row['status'], objective=row['objective'], topic=row['topic'], content=content,
+        discovery_in_progress=bool(row['lease_until'] and aware(row['lease_until']) > utcnow()),
         message='No suitable listening assignment is available right now. Your lesson is saved.' if row['status'] == 'unavailable' else None)
 
 

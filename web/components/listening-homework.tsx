@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { authenticatedFetch } from '../lib/api';
-import { verifiedHomeworkUrl, type HomeworkAssignment, type HomeworkView } from '../lib/homework';
+import { freshHomeworkUrl, verifiedHomeworkUrl, type HomeworkAssignment, type HomeworkView } from '../lib/homework';
 
 async function request<T>(path: string, body?: object, signal?: AbortSignal): Promise<T> {
-  const response = await authenticatedFetch(`/api${path}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal } : { signal });
+  const deadline = AbortSignal.timeout(25000);
+  const boundedSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  const response = await authenticatedFetch(`/api${path}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: boundedSignal } : { signal: boundedSignal });
   if (!response.ok) throw new Error('Optional listening is unavailable right now. Your lesson is saved.');
   return response.json() as Promise<T>;
 }
@@ -13,21 +15,56 @@ async function request<T>(path: string, body?: object, signal?: AbortSignal): Pr
 function AssignmentCard({ initial, disabled = false }: { initial: HomeworkAssignment; disabled?: boolean }) {
   const { audio, begin, speak, replay } = useVoiceLifecycle();
   const [item, setItem] = useState(initial);
+  const card = useRef<HTMLElement>(null);
+  const previousStatus = useRef(initial.status);
+  useEffect(() => {
+    if (previousStatus.current !== item.status && (document.activeElement === document.body || card.current?.contains(document.activeElement))) card.current?.focus();
+    previousStatus.current = item.status;
+  }, [item.status]);
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [checkedUrl, setCheckedUrl] = useState<string | null>(() => initial.status === 'assigned' && initial.content && Date.parse(initial.content.validated_at) > Date.now() - 3600000 ? verifiedHomeworkUrl(initial) : null);
+  const [checkedUrl, setCheckedUrl] = useState<string | null>(() => freshHomeworkUrl(initial));
+  useEffect(() => {
+    if (!item.discovery_in_progress) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const saved = await request<HomeworkAssignment>(`/homework/${item.id}`, undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        setItem(saved);
+        if (saved.status === 'assigned') setCheckedUrl(freshHomeworkUrl(saved));
+        if (saved.discovery_in_progress) timer = setTimeout(() => void poll(), 2000);
+      } catch {
+        if (!controller.signal.aborted) {
+          setError('The connection was interrupted. Reload your saved assignment; your lesson is saved.');
+          setItem(value => ({ ...value, discovery_in_progress: false }));
+        }
+      }
+    }
+    timer = setTimeout(() => void poll(), 1000);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [item.discovery_in_progress, item.id]);
+  async function reloadSaved() {
+    setBusy(true); setError('');
+    try {
+      const saved = await request<HomeworkAssignment>(`/homework/${item.id}`);
+      setItem(saved); setCheckedUrl(freshHomeworkUrl(saved));
+    } catch { setError('The connection was interrupted. Try again later; your lesson is saved.'); }
+    finally { setBusy(false); }
+  }
   async function action(path: string, body: object) {
     setBusy(true); setError(''); setCheckedUrl(null);
-    try { const saved = await request<HomeworkAssignment>(`/homework/${item.id}/${path}`, body); setItem(saved); if (saved.status === 'assigned') setCheckedUrl(verifiedHomeworkUrl(saved)); }
-    catch (e) { setError((e as Error).message); }
+    try { const saved = await request<HomeworkAssignment>(`/homework/${item.id}/${path}`, body); setItem(saved); if (saved.status === 'assigned') setCheckedUrl(freshHomeworkUrl(saved)); }
+    catch { setError('The connection was interrupted. Reload your saved assignment; your lesson is saved.'); }
     finally { setBusy(false); }
   }
   async function checkVideo() {
     setBusy(true); setError('');
     try {
       const checked = await request<HomeworkAssignment>(`/homework/${item.id}/validate`, {});
-      setItem(checked); setCheckedUrl(checked.status === 'assigned' ? verifiedHomeworkUrl(checked) : null);
+      setItem(checked); setCheckedUrl(freshHomeworkUrl(checked));
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -42,8 +79,9 @@ function AssignmentCard({ initial, disabled = false }: { initial: HomeworkAssign
     } catch (e) { if (operation.current) setError((e as Error).message); }
     finally { if (operation.current) setBusy(false); operation.release(); }
   }
-  const locked = busy || disabled;
-  return <article className="homework-card" aria-label="Optional listening assignment" aria-busy={busy}>
+  const pending = busy || Boolean(item.discovery_in_progress);
+  const locked = pending || disabled;
+  return <article ref={card} tabIndex={-1} className="homework-card" aria-label="Optional listening assignment" aria-busy={pending}>
     <audio ref={audio} hidden/>
     <p className="homework-label" role="status">Optional listening · {item.status === 'completed' ? 'Completed (self-reported)' : item.status}</p>
     {item.status === 'offered' && <>
@@ -56,17 +94,17 @@ function AssignmentCard({ initial, disabled = false }: { initial: HomeworkAssign
         <button className="secondary" disabled={locked} onClick={() => void action('decision', { accept: false })}>No thanks</button></div>
       <p className="homework-note">Your topic is sent to YouTube to find a video. Homework never changes your learning scores.</p>
     </>}
-    {item.content && <><h3>{item.content.title}</h3><p>YouTube · About {Math.max(1, Math.round(item.content.duration_seconds / 60))} min · {item.content.publisher}</p><p>{item.objective}</p></>}
+    {item.content && <><h3>{item.content.title}</h3><p>{item.content.provider === 'youtube' ? 'YouTube' : item.content.provider} · About {Math.max(1, Math.round(item.content.duration_seconds / 60))} min · {item.content.publisher}</p><p>{item.objective}</p></>}
     {item.status === 'assigned' && verifiedHomeworkUrl(item) && <>
-      {checkedUrl ? <a href={checkedUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Watch on YouTube (opens a new tab)</a> : <button className="secondary" disabled={locked} onClick={() => void checkVideo()}>Check video link</button>}
+      {checkedUrl ? <a href={checkedUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" onClick={event => { if (!freshHomeworkUrl(item)) { event.preventDefault(); setCheckedUrl(null); void checkVideo(); } }}>Watch on YouTube (opens a new tab)</a> : <button className="secondary" disabled={locked} onClick={() => void checkVideo()}>Check video link</button>}
       <p className="homework-note">YouTube content and difficulty may vary. This is optional practice; Audli won’t grade your understanding of this video.</p>
       <div className="homework-actions"><button className="secondary" disabled={locked} onClick={() => void action('status', { status: 'completed' })}>I listened</button>
         <button className="secondary" disabled={locked} onClick={() => void action('status', { status: 'skipped' })}>Skip assignment</button></div>
     </>}
     {item.status === 'unavailable' && <p>{item.message ?? 'This video is unavailable. Continue with your next lesson when ready.'}</p>}
     {item.status === 'skipped' && <p>No homework today. Your next lesson is ready when you are.</p>}
-    {busy && <p role="status">{item.status === 'offered' ? 'Finding a short listening assignment…' : 'Saving optional listening…'}</p>}
-    {error && <p role="alert">{error}</p>}
+    {pending && <p role="status">{item.status === 'offered' ? 'Finding a short listening assignment…' : 'Saving optional listening…'}</p>}
+    {error && <><p role="alert">{error}</p><button className="secondary" disabled={locked} onClick={() => void reloadSaved()}>Reload saved assignment</button></>}
   </article>;
 }
 

@@ -63,6 +63,7 @@ class Assignment(StrictModel):
     topic: str | None = None
     content: ListeningContent | None = None
     message: str | None = None
+    discovery_in_progress: bool = False
     # Contract for a future reflection; not an evaluation claim.
     reflection_grounding: Literal['unverified_self_report'] = 'unverified_self_report'
 

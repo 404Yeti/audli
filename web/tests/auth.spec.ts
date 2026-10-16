@@ -2,6 +2,26 @@ import { test, expect, type Page } from '@playwright/test';
 import { ExerciseLessonFixture } from './lesson-fixture';
 import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 
+type AuthTiming = { stage: string; elapsedMs: number; category: string };
+function captureAuthTimings(page: Page) {
+  const rows: AuthTiming[] = [];
+  page.on('console', message => {
+    if (message.text().startsWith('[Audli auth startup]')) {
+      void message.args()[1]?.jsonValue().then(value => { rows.push(value as AuthTiming); });
+    }
+  });
+  return rows;
+}
+function expectPrivateAuthTimings(rows: AuthTiming[]) {
+  for (const row of rows) {
+    expect(Object.keys(row).sort()).toEqual(['category', 'elapsedMs', 'stage']);
+    expect(row.elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(row.elapsedMs)).toBe(true);
+  }
+  const serialized = JSON.stringify(rows);
+  for (const secret of [token, tokenB, user.email, user.id, 'mock-refresh-token', 'SECRET']) expect(serialized).not.toContain(secret);
+}
+
 const userId='00000000-0000-0000-0000-000000000001';
 const user={id:userId,email:'learner@example.com',email_confirmed_at:'2026-10-06T00:00:00Z',app_metadata:{provider:'email',providers:['email']},user_metadata:{},aud:'authenticated',created_at:'2026-10-06T00:00:00Z'};
 const userB={...user,id:'00000000-0000-0000-0000-000000000002',email:'bob@example.com'};
@@ -627,6 +647,7 @@ test('walkthrough swipe reduced motion skip and account isolation across login',
 });
 
 test('stalled session restoration times out without mounting private content and reload recovers', async ({ page }) => {
+  const timings = captureAuthTimings(page);
   await setupAuth(page); await signIn(page);
   await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
   await page.evaluate(() => {
@@ -643,9 +664,14 @@ test('stalled session restoration times out without mounting private content and
   await expect.poll(() => refreshing).toBe(true);
   await page.clock.fastForward(20_001);
   await expect(page.getByRole('main').getByRole('alert')).toContainText('account is taking too long');
+  await expect.poll(() => timings.some(row => row.stage === 'token_refresh' && row.category === 'pending')).toBe(true);
+  expect(timings.some(row => row.stage === 'session_restore' && row.category === 'pending')).toBe(true);
+  expect(timings.some(row => row.stage === 'auth_config' && row.category === 'completed')).toBe(true);
   await page.unroute('https://audli-auth-test.supabase.co/auth/v1/token**');
   await page.getByRole('button', { name: 'Retry connection' }).click();
   await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  await expect.poll(() => timings.some(row => row.stage === 'retry_connection' && row.category === 'connected')).toBe(true);
+  expectPrivateAuthTimings(timings);
 });
 
 async function beginGoogle(page:Page,result='code=google-code') {
@@ -790,4 +816,58 @@ test('resume Account clears credentials even when remote sign-out fails',async({
   await showSignIn(page);await expect(page.getByRole('status')).toContainText('Signed out here');
   expect(await page.evaluate(()=>localStorage.getItem('audli-auth-session'))).toBeNull();expect(fixture.snapshot()).toEqual(saved);
   await page.reload();await showSignIn(page);await signIn(page);await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();
+});
+
+
+test('valid saved authentication can hit the config deadline; Retry repeats config and restores the account', async ({ page }) => {
+  const timings = captureAuthTimings(page);
+  await setupAuth(page); await signIn(page);
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  await page.clock.install();
+  let requests = 0, retrying = false;
+  await page.route('**/api/auth/config', route => {
+    requests++;
+    if (retrying) return route.fulfill({ json: { mode: 'supabase' } });
+  });
+  await page.reload();
+  await expect.poll(() => requests).toBeGreaterThan(0);
+  await page.clock.fastForward(20_001);
+  await expect(page.getByRole('main').getByRole('alert')).toHaveText('Your account is taking too long to connect. Please try again.');
+  expect(await page.evaluate(() => Boolean(localStorage.getItem('audli-auth-session')))).toBe(true);
+  await expect.poll(() => timings.some(row => row.stage === 'auth_config' && row.category === 'pending')).toBe(true);
+  expect(timings.some(row => row.stage === 'auth_gate_deadline' && row.category === 'timeout')).toBe(true);
+  expect(timings.some(row => row.stage === 'session_restore')).toBe(false);
+  const before = requests; retrying = true;
+  await page.getByRole('button', { name: 'Retry connection' }).click();
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  expect(requests).toBeGreaterThan(before);
+  await expect.poll(() => timings.some(row => row.stage === 'retry_connection' && row.category === 'connected')).toBe(true);
+  expectPrivateAuthTimings(timings);
+});
+
+for (const status of [401, 403, 429, 503]) test(`config HTTP ${status} is reported separately from the connection deadline`, async ({ page }) => {
+  const timings = captureAuthTimings(page);
+  await page.route('**/api/auth/config', route => route.fulfill({ status, json: { detail: `Configuration response ${status}` } }));
+  await page.goto('/');
+  await expect(page.getByRole('main').getByRole('alert')).toHaveText(`Configuration response ${status}`);
+  await expect.poll(() => timings.some(row => row.stage === 'auth_config' && row.category === (status >= 500 ? 'http_5xx' : 'http_4xx'))).toBe(true);
+  expectPrivateAuthTimings(timings);
+  await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start today’s session' })).toHaveCount(0);
+});
+
+
+test('normal email session restoration and refresh emit no startup diagnostics', async ({ page }) => {
+  const timings = captureAuthTimings(page);
+  await installVoice(page); await setupAuth(page); await signIn(page);
+  await expect(page.getByRole('button', { name: 'Start today’s session' })).toBeEnabled();
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('audli-auth-session')!);
+    saved.expires_at = Math.floor(Date.now() / 1000) - 60;
+    localStorage.setItem('audli-auth-session', JSON.stringify(saved));
+  });
+  const refresh = page.waitForRequest(request => request.url().includes('grant_type=refresh_token'));
+  await page.reload(); await refresh;
+  await expect(page.getByRole('button', { name: 'Start today’s session' })).toBeEnabled();
+  expect(timings).toEqual([]);
 });

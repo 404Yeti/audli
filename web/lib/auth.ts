@@ -1,3 +1,4 @@
+import { timedAuthFetch } from './auth-diagnostics.ts';
 import { createClient, type SupabaseClient, type Session } from '@supabase/supabase-js';
 
 export function isLearnerAuthCallback(params: Record<string, string>): boolean {
@@ -58,7 +59,7 @@ export function authClient(): SupabaseClient {
   const { url, key } = authConfiguration();
   // This page is client rendered. The SDK persists/refreshes browser sessions;
   // FastAPI independently verifies every access token before granting data access.
-  client = createClient(url, key, { auth: {
+  client = createClient(url, key, { global: { fetch: timedAuthFetch }, auth: {
     storageKey: authStorageKey,
     detectSessionInUrl: (_url, params) => isLearnerAuthCallback(params),
   } });

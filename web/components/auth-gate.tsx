@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AudliLoadingScreen } from './audli-loading-screen';
+import { AuthDiagnostics, authHttpCategory, markAuthTimeoutRetry } from '../lib/auth-diagnostics';
 import { STARTUP_TIMEOUT_MS } from '../lib/startup';
 import Link from 'next/link';
 import { AudliMascot } from './audli-mascot';
@@ -25,6 +26,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const blocked = useRef(false);
+  const timedOut = useRef(false);
   const accountIdentity = useRef<string | null>(null);
   const accessTokenProvider = useRef<(() => Promise<string | null>) | null>(null);
 
@@ -44,11 +46,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
       window.location.replace('/auth/recovery' + window.location.search + window.location.hash);
       return;
     }
+    const diagnostics = new AuthDiagnostics();
+    let configStatus: number | undefined;
+    let configResolved = false;
     let active = true;
     let unsubscribe: (() => void) | undefined;
     let supabase: SupabaseClient | undefined;
     const startupDeadline = window.setTimeout(() => {
       if (!active) return;
+      timedOut.current = true; diagnostics.fail('timeout');
       active = false; unsubscribe?.();
       setAccessTokenProvider(null);
       setMode('failed');
@@ -67,16 +73,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
       });
     };
     window.addEventListener('audli-session-expired', expire);
-    void api<{ mode: string }>('/auth/config').then(config => {
+    void api<{ mode: string }>('/auth/config', undefined, status => { configStatus = status; }).then(config => {
       if (!active) return;
+      configResolved = true;
       if (query.get('signin') === '1') setLanding(false);
       if (query.get('oauth') === 'failed') { setLanding(false); setMessage('Google sign-in could not be completed. Please try again or use email.'); }
       if (config.mode === 'local') {
         const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
         if (process.env.NODE_ENV === 'production' && !loopback) throw new Error('The server must enable authenticated access for this deployment.');
-        window.clearTimeout(startupDeadline); setMode('local'); return;
+        window.clearTimeout(startupDeadline); diagnostics.ready(); setMode('local'); return;
       }
       if (config.mode !== 'supabase') throw new Error('Sign-in is not configured.');
+      diagnostics.configComplete();
       supabase = authClient();
       const tokenProvider = async () => {
         const revision = currentAuthRevision();
@@ -98,7 +106,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setClient(supabase); setMode('supabase');
       const { data } = supabase.auth.onAuthStateChange((_event, next) => {
         if (!active) return;
-        window.clearTimeout(startupDeadline);
+        window.clearTimeout(startupDeadline); diagnostics.ready();
         if (blocked.current) { setReady(true); return; }
         if (accountIdentity.current !== sessionIdentity(next)) {
           accountIdentity.current = sessionIdentity(next);
@@ -109,10 +117,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
       unsubscribe = () => data.subscription.unsubscribe();
     }).catch(error => {
       window.clearTimeout(startupDeadline);
-      if (active) { setMode('failed'); setMessage(error instanceof Error ? error.message : 'Sign-in is unavailable. Please retry.'); }
+      if (active) {
+        diagnostics.fail(configResolved ? 'initialization' : configStatus === undefined ? 'network' : configStatus >= 400 ? authHttpCategory(configStatus) : 'invalid_response');
+        setMode('failed'); setMessage(error instanceof Error ? error.message : 'Sign-in is unavailable. Please retry.'); }
     });
     return () => {
-      window.clearTimeout(startupDeadline);
+      window.clearTimeout(startupDeadline); diagnostics.close();
       active = false; unsubscribe?.(); window.removeEventListener('audli-session-expired', expire);
       setAccessTokenProvider(null);
     };
@@ -176,7 +186,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (mode === 'loading' || (mode === 'supabase' && !ready && !session)) return <AudliLoadingScreen/>;
-  if (mode === 'failed') return <AudliLoadingScreen error={message} onRetry={() => window.location.reload()}/>;
+  if (mode === 'failed') return <AudliLoadingScreen error={message} onRetry={() => { if (timedOut.current) markAuthTimeoutRetry(); window.location.reload(); }}/>;
   if (mode === 'local') return children;
   if (mode === 'supabase' && session) return <AccountContext.Provider value={{ scope: sessionIdentity(session)!, email: session.user.email, signOut: logout }}><div key={sessionIdentity(session)}>{children}</div></AccountContext.Provider>;
   if (mode === 'supabase' && ready && landing && !message) return <main className="landing"><strong className="wordmark">audli</strong><AudliMascot/><h1>Train your ears.</h1><p>AI listening practice that adapts to what you actually understand.</p><button className="primary" onClick={() => { setSignup(true); setLanding(false); }}>Start listening</button><button className="text-button" onClick={() => { setSignup(false); setLanding(false); }}>I already have an account</button><footer>Eyes optional. Ears essential.</footer></main>;

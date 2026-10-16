@@ -10,6 +10,10 @@ from app.security import parse_browser_origin
 from sqlalchemy.engine import make_url
 
 class Settings(BaseSettings):
+    homework_enabled: bool = False
+    youtube_api_key: SecretStr | None = None
+    homework_daily_search_limit: int = Field(default=0, ge=0, le=100)
+    homework_region: str | None = Field(default=None, pattern=r'^[A-Z]{2}$')
     planner_enabled: bool = True
     model_config = SettingsConfigDict(env_prefix='AUDLI_', env_file='.env', extra='ignore', hide_input_in_errors=True)
     openai_api_key: SecretStr | None = Field(default=None, validation_alias='OPENAI_API_KEY')

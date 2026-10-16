@@ -238,3 +238,25 @@ Set AUDLI_PLANNER_ENABLED=false to disable planning/check-ins while retaining
 ordinary lessons. Preserve schema004 and roadmap/history data on rollback.
 The certified rollback backend is ce55cbc5766174d117f7fa006320d04dabbb55a3.
 Do not deploy the full planner before production004 is verified.
+
+### Optional homework (migration 005)
+
+`docs/postgres-005.sql` adds backend-only content, owned assignments, reserved
+reflections and a daily discovery counter. RLS is enabled and all browser grants
+are revoked; access is through authenticated FastAPI only. Composite foreign keys
+and uniqueness enforce lesson ownership and idempotency. No existing data is
+rewritten. SQLite creates the additive tables automatically.
+
+Before enabling homework, back up the database and run the existing explicit
+`python -m scripts.migrate_postgres` command against a disposable/staging database,
+then inspect constraints and browser-role denial. Production application requires
+separate owner approval. The runner applies missing migrations in order, including
+005, and never runs at application startup. This release accepts schema 004 with
+homework disabled; startup checks the new tables if enabled. Disable
+`AUDLI_HOMEWORK_ENABLED` to roll back functionality, retaining records.
+
+Server variables: `AUDLI_HOMEWORK_ENABLED=false`, `AUDLI_YOUTUBE_API_KEY` (restricted
+server secret), `AUDLI_HOMEWORK_DAILY_SEARCH_LIMIT=0` (explicit positive ceiling to
+admit discovery), optional `AUDLI_HOMEWORK_REGION` (ISO country code). Without a
+region, restricted videos are excluded. Do not add these secrets to NEXT_PUBLIC
+variables. API enablement and production changes require owner approval.

@@ -89,6 +89,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
 
     from app.planner import preferred_topic
+    app.state.homework_speech = speech
     from app.planner_api import register_planner_routes
     register_planner_routes(app, repo, ai, lock, settings, speech)
 

@@ -20,7 +20,7 @@ def test_release_restart_on_schema3_preserves_profiles_and_rejects_future_schema
     repo.save_profile(profile)
     with repo.engine.begin() as db:
         before = db.execute(text('SELECT data::text FROM learner_profiles')).scalar_one()
-        assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() in (3, 4)
+        assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() in (3, 4, 5)
     for _ in range(2):
         restarted = PostgresRepository(repo.engine.url.render_as_string(hide_password=False))
         assert restarted.for_learner(repo.learner_id).profile() == profile
@@ -28,7 +28,7 @@ def test_release_restart_on_schema3_preserves_profiles_and_rejects_future_schema
             assert db.execute(text('SELECT data::text FROM learner_profiles')).scalar_one() == before
         restarted.close()
     with repo.engine.begin() as db:
-        db.execute(s.versions.insert().values(version=5, applied_at=now()))
+        db.execute(s.versions.insert().values(version=6, applied_at=now()))
     with pytest.raises(RuntimeError, match='schema version validation'):
         PostgresRepository(repo.engine.url.render_as_string(hide_password=False))
 
@@ -59,7 +59,7 @@ def test_schema3_assessment_adaptation_replay_and_restart(repository_factory, tm
     if repo.engine.dialect.name != 'postgresql':
         pytest.skip('PostgreSQL schema-3 assessment compatibility')
     with repo.engine.begin() as db:
-        assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() in (3, 4)
+        assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() in (3, 4, 5)
     # Run the existing evidence-loop contract on schema 3, including restart,
     # persisted evaluation, deterministic adaptation and gated replay.
     evidence_loop(repository_factory, tmp_path, audio_bytes)

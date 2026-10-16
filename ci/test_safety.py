@@ -26,6 +26,7 @@ def test_loopback_still_resolves():
     {'AUDLI_DATABASE_URL': 'postgresql://fixture:fixture@127.0.0.1/postgres'},
     {'OPENAI_API_KEY': 'nonbillable-test-rejection'},
     {'AUDLI_ELEVENLABS_API_KEY': 'nonbillable-test-rejection'},
+    {'AUDLI_YOUTUBE_API_KEY': 'nonbillable-test-rejection'},
 ])
 def test_forbidden_environment_cannot_start_python(values):
     environment = dict(os.environ, AUDLI_CI_OFFLINE='1', PYTHONPATH=str(Path(__file__).parent)) | values

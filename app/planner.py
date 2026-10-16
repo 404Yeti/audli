@@ -6,7 +6,7 @@ from pydantic import Field
 from app.models import StrictModel, Difficulty, Dimension, Transcription, ListeningProfile, AccentPreferences, Adaptation
 from app.lesson import safe_label
 
-CHECKIN_PROMPT = 'How did the difficulty feel over your last three lessons? Would you like different topics or a different kind of listening practice? You can skip this check-in.'
+CHECKIN_PROMPT = 'Would you like to keep your listening topics, or try something different? You can say keep them or name a topic.'
 
 class PlannedLesson(StrictModel):
     number: int = Field(ge=1)
@@ -37,6 +37,7 @@ class PlanningContext(StrictModel):
     recent_adaptations: list[Adaptation]
 
 class Roadmap(StrictModel):
+    offered_checkins: list[int] = Field(default_factory=list)
     version: Literal[1] = 1
     revision: int = Field(default=0, ge=0)
     activation_at: datetime | None = None

@@ -96,7 +96,7 @@ def test_spontaneous_preference_offers_and_preserves_topic_review(repository_fac
     repo=repository_factory();client,provider,_=setup(repo,tmp_path,discovery=False)
     item=start(client)
     if phase=='REVIEW':
-        stored=repo.lesson();stored.phase='REVIEW';stored.previous='Last time we listened to science.'
+        stored=repo.lesson();stored.phase='REVIEW';stored.previous='Last time we listened to science.';stored.topic_review_due=True  # Preserve an already-open legacy question.
         repo.save_lesson(stored,stored.revision);item=client.get('/api/lessons/current').json()
     item=reply(client,provider,item,audio_bytes,'Australian accents are difficult for me.')
     if phase=='WELCOME':item=action(client,item,'heard')

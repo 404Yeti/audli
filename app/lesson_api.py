@@ -115,8 +115,9 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             planned = roadmap.upcoming[0] if roadmap else None
             at = now()
             lesson = Lesson(id=str(uuid4()), started_at=at, active_since=at,
+                topic_review_due=False,
                 name=profile.name, focus=planned.focus if planned else profile.focus,
-                plan_topic=planned.topic if planned else None, plan_number=planned.number if planned else None,
+                plan_topic=planned.topic if planned else next((label for item in profile.interests if (label := safe_label(item)) and len(label) <= 100), None), plan_number=planned.number if planned else None,
                 previous=repo.previous_lesson())
             available_voices = await passage_limits.voices()
             history = repo.accent_lesson_history()
@@ -281,6 +282,12 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                                               if interest else 'We can continue with today’s listening.')
                     lesson.phase = 'REVIEW_ACK'
                 else:
+                    if parsed.topic_text:
+                        extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', parsed.topic_text))
+                        interests = extracted.interests or None
+                        interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
+                        if interest:
+                            lesson.plan_topic = preferred_topic(interest, lesson.plan_topic)
                     lesson.checkin = text
                     try:
                         reply = routine_checkin_reply(text)
@@ -314,6 +321,9 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                         extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', parsed.topic_text))
                     interests = extracted.interests
                     lesson.reflection = parsed.topic_text
+                    interest = next((safe_label(item) for item in interests or () if safe_label(item)), None)
+                    if interest:
+                        lesson.plan_topic = preferred_topic(interest, lesson.plan_topic)
                 except Exception as exc:
                     check(lesson_id, body.revision)
                     if parsed.kind == 'topic':

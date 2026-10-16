@@ -75,6 +75,9 @@ class Decision(StrictModel):
     accept: bool
     topic: str | None = Field(default=None, min_length=1, max_length=100)
 
+class HomeworkReply(StrictModel):
+    text: str = Field(min_length=1, max_length=200)
+
 class StatusChange(StrictModel):
     status: Literal['completed', 'skipped']
 

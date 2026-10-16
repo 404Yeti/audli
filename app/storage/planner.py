@@ -49,11 +49,23 @@ def due(roadmap):
     milestone = count // 3 * 3
     return milestone if milestone and not any(item.after_lesson == milestone and item.activation_at == roadmap.activation_at for item in roadmap.feedback) else None
 
-def access(repo, revision=None, pending=None, feedback=None):
+def access(repo, revision=None, pending=None, feedback=None, claim_lesson=None):
     with repo.transaction(planner=True) as db:
         row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == repo.learner_id).with_for_update()).scalar_one()
         profile = LearnerProfile.model_validate(row)
         roadmap = reconcile(repo, db, profile)
+        if claim_lesson is not None:
+            milestone = due(roadmap)
+            if (not milestone or qualifying_count(roadmap) != milestone
+                    or milestone in roadmap.offered_checkins
+                    or not roadmap.completed_ids or roadmap.completed_ids[-1] != claim_lesson
+                    or profile.onboarding_status != 'complete'
+                    or db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == repo.learner_id,
+                        s.lessons.c.status != 'completed'))).first() is not None):
+                return None
+            roadmap.offered_checkins.append(milestone)
+            persist(repo, db, roadmap)
+            return roadmap
         if revision is not None:
             if roadmap.revision != revision or not due(roadmap):
                 raise ValueError('Your plan changed. Reload the saved plan.')

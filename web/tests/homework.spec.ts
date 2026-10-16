@@ -16,9 +16,9 @@ for (const width of [320, 1440]) {
       if (path === '/api/history') return route.fulfill({ json: [] });
       if (path === '/api/plan') return route.fulfill({ json: { revision: 1, completed_lessons: 1, block_progress: 1, focus: 'Notice the details that matter', readiness: 'ready', upcoming: ['Work updates', 'Travel stories', 'Science discoveries'].map((title, i) => ({ number: i + 1, title, topic: 'science', focus: 'details', objective: 'Listen for important details.', difficulty: { speech_rate: 1, duration_seconds: 60, vocabulary_level: 'B1', information_density: 1 }, accent_focus: null })), completed: [], checkin: { available: false, status: 'not_due' } } });
       if (path === '/api/homework') return route.fulfill({ json: { enabled: true, assignments: [assignment()] } });
-      if (path.endsWith('/decision')) {
-        const body = route.request().postDataJSON() as { accept: boolean; topic?: string };
-        expect(body.topic).toBe('science'); decisions++; status = body.accept ? 'assigned' : 'skipped';
+      if ((path.endsWith('/decision') || path.endsWith('/decision/text'))) {
+        const body = route.request().postDataJSON() as { text: string };
+        expect(body.text).toBe('yes about science'); decisions++; status = 'assigned';
         return route.fulfill({ json: assignment() });
       }
       if (path.endsWith('/validate')) return route.fulfill({ json: assignment() });
@@ -28,8 +28,8 @@ for (const width of [320, 1440]) {
     await page.goto('/'); await page.getByRole('button', { name: 'Plan', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Next three lessons' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Optional listening', exact: true })).toBeVisible();
-    const topic = page.getByLabel('Different topic (optional)'); await topic.fill('science');
-    await page.getByRole('button', { name: 'Find optional listening' }).focus();
+    const topic = page.getByLabel('Your reply', { exact: true }); await topic.fill('yes about science');
+    await page.getByRole('button', { name: 'Send' }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'How everyday science explains our world' })).toBeVisible();
     expect(decisions).toBe(1);
@@ -44,7 +44,7 @@ for (const width of [320, 1440]) {
     await expect(page.getByText('Optional listening · Completed (self-reported)')).toBeVisible();
     await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
     await expect(page.getByText('Optional listening · Completed (self-reported)')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Find optional listening' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Send' })).toHaveCount(0);
   });
 }
 

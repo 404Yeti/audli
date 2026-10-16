@@ -220,7 +220,7 @@ def test_authenticated_homework_isolation(tmp_path, repository_factory):
         saved=a.post(endpoint,json={}).json(); identifier=saved['id']
         assert b.get(f'/api/homework/{identifier}').status_code == 404
         assert ASGIClient(app,FakeProvider()).get(f'/api/homework/{identifier}').status_code == 401
-        for suffix,body in [('decision',{'accept':True}),('status',{'status':'completed'}),('validate',{}),('confirmation-audio',{})]:
+        for suffix,body in [('decision',{'accept':True}),('status',{'status':'completed'}),('validate',{}),('confirmation-audio',{}),('invitation-audio',{}),('farewell-audio',{}),('decision/text',{'text':'yes please'})]:
             assert b.post(f'/api/homework/{identifier}/{suffix}',json=body).status_code == 404
         assert b.post(f'/api/homework/{identifier}/decision/attempts',files={'audio':('bad.wav',b'bad','audio/wav')}).status_code == 404
         assert ASGIClient(app,FakeProvider()).post(f'/api/homework/{identifier}/decision/attempts',files={'audio':('bad.wav',b'bad','audio/wav')}).status_code == 401

@@ -4,7 +4,7 @@ from datetime import timedelta
 from uuid import UUID
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import inspect
-from app.homework import (HomeworkView, Assignment, Decision, StatusChange, HomeworkEngine,
+from app.homework import (HomeworkView, Assignment, Decision, HomeworkReply, StatusChange, HomeworkEngine,
     DiscoveryUnavailable, search_plan, relevance, objective)
 from app.services.youtube import YouTubeProvider
 from app.audio import validate_upload
@@ -89,6 +89,17 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
             candidates = []
         return owned(store.finish, identifier, token, candidates)
 
+    @app.post('/api/homework/{assignment_id}/decision/text', response_model=Assignment)
+    async def typed(assignment_id: UUID, body: HomeworkReply):
+        enabled()
+        existing = owned(store.get, str(assignment_id))
+        if existing.status != 'offered' or existing.discovery_in_progress:
+            return existing
+        choice = spoken_decision(body.text)
+        if choice is None:
+            raise HTTPException(422, 'Say yes please, no thanks, or yes about a topic. Your lesson is saved.')
+        return await decide(assignment_id, choice)
+
     @app.post('/api/homework/{assignment_id}/decision/attempts', response_model=Assignment)
     async def spoken(assignment_id: UUID, audio: UploadFile):
         try:
@@ -121,8 +132,17 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
             raise HTTPException(409, 'There is no assigned listening homework to confirm.')
         # Only application-owned objective copy is spoken, never provider metadata.
         lesson = repo.lesson(assignment.lesson_id)
-        text = 'Your optional listening is ready in Plan. ' + objective(lesson.focus) + ' Your lesson is saved.'
-        return await app.state.homework_speech(text, 'homework-confirmation-v1')
+        text = 'Your optional listening is ready in Plan. ' + objective(lesson.focus) + ' See you next class.'
+        return await app.state.homework_speech(text, 'homework-confirmation-v2')
+
+    @app.post('/api/homework/{assignment_id}/farewell-audio')
+    async def farewell(assignment_id: UUID):
+        enabled()
+        assignment = owned(store.get, str(assignment_id))
+        if assignment.status not in ('skipped', 'unavailable'):
+            raise HTTPException(409, 'Finish your homework choice first.')
+        text = ('No homework today. ' if assignment.status == 'skipped' else 'We couldn’t find optional listening this time. ') + 'Your lesson is saved, and your next class is ready when you are.'
+        return await app.state.homework_speech(text, 'homework-farewell-v1')
 
     @app.post('/api/homework/{assignment_id}/status', response_model=Assignment)
     async def status(assignment_id: UUID, body: StatusChange):

@@ -28,6 +28,9 @@ class AccentConsent(StrictModel):
     exercise_number: int | None = Field(default=None, ge=0)
 
 class Lesson(StrictModel):
+    # Existing saved lessons retain their original checkpoints; new lessons use
+    # the planner's three-completion preference check-in instead of asking daily.
+    topic_review_due: bool = True
     # Preserve AUD-40 snapshots on rollback; these fields do not select content.
     plan_topic: str | None = Field(default=None, max_length=160)
     plan_number: int | None = Field(default=None, ge=1)
@@ -296,6 +299,9 @@ def heard(lesson: Lesson, at: datetime) -> Lesson:
         result.active_since = None
     elif lesson.phase in transitions:
         result.phase = transitions[lesson.phase]
+        if result.phase == 'REVIEW' and not lesson.topic_review_due and not lesson.accent_confirmation:
+            result.phase = 'REVIEW_ACK' if lesson.previous else 'TRANSITION'
+            result.review_response = lesson.previous
     else:
         raise ValueError('This phase requires a spoken response or a completed exercise.')
     return result

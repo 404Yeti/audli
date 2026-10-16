@@ -51,7 +51,10 @@ def parse_video(item, topic):
         if not title or not publisher or len(title) > 200 or len(publisher) > 200:
             return None
         return ListeningContent(provider='youtube', provider_id=video_id, canonical_url=youtube_url(video_id),
-            title=title, summary=snippet.get('description', '')[:1000], topic=topic,
+            title=title, summary=snippet.get('description', '')[:1000],
+            # Shared metadata contains only public source fields. The learner's
+            # search topic belongs exclusively to the owned assignment.
+            topic=snippet.get('categoryId', ''),
             language=snippet.get('defaultAudioLanguage'), duration_seconds=duration_seconds(details['duration']),
             publisher=publisher, transcript_available=details.get('caption') == 'true',
             capabilities=Capabilities(), validated_at=datetime.now(timezone.utc),

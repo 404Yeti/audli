@@ -88,3 +88,7 @@ HTTPX discovery URL logging is filtered so search interests do not enter request
 logs. The daily admission ceiling also covers stale-link metadata rechecks, making
 it conservative relative to actual search usage. Speech for the invitation is a
 separate opt-in, cached conversational act with text and replay controls.
+
+Shared content holds only public provider metadata (including the provider category).
+Learner-selected search topics stay on owned assignments and never enter the
+shared content snapshot, including when two accounts receive the same video.

@@ -16,6 +16,7 @@ class Capabilities(StrictModel):
     grounded_evaluation: bool = False
 
 class ListeningContent(StrictModel):
+    """Shared source metadata only; private search context stays on assignments."""
     id: str = Field(default_factory=lambda: str(uuid4()))
     provider: str = Field(min_length=1, max_length=40)
     provider_id: str = Field(min_length=1, max_length=100)

@@ -357,3 +357,17 @@ def test_concurrent_offer_and_discovery_reservation_are_idempotent(repository_fa
         tokens=list(pool.map(reserve,range(2)))
     assert sum(token is not None for token in tokens) == 1
     assert store.finish(repo,offers[0].id,next(token for token in tokens if token),[parse_video(video(),'science')]).status == 'assigned'
+
+
+def test_shared_video_metadata_never_contains_another_learners_topic(repository_factory):
+    first=repository_factory(); second=repository_factory(str(uuid4()))
+    saved=[]
+    for repo,private_topic in [(first,'science first private interest'),(second,'science second private interest')]:
+        ready(repo); offered=store.offer(repo,complete(repo).id)
+        _,token=store.reserve(repo,offered.id,True,private_topic,10)
+        saved.append(store.finish(repo,offered.id,token,[parse_video(video(snippet={'categoryId':'28'}),private_topic)]))
+    assert saved[0].content.id == saved[1].content.id
+    assert store.get(first,saved[0].id).topic == 'science first private interest'
+    assert store.get(second,saved[1].id).topic == 'science second private interest'
+    for repo,item in [(first,saved[0]),(second,saved[1])]:
+        assert store.get(repo,item.id).content.topic == '28'

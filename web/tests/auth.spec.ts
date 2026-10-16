@@ -791,3 +791,32 @@ test('resume Account clears credentials even when remote sign-out fails',async({
   expect(await page.evaluate(()=>localStorage.getItem('audli-auth-session'))).toBeNull();expect(fixture.snapshot()).toEqual(saved);
   await page.reload();await showSignIn(page);await signIn(page);await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();
 });
+
+
+test('valid saved authentication can hit the config deadline; Retry repeats config and restores the account', async ({ page }) => {
+  await setupAuth(page); await signIn(page);
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  await page.clock.install();
+  let requests = 0, retrying = false;
+  await page.route('**/api/auth/config', route => {
+    requests++;
+    if (retrying) return route.fulfill({ json: { mode: 'supabase' } });
+  });
+  await page.reload();
+  await expect.poll(() => requests).toBeGreaterThan(0);
+  await page.clock.fastForward(20_001);
+  await expect(page.getByRole('main').getByRole('alert')).toHaveText('Your account is taking too long to connect. Please try again.');
+  expect(await page.evaluate(() => Boolean(localStorage.getItem('audli-auth-session')))).toBe(true);
+  const before = requests; retrying = true;
+  await page.getByRole('button', { name: 'Retry connection' }).click();
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  expect(requests).toBeGreaterThan(before);
+});
+
+for (const status of [401, 403, 429, 503]) test(`config HTTP ${status} is reported separately from the connection deadline`, async ({ page }) => {
+  await page.route('**/api/auth/config', route => route.fulfill({ status, json: { detail: `Configuration response ${status}` } }));
+  await page.goto('/');
+  await expect(page.getByRole('main').getByRole('alert')).toHaveText(`Configuration response ${status}`);
+  await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start today’s session' })).toHaveCount(0);
+});

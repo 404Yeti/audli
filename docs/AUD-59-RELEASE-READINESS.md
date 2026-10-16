@@ -171,20 +171,21 @@ required CI checks complete. Baseline CI success is not substituted for new-head
 
 ### Publication boundary
 
-The existing PR head is `540455e`. All eight checks have been rerun on that head
-without a Git push. New local fixes are **not** included in those hosted results.
-Their exact execution results are above; final baseline run status is recorded in
-the PR readiness comment.
+Baseline `540455e` passed all eight hosted CI checks. The focused local fixes in
+`7d32fae` have the results listed above; their hosted results must be checked on
+the published head separately.
 
-The branch previously triggered Vercel previews on pushes. No push is performed in
-this review while the owner's preview-disable choice is pending. The proposed
-reviewable patch adds only `"feat/AUD-59-listening-homework": false` to the existing
-`git.deploymentEnabled` maps in web/vercel.json and site/vercel.json, following
-[Vercel's documented branch control](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentenabled).
-Production defaults and settings would stay untouched. That patch is prepared as
-`preview-disable.patch` in the review bundle and has **not** been applied.
+The owner authorized safe source publication after verification of the preview
+patch. Both Vercel configurations now add only
+`"feat/AUD-59-listening-homework": false` to `git.deploymentEnabled`.
+[Vercel documents](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentenabled)
+that unspecified branches default to enabled. Neither configuration contains an
+overlapping wildcard rule. Production/main and other branch behavior are unchanged.
+No workflow or protection settings were modified. Main's eight required contexts
+are Backend, PostgreSQL integration, Rollback schema 003, Rollback schema 004,
+Frontend, Browser, Security and CI required; Vercel is not required.
 
-A review bundle attached through Linear and linked in PR #42 contains this report,
-all 12 screenshots, a local source commit patch and the proposed preview-disable
-patch. Attaching review evidence does not deploy the application. Approval of safe
-source publication is separate from approval to release or enable homework.
+The review bundle on Linear contains the report, 12 screenshots and source patches.
+Publication is not release approval: homework stays disabled and **NO-GO** until
+voice-first acceptance and real YouTube discovery are verified. The PR records
+new-head CI and deployment observations after publication.

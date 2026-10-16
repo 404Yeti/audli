@@ -70,7 +70,7 @@ def test_start_fallback_generates_audio_and_resumes_normally(lesson_client, monk
         response = client.post('/api/lessons/start')
         assert response.status_code == 200, response.text
         lesson = repo.lesson()
-        assert lesson.plan_number is None and lesson.plan_topic is None
+        assert lesson.plan_number is None and lesson.plan_topic == before.interests[0]
         assert lesson.focus == before.focus and repo.profile() == before
         assert 'PRIVATE' not in caplog.text and 'PRIVATE' not in response.text
         lesson.phase = 'EXERCISE'; repo.save_lesson(lesson, lesson.revision)

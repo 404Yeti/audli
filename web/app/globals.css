@@ -362,6 +362,7 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .homework-card :focus-visible { outline: 3px solid #397bc4; outline-offset: 3px; }
 .lesson-wrapup .session-presence { flex: 0 0 auto; min-height: 180px; padding-bottom: 0; }
 .lesson-wrapup .session-presence .audli-mascot { width: clamp(140px, 24vw, 210px); margin: 12px auto; }
+.lesson-wrapup .audli-mascot[data-state="Success"] .mascot-body { animation: completion-arrive .65s ease-out 1, mascot-breathe 4s ease-in-out .65s infinite; }
 .wrapup-heading { font-size: 1.25rem; margin: .5rem 0; }
 .wrapup-heading:focus { outline: none; }
 .lesson-wrapup .listening-homework { margin-block: 1rem; }

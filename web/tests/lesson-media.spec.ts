@@ -78,8 +78,9 @@ test('real backend multi-exercise lesson plays each introduction and displays pe
     await page.screenshot({path:`/tmp/aud22-topic-${index+1}-listening.png`,fullPage:true});
   }
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible({timeout:150000});
-  await expect(page.locator('.completion-count')).toHaveText('2');
-  await expect(page.locator('.completion-results')).toContainText('The larger bag of flour reduced the cost');
+  await page.locator('.wrapup-summary summary').click();
+  await expect(page.locator('.wrapup-summary')).toContainText('2 exercises completed');
+  await expect(page.locator('.wrapup-summary')).toContainText('The larger bag of flour reduced the cost');
   const media = await trace();
   const introductions = media.filter(item=>item.path.endsWith('/introduction-audio'));
   expect(introductions.map(item=>item.event)).toEqual(['playing','ended','playing','ended']);

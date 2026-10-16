@@ -15,7 +15,10 @@ for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topi
   await page.getByRole('button', { name: 'Send', exact: true }).focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   await expect.poll(() => state.confirmations).toBe(1);
+  await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
   expect(state.decisions).toBe(1); expect((await probe(page)).overlaps).toBe(0);
+  // Capture the settled hands-free layout; keyboard focus is covered separately.
+  await page.locator('.homework-card').evaluate(node => (node as HTMLElement).blur());
   await page.screenshot({ path: `../docs/screenshots/AUD-61-wrapup-assigned-${width}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.reload(); await expect(page.locator('.lesson-wrapup')).toBeVisible();

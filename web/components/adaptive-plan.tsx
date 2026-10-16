@@ -1,4 +1,5 @@
 'use client';
+import { ListeningHomework } from './listening-homework';
 import { useEffect, useEffectEvent, useState } from 'react';
 import { authenticatedFetch } from '../lib/api';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
@@ -76,6 +77,7 @@ export function AdaptivePlan() {
         <p>{difficultyDescription(item.difficulty)}</p>
         {item.accent_focus && <p>Optional accent interest: {item.accent_focus}. Audli will ask before using it for a passage.</p>}
       </li>)}</ol>
+      <ListeningHomework disabled={busy}/>
       {plan.checkin.available && <>
         <button className="primary" disabled={busy} onClick={() => void checkin()}>Share feedback</button>
         <button className="secondary" disabled={busy} onClick={() => void checkin(true)}>Not now</button>

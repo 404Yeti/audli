@@ -348,3 +348,15 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 
 .google-signin { width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; }
 .auth-divider { text-align: center; font-size: 14px; }
+
+
+.listening-homework { margin-block: 2rem; min-width: 0; text-align: left; }
+.homework-card { border: 1px solid var(--border, #d9dce2); border-left: 4px solid #56796c; border-radius: 12px; padding: 1rem; margin-block: 1rem; overflow-wrap: anywhere; }
+.homework-card h3 { font-size: 1.1rem; }
+.homework-label { font-size: .85rem; font-weight: 600; text-transform: capitalize; }
+.homework-note { font-size: .875rem; line-height: 1.5; }
+.homework-card input { display: block; box-sizing: border-box; width: 100%; max-width: 28rem; margin-block: .5rem 1rem; min-height: 44px; }
+.homework-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1rem; }
+.homework-actions button { min-height: 44px; max-width: 100%; white-space: normal; }
+.homework-card a { display: inline-block; padding-block: .75rem; text-decoration: underline; }
+.homework-card :focus-visible { outline: 3px solid #397bc4; outline-offset: 3px; }

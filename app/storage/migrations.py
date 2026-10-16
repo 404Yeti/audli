@@ -1,12 +1,12 @@
 """Versioned baseline SQL. Later changes must be new numbered migrations."""
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable, CreateIndex
-from app.storage.schema import metadata, lessons, lesson_exercises, accent_control, accent_reservations, roadmaps
+from app.storage.schema import metadata, lessons, lesson_exercises, accent_control, accent_reservations, roadmaps, HOMEWORK_TABLES
 
 
 def postgres_baseline():
     dialect = postgresql.dialect()
-    tables = [table for table in metadata.sorted_tables if table not in (lessons, lesson_exercises, accent_control, accent_reservations, roadmaps)]
+    tables = [table for table in metadata.sorted_tables if table not in (lessons, lesson_exercises, accent_control, accent_reservations, roadmaps, *HOMEWORK_TABLES)]
     statements = [
         '-- Migration 001: durable learner state. Run once as the backend database owner.',
         '-- Generated from app/storage/schema.py; append later numbered migrations, never edit an applied baseline.',
@@ -97,3 +97,18 @@ def postgres_planner_migration():
         "DO $audli$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN REVOKE ALL ON learner_roadmaps FROM anon; END IF; IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN REVOKE ALL ON learner_roadmaps FROM authenticated; END IF; END $audli$;",
         'INSERT INTO schema_migrations(version, applied_at) VALUES (4, now());', 'COMMIT;',
     ]) + '\n'
+
+
+def postgres_homework_migration():
+    dialect = postgresql.dialect()
+    statements = ['-- Migration 005: optional listening homework; backend-only access.', 'BEGIN;']
+    for table in HOMEWORK_TABLES:
+        statements.append(str(CreateTable(table).compile(dialect=dialect)).strip() + ';')
+        for index in sorted(table.indexes, key=lambda item: item.name):
+            statements.append(str(CreateIndex(index).compile(dialect=dialect)) + ';')
+        statements.extend([f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;',
+            f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;'])
+    names = ', '.join(table.name for table in HOMEWORK_TABLES)
+    statements.append(f"DO $audli$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN REVOKE ALL ON {names} FROM anon; END IF; IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN REVOKE ALL ON {names} FROM authenticated; END IF; END $audli$;")
+    statements.extend(['INSERT INTO schema_migrations(version, applied_at) VALUES (5, now());', 'COMMIT;'])
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(statements).splitlines()) + '\n'

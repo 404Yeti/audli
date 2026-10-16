@@ -158,7 +158,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @app.get('/api/auth/config')
     async def auth_config():
-        return {'mode': settings.auth_mode}
+        return {'mode': settings.auth_mode, 'homework_enabled': settings.homework_enabled}
 
     @app.get('/api/profile')
     async def profile():
@@ -346,6 +346,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     from app.tutor_voice_api import register_tutor_voice_routes
     register_tutor_voice_routes(app, repo, lock, settings)
+    from app.homework_api import register_homework_routes
+    register_homework_routes(app, repo, settings, database, ai, lock)
     register_review_routes(app, repo)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_onboarding_reset_routes(app, repo, lock)

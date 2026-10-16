@@ -161,3 +161,38 @@ roadmaps = Table('learner_roadmaps', metadata,
     Column('user_id', identifier, ForeignKey('users.id'), primary_key=True),
     Column('revision', Integer, nullable=False), Column('data', document, nullable=False),
     CheckConstraint('revision >= 0', name='roadmap_revision_valid'))
+
+# Migration 005: optional provider-independent homework, backend access only.
+listening_content = Table('listening_content', metadata,
+    Column('id', identifier, primary_key=True),
+    Column('provider', String(40), nullable=False), Column('provider_id', String(100), nullable=False),
+    Column('data', document, nullable=False), Column('validated_at', timestamp, nullable=False),
+    UniqueConstraint('provider', 'provider_id', name='content_provider_key'))
+homework = Table('homework_assignments', metadata,
+    Column('id', identifier, primary_key=True), Column('user_id', identifier, ForeignKey('users.id'), nullable=False),
+    Column('lesson_id', identifier, nullable=False),
+    Column('content_id', identifier, ForeignKey('listening_content.id')),
+    Column('status', String(16), nullable=False), Column('objective', Text, nullable=False),
+    Column('topic', String(100)), Column('attempts', Integer, nullable=False, default=0),
+    Column('lease_token', identifier), Column('lease_until', timestamp),
+    Column('created_at', timestamp, nullable=False), Column('updated_at', timestamp, nullable=False),
+    ForeignKeyConstraint(['lesson_id', 'user_id'], ['lesson_lifecycles.id', 'lesson_lifecycles.user_id'], name='homework_lesson_owner'),
+    UniqueConstraint('user_id', 'lesson_id', name='one_homework_per_lesson'),
+    UniqueConstraint('user_id', 'content_id', name='no_repeated_homework_content'),
+    UniqueConstraint('id', 'user_id', name='homework_owner_key'),
+    CheckConstraint("status IN ('offered','assigned','completed','discussed','skipped','unavailable')", name='homework_status_valid'),
+    CheckConstraint('attempts BETWEEN 0 AND 2', name='homework_attempts_bounded'))
+Index('homework_by_owner_time', homework.c.user_id, homework.c.created_at)
+reflections = Table('homework_reflections', metadata,
+    Column('id', identifier, primary_key=True), Column('user_id', identifier, nullable=False),
+    Column('assignment_id', identifier, nullable=False), Column('created_at', timestamp, nullable=False),
+    Column('data', document, nullable=False),
+    Column('grounding', String(32), nullable=False),
+    ForeignKeyConstraint(['assignment_id', 'user_id'], ['homework_assignments.id', 'homework_assignments.user_id'], name='reflection_owner'),
+    CheckConstraint("grounding='unverified_self_report'", name='reflection_grounding_valid'))
+Index('reflections_by_assignment_owner', reflections.c.assignment_id, reflections.c.user_id)
+homework_budget = Table('homework_discovery_budget', metadata,
+    Column('id', Integer, primary_key=True, autoincrement=False), Column('day', String(10), nullable=False),
+    Column('searches', Integer, nullable=False),
+    CheckConstraint('id=1 AND searches>=0', name='homework_budget_valid'))
+HOMEWORK_TABLES = (listening_content, homework, reflections, homework_budget)

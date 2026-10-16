@@ -119,7 +119,7 @@ def test_only_health_and_auth_mode_are_public(accounts):
     a, _, _ = accounts
     client = ASGIClient(a.app, a.provider)
     assert client.get('/api/health').status_code == 200
-    assert client.get('/api/auth/config').json() == {'mode': 'supabase'}
+    assert client.get('/api/auth/config').json() == {'mode': 'supabase', 'homework_enabled': False}
     assert client.get('/api/profile?access_token=valid-a&learner_id=' + USER_A).status_code == 401
 
 

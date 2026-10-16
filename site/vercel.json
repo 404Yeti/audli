@@ -11,7 +11,8 @@
       "feat/AUD-45-welcome": false,
       "feat/AUD-46-tutor-voice": false,
       "fix/AUD-34-active-lesson-restart": false,
-      "feat/AUD-55-google-oauth": false
+      "feat/AUD-55-google-oauth": false,
+      "feat/AUD-59-listening-homework": false
     }
   }
 }

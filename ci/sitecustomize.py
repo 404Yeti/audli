@@ -21,7 +21,7 @@ def loopback(host):
 def validate_environment():
     # Production credentials are never necessary, even for mocked provider tests.
     for key in ('OPENAI_API_KEY', 'ELEVENLABS_API_KEY', 'AUDLI_OPENAI_API_KEY',
-                'AUDLI_ELEVENLABS_API_KEY', 'SUPABASE_ACCESS_TOKEN', 'AUDLI_DATABASE_URL'):
+                'AUDLI_ELEVENLABS_API_KEY', 'AUDLI_YOUTUBE_API_KEY', 'SUPABASE_ACCESS_TOKEN', 'AUDLI_DATABASE_URL'):
         if os.environ.get(key):
             raise ValueError('CI received a forbidden production/provider environment value')
     url = os.environ.get('AUDLI_TEST_POSTGRES_URL')

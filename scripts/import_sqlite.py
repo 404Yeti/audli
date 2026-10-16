@@ -32,10 +32,13 @@ def import_learner(source_path: Path, target, source_learner_id='local'):
             destination.execute(update(s.profiles).where(s.profiles.c.user_id == target.learner_id).values(**profile_values(profile)))
             exercise_ids = select(s.exercises.c.id).where(s.exercises.c.user_id == source_learner_id)
             attempt_ids = select(s.attempts.c.id).where(s.attempts.c.exercise_id.in_(exercise_ids))
+            content_ids = {}
             for table in s.metadata.sorted_tables:
-                if table in (s.versions, s.users, s.profiles, s.accent_control, s.accent_reservations):
+                if table in (s.versions, s.users, s.profiles, s.accent_control, s.accent_reservations, s.homework_budget):
                     continue
-                if 'user_id' in table.c:
+                if table is s.listening_content:
+                    query = select(table).where(table.c.id.in_(select(s.homework.c.content_id).where(s.homework.c.user_id == source_learner_id)))
+                elif 'user_id' in table.c:
                     query = select(table).where(table.c.user_id == source_learner_id)
                 elif 'exercise_id' in table.c:
                     query = select(table).where(table.c.exercise_id.in_(exercise_ids))
@@ -44,6 +47,14 @@ def import_learner(source_path: Path, target, source_learner_id='local'):
                 rows = origin.execute(query).mappings().all()
                 for row in rows:
                     values = dict(row)
+                    if table is s.listening_content:
+                        existing = destination.execute(select(table.c.id).where(table.c.provider == values['provider'], table.c.provider_id == values['provider_id'])).scalar_one_or_none()
+                        content_ids[values['id']] = existing or values['id']
+                        if existing:
+                            continue
+                    if table is s.homework:
+                        values['content_id'] = content_ids.get(values['content_id'])
+                        values['lease_token'] = values['lease_until'] = None
                     if 'user_id' in values:
                         values['user_id'] = target.learner_id
                     destination.execute(table.insert().values(**values))

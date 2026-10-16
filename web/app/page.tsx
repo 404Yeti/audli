@@ -1,4 +1,5 @@
 'use client';
+import { ListeningHomework } from '../components/listening-homework';
 import { AdaptivePlan, PlanningInvitation } from '../components/adaptive-plan';
 import { ReviewHub } from '../components/review-hub';
 import { OnboardingReset } from '../components/onboarding-reset';
@@ -77,6 +78,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const [profile, setProfile] = useState<Profile | null>(null);
   const [destination, setDestination] = useState<Destination>('Home');
   const [active, setActive] = useState(false);
+  const [homeworkVoice, setHomeworkVoice] = useState(false);
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
   const completionHeading = useRef<HTMLHeadingElement | null>(null);
   useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion]);
@@ -218,7 +220,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (value.phase === 'COMPLETED') {
         await refresh(operation); operation.assertCurrent();
         try { sessionStorage.setItem(storageKey, value.id); } catch { /* Optional completion presentation memory. */ }
-        setCompletion(value); setActive(false); return;
+        setHomeworkVoice(true); setCompletion(value); setActive(false); return;
       }
       if (value.status !== 'active') throw new Error('Resume your lesson to continue.');
       if (value.phase === 'EXERCISE') {
@@ -329,7 +331,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
-  if (completion) return <main className="lesson-completion" aria-labelledby="completion-title"><header><strong className="wordmark">audli</strong></header><AudliMascot state="Success"/><h1 id="completion-title" ref={completionHeading} tabIndex={-1}>Lesson completed</h1><p className="completion-encouragement">{completion.encouragement}</p><dl className="completion-results" aria-label="Today’s listening results"><div className="completion-card"><dt>Exercises completed</dt><dd className="completion-count">{completion.exercises_completed}</dd></div><div className="completion-card"><dt>Today’s listening focus</dt><dd>{focusCopy[completion.focus]}</dd></div>{completion.strength && <div className="completion-card"><dt>A demonstrated strength</dt><dd>{completion.strength}</dd></div>}{completion.improvement_focus && <div className="completion-card"><dt>Next listening focus</dt><dd>{completion.improvement_focus}</dd></div>}</dl><button className="primary" onClick={() => { setCompletion(null); lesson.current = null; try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ } }}>Return Home</button></main>;
+  if (completion) return <main className="lesson-completion" aria-labelledby="completion-title"><header><strong className="wordmark">audli</strong></header><AudliMascot state="Success"/><h1 id="completion-title" ref={completionHeading} tabIndex={-1}>Lesson completed</h1><p className="completion-encouragement">{completion.encouragement}</p><dl className="completion-results" aria-label="Today’s listening results"><div className="completion-card"><dt>Exercises completed</dt><dd className="completion-count">{completion.exercises_completed}</dd></div><div className="completion-card"><dt>Today’s listening focus</dt><dd>{focusCopy[completion.focus]}</dd></div>{completion.strength && <div className="completion-card"><dt>A demonstrated strength</dt><dd>{completion.strength}</dd></div>}{completion.improvement_focus && <div className="completion-card"><dt>Next listening focus</dt><dd>{completion.improvement_focus}</dd></div>}</dl><ListeningHomework lessonId={completion.id} autoVoice={homeworkVoice}/><button className="primary" onClick={() => { setHomeworkVoice(false); setCompletion(null); lesson.current = null; try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ } }}>Return Home</button></main>;
   return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header>
     {destination === 'Home' && <section className="home-view"><h1>{`Good to see you${profile?.name ? ', ' + profile.name : ''}.`}</h1><AudliMascot/>
       <PlanningInvitation open={() => setDestination('Plan')}/><h2>Today’s listening lesson</h2><p>10 minutes · English · adapted for you</p><button className="primary" disabled={busy || !profile} onClick={() => void start()}>Start today’s session</button><p className="home-support">Your next lesson will build from what Audli heard last time.</p>

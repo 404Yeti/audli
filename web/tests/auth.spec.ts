@@ -28,7 +28,7 @@ const userB={...user,id:'00000000-0000-0000-0000-000000000002',email:'bob@exampl
 const tokenFor=(id:string)=>[Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),Buffer.from(JSON.stringify({sub:id,exp:Math.floor(Date.now()/1000)+3600,aud:'authenticated',role:'authenticated'})).toString('base64url'),'mock-signature'].join('.');
 const token=tokenFor(userId),tokenB=tokenFor(userB.id);
 type Request={path:string;authorization:string|undefined;method:string;body:string|null};
-async function setupAuth(page:Page,training=false){
+async function setupAuth(page:Page,training=false,homework=false){
   const requests:Request[]=[];let reject=false,listened=false;
   const preferences=new Map<string, {status:string;accents:string[]}>();
   await page.route('https://audli-auth-test.supabase.co/**',route=>{
@@ -42,7 +42,7 @@ async function setupAuth(page:Page,training=false){
   const lesson=new ExerciseLessonFixture(page,()=>training||generated?clip():null,()=>{generated=true;return clip();});
   await page.route('**/api/**',async route=>{
     const path=new URL(route.request().url()).pathname,authorization=route.request().headers()['authorization'];
-    if(path==='/api/auth/config')return route.fulfill({json:{mode:'supabase'}});
+    if(path==='/api/auth/config')return route.fulfill({json:{mode:'supabase',homework_enabled:homework}});
     requests.push({path,authorization,method:route.request().method(),body:route.request().postData()});
     if(reject||![`Bearer ${token}`,`Bearer ${tokenB}`].includes(authorization??''))return route.fulfill({status:401,json:{detail:'Your session expired or is invalid. Please sign in again.'}});
     if(path.startsWith('/api/lessons/') && authorization===`Bearer ${tokenB}` && path.endsWith('/current'))return route.fulfill({json:null});
@@ -870,4 +870,44 @@ test('normal email session restoration and refresh emit no startup diagnostics',
   await page.reload(); await refresh;
   await expect(page.getByRole('button', { name: 'Start today’s session' })).toBeEnabled();
   expect(timings).toEqual([]);
+});
+
+
+test('disabled homework adds zero authenticated homework requests across Plan and sign-out', async ({ page }) => {
+  const fixture = await setupAuth(page);
+  await page.route('**/api/plan', route => route.fulfill({ json: { focus: 'Listening', upcoming: [], checkin: { available: false } } }));
+  await signIn(page);
+  await expect(page.getByRole('heading', { name: 'Good to see you, Alice.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your listening plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next three lessons' })).toBeVisible();
+  await page.getByRole('button', { name: 'Review', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your listening journey' })).toBeVisible();
+  await signOut(page);
+  expect(fixture.requests.filter(request => request.path.includes('homework'))).toEqual([]);
+});
+
+test('account switching discards an enabled homework response from the previous account', async ({ page }) => {
+  await installVoice(page, { autoPlayback: true });
+  const fixture = await setupAuth(page, false, true);
+  await page.route('**/api/plan', route => route.fulfill({ json: { focus: 'Listening', upcoming: [], checkin: { available: false } } }));
+  let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
+  let aliceRequests = 0; let bobRequests = 0;
+  await page.route('**/api/homework', async route => {
+    if (route.request().headers()['authorization'] === `Bearer ${tokenB}`) {
+      bobRequests++; return route.fulfill({ json: { enabled: true, assignments: [] } });
+    }
+    aliceRequests++; await held;
+    await route.fulfill({ json: { enabled: true, assignments: [{ id: 'private', lesson_id: 'lesson', status: 'assigned', objective: 'Alice private objective', content: { title: 'Alice private homework', provider: 'youtube', provider_id: 'abcdefghijk', canonical_url: 'https://www.youtube.com/watch?v=abcdefghijk', duration_seconds: 180, validated_at: new Date().toISOString() } }] } }).catch(() => {});
+  });
+  await signIn(page); await page.getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect.poll(() => aliceRequests).toBe(1);
+  await switchToB(page);
+  await page.getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect.poll(() => bobRequests).toBe(1); release();
+  await expect(page.getByText('Alice private homework')).toHaveCount(0);
+  await expect(page.getByText('Alice private objective')).toHaveCount(0);
+  await signOut(page); await expect(page.locator('.homework-card')).toHaveCount(0);
+  expect((await probe(page)).plays).toEqual([]);
+  expect(fixture.requests.some(request => request.authorization === `Bearer ${tokenB}`)).toBe(true);
 });

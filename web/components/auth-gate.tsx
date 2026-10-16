@@ -157,6 +157,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   async function logout() {
     if (!client) return;
     setBusy(true); setMessage('');
+    setSignup(false); setLanding(false); setEmail(''); setPassword('');
     blocked.current = true;
     setAccessTokenProvider(async () => null);
     // Unmount private lesson state immediately, including microphone and playback.

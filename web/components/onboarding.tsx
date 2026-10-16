@@ -12,6 +12,7 @@ import { WelcomeWalkthrough, type WalkthroughStep } from './welcome-walkthrough'
 import { AudliLoadingScreen } from './audli-loading-screen';
 import { startup } from '../lib/startup';
 import { AudliMascot } from './audli-mascot';
+import { OnboardingAccountMenu } from './onboarding-account-menu';
 
 type Profile = { name: string; goal: string; target_language: string; interests: string[]; target_situations: string[]; onboarding_status: string };
 type Checkpoint = { walkthrough?: 0 | 1 | 2 | null; goal_entry_available?: boolean; goal_question_revision?: number; name_entry_available?: boolean; name_question_revision?: number | null; profile: Profile; stage: string; welcome?: 'introduction' | 'status' | null; revision: number; prompt: string; destination: string; pending: Recognition | null; clarification_paused?: boolean };
@@ -19,7 +20,8 @@ const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Cont
 
 export function SpokenOnboarding({ onComplete }: { onComplete: (operation: LessonOperation) => Promise<void> }) {
   const voice = useVoiceLifecycle();
-  const intent = conversationIntent(useAccount().scope, 'onboarding');
+  const account = useAccount();
+  const intent = conversationIntent(account.scope, 'onboarding');
   const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null);
   const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
@@ -238,5 +240,5 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   if (active) return <><SessionShell state={voice.state} activity={voice.activity} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{checkpoint?.prompt}</p>{nameEntry}{goalEntry}{error && <div role="alert" className="session-error">{error}<p>{checkpoint?.prompt}</p><button className="secondary" onClick={() => void start(true)}>Retry conversation</button>{retained.current && <button className="secondary" onClick={() => { retained.current = null; void start(true); }}>Record again</button>}</div>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/></>;
-  return <main className="onboarding-ready"><header><strong className="wordmark">audli</strong></header><AudliMascot/><h1>Let’s make this yours.</h1><p>{checkpoint?.clarification_paused ? 'Your preferences are saved. Check your microphone, then resume to answer the remaining question.' : 'A short conversation about what you want to understand.'}</p><button className="primary" disabled={busy} onClick={() => void start(true)}>{checkpoint?.profile.onboarding_status === 'in_progress' ? 'Resume our conversation' : 'Let’s talk'}</button>{error && <div role="alert">{error}<button className="secondary" onClick={() => void start(true)}>Retry conversation</button>{retained.current && <button className="secondary" onClick={() => { retained.current = null; void start(true); }}>Record again</button>}</div>}<audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/>{nameEntry}{goalEntry}<footer>Eyes optional. Ears essential.</footer></main>;
+  return <main className="onboarding-ready"><header><strong className="wordmark">audli</strong>{account.signOut && <OnboardingAccountMenu onResume={() => void start(true)} onSignOut={account.signOut} disabled={busy}/>}</header><AudliMascot/><h1>Let’s make this yours.</h1><p>{checkpoint?.clarification_paused ? 'Your preferences are saved. Check your microphone, then resume to answer the remaining question.' : 'A short conversation about what you want to understand.'}</p><button className="primary" disabled={busy} onClick={() => void start(true)}>{checkpoint?.profile.onboarding_status === 'in_progress' ? 'Resume our conversation' : 'Let’s talk'}</button>{error && <div role="alert">{error}<button className="secondary" onClick={() => void start(true)}>Retry conversation</button>{retained.current && <button className="secondary" onClick={() => { retained.current = null; void start(true); }}>Record again</button>}</div>}<audio ref={voice.audio} className="session-audio" aria-label="Audli onboarding audio"/>{nameEntry}{goalEntry}<footer>Eyes optional. Ears essential.</footer></main>;
 }

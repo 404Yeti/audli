@@ -727,3 +727,67 @@ test('Google stalled callback retry starts a fresh document without stale exchan
   expect(await page.evaluate(()=>(window as unknown as {oldGoogleDocument?:boolean}).oldGoogleDocument)).toBeUndefined();
   expect(fixture.requests).toEqual([]);
 });
+
+async function exitOnboardingToResume(page:Page) {
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
+  await onboardingTurn(page);
+  await page.getByRole('button',{name:'End',exact:true}).click();
+  await page.getByRole('button',{name:'End session',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();
+}
+for(const google of [false,true]) {
+  test(`resume screen Account signs out ${google?'Google':'email'} learner and preserves isolated checkpoint`,async({page})=>{
+    const fixture=await setupOnboarding(page,{},false,false,false,google);await page.clock.install();
+    await exitOnboardingToResume(page);const saved=fixture.snapshot();expect(saved.stage).toBe('needs');
+    const before=fixture.requests.length;
+    await page.getByRole('button',{name:'Account',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Resume onboarding',exact:true})).toBeVisible();
+    const logout=page.waitForRequest(r=>r.url().includes('/auth/v1/logout'));
+    await page.getByRole('button',{name:'Sign out',exact:true}).click();
+    expect((await logout).headers()['authorization']).toBe(`Bearer ${token}`);
+    await showSignIn(page);await expect(page.getByLabel('Email',{exact:true})).toHaveValue('');
+    expect(await page.evaluate(()=>localStorage.getItem('audli-auth-session'))).toBeNull();
+    expect(fixture.snapshot()).toEqual(saved);expect(fixture.requests.length).toBe(before);
+    await page.reload();await showSignIn(page);await signIn(page,userB.email);
+    await expect(page.getByRole('heading',{name:'Good to see you, Bob.'})).toBeVisible();
+    await expect(page.getByText('Maya',{exact:false})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toHaveCount(0);
+    expect(fixture.requests.slice(before).every(r=>r.authorization===`Bearer ${tokenB}`)).toBe(true);
+    expect(fixture.requests.slice(before).filter(r=>r.path.startsWith('/api/onboarding'))).toEqual([]);
+    await signOut(page);if(google)await beginGoogle(page);else await signIn(page);
+    await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();
+    expect(fixture.snapshot()).toEqual(saved);expect((await probe(page)).plays).toHaveLength(0);
+    await page.getByRole('button',{name:'Account',exact:true}).click();
+    await page.getByRole('button',{name:'Resume onboarding',exact:true}).click();await speaking(page);
+    expect(fixture.snapshot().stage).toBe('needs');
+    expect(fixture.requests.filter(r=>r.path.endsWith('/answer'))).toHaveLength(1);
+  });
+}
+for(const width of [320,1440]) {
+  test(`resume Account disclosure supports keyboard and fits ${width}px`,async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});await setupOnboarding(page);await page.clock.install();
+    await exitOnboardingToResume(page);
+    const account=page.getByRole('button',{name:'Account',exact:true});
+    await account.focus();await page.keyboard.press('Enter');await expect(account).toHaveAttribute('aria-expanded','true');
+    await expect(account).toHaveCSS('outline-style','solid');
+    await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:'Resume onboarding',exact:true})).toBeFocused();
+    await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:'Sign out',exact:true})).toBeFocused();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
+    const bounds=await page.locator('.onboarding-account-panel').boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);
+    const path=testInfo.outputPath(`onboarding-resume-${width}.png`);
+    await page.screenshot({path,fullPage:true});await testInfo.attach(`onboarding-resume-${width}`,{path,contentType:'image/png'});
+    await page.keyboard.press('Escape');await expect(account).toBeFocused();await expect(account).toHaveAttribute('aria-expanded','false');
+    await page.keyboard.press('Space');await page.keyboard.press('Tab');await page.keyboard.press('Tab');await page.keyboard.press('Tab');
+    await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeFocused();await expect(account).toHaveAttribute('aria-expanded','false');
+    await account.click();await page.getByRole('heading',{name:'Let’s make this yours.'}).click();await expect(account).toHaveAttribute('aria-expanded','false');
+  });
+}
+test('resume Account clears credentials even when remote sign-out fails',async({page})=>{
+  const fixture=await setupOnboarding(page);await page.clock.install();await exitOnboardingToResume(page);const saved=fixture.snapshot();
+  await page.route('https://audli-auth-test.supabase.co/auth/v1/logout**',route=>route.fulfill({status:500,json:{message:'Unavailable'}}));
+  await page.getByRole('button',{name:'Account',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await showSignIn(page);await expect(page.getByRole('status')).toContainText('Signed out here');
+  expect(await page.evaluate(()=>localStorage.getItem('audli-auth-session'))).toBeNull();expect(fixture.snapshot()).toEqual(saved);
+  await page.reload();await showSignIn(page);await signIn(page);await expect(page.getByRole('button',{name:'Resume our conversation',exact:true})).toBeVisible();
+});

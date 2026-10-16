@@ -4,7 +4,7 @@ Investigated revision `a5ac73ad90e0ffbd39b14cd48438a215a3f80ade`, 2026-10-16 UTC
 
 ## Finding and confidence
 
-The exact screen is a **frontend initialization deadline**, not proof of invalid credentials, a failed profile, or a database outage. The incident's underlying pending operation is **not confirmed** without its browser request timings or incident-correlated service logs. Two distinct waits reproduce the exact message. No runtime fix or timeout increase is justified by the available evidence; this draft records findings and adds regression coverage.
+The exact screen is a **frontend initialization deadline**, not proof of invalid credentials, a failed profile, or a database outage. The incident's underlying pending operation is **not confirmed** without its browser request timings or incident-correlated service logs. Two distinct waits reproduce the exact message. No corrective auth-flow change or timeout increase is justified by the available evidence; this draft records findings, adds regression coverage, and now instruments the stages as described below.
 
 `web/components/auth-gate.tsx:50–56` starts a single 20,000 ms deadline (`web/lib/startup.ts:3`). On expiration it deactivates the effect, unsubscribes from auth notifications, removes the token provider, and selects failed mode. Line 179 renders `AudliLoadingScreen`; `web/components/audli-loading-screen.tsx` supplies the branded heading and Retry button. The deadline begins before fetching config and clears on the first auth-state event, including an unauthenticated INITIAL_SESSION. It is not restarted after password login, Google return, or profile retrieval within that mount. Consequently this exact screen indicates initial startup/reload, not an ordinary later authenticated API failure.
 
@@ -42,4 +42,29 @@ Focused Playwright authentication/startup suite: **23 passed**. Frontend unit su
 
 Keep the existing deadline and full-document Retry while collecting **stage-only** evidence: config request completion time/status, whether INITIAL_SESSION arrived, and whether an Auth refresh was pending. Obtain an incident UTC time and a sanitized browser waterfall listing only host/path/status/timing; never retain authorization headers, query credentials, token bodies, HAR credentials, or learner payloads. Correlate with read-only Render request/instance events and Supabase Auth service health.
 
-If serial latency is confirmed, consider overlapping SDK restoration with config discovery while withholding private rendering until server mode is verified. If config cold starts dominate, investigate that service path; if refresh stalls, address the observed Auth/network failure. Neither a larger timeout nor removing saved sessions is a justified incident fix now. Stage-specific user feedback/diagnostics would improve the next investigation, but is a separate proposed runtime change. AUD-58 remains open pending incident-specific evidence. No deployment, configuration, schema, merge, or production changes are authorized by this report.
+If serial latency is confirmed, consider overlapping SDK restoration with config discovery while withholding private rendering until server mode is verified. If config cold starts dominate, investigate that service path; if refresh stalls, address the observed Auth/network failure. Neither a larger timeout nor removing saved sessions is a justified incident fix now. The authorized follow-up below adds stage diagnostics to improve the next investigation. AUD-58 remains open pending incident-specific evidence. No deployment, configuration, schema, merge, or production changes are authorized by this report.
+
+## Follow-up: privacy-safe startup timing
+
+PR #41 now adds browser-local instrumentation; it does not claim to fix the unconfirmed incident. AuthGate buffers stage timings and flushes them as `[Audli auth startup]` warnings only on startup failure/deadline, an observed refresh failure, or recovery after the user explicitly clicks Retry following a timeout. Successful normal startup/refresh emits no diagnostic records. Nothing is uploaded to a telemetry service.
+
+To investigate the next incident, open browser DevTools **Console**, enable **Preserve log** before clicking Retry, and filter for `[Audli auth startup]`. Share only those diagnostic records. Each record has exactly `stage`, rounded monotonic `elapsedMs`, and an allowlisted `category`; no URLs, payloads, errors, tokens, cookies, account identifiers or learner information are included.
+
+| Records | Interpretation |
+| --- | --- |
+| `auth_config / pending` then `auth_gate_deadline / timeout` | Config has not completed its HTTP/JSON operation before the deadline. |
+| `auth_config / http_4xx` or `http_5xx` | Config completed with an HTTP failure class. |
+| `auth_config / network` | Config failed before response headers were observed. |
+| `auth_config / invalid_response` | Successful HTTP status but unreadable/invalid response. |
+| `auth_config / initialization` | Config resolved but auth mode/configuration could not initialize. |
+| `auth_config / completed`, `session_restore / pending`, deadline | Config succeeded; SDK initial session notification is still pending. |
+| Above plus `token_refresh / pending` | A refresh request is still awaiting response headers; its elapsed time isolates the network portion. |
+| `token_refresh / completed`, session still pending | Refresh headers arrived; SDK body parsing/initialization has not yet finished. Refresh timing intentionally stops at headers without reading or cloning credential bodies. |
+| `token_refresh / http_4xx`, `http_5xx`, or `network` | SDK refresh saw that sanitized failure class. SDK-owned retry/backoff can keep session restoration pending. Up to three recent refresh outcomes are retained. |
+| `retry_connection / connected` | A fresh document reached AuthGate readiness after explicit Retry within five minutes of the timeout. This confirms auth initialization recovered, not backend profile/onboarding readiness or authenticated account validity. An unauthenticated ready state also counts as a connected Auth service. |
+
+Config/session elapsed values are measured from each stage's start; the deadline/retry values are measured from that document's AuthGate initialization. The fixed deadline remains **20,000 ms** across the sequential config and session stages. Inactive effect cleanup stops diagnostics, and late results cannot emit additional records. A replacement development Strict Mode effect can observe an SDK refresh already in flight. The optional same-tab retry marker contains only the click timestamp, expires after five minutes, and is removed on completion/failure. If storage is blocked, startup/retry still works but cross-reload recovery cannot be identified. The Google callback has its existing separate deadline; these records diagnose AuthGate after it returns to `/`, not the PKCE exchange itself.
+
+Implementation uses Supabase's supported [custom fetch option](https://supabase.com/docs/reference/javascript/initializing) on the persistent learner client only; it forwards requests, responses and failures unchanged. Google PKCE/recovery clients, bearer verification, account isolation, existing retry navigation and SDK retry policy are unchanged. TypeScript permits explicit `.ts` imports under the existing `noEmit` configuration so the existing Node native TypeScript unit suite can load the diagnostic dependency.
+
+Follow-up verification: **24 focused Playwright tests passed**, including diagnostic payload checks, quiet normal refresh, Google return and saved-onboarding isolation. **8 diagnostic unit tests passed**, and the full frontend unit suite, ESLint/Oxlint, TypeScript, production build, lint coverage and diff whitespace checks passed. No live-provider or production incident reproduction is claimed.

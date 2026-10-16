@@ -51,8 +51,9 @@ def test_exact003_to004_upgrade_preserves_history_and_excludes_existing_completi
         pytest.skip('PostgreSQL migration gate')
     for _ in range(3): complete(repo)
     with repo.engine.begin() as db:
+        for table in reversed(s.HOMEWORK_TABLES): table.drop(db)
         s.roadmaps.drop(db)
-        db.execute(s.versions.delete().where(s.versions.c.version == 4))
+        db.execute(s.versions.delete().where(s.versions.c.version >= 4))
     before = snapshot(repo.engine)
     url = repo.engine.url.set(drivername='postgresql').render_as_string(hide_password=False)
     with pytest.raises(RuntimeError, match='schema version validation'):

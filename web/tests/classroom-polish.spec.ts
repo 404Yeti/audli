@@ -5,6 +5,7 @@ import { probe, promptWav } from './voice-fixture';
 for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audio at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:844});
   const state=await setup(page,true);
+  expect((await probe(page)).fixtureReady).toBe(true);
   const shell=page.locator('.session-shell');
   await expect(shell).toHaveAttribute('data-layout','interaction');
   await expect(page.getByText('Type instead',{exact:true})).toBeVisible();

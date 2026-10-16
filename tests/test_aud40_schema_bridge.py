@@ -1,5 +1,4 @@
 """Compatibility only: real PostgreSQL, mocked identity and speech providers."""
-from pathlib import Path
 import asyncio
 from uuid import uuid4
 
@@ -25,7 +24,7 @@ def snapshot(engine):
                 for name in names}
 
 
-@pytest.mark.parametrize('version', [3, 4])
+@pytest.mark.parametrize('version', [3, 4, 5])
 def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, tmp_path, version):
     repo = repository_factory()
     if repo.engine.dialect.name != 'postgresql':
@@ -34,9 +33,7 @@ def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, 
     with repo.engine.begin() as db:
         current = db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one()
         if current != version:
-            if current == 4:
-                pytest.skip('Schema-3 gate runs separately; never downgrade test records')
-            db.exec_driver_sql((Path(__file__).parent / 'fixtures/postgres-004.sql').read_text())
+            pytest.skip('Older-schema gates run separately; never downgrade test records')
     profile = repo.profile()
     profile.name = 'Bridge learner'
     profile.onboarding_status = 'complete'
@@ -48,7 +45,7 @@ def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, 
                     status='paused', name=profile.name, focus=profile.focus,
                     plan_topic='Travel announcements', plan_number=7)
     repo.create_lesson(lesson)
-    if version == 4:
+    if version >= 4:
         with repo.engine.begin() as db:
             db.execute(text("INSERT INTO learner_roadmaps VALUES (:owner, 8, CAST(:data AS jsonb))"),
                        {'owner': repo.learner_id, 'data': '{"activation_at":"2026-10-14T00:00:00Z","baseline_ids":["historic"],"feedback":[{"status":"skipped"}],"opaque_future":true}'})
@@ -77,7 +74,7 @@ def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, 
         restarted.close()
 
 
-@pytest.mark.parametrize('versions', [[1], [1, 2], [1, 3], [1, 2, 4], [1, 2, 3, 5], [1, 2, 3, 4, 5]])
+@pytest.mark.parametrize('versions', [[1], [1, 2], [1, 3], [1, 2, 4], [1, 2, 3, 5], [1, 2, 3, 4, 5, 6]])
 def test_incomplete_or_future_ledgers_still_fail_closed(repository_factory, versions):
     repo = repository_factory()
     if repo.engine.dialect.name != 'postgresql':

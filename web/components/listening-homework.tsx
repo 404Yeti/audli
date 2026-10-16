@@ -43,9 +43,9 @@ function AssignmentCard({ initial, disabled = false }: { initial: HomeworkAssign
     finally { if (operation.current) setBusy(false); operation.release(); }
   }
   const locked = busy || disabled;
-  return <article className="homework-card" aria-label="Optional listening assignment">
+  return <article className="homework-card" aria-label="Optional listening assignment" aria-busy={busy}>
     <audio ref={audio} hidden/>
-    <p className="homework-label">Optional listening · {item.status === 'completed' ? 'Completed (self-reported)' : item.status}</p>
+    <p className="homework-label" role="status">Optional listening · {item.status === 'completed' ? 'Completed (self-reported)' : item.status}</p>
     {item.status === 'offered' && <>
       <p>Would you like a short listening assignment about something you’re interested in?</p>
       <button className="secondary" disabled={locked} onClick={() => void hearInvitation()}>Hear invitation</button>

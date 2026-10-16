@@ -324,3 +324,36 @@ def test_provider_logs_neither_credential_nor_profile_topic(caplog):
     asyncio.run(run())
     assert 'private-server-credential' not in caplog.text
     assert 'privateinterest' not in caplog.text
+
+
+def test_disabled_homework_does_not_require_optional_tables(tmp_path):
+    from app.repository import ProgressRepository
+    repo=ProgressRepository(tmp_path/'audli.sqlite3'); ready(repo)
+    with repo.transaction() as db:
+        for table in reversed(s.HOMEWORK_TABLES): table.drop(db)
+        db.execute(s.versions.delete().where(s.versions.c.version == 5))
+    settings=Settings(provider='demo',data_dir=tmp_path,_env_file=None)
+    app=create_app(settings,FakeProvider(),repo)
+    try:
+        client=ASGIClient(app,FakeProvider())
+        assert client.get('/api/homework').json() == {'enabled':False,'assignments':[]}
+        assert client.get('/api/plan').status_code == 200
+        settings.homework_enabled=True
+        with pytest.raises(RuntimeError,match='migration 005'): create_app(settings,FakeProvider(),repo)
+    finally:
+        repo.close()
+
+
+def test_concurrent_offer_and_discovery_reservation_are_idempotent(repository_factory):
+    from concurrent.futures import ThreadPoolExecutor
+    repo=repository_factory(); ready(repo); lesson=complete(repo)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        offers=list(pool.map(lambda _:store.offer(repo,lesson.id),range(2)))
+    assert offers[0].id == offers[1].id
+    def reserve(_):
+        try: return store.reserve(repo,offers[0].id,True,'science',10)[1]
+        except ValueError: return None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        tokens=list(pool.map(reserve,range(2)))
+    assert sum(token is not None for token in tokens) == 1
+    assert store.finish(repo,offers[0].id,next(token for token in tokens if token),[parse_video(video(),'science')]).status == 'assigned'

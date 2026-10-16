@@ -111,4 +111,4 @@ def postgres_homework_migration():
     names = ', '.join(table.name for table in HOMEWORK_TABLES)
     statements.append(f"DO $audli$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN REVOKE ALL ON {names} FROM anon; END IF; IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN REVOKE ALL ON {names} FROM authenticated; END IF; END $audli$;")
     statements.extend(['INSERT INTO schema_migrations(version, applied_at) VALUES (5, now());', 'COMMIT;'])
-    return '\n\n'.join(statements) + '\n'
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(statements).splitlines()) + '\n'

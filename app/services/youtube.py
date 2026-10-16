@@ -130,4 +130,3 @@ class YouTubeProvider:
         if content.region_blocked and (not plan.region or plan.region in content.region_blocked):
             return False
         return relevance(content, plan) > 0 and not WARNING.search(content.title + ' ' + content.summary)
-

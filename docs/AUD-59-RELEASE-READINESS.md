@@ -1,28 +1,42 @@
 # Homework V0.1 release readiness
 
-Recommendation: **NO-GO for enabling the requested voice-first learner journey.**
-The V0.1 button-based foundation can be reviewed independently, but owner approval
-and live YouTube acceptance remain necessary. No V0.2 reflection work is included.
+Protected merge recommendation: **GO conditional on all eight required checks
+passing on the published head and owner review**, with homework disabled.
+Protected merge is distinct from release approval; hosted results are recorded
+in the PR readiness update, not inferred from baseline CI.
+Production activation recommendation: **NO-GO**. No authorized nonproduction
+YouTube credential is available in this review environment, so real discovery,
+regional playback and human tutor-voice naturalness remain unverified.
+No V0.2 reflection work is included.
 
 ## Learner journey: supported behavior versus gaps
 
 | Step | Evidence / result |
 | --- | --- |
 | Normal lesson completes and saves | Offline integration test drives real lesson/conversation routes with prescribed speech/evaluation fixtures through CLOSING → COMPLETED. Homework is a separate request after that commit. |
-| Natural spoken homework offer | **Gap:** completion shows a visual invitation. “Hear invitation” explicitly plays fixed cached speech; there is no automatic conversational offer. |
-| Spoken acceptance / decline | **Gap:** buttons only. No homework decision STT or spoken-intent endpoint exists. Do not describe button clicks as voice acceptance. |
+| Natural spoken homework offer | A fresh hands-free completion starts a separate cached invitation after closing audio and completion persistence. Restored completion/Plan stay silent; Hear invitation and Answer by voice remain available. |
+| Spoken acceptance / decline | Existing voice lifecycle captures one answer with silence detection. Owned `/decision/attempts` validates audio, uses existing STT and reliability gating, then conservatively parses yes/no/explicit topic into the same transactional decision route. Accessible buttons remain. Do not describe button clicks as voice acceptance. |
 | Constrained discovery | Application uses sanitized interests/topic, current practice level, recent lesson topic and optional accent hint. One query, ten IDs, batched metadata, deterministic filtering/ranking. |
 | Real YouTube candidates | **Unverified live:** official adapter parsing/validation tested with mocked HTTP only. No real YouTube calls made for this review. |
 | Assignment persistence | Real owned database transactions tested; owner/lesson uniqueness and durable lease prevent retry duplicates. |
-| Spoken confirmation | **Gap:** assignment title/objective/link are shown visually. No assignment-confirmation speech is implemented. |
+| Spoken confirmation | After assignment commit, a short confirmation and application-owned listening objective use existing tutor voice/cache and lifecycle. No external metadata is spoken. Hear assignment explicitly retries audio; refresh never auto-confirms. |
 | Plan and external link | Actual UI tested with synthetic responses; same three planned lessons remain. Exact YouTube canonical URL allowlist; new-tab link names and noreferrer/noopener. Opening a real video remains manual acceptance. |
 | Review history | Real Review API/report retains the completed lesson after assignment. UI completion screenshots restore a synthetic saved checkpoint and do not claim a real spoken lesson. |
 
-Speech checks verify explicit invitation audio is requested only by a gesture,
-replay is cached, and decline/refresh do not trigger spoken prompts. Acoustic
-naturalness with the production tutor voice has **not** been assessed. Existing
-native HTTP/audio CI acceptance covers core lesson media, not a complete spoken
-homework dialogue.
+Browser tests use synthetic microphone/playback and mocked HTTP. They check
+invitation → recording → saved assignment → confirmation ordering, no overlap,
+refusal/unavailable recovery, repeated events, cancellation, microphone cleanup,
+and no repeated automatic prompt after refresh. Backend tests exercise real
+owned persistence and STT/recognition/decision routing with external services
+mocked. These establish behavior, not actual STT accuracy or acoustic naturalness.
+Human real-device tutor-voice acceptance remains required.
+
+The spoken grammar accepts common affirmative/negative choices and “yes, about
+[topic]”. Ambiguous/mixed or unreliable recognition leaves the offer undecided,
+with an accessible retry/buttons message. There is no open-ended intent agent.
+Cancelling/returning Home ends playback/capture and blocks late continuations;
+a request already delivered to the backend may still commit an assignment,
+which the learner can recover in Plan. No lesson repetition is required.
 
 ## Confirmed V0.1 fixes in this review
 
@@ -143,15 +157,27 @@ claim of a full screen-reader audit.
 
 ## Owner acceptance / release decision
 
-1. Resolve or explicitly accept the V0.1 voice gaps before enabling the advertised journey. Voice-based decisions and spoken confirmation are not implemented by this readiness review.
+1. Verify the real tutor voice on a supported device: finish a spoken lesson, hear one invitation after closing audio, say yes/no and an explicit topic, and hear one confirmation after saving. Test interruption/autoplay refusal and the accessible fallback controls.
 2. With separate approval, configure a nonproduction API key/explicit budget and apply migration 005 to staging. Complete an ordinary spoken lesson and confirm Review/history first.
-3. Use the actual implemented buttons, with explicit invitation playback if desired. Accept an existing interest and a different topic; inspect the real API-returned candidate and open the real YouTube link in the target region.
+3. Use spoken decisions, plus fallback buttons. Accept an existing interest and a different topic; inspect the real API-returned candidate and open the real YouTube link in the target region.
 4. Confirm real content suitability by listening: metadata does not establish CEFR, accent, safety or one clear speaker. Do not grade a summary without authorized verified transcript content.
 5. Decline, refresh during discovery, repeat acceptance, simulate quota/timeout/lost response and remove/block a test video. Confirm one assignment, no repeated speech, no loss of completed lesson or scores, and Plan/Review intact.
 6. Test two authenticated accounts and a human keyboard/screen-reader session on 320px/390px/desktop. Disable the flag and confirm normal lessons remain available.
 7. Obtain owner approval for a separately scoped release. This PR remains draft; no merge, deployment, enabling, migration or credential change is performed here.
 
-**Live YouTube API calls are required for final owner acceptance.** Mock tests prove
+**Live YouTube API calls are required for production activation acceptance.**
+No real calls were made: the review process environment and worktree `.env`
+have no YouTube key. No production credential was retrieved or modified.
+With an explicitly authorized **nonproduction** key, run
+`python -m scripts.verify_homework_youtube --live`. This performs one fixed
+synthetic science search and at most one batched metadata call (at most 101
+quota units), no retries, no database writes and no feature enabling. Missing
+key/authorization exits NOT RUN. No eligible results or API failure fails the
+probe rather than claiming live success. Then perform the full staging journey
+and inspect real playback and suitability. The probe alone cannot establish
+natural speech or content quality.
+
+ Mock tests prove
 plumbing and deterministic gates, not API project configuration, actual candidate
 availability, real content suitability, regional playback or a natural spoken journey.
 
@@ -159,6 +185,31 @@ availability, real content suitability, regional playback or a natural spoken jo
 
 Final execution results will be appended after local focused tests and all eight
 required CI checks complete. Baseline CI success is not substituted for new-head CI.
+
+### Spoken-decision implementation verification (current review)
+
+- Backend homework/auth/lesson/planner regressions: **185 passed**. This includes
+  61 homework contracts: reliable acceptance/refusal/topic choice, ambiguous and
+  uncertain speech rejection, invalid audio, STT failures, duplicate delivery
+  without retranscription, authentication/account isolation, feature disabled,
+  confirmation speech content and confirmation failure preserving assignment.
+- Browser homework suite: **16 passed**, including fresh-completion ordering,
+  spoken acceptance/refusal/unavailable recovery, interruption cleanup, departure
+  during pending STT, no repeated prompts on refresh, and keyboard/mobile views.
+  **1 additional focused browser test passed** for joining in-flight discovery
+  and confirmation.
+- Web lint, type checking, lint-rule coverage, unit tests and production build
+  passed. Final lint/type and the focused browser test also passed after the
+  in-flight confirmation adjustment. New-head hosted CI is tracked in the PR.
+- Initial new endpoint tests exposed the existing audio body-size boundary;
+  `/decision/attempts` now uses the established multipart audio route convention.
+  An intermediate browser run used pre-edit fixtures and failed four new speech
+  cases; a clean rerun passed all 16. The confirmation-failure test initially
+  expected 500; the existing sanitized 503 handler was retained and the corrected
+  regression run passed. Failed/intermediate runs are not counted as successful.
+- Real YouTube probe: **NOT RUN** (no authorized key). No credentials, production
+  settings or data were accessed or changed. All service responses in automated
+  tests are mocked. Acoustic quality and real-device STT accuracy are unverified.
 
 ### Local review execution
 
@@ -187,5 +238,5 @@ Frontend, Browser, Security and CI required; Vercel is not required.
 
 The review bundle on Linear contains the report, 12 screenshots and source patches.
 Publication is not release approval: homework stays disabled and **NO-GO** until
-voice-first acceptance and real YouTube discovery are verified. The PR records
+real-device voice-first acceptance and real YouTube discovery are verified. The PR records
 new-head CI and deployment observations after publication.

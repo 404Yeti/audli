@@ -2,17 +2,21 @@
 import asyncio
 from datetime import timedelta
 from uuid import UUID
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import inspect
 from app.homework import (HomeworkView, Assignment, Decision, StatusChange, HomeworkEngine,
-    DiscoveryUnavailable, search_plan, relevance)
+    DiscoveryUnavailable, search_plan, relevance, objective)
 from app.services.youtube import YouTubeProvider
+from app.audio import validate_upload
+from app.models import Transcription
+from app.recognition import reliable_recognition
+from app.homework_voice import spoken_decision
 from app.storage import homework as store
 from app.storage import schema as s
 from app.storage.repository import utcnow
 
 
-def register_homework_routes(app, repo, settings, database):
+def register_homework_routes(app, repo, settings, database, ai, lock):
     provider = YouTubeProvider(settings.youtube_api_key.get_secret_value() if settings.youtube_api_key else '')
     engine = HomeworkEngine(provider)
     app.state.homework_engine = engine  # injectable provider for offline contract tests
@@ -84,6 +88,41 @@ def register_homework_routes(app, repo, settings, database):
         except (DiscoveryUnavailable, TimeoutError):
             candidates = []
         return owned(store.finish, identifier, token, candidates)
+
+    @app.post('/api/homework/{assignment_id}/decision/attempts', response_model=Assignment)
+    async def spoken(assignment_id: UUID, audio: UploadFile):
+        try:
+            enabled()
+            # Repeated delivered events return durable state without paying for STT.
+            async with lock:
+                existing = owned(store.get, str(assignment_id))
+                if existing.status != 'offered' or existing.discovery_in_progress:
+                    return existing
+                data, filename = await validate_upload(audio, settings)
+                try:
+                    transcription = Transcription.model_validate(await asyncio.wait_for(ai().transcribe(data, filename), timeout=15))
+                except Exception:
+                    raise HTTPException(503, 'I could not hear your choice. Try again or use the buttons. Your lesson is saved.') from None
+                if not reliable_recognition(transcription, settings.min_transcription_confidence):
+                    raise HTTPException(422, 'I could not clearly hear your choice. Try again or use the buttons. Your lesson is saved.')
+                choice = spoken_decision(transcription.text)
+                if choice is None:
+                    raise HTTPException(422, 'Say yes please, no thanks, or yes about a topic. You can also use the buttons.')
+            # reserve() is transactional and rechecks ownership/state after STT.
+            return await decide(assignment_id, choice)
+        finally:
+            await audio.close()
+
+    @app.post('/api/homework/{assignment_id}/confirmation-audio')
+    async def confirmation_audio(assignment_id: UUID):
+        enabled()
+        assignment = owned(store.get, str(assignment_id))
+        if assignment.status != 'assigned' or assignment.content is None:
+            raise HTTPException(409, 'There is no assigned listening homework to confirm.')
+        # Only application-owned objective copy is spoken, never provider metadata.
+        lesson = repo.lesson(assignment.lesson_id)
+        text = 'Your optional listening is ready in Plan. ' + objective(lesson.focus) + ' Your lesson is saved.'
+        return await app.state.homework_speech(text, 'homework-confirmation-v1')
 
     @app.post('/api/homework/{assignment_id}/status', response_model=Assignment)
     async def status(assignment_id: UUID, body: StatusChange):

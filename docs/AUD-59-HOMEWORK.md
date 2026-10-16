@@ -87,7 +87,13 @@ Credentials use the `X-Goog-Api-Key` header rather than URL parameters, per
 HTTPX discovery URL logging is filtered so search interests do not enter request
 logs. The daily admission ceiling also covers stale-link metadata rechecks, making
 it conservative relative to actual search usage. Speech for the invitation is a
-separate opt-in, cached conversational act with text and replay controls.
+separate cached conversational act after fresh completion audio. Restored completion
+and Plan remain silent. Existing hands-free capture, upload validation, STT reliability
+gate and account-bound voice lifecycle handle optional decisions; accessible
+buttons remain. A conservative application parser maps clear yes/no/explicit-topic
+speech to the existing transactional decision route. Assignment confirmation is a
+separate act after persistence, speaking only application-owned objective copy.
+No homework speech enters assessment or planner adaptation.
 
 Shared content holds only public provider metadata (including the provider category).
 Learner-selected search topics stay on owned assignments and never enter the

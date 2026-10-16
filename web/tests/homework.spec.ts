@@ -4,7 +4,7 @@ import { installVoice } from './voice-fixture';
 for (const width of [320, 1440]) {
   test(`optional homework in Plan preserves lessons and works with keyboard at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 });
-    await installVoice(page);
+    await installVoice(page, { autoPlayback: true });
     let status = 'offered', decisions = 0;
     const assignment = () => ({ id: 'assignment', lesson_id: 'lesson', status, objective: 'Listen for the main idea and two details that support it.',
       content: status === 'assigned' || status === 'completed' ? { provider: 'youtube', provider_id: 'abcdefghijk', canonical_url: 'https://www.youtube.com/watch?v=abcdefghijk', title: 'How everyday science explains our world', publisher: 'Example publisher', duration_seconds: 180, validated_at: new Date().toISOString() } : null });
@@ -49,7 +49,7 @@ for (const width of [320, 1440]) {
 }
 
 test('disabled homework is absent and malformed provider links are never rendered', async ({ page }) => {
-  await installVoice(page);
+  await installVoice(page, { autoPlayback: true });
   let enabled = false;
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;

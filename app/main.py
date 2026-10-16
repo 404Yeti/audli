@@ -347,7 +347,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     from app.tutor_voice_api import register_tutor_voice_routes
     register_tutor_voice_routes(app, repo, lock, settings)
     from app.homework_api import register_homework_routes
-    register_homework_routes(app, repo, settings, database)
+    register_homework_routes(app, repo, settings, database, ai, lock)
     register_review_routes(app, repo)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_onboarding_reset_routes(app, repo, lock)

@@ -65,3 +65,21 @@ test('network failure leaves compact recovery and saved lesson available', async
   await expect(page.getByRole('button', { name: 'Return Home' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Reload saved assignment' })).toBeEnabled();
 });
+
+test('repeated typed submission joins one saved decision without duplicate requests', async ({ page }) => {
+  await setup(page, true);
+  let decisions = 0;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/homework/assignment/decision/text', async route => {
+    decisions++; await held;
+    await route.fulfill({ json: { id: 'assignment', lesson_id: 'lesson', status: 'skipped', objective: 'Listen.' } });
+  });
+  await page.getByLabel('Your reply', { exact: true }).fill('no thanks');
+  await page.getByRole('button', { name: 'Send', exact: true }).dblclick();
+  await expect.poll(() => decisions).toBe(1);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+  release();
+  await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
+  expect(decisions).toBe(1);
+});

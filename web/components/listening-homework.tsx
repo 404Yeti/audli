@@ -20,6 +20,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
   const localVoice = useVoiceLifecycle();
   const { audio, begin, speak, listen, stop, thinking, state: voiceState } = sharedVoice ?? localVoice;
   const active = useRef<LessonOperation | null>(null);
+  const submittingText = useRef(false);
   const confirmationPlayed = useRef(false);
   const farewellPlayed = useRef(false);
   const awaitingConfirmation = useRef(false);
@@ -147,10 +148,12 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
   const locked = pending || disabled;
   function submitText(event: React.FormEvent) {
     event.preventDefault();
-    if (!reply.trim() || disabled || item.discovery_in_progress) return;
+    if (!reply.trim() || disabled || item.discovery_in_progress || submittingText.current) return;
+    if (active.current && !['Listening', 'Speaking'].includes(voiceState)) return;
     // Typed input is an explicit interruption, never a concurrent second turn.
     if (active.current) { stop(); active.current = null; setBusy(false); }
-    void runChoice(false, { text: reply.trim() });
+    submittingText.current = true;
+    void runChoice(false, { text: reply.trim() }).finally(() => { submittingText.current = false; });
   }
   return <article ref={card} tabIndex={-1} className="homework-card" aria-label="Optional listening assignment" aria-busy={pending}>
     {!sharedVoice && <audio ref={audio} hidden/>}
@@ -160,7 +163,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
       <form onSubmit={submitText} className="wrapup-reply"><label htmlFor={`homework-reply-${item.id}`}>Your reply</label>
         <input id={`homework-reply-${item.id}`} value={reply} maxLength={200} disabled={disabled || Boolean(item.discovery_in_progress)} onChange={e => setReply(e.target.value)} placeholder="Yes please, no thanks, or yes about science"/>
         <div className="homework-actions"><button className="secondary" type="button" disabled={locked} onClick={() => void runChoice(true)}>Speak</button>
-          <button className="primary" disabled={disabled || Boolean(item.discovery_in_progress) || !reply.trim()}>Send</button>
+          <button className="primary" disabled={disabled || Boolean(item.discovery_in_progress) || !reply.trim() || (busy && !['Listening', 'Speaking'].includes(voiceState))}>Send</button>
           <button className="text-button" type="button" disabled={locked} onClick={() => void hearCue('invitation')} aria-label="Replay homework invitation">↻ Replay</button></div>
       </form>
       <p className="homework-note">Optional · Your topic is sent to YouTube. This never changes your learning scores.</p>

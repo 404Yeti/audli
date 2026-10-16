@@ -13,6 +13,7 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished }: {
   const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
   const active = useRef<LessonOperation | null>(null);
+  const submittingText = useRef(false);
   function done() { setFinished(true); onFinished(); }
   async function answer(saved: Plan, typed?: string) {
     const operation = voice.begin(); active.current = operation; setBusy(true); setError('');
@@ -52,9 +53,11 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished }: {
   }, [lessonId]);
   function typed(event: FormEvent) {
     event.preventDefault();
-    if (!plan || !reply.trim()) return;
+    if (!plan || !reply.trim() || submittingText.current) return;
+    if (active.current && busy && !['Listening', 'Speaking'].includes(voice.state)) return;
     voice.stop(); active.current = null;
-    void answer(plan, reply.trim());
+    submittingText.current = true;
+    void answer(plan, reply.trim()).finally(() => { submittingText.current = false; });
   }
   if (!plan || finished) return null;
   return <section className="topic-checkin" aria-label="Listening topic check-in">

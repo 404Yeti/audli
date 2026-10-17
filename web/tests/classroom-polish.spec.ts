@@ -1,6 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { setup, typeReply } from './homework-fixture';
 import { probe, promptWav } from './voice-fixture';
+
+async function settledMascot(page: Page) {
+  await expect.poll(() => page.locator('.mascot-cue').evaluateAll(nodes => nodes.length > 0 && nodes.every(node =>
+    Number(getComputedStyle(node).opacity) === (node.getAttribute('data-visible') === 'true' ? 1 : 0)))).toBe(true);
+}
 
 for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audio at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:844});
@@ -10,6 +15,7 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   await expect(shell).toHaveAttribute('data-layout','interaction');
   await expect(page.getByText('Type instead',{exact:true})).toBeVisible();
   await expect(page.getByLabel('Your reply',{exact:true})).toBeHidden();
+  await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-interaction-${width}.png`,fullPage:true});
   await page.evaluate(()=>{(window as unknown as {classroomAudio:Element|null}).classroomAudio=document.querySelector('audio');});
   let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});let attempts=0;
@@ -19,6 +25,7 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   await expect(shell).toHaveAttribute('data-layout','focus');
   await expect(page.getByText('Type instead',{exact:true})).toBeVisible();
   await expect(page.locator('.homework-invitation')).toHaveCount(0);
+  await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-focus-${width}.png`,fullPage:true});
   release();
   await expect(shell).toHaveAttribute('data-layout','content');
@@ -26,6 +33,7 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   const link=page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'});
   await expect(link).toBeVisible();await link.focus();await expect(link).toBeFocused();
   expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-content-${width}.png`,fullPage:true});
   expect(await page.evaluate(()=>document.querySelector('audio')===(window as unknown as {classroomAudio:Element}).classroomAudio)).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

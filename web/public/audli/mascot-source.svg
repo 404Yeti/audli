@@ -1,0 +1,9 @@
+<svg viewBox="0 0 172.8 151.2" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Exact neutral geometry from AudliMascot / Figma Mascot System node 7:23. -->
+  <g id="mascot-body">
+    <ellipse cx="86.4" cy="55.44" rx="54" ry="42.48" fill="#14B8A6"/>
+    <ellipse cx="86.04" cy="65.52" rx="37.8" ry="29.52" fill="white"/>
+    <circle cx="47.52" cy="97.92" r="22.32" fill="#2563EB"/>
+    <ellipse cx="123.665" cy="99.9292" rx="22.32" ry="28.08" transform="rotate(10 123.665 99.9292)" fill="#FF6B5B"/>
+  </g>
+</svg>

@@ -11,9 +11,9 @@ function WavePair({ id }: { id: string }) {
 }
 
 /** Geometry from Figma Mascot System, node 7:23; state marks follow its storyboard. */
-export function AudliMascot({ state = 'Idle', activity = false, small = false }: { state?: MascotState; activity?: boolean; small?: boolean }) {
+export function AudliMascot({ state = 'Idle', activity = false, small = false, staticPose = false }: { state?: MascotState; activity?: boolean; small?: boolean; staticPose?: boolean }) {
   const waveId = useId();
-  return <div className={`audli-mascot ${small ? 'small' : ''}`} data-state={state} data-active={activity} style={{ '--voice-activity': activity ? 1 : .35 } as CSSProperties} aria-hidden="true">
+  return <div className={`audli-mascot ${small ? 'small' : ''}`} data-state={state} data-active={activity} data-static={staticPose || undefined} style={{ '--voice-activity': activity ? 1 : .35 } as CSSProperties} aria-hidden="true">
     <svg viewBox="0 0 172.8 151.2" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs><path id={waveId} d="M160 82 C152 84 152 108 160 110 M166 77 C156 80 156 112 166 115" fill="none" stroke="#FACC15" strokeWidth="1.8" strokeLinecap="round"/></defs>
       <g className="mascot-pose"><g className="mascot-body">

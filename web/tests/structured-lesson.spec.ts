@@ -224,10 +224,17 @@ for(const reducedMotion of [false,true])test(`compact completion summary and mas
   await expect(page.locator('.lesson-wrapup .audli-mascot')).toHaveAttribute('aria-hidden','true');
   const body=page.locator('.lesson-wrapup .mascot-body');
   const animation=await body.evaluate(node=>getComputedStyle(node).animationName);
-  expect(animation).toBe(reducedMotion?'none':'completion-arrive, mascot-breathe');
+  expect(animation).toBe('none');
+  await expect(page.locator('.lesson-wrapup .audli-mascot')).toHaveAttribute('data-static','true');
+  await expect(page.locator('.lesson-wrapup .audli-mascot svg')).toHaveAttribute('viewBox','0 0 172.8 151.2');
+  await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);
   if(!reducedMotion)await page.screenshot({path:'/tmp/aud22-completion-polish.png',fullPage:true,animations:'disabled'});
   if(!reducedMotion){await page.evaluate(()=>document.documentElement.dataset.reducedMotion='true');expect(await body.evaluate(node=>getComputedStyle(node).animationName)).toBe('none');}
   expect(await page.locator('body').innerText()).not.toMatch(/\d+%|\bXP\b/);
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  await expect(page.locator('.lesson-wrapup .mascot-body')).toHaveCSS('animation-name','none');
+  expect((await probe(page)).plays).toHaveLength(0);
 });
 
 test('slow optional acknowledgment audio never blocks completed assessment or coaching',async({page})=>{

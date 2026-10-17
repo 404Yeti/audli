@@ -419,3 +419,6 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .homework-disclosure { color: var(--muted); font-size: .75rem; margin: 8px 0; }
 .homework-review { max-width: 420px; margin-inline: auto; text-align: center; }
 .session-shell:has(input:focus) .session-presence { min-height: 160px; flex-grow: 0; }
+
+/* Preserve the approved pose while the authentic Rive asset is pending. */
+.audli-mascot[data-static="true"] *, .audli-mascot[data-static="true"] *::before, .audli-mascot[data-static="true"] *::after { animation: none !important; transition: none !important; }

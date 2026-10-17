@@ -15,7 +15,8 @@
       "feat/AUD-59-listening-homework": false,
       "feat/AUD-59-conversational-wrapup": false,
       "feat/AUD-62-voice-classroom-polish": false,
-      "fix/AUD-63-lesson-lifecycle": false
+      "fix/AUD-63-lesson-lifecycle": false,
+      "feat/rive-success-homework-investigation": false
     }
   }
 }

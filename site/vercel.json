@@ -14,7 +14,8 @@
       "feat/AUD-55-google-oauth": false,
       "feat/AUD-59-listening-homework": false,
       "feat/AUD-59-conversational-wrapup": false,
-      "feat/AUD-62-voice-classroom-polish": false
+      "feat/AUD-62-voice-classroom-polish": false,
+      "fix/AUD-63-lesson-lifecycle": false
     }
   }
 }

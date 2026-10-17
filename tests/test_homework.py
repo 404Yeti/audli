@@ -217,6 +217,14 @@ def test_authenticated_homework_isolation(tmp_path, repository_factory):
         endpoint=f'/api/lessons/{lesson.id}/homework'
         assert ASGIClient(app,FakeProvider()).post(endpoint,json={}).status_code == 401
         assert b.post(endpoint,json={}).status_code == 404
+        for suffix in ['homework-review','homework-review/audio','homework-review/skip','homework-review/text','farewell-audio']:
+            body={'revision':0,'text':'yes'} if suffix.endswith('/text') else {'revision':0}
+            path=f'/api/lessons/{lesson.id}/{suffix}'
+            assert b.post(path,json=body).status_code == 404
+            assert ASGIClient(app,FakeProvider()).post(path,json=body).status_code == 401
+        path=f'/api/lessons/{lesson.id}/homework-review/attempts'
+        assert b.post(path,data={'revision':'0'},files={'audio':('bad.wav',b'bad','audio/wav')}).status_code == 404
+        assert ASGIClient(app,FakeProvider()).post(path,data={'revision':'0'},files={'audio':('bad.wav',b'bad','audio/wav')}).status_code == 401
         saved=a.post(endpoint,json={}).json(); identifier=saved['id']
         assert b.get(f'/api/homework/{identifier}').status_code == 404
         assert ASGIClient(app,FakeProvider()).get(f'/api/homework/{identifier}').status_code == 401

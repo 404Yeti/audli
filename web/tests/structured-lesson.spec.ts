@@ -117,8 +117,7 @@ for(const returning of [false,true])test(`${returning?'returning':'first-time'} 
   expect(fixture.spoken).not.toContain('Okay, I heard you.');
   expect(fixture.spoken).toContain('Let’s listen to the first recording.');
   await expect(page.locator('textarea')).toHaveCount(0);expect((await probe(page)).clicks).toBe(1);
-  await page.locator('.wrapup-summary summary').click();
-  await expect(page.locator('.wrapup-summary')).toContainText('following the main idea');
+  await expect(page.locator('.completion-summary')).toContainText('following the main idea');
   await page.reload();await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();expect((await probe(page)).plays).toHaveLength(0);
   await page.getByRole('button',{name:'Return Home'}).click();await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();
 });
@@ -220,9 +219,8 @@ for(const reducedMotion of [false,true])test(`compact completion summary and mas
   await page.emulateMedia({reducedMotion:reducedMotion?'reduce':'no-preference'});
   await setup(page);await runToCompletion(page);
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeFocused();
-  await expect(page.locator('.wrapup-summary')).not.toHaveAttribute('open');
-  await page.locator('.wrapup-summary summary').click();
-  await expect(page.locator('.wrapup-summary')).toContainText('1 exercise completed');
+  await expect(page.locator('.wrapup-summary')).toHaveCount(0);
+  await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
   await expect(page.locator('.lesson-wrapup .audli-mascot')).toHaveAttribute('aria-hidden','true');
   const body=page.locator('.lesson-wrapup .mascot-body');
   const animation=await body.evaluate(node=>getComputedStyle(node).animationName);

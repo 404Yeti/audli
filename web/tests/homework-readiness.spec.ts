@@ -11,7 +11,7 @@ for (const width of [320, 390, 1440]) test(`release screenshots and keyboard acc
   expect(state.spoken).toBe(0); // Restored completion never repeats an automatic invitation.
   await page.screenshot({ path: `../docs/screenshots/AUD-59-ready-offer-${width}.png`, fullPage: true });
   await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).focus(); await page.keyboard.press('Enter');
-  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeFocused();
+  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
   expect(state.decisions).toBe(1); await expect.poll(() => state.confirmations).toBe(1); // Saved before confirmation audio.
   await page.getByRole('button', { name: 'Return Home' }).click();
   await page.getByRole('button', { name: 'Plan', exact: true }).click();
@@ -49,7 +49,7 @@ test('decline persists silently; invitation audio plays only on explicit request
   await expect(page.getByRole('button', { name: 'Speak' })).toBeEnabled();
   expect(state.spoken).toBe(1); expect((await probe(page)).plays.length).toBe(1);
   await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeFocused();
+  await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Replay homework invitation' })).toHaveCount(0); expect(state.spoken).toBe(1);
 });
@@ -86,7 +86,8 @@ for (const choice of ['accept', 'refuse', 'unavailable'] as const) test(`spoken 
     await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
     await expect.poll(() => state.confirmations).toBe(1);
   } else {
-    await expect(page.getByText(choice === 'refuse' ? 'No homework today. Your next lesson is ready when you are.' : 'No suitable listening assignment is available right now. Your lesson is saved.')).toBeVisible();
+    await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+    expect(state.status).toBe(choice === 'refuse' ? 'skipped' : 'unavailable');
     expect(state.confirmations).toBe(0);
   }
   const recorded = await probe(page); expect(recorded.overlaps).toBe(0); expect(recorded.tracks).toBe(1);
@@ -98,10 +99,9 @@ test('interrupted homework recording releases microphone and never submits or sp
   const state = await setup(page, true);
   await page.getByRole('button', { name: 'Speak' }).click();
   await expect(page.getByText('Listening for your choice…')).toBeVisible();
-  await page.getByRole('button', { name: 'Stop optional listening' }).click();
-  await expect(page.locator('.homework-card').getByRole('alert')).toContainText('Your lesson is saved');
+  await page.getByRole('button', { name: 'Skip optional listening' }).click();
+  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
   expect((await probe(page)).tracks).toBe(1); expect(state.voiceRequests).toBe(0); expect(state.confirmations).toBe(0);
-  await expect(page.getByRole('button', { name: 'Speak' })).toBeEnabled();
 });
 
 test('leaving during STT prevents late speech and duplicate decision delivery', async ({ page }) => {
@@ -129,7 +129,7 @@ test('fresh completion sequences one invitation, spoken choice and confirmation;
   await expect.poll(() => state.confirmations).toBe(1);
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
   expect(state.voiceRequests).toBe(1); expect(state.decisions).toBe(1);
-  const audio = await probe(page); expect(audio.plays.length).toBe(2); expect(audio.overlaps).toBe(0);
+  const audio = await probe(page); expect(audio.plays.length).toBe(3); expect(audio.overlaps).toBe(0);
   await page.reload(); await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
   expect(state.spoken).toBe(1); expect(state.confirmations).toBe(1);
 });

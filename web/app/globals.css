@@ -410,3 +410,12 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 @media (max-width: 360px) { .session-shell { padding-inline: 20px; } .assignment-content { padding: 14px; } }
 @media (prefers-reduced-motion: reduce) { .session-presence, .session-presence .audli-mascot { transition: none; } }
 [data-reduced-motion="true"] .session-presence, [data-reduced-motion="true"] .session-presence .audli-mascot { transition: none; }
+
+/* Shared inline replies stay in normal flow when Safari opens its keyboard. */
+.inline-reply { margin: 16px auto 8px; width: min(100%, 420px); }
+.inline-reply > div { align-items: center; }
+.inline-reply input { min-width: 0; flex: 1 1 0; }
+.inline-reply button { flex: 0 0 auto; width: auto; min-width: 64px; padding: 12px 14px; }
+.homework-disclosure { color: var(--muted); font-size: .75rem; margin: 8px 0; }
+.homework-review { max-width: 420px; margin-inline: auto; text-align: center; }
+.session-shell:has(input:focus) .session-presence { min-height: 160px; flex-grow: 0; }

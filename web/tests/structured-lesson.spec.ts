@@ -217,7 +217,15 @@ test('processing acknowledgment is delayed and deduplicated across retry; topic 
 
 for(const reducedMotion of [false,true])test(`compact completion summary and mascot respect ${reducedMotion?'reduced':'normal'} motion`,async({page})=>{
   await page.emulateMedia({reducedMotion:reducedMotion?'reduce':'no-preference'});
-  await setup(page);await runToCompletion(page);
+  await setup(page);
+  // Hold the small asset until observation starts: the flip may otherwise finish
+  // while the synthetic lesson clock is advancing through completion.
+  let releaseAsset=()=>{};
+  if(!reducedMotion){
+    const ready=new Promise<void>(resolve=>{releaseAsset=resolve;});
+    await page.route('**/audli/audli-mascot.riv',async route=>{await ready;await route.continue();});
+  }
+  await runToCompletion(page);
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeFocused();
   await expect(page.locator('.wrapup-summary')).toHaveCount(0);
   await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
@@ -229,6 +237,8 @@ for(const reducedMotion of [false,true])test(`compact completion summary and mas
   await expect(page.locator('.lesson-wrapup .audli-mascot svg')).toHaveAttribute('viewBox','0 0 172.8 151.2');
   if (reducedMotion) await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);
   else {
+    await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toBeVisible();
+    releaseAsset();
     await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toHaveCSS('visibility','hidden');
     const canvas = page.locator('.lesson-wrapup canvas');
     await expect(canvas).toBeVisible();
@@ -251,8 +261,8 @@ for(const reducedMotion of [false,true])test(`compact completion summary and mas
         return {count,bounds:[minX,minY,maxX,maxY],width:c.width,height:c.height,angle:bn&&rn?Math.atan2(ry/rn-by/bn,rx/rn-bx/bn):null};
       }));
     }
-    // Exclude the brief startup overlay; inspect the actual container without saving passing frames.
-    const visible=samples.slice(samples.findIndex(frame=>frame.count>0));
+    // Cadet renders the mascot immediately, without a branded startup overlay.
+    const visible=samples;
     for(const frame of visible){
       expect(frame.count).toBeGreaterThan(0);
       expect(frame.bounds[0]).toBeGreaterThan(1);expect(frame.bounds[1]).toBeGreaterThan(1);

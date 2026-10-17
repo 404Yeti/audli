@@ -1,8 +1,8 @@
 # Success mascot runtime (AUD-64)
 
 The authentic editor export is `web/public/audli/audli-mascot.riv`, copied byte-for-byte
-from `/mnt/c/Users/Lenovo/Music/untitled.riv` (15,496 bytes).
-SHA-256: `8bd221473b92b8dfaf3f143fcdea2b303c857ce0be84a78544066d585dde494e`.
+from `/mnt/c/Users/Lenovo/untitled.riv` (5,147 bytes).
+SHA-256: `0e09c9268c894b4d95b38cfdef1c1004f3d19d8914a260318319f4340b8aa9d6`.
 The earlier Documents, Pictures and Videos exports failed runtime verification and are not shipped.
 
 | Contract | Name / behavior |
@@ -18,13 +18,14 @@ The earlier Documents, Pictures and Videos exports failed runtime verification a
 2.44.0 only when motion is permitted. The matching WASM is self-hosted as
 `/audli/rive.wasm`; no asset CDN is needed. On runtime upgrades, replace this WASM
 with the matching package file. The original SVG remains visible while loading,
-on errors and under either system or Audli reduced motion. Runtime resources and
-pending celebration callbacks are released on unmount or preference changes.
+on errors and under either system or Audli reduced motion. Runtime resources and the pending initialization callback are
+released on unmount or preference changes.
 
 The finished success view passes the saved lesson identity, account scope and a
 fresh-completion presentation flag. ViewModel binding precedes state-machine
-playback. This exact export includes brief Rive startup branding; the celebration
-waits for 2.5 seconds of rendered runtime time so the backflip is visible afterward.
+playback. The Cadet export renders immediately without Rive startup branding, so
+the celebration fires after the first state-machine advance, with no branding delay.
+This lets the default state initialize before the ViewModel trigger is consumed.
 A session-storage key and in-memory guard are claimed before firing. Rerenders,
 remounts, restored completions and re-enabling motion cannot replay a celebration.
 Storage is optional and has no effect on lesson or database state.
@@ -40,7 +41,11 @@ The existing official 2.44.0 Chromium harness at a 390 Ã— 844 viewport and 300 Ã
 canvas passed two separately triggered celebrations. Each returned to centered
 idle at about two seconds and remained centered for over three seconds, without
 edge clipping, displacement or cumulative drift. Passing frames were not saved.
-The startup branding was excluded from mascot clipping measurements.
+All 65 startup samples rendered the mascot, without a branded splash. The runtime
+contains only `AudliMascot`; the prior export also contained `Watermark`,
+`NuRiveBrandmark01` and `NuRiveWordmark01`. The idle loop crosses its boundary at
+2.8 seconds; celebrate is a non-looping two-second animation. Both celebrations
+rotated approximately 360 degrees and returned to the original resting bounds.
 
 Focused frontend checks cover one-shot ViewModel binding and presentation memory,
 separate lessons/accounts, storage failure, reduced motion, mobile container

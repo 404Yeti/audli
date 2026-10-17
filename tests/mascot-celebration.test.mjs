@@ -61,11 +61,11 @@ test('invalid binding fails before consuming the completion', () => {
 });
 
 
-test('delayed visibility fires only once when released, without consuming during startup', () => {
+test('initialization finishes before the one-shot trigger is consumed', () => {
   const claim = createCelebrationGate(), { rive, calls } = fixture();
-  let release;
-  startMascot(rive, 'visible', true, claim, null, fire => { release = fire; });
+  let initialized;
+  startMascot(rive, 'initialized', true, claim, null, fire => { initialized = fire; });
   assert.deepEqual(calls, ['instance', 'bind', 'play']);
-  release(); release();
+  initialized(); initialized();
   assert.equal(calls.filter(value => value === 'trigger').length, 1);
 });

@@ -193,8 +193,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends espeak
       - run: npm ci
         working-directory: web
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
         working-directory: web
+      - name: WebKit iPhone-oriented classroom and native codec acceptance
+        run: npx playwright test --config=classroom-safari.playwright.config.ts --workers=1
+        working-directory: web
+      - name: Save synthetic WebKit classroom screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: success()
+        with:
+          name: classroom-webkit-screenshots
+          path: docs/screenshots/AUD-62-*.png
+          retention-days: 7
       - name: Mocked browser regressions
         run: npm run test:browser -- --workers=1
         working-directory: web

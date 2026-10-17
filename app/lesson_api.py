@@ -1,6 +1,7 @@
 """Owned lesson checkpoints around the existing exercise evidence loop."""
 from hashlib import sha256
 import asyncio
+import logging
 import re
 from uuid import uuid4
 from fastapi import HTTPException, UploadFile, Form
@@ -74,7 +75,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         lesson.exercise_id = None
 
     async def speech(text, key):
-        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice)
+        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'homework' if key.startswith('homework-') else 'classroom')
         kind = tutor.kind
         # Cache is scoped to the verified owner and complete spoken message.
         name = sha256((str(repo.learner_id) + ':' + tutor.signature + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
@@ -85,8 +86,9 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             with operation(settings, 'lesson.tts_sanitization'):
                 data = await tutor.sanitize(generated)
             with operation(settings, 'lesson.audio_persistence'):
-                repo.cache_lesson_audio(name, data)
-        return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
+                if not tutor.fallback:
+                    repo.cache_lesson_audio(name, data)
+        return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg', headers=tutor.headers)
 
     from app.planner import preferred_topic
     app.state.homework_speech = speech
@@ -124,6 +126,9 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             lesson.accent_discovery = discover(profile.accent_preferences, history, available_voices)
             if not lesson.accent_discovery:
                 lesson.accent_offered = offer(profile.accent_preferences, history, available_voices)
+            logging.getLogger('uvicorn.error').info('Accent offer scheduled=%s reason=%s', bool(lesson.accent_offered),
+                'offered' if lesson.accent_offered else 'voices_unavailable' if not available_voices
+                else 'no_saved_preference' if profile.accent_preferences.status != 'preferred' else 'cadence')
             try:
                 repo.create_lesson(lesson, remember_only=not bool(available_voices))
             except ValueError:

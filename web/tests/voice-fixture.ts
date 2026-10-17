@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-export type Probe = { plays: string[]; pauses: string[]; urls: string[]; revoked: string[]; tracks: number; recorders: number; mediaCalls: number; releaseMedia?: () => void; bodyPending: boolean; releaseBody?: () => void; clicks: number; overlaps: number };
+export type Probe = { fixtureReady: boolean; plays: string[]; pauses: string[]; urls: string[]; revoked: string[]; tracks: number; recorders: number; mediaCalls: number; releaseMedia?: () => void; bodyPending: boolean; releaseBody?: () => void; clicks: number; overlaps: number };
 export function promptWav() {
   const wav = Buffer.alloc(44 + 8000 * 5 * 2);
   wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ',8);
@@ -9,13 +9,13 @@ export function promptWav() {
 }
 export async function installVoice(page: Page, options: { denied?: boolean; unavailable?: boolean; empty?: boolean; delayMedia?: number; delayBody?: string; realPlayback?: boolean; autoPlayback?: boolean; continuousVoice?: boolean; delayContext?: boolean; delayRecorder?: boolean } = {}) {
   await page.addInitScript(options => {
-    const probe: Probe = {plays:[],pauses:[],urls:[],revoked:[],tracks:0,recorders:0,mediaCalls:0,bodyPending:false,clicks:0,overlaps:0};
+    const probe: Probe = {fixtureReady:false,plays:[],pauses:[],urls:[],revoked:[],tracks:0,recorders:0,mediaCalls:0,bodyPending:false,clicks:0,overlaps:0};
     (window as unknown as { voiceProbe: Probe }).voiceProbe = probe;
     document.addEventListener('click', () => probe.clicks++);
     const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
     URL.createObjectURL = blob => { const url = create(blob); probe.urls.push(url); return url; };
     URL.revokeObjectURL = url => { probe.revoked.push(url); revoke(url); };
-    Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async () => {
+    Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async () => {
       probe.mediaCalls++;
       if (options.unavailable) throw new DOMException('Missing','NotFoundError');
       if (options.denied) throw new DOMException('Denied','NotAllowedError');
@@ -24,7 +24,7 @@ export async function installVoice(page: Page, options: { denied?: boolean; unav
       const stream = {getTracks:() => [track],getAudioTracks:()=>[track]};
       if (probe.mediaCalls === options.delayMedia) await new Promise<void>(resolve => { probe.releaseMedia = resolve; });
       return stream;
-    }});
+    }}});
     let recording = false;
     class Recorder {
       static isTypeSupported(){return true;} state='inactive'; mimeType='audio/webm';
@@ -55,6 +55,7 @@ export async function installVoice(page: Page, options: { denied?: boolean; unav
       const fetch=window.fetch.bind(window);
       window.fetch=async (...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith(options.delayBody!) && response.ok){return new Response(new ReadableStream({async start(controller){const body=await response.arrayBuffer();probe.bodyPending=true;await new Promise<void>(resolve=>{probe.releaseBody=resolve;});controller.enqueue(new Uint8Array(body));controller.close();}}),{status:response.status,headers:response.headers});}return response;};
     }
+    probe.fixtureReady = true;
   }, options);
 }
 export async function probe(page: Page) {return page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe);}

@@ -276,3 +276,17 @@ test('same-account onboarding cancellation rejects late responses and permits fr
     fresh.cancel();
   } finally { lifetime.close(); globalThis.fetch = original; }
 });
+
+test('backup voice disclosure is metadata-only and ignores an old account response', async () => {
+  const { authenticatedFetch, setAccessTokenProvider } = await import('../web/lib/api.ts');
+  const originalFetch=globalThis.fetch, originalWindow=globalThis.window;
+  const events=new EventTarget();let notices=0;
+  events.addEventListener('audli-backup-voice',()=>notices++);globalThis.window=events;
+  const response=()=>new Response('audio',{headers:{'X-Audli-Tutor-Fallback':'true'}});
+  try {
+    setAccessTokenProvider(async ()=>'synthetic-a');globalThis.fetch=async()=>response();
+    await authenticatedFetch('/api/recognition/retry-audio');assert.equal(notices,1);
+    globalThis.fetch=async()=>{setAccessTokenProvider(async ()=>'synthetic-b');return response();};
+    await authenticatedFetch('/api/recognition/retry-audio');assert.equal(notices,1);
+  } finally {setAccessTokenProvider(null);globalThis.fetch=originalFetch;globalThis.window=originalWindow;}
+});

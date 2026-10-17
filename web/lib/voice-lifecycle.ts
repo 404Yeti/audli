@@ -16,6 +16,7 @@ type CoachingCheckpoint = { lesson_id: string; lesson_revision: number };
 export function useVoiceLifecycle() {
   const [state, setState] = useState<MascotState>('Idle');
   const [activity, setActivity] = useState(false);
+  const [backupVoice, setBackupVoice] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
   const owner = useRef<LessonLifetime | null>(null);
   const auth = useRef(currentAuthRevision());
@@ -26,10 +27,12 @@ export function useVoiceLifecycle() {
   const disposeRecording = useRef<(() => void) | null>(null);
   const playback = useRef<{ operation: LessonOperation; failed: () => void } | null>(null);
   useEffect(() => {
+    const notice = () => setBackupVoice(true);
+    window.addEventListener('audli-backup-voice', notice);
     const lifetime = new LessonLifetime(); owner.current = lifetime;
     // End may replace the lifetime; unmount must close its latest resources too.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    return () => { lifetime.close(); owner.current?.close(); disposeRecording.current?.(); audio.current?.pause(); };
+    return () => { window.removeEventListener('audli-backup-voice', notice); lifetime.close(); owner.current?.close(); disposeRecording.current?.(); audio.current?.pause(); };
   }, []);
   function begin() {
     if (auth.current !== currentAuthRevision() || !owner.current) throw new DOMException('Account changed.', 'AbortError');
@@ -38,7 +41,7 @@ export function useVoiceLifecycle() {
   function stop() {
     owner.current?.close(); disposeRecording.current?.(); audio.current?.pause();
     if (auth.current === currentAuthRevision()) owner.current = new LessonLifetime();
-    latency.current.reset(); setState('Idle'); setActivity(false);
+    latency.current.reset(); setState('Idle'); setActivity(false); setBackupVoice(false);
   }
   async function speak(operation: LessonOperation, url: string, kind: 'meaningful' | 'acknowledgment' | 'retry' = 'meaningful') {
     operation.assertCurrent(() => URL.revokeObjectURL(url));
@@ -267,5 +270,5 @@ export function useVoiceLifecycle() {
     element.currentTime = 0;
     if (element.paused) void current.operation.wait(() => element.play(), () => element.pause()).catch(() => { if (current.operation.current) current.failed(); });
   }
-  return { state, activity, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
+  return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
 }

@@ -1,5 +1,6 @@
 """Optional, authenticated homework. Never invoked by lesson completion writes."""
 import asyncio
+import logging
 from datetime import timedelta
 from uuid import UUID
 from fastapi import HTTPException, UploadFile
@@ -9,8 +10,7 @@ from app.homework import (HomeworkView, Assignment, Decision, HomeworkReply, Sta
 from app.services.youtube import YouTubeProvider
 from app.audio import validate_upload
 from app.models import Transcription
-from app.recognition import reliable_recognition
-from app.homework_voice import spoken_decision
+from app.homework_voice import spoken_decision, reliable_choice
 from app.storage import homework as store
 from app.storage import schema as s
 from app.storage.repository import utcnow
@@ -113,16 +113,27 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
                 try:
                     transcription = Transcription.model_validate(await asyncio.wait_for(ai().transcribe(data, filename), timeout=15))
                 except Exception:
-                    raise HTTPException(503, 'I could not hear your choice. Try again or use the buttons. Your lesson is saved.') from None
-                if not reliable_recognition(transcription, settings.min_transcription_confidence):
-                    raise HTTPException(422, 'I could not clearly hear your choice. Try again or use the buttons. Your lesson is saved.')
+                    raise HTTPException(503, 'I could not hear your choice. Try again or type your reply. Your lesson is saved.') from None
+                recognized = reliable_choice(transcription, settings.min_transcription_confidence)
+                logging.getLogger('uvicorn.error').info('Homework voice outcome=%s confidence_available=%s',
+                    'recognized' if recognized else 'uncertain_or_ambiguous', transcription.confidence is not None)
+                if not recognized:
+                    raise HTTPException(422, 'I didn’t catch your choice. Say yes please, no thanks, or type your reply. Your lesson is saved.')
                 choice = spoken_decision(transcription.text)
                 if choice is None:
-                    raise HTTPException(422, 'Say yes please, no thanks, or yes about a topic. You can also use the buttons.')
+                    raise HTTPException(422, 'Say yes please, no thanks, or yes about a topic. You can also type your reply.')
             # reserve() is transactional and rechecks ownership/state after STT.
             return await decide(assignment_id, choice)
         finally:
             await audio.close()
+
+    @app.post('/api/homework/{assignment_id}/clarification-audio')
+    async def clarification(assignment_id: UUID):
+        enabled()
+        assignment = owned(store.get, str(assignment_id))
+        if assignment.status != 'offered' or assignment.discovery_in_progress:
+            raise HTTPException(409, 'This invitation has already been answered.')
+        return await app.state.homework_speech('I didn’t catch your choice. Say yes please, no thanks, or type your reply.', 'homework-clarification-v1')
 
     @app.post('/api/homework/{assignment_id}/confirmation-audio')
     async def confirmation_audio(assignment_id: UUID):

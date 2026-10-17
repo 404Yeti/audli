@@ -360,13 +360,13 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .homework-actions button { min-height: 44px; max-width: 100%; white-space: normal; }
 .homework-card a { display: inline-block; padding-block: .75rem; text-decoration: underline; }
 .homework-card :focus-visible { outline: 3px solid #397bc4; outline-offset: 3px; }
-.lesson-wrapup .session-presence { flex: 0 0 auto; min-height: 180px; padding-bottom: 0; }
-.lesson-wrapup .session-presence .audli-mascot { width: clamp(140px, 24vw, 210px); margin: 12px auto; }
+
+
 .lesson-wrapup .audli-mascot[data-state="Success"] .mascot-body { animation: completion-arrive .65s ease-out 1, mascot-breathe 4s ease-in-out .65s infinite; }
 .wrapup-heading { font-size: 1.25rem; margin: .5rem 0; }
 .wrapup-heading:focus { outline: none; }
 .lesson-wrapup .listening-homework { margin-block: 1rem; }
-.lesson-wrapup .homework-card { border: 0; border-top: 1px solid var(--border); border-radius: 0; padding: 1rem 0; margin: 0; }
+.lesson-wrapup .homework-card { border: 0; border-radius: 0; padding: 0; margin: 0; }
 .lesson-wrapup .homework-label { display: none; }
 .wrapup-reply { text-align: left; min-width: 0; }
 .wrapup-reply input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; margin-block: .5rem; }
@@ -375,3 +375,38 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .wrapup-reply .homework-actions .text-button { flex: 0 0 auto; }
 .wrapup-summary { font-size: .875rem; text-align: left; margin-top: .75rem; color: var(--muted); }
 .wrapup-summary summary { padding-block: .75rem; cursor: pointer; }
+
+/* Shared classroom modes: content determines space; the audio element never remounts. */
+.session-shell { min-height: 100svh; min-height: 100dvh; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+.session-presence { flex: 1 0 auto; min-width: 0; transition: flex-grow .28s ease, min-height .28s ease, padding .28s ease; }
+.session-presence .audli-mascot { transition: width .28s ease, margin .28s ease; }
+.session-shell[data-layout="focus"] .session-presence { flex-grow: 1; min-height: clamp(240px, 48svh, 480px); }
+.session-shell[data-layout="focus"] .session-presence .audli-mascot { width: clamp(240px, 38vw, 420px); }
+.session-shell[data-layout="interaction"] .session-presence { flex-grow: .4; min-height: clamp(180px, 32svh, 340px); padding-bottom: 0; }
+.session-shell[data-layout="interaction"] .session-presence .audli-mascot { width: clamp(190px, 30vw, 290px); margin-block: 16px 20px; }
+.session-shell[data-layout="content"] .session-presence { flex-grow: 0; min-height: clamp(140px, 24svh, 240px); padding-bottom: 0; }
+.session-shell[data-layout="content"] .session-presence .audli-mascot { width: clamp(150px, 23vw, 220px); margin-block: 12px 16px; }
+.session-secondary { min-width: 0; max-width: 28rem; }
+.lesson-wrapup .listening-homework { margin-block: 12px; }
+.classroom-homework { text-align: center; }
+.homework-invitation { max-width: 25rem; margin: 0 auto 16px; line-height: 1.6; }
+.classroom-reply-controls, .assignment-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
+.classroom-reply-controls .primary { width: auto; min-width: 120px; margin: 0; }
+.compact-replay { min-width: 44px; min-height: 44px; font-size: 20px; }
+.typed-alternative, .homework-details, .voice-notice { color: var(--muted); font-size: .875rem; margin-top: 12px; }
+.typed-alternative summary, .homework-details summary, .voice-notice summary { cursor: pointer; padding: 10px 4px; min-height: 44px; }
+.typed-alternative .wrapup-reply { margin-top: 8px; }
+.typed-alternative .wrapup-reply button { width: auto; min-width: 90px; }
+.homework-details p, .voice-notice p { margin-top: 12px; line-height: 1.6; }
+.assignment-content { border: 1px solid var(--line); border-radius: 16px; padding: 18px; text-align: left; min-width: 0; max-width: 100%; }
+.assignment-content h3 { font-size: 1rem; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.assignment-source { font-size: .875rem; margin-block: 8px; }
+.assignment-actions { justify-content: space-between; gap: 4px; }
+.assignment-actions a { min-height: 44px; max-width: 100%; line-height: 1.5; }
+.assignment-content .homework-details { border-top: 1px solid var(--line); margin-top: 8px; }
+.homework-recovery { margin-top: 16px; }
+.wrapup-summary { text-align: center; font-size: .8rem; }
+.voice-notice { max-width: 26rem; text-align: center; }
+@media (max-width: 360px) { .session-shell { padding-inline: 20px; } .assignment-content { padding: 14px; } }
+@media (prefers-reduced-motion: reduce) { .session-presence, .session-presence .audli-mascot { transition: none; } }
+[data-reduced-motion="true"] .session-presence, [data-reduced-motion="true"] .session-presence .audli-mascot { transition: none; }

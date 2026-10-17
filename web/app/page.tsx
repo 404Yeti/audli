@@ -12,7 +12,7 @@ import { SpokenOnboarding } from '../components/onboarding';
 import { AudliLoadingScreen } from '../components/audli-loading-screen';
 import { startup } from '../lib/startup';
 import { AudliMascot } from '../components/audli-mascot';
-import { BottomNavigation, SessionShell, type Destination } from '../components/product-shell';
+import { BottomNavigation, TutorVoiceNotice, SessionShell, type Destination } from '../components/product-shell';
 import { ApiError, cancelPendingOperations, LessonLifetime, type LessonOperation } from '../lib/api';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
@@ -81,6 +81,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const [active, setActive] = useState(false);
   const [homeworkVoice, setHomeworkVoice] = useState(false);
   const [wrapupReady, setWrapupReady] = useState(false);
+  const [classroomLayout, setClassroomLayout] = useState<'focus' | 'interaction' | 'content'>('focus');
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
   const completionHeading = useRef<HTMLHeadingElement | null>(null);
   useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion]);
@@ -329,24 +330,24 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     setDestination(value); setTranscript(null); setError('');
   }
   if (!initialized && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => void retry()}/>;
-  if (active) return <><SessionShell state={voice.state} activity={voice.activity} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
+  if (active) return <><SessionShell backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
-  if (completion) return <><SessionShell completed state={voice.state === 'Idle' || (voice.state === 'Speaking' && !voice.activity) ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
+  if (completion) return <><SessionShell completed layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' || (voice.state === 'Speaking' && !voice.activity) ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
     voice.stop(); setHomeworkVoice(false); setWrapupReady(false); setCompletion(null); lesson.current = null;
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
   }}>
-    <h1 className="wrapup-heading" ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
-    <p>{completion.encouragement}</p>
-    <LessonTopicCheckin key={completion.id} lessonId={completion.id} autoVoice={homeworkVoice} voice={voice} onFinished={() => setWrapupReady(true)}/>
-    {wrapupReady && <ListeningHomework inline lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice}/>}
+    <h1 className="wrapup-heading sr-only" ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
+    <p className="sr-only">{completion.encouragement}</p>
+    <LessonTopicCheckin key={completion.id} lessonId={completion.id} autoVoice={homeworkVoice} voice={voice} onLayout={setClassroomLayout} onFinished={() => setWrapupReady(true)}/>
+    {wrapupReady && <ListeningHomework inline lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout}/>}
     <details className="wrapup-summary"><summary>Today’s listening</summary><p>{completion.exercises_completed} exercise{completion.exercises_completed === 1 ? '' : 's'} completed · {focusCopy[completion.focus]}</p>
       {completion.strength && <p>A demonstrated strength: {completion.strength}</p>}{completion.improvement_focus && <p>Next listening focus: {completion.improvement_focus}</p>}
     </details>
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
 
-  return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header>
+  return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>
     {destination === 'Home' && <section className="home-view"><h1>{`Good to see you${profile?.name ? ', ' + profile.name : ''}.`}</h1><AudliMascot/>
       <PlanningInvitation open={() => setDestination('Plan')}/><h2>Today’s listening lesson</h2><p>10 minutes · English · adapted for you</p><button className="primary" disabled={busy || !profile} onClick={() => void start()}>Start today’s session</button><p className="home-support">Your next lesson will build from what Audli heard last time.</p>
     </section>}

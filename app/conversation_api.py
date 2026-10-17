@@ -43,7 +43,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
     @app.post('/api/recognition/retry-audio')
     async def retry_audio():
         # Protected by the same authenticated request boundary as every /api resource.
-        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice)
+        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'recovery')
         kind = tutor.kind
         text = "I didn't quite catch that. Could you say it again?"
         name = sha256((str(repo.learner_id) + ':retry-v1:' + tutor.signature + ':' + text).encode()).hexdigest() + '.' + kind
@@ -51,8 +51,9 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             data = repo.audio_blob(name)
             if data is None:
                 data = await tutor.sanitize(await tutor.speak(text))
-                repo.cache_lesson_audio(name, data)
-        return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg')
+                if not tutor.fallback:
+                    repo.cache_lesson_audio(name, data)
+        return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg', headers=tutor.headers)
 
     def audio_cache_id(cue_id, text):
         # Old evaluator-report audio must never replay as terminal feedback.
@@ -216,10 +217,10 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             exercise_or_404(exercise_id)
             check_checkpoint()
             text = cue(exercise_id, body.cue_id)
-            tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice)
+            tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'feedback')
             cache_id = tutor_cue_cache_id(tutor.settings, body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
-            if not name or not restore_audio(name).exists():
+            if not name or name.endswith('-fallback-openai.mp3') or not restore_audio(name).exists():
                 with operation(settings, 'SpeechService.coach_audio'):
                     with operation(settings, 'turn.tts_provider'):
                         data = await tutor.speak(text)
@@ -227,7 +228,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                     with operation(settings, 'turn.tts_sanitization'):
                         data = await tutor.sanitize(data)
                 check_checkpoint()  # End can invalidate the lesson while the provider is running.
-                name = str(uuid4()) + '.' + kind
+                name = str(uuid4()) + ('-fallback-openai' if tutor.fallback else '') + '.' + kind
                 path = audio_dir / name
                 path.write_bytes(data)
                 try:
@@ -239,7 +240,9 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 # Same owned, gated, sanitized and persisted cue; avoid a second
                 # authenticated request before playback. JSON clients stay compatible.
                 path = restore_audio(name)
-                return Response(path.read_bytes(), media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg')
+                from app.services.tutor_tts import voice_headers
+                return Response(path.read_bytes(), media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg',
+                    headers=voice_headers(tutor.settings, name.endswith('-fallback-openai.mp3')))
             return {'audio_url': f'/api/exercises/{exercise_id}/coach-audio/{body.cue_id}'}
 
     @app.get('/api/exercises/{exercise_id}/coach-audio/{cue_id}')
@@ -250,5 +253,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
         if not name or not restore_audio(name).exists():
             raise HTTPException(404, 'Coaching audio not generated yet. Please retry.')
         path = restore_audio(name)
+        from app.services.tutor_tts import voice_headers
         return FileResponse(path, media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg',
+                            headers=voice_headers(settings, name.endswith('-fallback-openai.mp3')),
                             filename='audli-coach' + path.suffix)

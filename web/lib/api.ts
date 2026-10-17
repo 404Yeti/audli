@@ -88,6 +88,7 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   const response = await fetch(url, { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
   if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
   operation?.assertCurrent();
+  if (typeof window !== 'undefined' && response.ok && revision === authRevision && response.headers.get('X-Audli-Tutor-Fallback') === 'true') window.dispatchEvent(new Event('audli-backup-voice'));
   if (response.status === 401 && revision === authRevision && typeof window !== 'undefined') {
     // A late response for an older token must not discard a refreshed session.
     const currentToken = accessToken ? await accessToken() : null;

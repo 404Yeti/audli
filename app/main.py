@@ -49,11 +49,15 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @asynccontextmanager
     async def lifespan(app):
+        from app.services.elevenlabs_diagnostic import schedule
+        diagnostic_task = schedule(settings)
         try:
             from app.services.tutor_tts import emit_configuration
             emit_configuration(settings)
             yield
         finally:
+            if diagnostic_task is not None:
+                diagnostic_task.cancel()
             passage_limits.close()
             database.close()
             if identity is not None:

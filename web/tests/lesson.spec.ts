@@ -316,7 +316,7 @@ test('empty recording exits Listening and can record again without restarting th
   const fixture=await setup(page,{empty:true});await page.clock.install();await beginListening(page);
   await page.clock.runFor(2700);await expect(page.locator('.session-error')).toContainText('did not produce usable audio');
   expect(fixture.requests.filter(x=>x.path.endsWith('/attempts'))).toHaveLength(0);
-  await state(page,'Thinking');await page.getByRole('button',{name:'Retry conversation'}).click();
+  await state(page,'Idle');await page.getByRole('button',{name:'Retry conversation'}).click();
   await state(page,'Speaking');await endAudio(page);await state(page,'Listening');expect((await probe(page)).recorders).toBe(2);
 });
 

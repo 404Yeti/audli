@@ -33,8 +33,9 @@ cancelled clip cannot pause/clear a newer clip on the shared audio element.
 Onboarding name typing now stops the voice turn just like goal typing. Drafts are
 session-scoped by account, question kind and question token, restored only to the
 matching field, and cleared on successful save. Authoritative server checkpoints
-still control progression. Page navigation records an intentional pause; returning
-resumes onboarding rather than inventing Home/completion. Completed onboarding and
+still control progression. Page navigation cancels obsolete work; persisted-page return restores the server
+checkpoint. Only explicit End or choosing typing records a presentation pause;
+ordinary reloads still resume the current spoken step. Completed onboarding and
 existing preferences are unchanged. No raw audio is added to browser storage.
 
 Validation: focused backend lifecycle/homework/onboarding tests and new browser

@@ -48,7 +48,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     } catch { /* Draft storage is optional; server progress stays authoritative. */ }
   }
   function editName(value: string) {
-    setName(value);
+    setName(value); intent.end();
     if (checkpoint) try { sessionStorage.setItem(draftKey('name', checkpoint), value); } catch { /* Optional draft. */ }
     if (running.current) { voice.stop(); retained.current = null; running.current = false; }
   }
@@ -203,7 +203,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     }
   }
   function editGoal(value: string) {
-    setGoal(value);
+    setGoal(value); intent.end();
     if (checkpoint) try { sessionStorage.setItem(draftKey('goal', checkpoint), value); } catch { /* Optional draft. */ }
     // Choosing text freezes this question while the learner composes an answer.
     // Any already-committed voice result can still be replaced using its token.
@@ -248,8 +248,16 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     <button className="primary" type="submit" disabled={savingName || !name.trim()}>{savingName ? 'Saving…' : 'Save and continue'}</button></div>
   </form>;
   function end() { goalSubmission.current = false; setSavingGoal(false); nameSubmission.current = false; setSavingName(false); voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
-  const leavePage = useEffectEvent(end);
-  useEffect(() => { window.addEventListener('pagehide', leavePage); return () => window.removeEventListener('pagehide', leavePage); }, []);
+  const leavePage = useEffectEvent(() => { voice.stop(); retained.current = null; running.current = false; setActive(false); });
+  const returnPage = useEffectEvent((event: PageTransitionEvent) => {
+    if (!event.persisted) return;
+    const operation = voice.begin();
+    void restore(operation).catch(() => { if (operation.current) setError('Resume to restore your saved question.'); }).finally(() => operation.cancel());
+  });
+  useEffect(() => {
+    window.addEventListener('pagehide', leavePage); window.addEventListener('pageshow', returnPage);
+    return () => { window.removeEventListener('pagehide', leavePage); window.removeEventListener('pageshow', returnPage); };
+  }, []);
   if (!checkpoint && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => {
     const operation = voice.begin(); setError('');
     void startup(() => restore(operation)).catch(error => { if (operation.current) setError(error.message); }).finally(() => operation.cancel());

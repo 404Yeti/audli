@@ -208,7 +208,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
         {busy && voiceState === 'Speaking' && <button className="text-button compact-replay" aria-label="Replay current speech" onClick={(sharedVoice ?? localVoice).replay}>↻</button>}
         {busy && <button className="text-button" onClick={event => { if (event.detail < 2) cancelVoice(); }}>Skip optional listening</button>}
       </div>
-      {!inline && <p className="homework-details">{item.objective} · {item.content.publisher}. Optional practice, without factual grading.</p>}
+      {!inline && <div className="homework-details"><p>{item.objective}</p><p>{item.content.publisher}</p><p>Optional practice, without factual grading.</p></div>}
       {!inline && item.status === 'assigned' && <div className="homework-actions"><button className="text-button" disabled={locked} onClick={() => void action('status', { status: 'completed' })}>I listened</button><button className="text-button" disabled={locked} onClick={() => void action('status', { status: 'skipped' })}>Skip assignment</button></div>}
     </div>}
     {item.status === 'unavailable' && <p>{item.message ?? 'This video is unavailable. Continue with your next lesson when ready.'}</p>}

@@ -12,6 +12,7 @@ for (const width of [320,390]) test(`inline reply and automatic completion stay 
   await expect.poll(()=>state.confirmations).toBe(1);
   expect(state.closings).toBe(0);await expect(page.locator('.wrapup-heading')).toHaveClass(/sr-only/);
   await endAudio(page);await expect.poll(()=>state.closings).toBe(1);
+  await expect(page.getByRole('button',{name:'Hear assignment'})).toBeDisabled();
   await expect(page.locator('.wrapup-heading')).toHaveClass(/sr-only/);
   await endAudio(page);await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
   await expect(page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'})).toBeVisible();

@@ -448,8 +448,9 @@ test('typed onboarding name cancels recording, continues speech, and stays saved
   const input=page.getByLabel('What should I call you?',{exact:true});
   await expect(input).toBeVisible();await expect(page.getByText('You can say your name or type it here.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Save and continue'})).toBeDisabled();
-  await input.fill('   ');await expect(page.getByRole('button',{name:'Save and continue'})).toBeDisabled();
   await endAudio(page);await listening(page);
+  await input.fill('   ');await expect(page.getByRole('button',{name:'Save and continue'})).toBeDisabled();
+  await expect(page.locator('.session-shell .audli-mascot')).toHaveAttribute('data-state','Idle');
   await input.fill('Nguyễn Thị Mỹ');await input.press('Enter');
   await expect(input).toHaveCount(0);await speaking(page);
   expect(fixture.snapshot().stage).toBe('identity');expect(fixture.snapshot().profile.name).toBe('Nguyễn Thị Mỹ');

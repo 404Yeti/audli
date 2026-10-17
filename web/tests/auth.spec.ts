@@ -911,3 +911,17 @@ test('account switching discards an enabled homework response from the previous 
   expect((await probe(page)).plays).toEqual([]);
   expect(fixture.requests.some(request => request.authorization === `Bearer ${tokenB}`)).toBe(true);
 });
+
+test('typed name draft survives interruption and resumes its question without escaping onboarding',async({page})=>{
+  const fixture=await setupOnboarding(page,{autoPlayback:false,continuousVoice:true});
+  await page.getByRole('button',{name:'Let’s talk',exact:true}).click();
+  await expect(page.getByLabel('What should I call you?',{exact:true})).toBeVisible();
+  await page.getByLabel('What should I call you?',{exact:true}).fill('Anika');
+  await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
+  await page.reload();await expect(page.getByRole('button',{name:'Resume our conversation'})).toBeVisible();
+  await expect(page.getByLabel('What should I call you?',{exact:true})).toHaveValue('Anika');
+  expect(fixture.requests.filter(x=>x.path.endsWith('/answer'))).toHaveLength(0);
+  await page.getByRole('button',{name:'Save and continue',exact:true}).click();
+  expect(fixture.snapshot().profile.name).toBe('Anika');
+  await expect(page.getByRole('heading',{name:/Good to see you/})).toHaveCount(0);
+});

@@ -37,11 +37,26 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   const [savingWalkthrough, setSavingWalkthrough] = useState(false);
   const minimum = useRef(.65);
   const retained = useRef<{ audio: Blob; revision: number } | null>(null);
+  function draftKey(kind: 'name' | 'goal', data: Checkpoint) {
+    return `audli-onboarding-draft:${account.scope.split(':')[0]}:${kind}:${kind === 'name' ? data.name_question_revision : data.goal_question_revision}`;
+  }
+  function applyCheckpoint(data: Checkpoint) {
+    setCheckpoint(data);
+    try {
+      setName(data.name_entry_available ? sessionStorage.getItem(draftKey('name', data)) ?? '' : '');
+      setGoal(data.goal_entry_available ? sessionStorage.getItem(draftKey('goal', data)) ?? '' : '');
+    } catch { /* Draft storage is optional; server progress stays authoritative. */ }
+  }
+  function editName(value: string) {
+    setName(value);
+    if (checkpoint) try { sessionStorage.setItem(draftKey('name', checkpoint), value); } catch { /* Optional draft. */ }
+    if (running.current) { voice.stop(); retained.current = null; running.current = false; }
+  }
   async function restore(operation: LessonOperation) {
     const data = await operation.api<Checkpoint>('/onboarding');
     const settings = await operation.api<{ recognition_min_confidence?: number }>('/profile');
     operation.assertCurrent(); minimum.current = settings.recognition_min_confidence ?? .65;
-    setCheckpoint(data); setBusy(false);
+    applyCheckpoint(data); setBusy(false);
     if (data.destination === 'session_ready') await onComplete(operation);
     else if (data.walkthrough == null && !data.clarification_paused && !intent.ended() && (data.profile.onboarding_status === 'in_progress' || data.stage === 'review')) void start();
   }
@@ -58,14 +73,14 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     const operation = voice.begin();
     try {
       const data = await operation.api<Checkpoint>('/onboarding/walkthrough', json({ revision: checkpoint.revision, step }));
-      operation.assertCurrent(); setCheckpoint(data);
+      operation.assertCurrent(); applyCheckpoint(data);
       // Continue to the existing spoken-onboarding entry screen. Its explicit
       // gesture retains the browser's audio permission and microphone behavior.
       if (data.destination === 'session_ready') await onComplete(operation);
     } catch (error) {
       if (operation.current) {
         setError((error as Error).message);
-        try { const data = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); setCheckpoint(data); }
+        try { const data = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); applyCheckpoint(data); }
         catch { /* Retry the same step when connectivity returns. */ }
       }
     } finally {
@@ -79,7 +94,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     let response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio', { ...json({ revision: data.revision }), signal: operation.signal }, operation));
     if (response.status === 409) {
       // One retry, same account-bound operation, latest authoritative checkpoint.
-      const latest = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); setCheckpoint(latest);
+      const latest = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); applyCheckpoint(latest);
       if (latest.destination === 'session_ready' || latest.stage !== data.stage || latest.welcome !== data.welcome || latest.pending) return { data: latest, played: false };
       data = latest;
       response = await operation.wait(() => authenticatedFetch('/api/onboarding/audio', { ...json({ revision: latest.revision }), signal: operation.signal }, operation));
@@ -97,7 +112,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   }
   async function captureAnswer(operation: LessonOperation, data: Checkpoint): Promise<Checkpoint> {
     const current = await operation.api<Checkpoint>('/onboarding');
-    if (current.revision !== data.revision) { retained.current = null; setCheckpoint(current); return current; }
+    if (current.revision !== data.revision) { retained.current = null; applyCheckpoint(current); return current; }
     if (retained.current?.revision !== data.revision) retained.current = null;
     if (!retained.current) {
       try { retained.current = { audio: await voice.listen(operation), revision: data.revision }; }
@@ -105,10 +120,10 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
     }
     operation.assertCurrent(); voice.thinking();
     const afterCapture = await operation.api<Checkpoint>('/onboarding');
-    if (afterCapture.revision !== data.revision) { retained.current = null; setCheckpoint(afterCapture); return afterCapture; }
+    if (afterCapture.revision !== data.revision) { retained.current = null; applyCheckpoint(afterCapture); return afterCapture; }
     const form = recordingUpload(retained.current.audio); form.append('revision', String(data.revision));
     const latest = await measureTurn('upload_transcription', () => sendRecording(() => operation.api<Checkpoint>('/onboarding/attempts', { method: 'POST', body: form }), () => { retained.current = null; }));
-    operation.assertCurrent(); retained.current = null; setCheckpoint(latest); return latest;
+    operation.assertCurrent(); retained.current = null; applyCheckpoint(latest); return latest;
   }
   async function start(userInitiated = false) {
     if (running.current) return;
@@ -122,7 +137,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
         || (data.profile.onboarding_status === 'profile_saved' && data.stage === 'identity'))) {
         data = await operation.api<Checkpoint>('/onboarding/start', json({ revision: data.revision }));
       }
-      operation.assertCurrent(); intent.start(); setCheckpoint(data);
+      operation.assertCurrent(); intent.start(); applyCheckpoint(data);
       if (userInitiated && data.name_entry_available && data.pending && !reliableRecognition(data.pending, minimum.current)) {
         await voice.retrySpeech(operation); data = await captureAnswer(operation, data);
       }
@@ -138,7 +153,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
             if (++retries > 2) {
               if (data.stage === 'needs') {
                 data = await operation.api<Checkpoint>('/onboarding/goal', json({ question_revision: data.goal_question_revision ?? data.revision, skip: true }));
-                operation.assertCurrent(); setCheckpoint(data); retries = 0; continue;
+                operation.assertCurrent(); applyCheckpoint(data); retries = 0; continue;
               }
               throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');
             }
@@ -146,20 +161,20 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
           }
           voice.thinking();
           data = await measureTurn('profile_extraction', () => operation.api<Checkpoint>('/onboarding/answer', json({ revision: data.revision, text: data.pending!.text, confirmed: true, hands_free: true })));
-          operation.assertCurrent(); setCheckpoint(data); retries = 0; continue;
+          operation.assertCurrent(); applyCheckpoint(data); retries = 0; continue;
         }
         const beforeStage = data.stage;
         const beforeWelcome = data.welcome;
         const beforePrompt = data.prompt;
-        const speech = await promptAudio(operation, data); data = speech.data; operation.assertCurrent(); setCheckpoint(data);
+        const speech = await promptAudio(operation, data); data = speech.data; operation.assertCurrent(); applyCheckpoint(data);
         if (!speech.played || data.destination === 'session_ready' || data.pending || data.stage !== beforeStage || data.welcome !== beforeWelcome || data.prompt !== beforePrompt) continue;
         if (data.welcome) {
           data = await operation.api<Checkpoint>('/onboarding/heard', json({ revision: data.revision }));
-          operation.assertCurrent(); setCheckpoint(data); continue;
+          operation.assertCurrent(); applyCheckpoint(data); continue;
         }
         if (data.stage === 'review') {
           data = await operation.api<Checkpoint>('/onboarding/complete', json({ revision: data.revision }));
-          operation.assertCurrent(); setCheckpoint(data); await onComplete(operation); return;
+          operation.assertCurrent(); applyCheckpoint(data); await onComplete(operation); return;
         }
         data = await captureAnswer(operation, data);
       }
@@ -177,7 +192,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
       const data = await operation.api<Checkpoint>('/onboarding/name', json({
         question_revision: checkpoint.name_question_revision ?? 0, name,
       }));
-      operation.assertCurrent(); setCheckpoint(data); setName('');
+      operation.assertCurrent(); try { sessionStorage.removeItem(draftKey('name', checkpoint)); } catch { /* Optional draft. */ } applyCheckpoint(data); setName('');
       nameSubmission.current = false; setSavingName(false);
       void start();
     } catch (error) {
@@ -189,6 +204,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   }
   function editGoal(value: string) {
     setGoal(value);
+    if (checkpoint) try { sessionStorage.setItem(draftKey('goal', checkpoint), value); } catch { /* Optional draft. */ }
     // Choosing text freezes this question while the learner composes an answer.
     // Any already-committed voice result can still be replaced using its token.
     if (running.current) {
@@ -204,13 +220,13 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
       const data = await operation.api<Checkpoint>('/onboarding/goal', json({
         question_revision: checkpoint.goal_question_revision ?? checkpoint.revision, text: goal, skip,
       }));
-      operation.assertCurrent(); setCheckpoint(data); setGoal('');
+      operation.assertCurrent(); try { sessionStorage.removeItem(draftKey('goal', checkpoint)); } catch { /* Optional draft. */ } applyCheckpoint(data); setGoal('');
       goalSubmission.current = false; setSavingGoal(false); void start();
     } catch (error) {
       if (operation.current) {
         setError((error as Error).message);
         // A response can be lost after commit. Restore the authoritative stage.
-        try { const data = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); setCheckpoint(data); }
+        try { const data = await operation.api<Checkpoint>('/onboarding'); operation.assertCurrent(); applyCheckpoint(data); }
         catch { /* The saved question remains available for retry. */ }
       }
     } finally {
@@ -228,10 +244,12 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
   const nameEntry = checkpoint?.name_entry_available && <form className="onboarding-name" onSubmit={event => { event.preventDefault(); void saveName(); }}>
     <label htmlFor="preferred-name">What should I call you?</label>
     <p id="name-help">You can say your name or type it here.</p>
-    <div><input id="preferred-name" name="preferred-name" autoComplete="given-name" aria-describedby="name-help" maxLength={80} value={name} onChange={event => setName(event.target.value)} disabled={savingName} />
+    <div><input id="preferred-name" name="preferred-name" autoComplete="given-name" aria-describedby="name-help" maxLength={80} value={name} onChange={event => editName(event.target.value)} disabled={savingName} />
     <button className="primary" type="submit" disabled={savingName || !name.trim()}>{savingName ? 'Saving…' : 'Save and continue'}</button></div>
   </form>;
   function end() { goalSubmission.current = false; setSavingGoal(false); nameSubmission.current = false; setSavingName(false); voice.stop(); intent.end(); retained.current = null; running.current = false; setActive(false); setError(''); }
+  const leavePage = useEffectEvent(end);
+  useEffect(() => { window.addEventListener('pagehide', leavePage); return () => window.removeEventListener('pagehide', leavePage); }, []);
   if (!checkpoint && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => {
     const operation = voice.begin(); setError('');
     void startup(() => restore(operation)).catch(error => { if (operation.current) setError(error.message); }).finally(() => operation.cancel());

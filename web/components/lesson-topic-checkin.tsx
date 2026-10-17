@@ -10,11 +10,10 @@ type Voice = ReturnType<typeof useVoiceLifecycle>;
 export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onLayout }: { lessonId: string; autoVoice: boolean; voice: Voice; onFinished: () => void; onLayout?: (mode: ClassroomLayout) => void }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [reply, setReply] = useState('');
-  const [typedOpen, setTypedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
-  useEffect(() => { onLayout?.(plan && !finished && (!busy || typedOpen) ? 'interaction' : 'focus'); }, [plan, finished, busy, typedOpen, onLayout]);
+  useEffect(() => { onLayout?.(plan && !finished && !busy ? 'interaction' : 'focus'); }, [plan, finished, busy, onLayout]);
   const active = useRef<LessonOperation | null>(null);
   const submittingText = useRef(false);
   function done() { setFinished(true); onFinished(); }
@@ -68,15 +67,13 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
     <div className="classroom-reply-controls">
       {busy && voice.state === 'Speaking' && <button className="text-button compact-replay" aria-label="Replay current speech" onClick={voice.replay}>↻</button>}
       {!busy && <button className="primary" onClick={() => void answer(plan)}>Speak</button>}
-      {busy && <button className="text-button" onClick={event => { if (event.detail >= 2) return; voice.stop(); active.current = null; setBusy(false); setError('Your lesson is saved. Retry or type your topic preference.'); }}>Stop topic check-in</button>}
+      {busy && <button className="text-button" onClick={event => { if (event.detail >= 2) return; voice.stop(); active.current = null; setBusy(false); void answer(plan, 'keep them'); }}>Keep my topics</button>}
       {!busy && <button className="text-button" onClick={() => { voice.stop(); active.current = null; void answer(plan, 'keep them'); }}>Keep my topics</button>}
     </div>
-    <details className="typed-alternative" open={typedOpen} onToggle={event => setTypedOpen(event.currentTarget.open)}><summary>Type instead</summary>
-      <form className="wrapup-reply" onSubmit={typed}><label htmlFor="topic-reply">Your topic preference</label>
+    <form className="onboarding-name inline-reply" onSubmit={typed}><label htmlFor="topic-reply">Your topic preference</label><div>
         <input id="topic-reply" value={reply} maxLength={200} onChange={event => setReply(event.target.value)} placeholder="Keep them, or name a topic"/>
         <button className="primary" disabled={!reply.trim() || (busy && !['Listening','Speaking'].includes(voice.state))}>Send</button>
-      </form>
-    </details>
+      </div></form>
     {error && <div role="alert"><p>{error}</p><button className="text-button" onClick={() => { voice.stop(); active.current = null; done(); }}>Continue lesson wrap-up</button></div>}
   </section>;
 }

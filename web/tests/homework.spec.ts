@@ -38,7 +38,6 @@ for (const width of [320, 1440]) {
     await expect(link).toHaveAttribute('href', 'https://www.youtube.com/watch?v=abcdefghijk');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     await expect(page.getByText('YouTube · About 3 min', {exact:true})).toBeVisible();
-    await page.getByText('Listening details', {exact:true}).click();
     await expect(page.getByText('Example publisher', {exact:true})).toBeVisible();
     for (const title of ['Work updates', 'Travel stories', 'Science discoveries']) await expect(page.getByRole('heading', { name: title })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

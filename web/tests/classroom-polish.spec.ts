@@ -13,8 +13,8 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   expect((await probe(page)).fixtureReady).toBe(true);
   const shell=page.locator('.session-shell');
   await expect(shell).toHaveAttribute('data-layout','interaction');
-  await expect(page.getByText('Type instead',{exact:true})).toBeVisible();
-  await expect(page.getByLabel('Your reply',{exact:true})).toBeHidden();
+  await expect(page.getByLabel('Your reply',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('Your reply',{exact:true})).toBeVisible();
   await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-interaction-${width}.png`,fullPage:true});
   await page.evaluate(()=>{(window as unknown as {classroomAudio:Element|null}).classroomAudio=document.querySelector('audio');});
@@ -23,7 +23,7 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   await page.getByRole('button',{name:'Speak',exact:true}).click();
   await expect.poll(()=>attempts).toBe(1);
   await expect(shell).toHaveAttribute('data-layout','focus');
-  await expect(page.getByText('Type instead',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('Your reply',{exact:true})).toBeVisible();
   await expect(page.locator('.homework-invitation')).toHaveCount(0);
   await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-focus-${width}.png`,fullPage:true});
@@ -66,9 +66,7 @@ for (const completion of [true,false]) test(`backup tutor voice is disclosed in 
   await setup(page,completion);let audio=0;
   await page.route('**/api/homework/assignment/invitation-audio',route=>{audio++;return route.fulfill({contentType:'audio/wav',headers:{'X-Audli-Tutor-Fallback':'true','X-Audli-Tutor-Provider':'openai'},body:promptWav()});});
   await page.getByRole('button',{name:'Replay homework invitation'}).click();
-  await expect(page.getByText('Backup voice used',{exact:true})).toBeVisible();
-  await page.getByText('Backup voice used',{exact:true}).click();
-  await expect(page.getByRole('status').filter({hasText:'usual voice was temporarily unavailable'})).toBeVisible();expect(audio).toBe(1);
+  await expect(page.getByRole('status').filter({hasText:'Backup voice used'})).toBeVisible();expect(audio).toBe(1);
 });
 
 test('large text, long titles and reduced motion preserve a reachable verified link',async({page})=>{
@@ -136,7 +134,7 @@ test('topic check-in uses the same secondary typed input without concurrent reco
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('button',{name:'Start today’s session'}).click();
   await expect(page.getByRole('region',{name:'Listening topic check-in'})).toBeVisible();
   await expect(page.getByRole('status').filter({hasText:'Listening to you'})).toBeVisible();
-  await page.getByText('Type instead',{exact:true}).click();await page.getByLabel('Your topic preference').fill('science');
+  await page.getByLabel('Your topic preference').fill('science');
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.getByRole('region',{name:'Listening topic check-in'})).toHaveCount(0);expect(typed).toBe(1);expect(spoken).toBe(0);
   expect((await probe(page)).overlaps).toBe(0);await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();

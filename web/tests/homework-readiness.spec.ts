@@ -11,7 +11,7 @@ for (const width of [320, 390, 1440]) test(`release screenshots and keyboard acc
   expect(state.spoken).toBe(0); // Restored completion never repeats an automatic invitation.
   await page.screenshot({ path: `../docs/screenshots/AUD-59-ready-offer-${width}.png`, fullPage: true });
   await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).focus(); await page.keyboard.press('Enter');
-  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeFocused();
+  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
   expect(state.decisions).toBe(1); await expect.poll(() => state.confirmations).toBe(1); // Saved before confirmation audio.
   await page.getByRole('button', { name: 'Return Home' }).click();
   await page.getByRole('button', { name: 'Plan', exact: true }).click();
@@ -49,7 +49,7 @@ test('decline persists silently; invitation audio plays only on explicit request
   await expect(page.getByRole('button', { name: 'Speak' })).toBeEnabled();
   expect(state.spoken).toBe(1); expect((await probe(page)).plays.length).toBe(1);
   await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeFocused();
+  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
   await page.reload(); await page.getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Replay homework invitation' })).toHaveCount(0); expect(state.spoken).toBe(1);
 });
@@ -98,10 +98,9 @@ test('interrupted homework recording releases microphone and never submits or sp
   const state = await setup(page, true);
   await page.getByRole('button', { name: 'Speak' }).click();
   await expect(page.getByText('Listening for your choice…')).toBeVisible();
-  await page.getByRole('button', { name: 'Stop optional listening' }).click();
-  await expect(page.locator('.homework-card').getByRole('alert')).toContainText('Your lesson is saved');
+  await page.getByRole('button', { name: 'Skip optional listening' }).click();
+  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
   expect((await probe(page)).tracks).toBe(1); expect(state.voiceRequests).toBe(0); expect(state.confirmations).toBe(0);
-  await expect(page.getByRole('button', { name: 'Speak' })).toBeEnabled();
 });
 
 test('leaving during STT prevents late speech and duplicate decision delivery', async ({ page }) => {

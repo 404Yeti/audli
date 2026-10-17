@@ -77,8 +77,10 @@ export function useVoiceLifecycle() {
         }).catch(error => { if (!settled) { cleanup(); reject(error); } });
       }));
     } finally {
-      element.pause(); element.removeAttribute('src'); URL.revokeObjectURL(url);
-      if (operation.current) setActivity(false);
+      // A cancelled old prompt must not clear a newer clip on this shared player.
+      if (element.getAttribute('src') === url) { element.pause(); element.removeAttribute('src'); }
+      URL.revokeObjectURL(url);
+      if (operation.current) { setActivity(false); setState('Idle'); }
     }
   }
   function coachingPreparation(operation: LessonOperation, exerciseId: string, cueId: string | null, checkpoint?: CoachingCheckpoint, background = false) {
@@ -124,6 +126,7 @@ export function useVoiceLifecycle() {
     });
   }
   async function lessonSpeech(operation: LessonOperation, lessonId: string, revision: number, action = 'audio') {
+    setState('Thinking');
     const body = await measureTurn('tts_readiness', async () => {
       const response = await operation.wait(() => authenticatedFetch(`/api/lessons/${encodeURIComponent(lessonId)}/${action}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }), signal: operation.signal,
@@ -270,5 +273,5 @@ export function useVoiceLifecycle() {
     element.currentTime = 0;
     if (element.paused) void current.operation.wait(() => element.play(), () => element.pause()).catch(() => { if (current.operation.current) current.failed(); });
   }
-  return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, thinking: () => setState('Thinking') };
+  return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
 }

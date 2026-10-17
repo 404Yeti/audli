@@ -95,6 +95,13 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     from app.planner_api import register_planner_routes
     register_planner_routes(app, repo, ai, lock, settings, speech)
 
+    @app.post('/api/lessons/{lesson_id}/farewell-audio')
+    async def farewell_audio(lesson_id: str):
+        lesson = owned(lesson_id)
+        if lesson.status != 'completed':
+            raise HTTPException(409, 'Finish your lesson first.')
+        return await speech('Your lesson is saved. Thanks for listening with me. See you next class.', 'lesson-farewell-v1')
+
     @app.get('/api/lessons/current')
     async def current():
         lesson = repo.lesson()

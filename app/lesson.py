@@ -127,7 +127,7 @@ def prompt(lesson: Lesson) -> str | None:
         'WELCOME_ACK': acknowledgment(lesson.welcome_response) or social_response(lesson.checkin or ''),
         'REVIEW': (accent_question if lesson.accent_confirmation else 'By the way, are there any English accents you find difficult? British, Australian, Irish, or maybe none?' if lesson.accent_discovery and not lesson.accent_discovery_resolved else (lesson.previous or '') + (f' You mentioned {LABELS[lesson.suggested_accent]}; we can keep that preference in mind, though accent-specific recordings aren’t available yet.' if lesson.suggested_accent in LABELS else '') + ' What would you enjoy listening to more of today?'),
         'REVIEW_ACK': acknowledgment(lesson.review_response) or 'I’ll use that to guide today’s listening.',
-        'TRANSITION': f'Alright, I’ve got something for you to listen to. We’ll focus on {FOCUS[lesson.focus]}.',
+        'TRANSITION': ((f'Today, we’ll listen to {safe_label(lesson.plan_topic)}. ' if lesson.plan_topic and safe_label(lesson.plan_topic) else 'I’ve got something for you to listen to. ') + f'We’ll focus on {FOCUS[lesson.focus]}.'),
         'CLOSING': lesson.closing,
     }.get(lesson.phase)
 

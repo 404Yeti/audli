@@ -21,7 +21,7 @@ export function SessionCountdown({ startedAt }: { startedAt: number }) {
   return <p className="session-countdown" aria-label="Session time remaining">{now - startedAt >= SESSION_DURATION_MS ? 'Finishing this conversation' : `${minutesRemaining(startedAt, now)} min left`}</p>;
 }
 export function TutorVoiceNotice({ used }: { used: boolean }) {
-  return used ? <div className="voice-notice" role="status"><details><summary>Backup voice used</summary><p>Audli’s usual voice was temporarily unavailable. A backup voice was needed; your progress is saved.</p></details></div> : null;
+  return used ? <p className="voice-notice" role="status">Backup voice used · your progress is saved.</p> : null;
 }
 
 export function SessionShell({ state, activity, label, topic, startedAt, onEnd, onReplay, children, completed = false, layout, backupVoice = false }: { state: MascotState; activity: boolean; label?: string; topic?: string | null; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode; completed?: boolean; layout?: ClassroomLayout; backupVoice?: boolean }) {

@@ -1,9 +1,9 @@
 import type { Page } from '@playwright/test';
 import { installVoice, promptWav } from './voice-fixture';
 
-export async function setup(page: Page, completion = false, options: { capability?: unknown; configFailure?: boolean; continuousVoice?: boolean } = {}) {
-  await installVoice(page, { autoPlayback: true, continuousVoice: options.continuousVoice });
-  const state = { enabled: true, homeworkRequests: 0, configRequests: 0, status: 'offered', pending: false, decisions: 0, checks: 0, spoken: 0, confirmations: 0, voiceRequests: 0, acceptVoice: true, failVoice: false, lostResponse: false };
+export async function setup(page: Page, completion = false, options: { capability?: unknown; configFailure?: boolean; continuousVoice?: boolean; autoPlayback?: boolean } = {}) {
+  await installVoice(page, { autoPlayback: options.autoPlayback ?? true, continuousVoice: options.continuousVoice });
+  const state = { enabled: true, homeworkRequests: 0, configRequests: 0, status: 'offered', pending: false, decisions: 0, checks: 0, spoken: 0, confirmations: 0, closings: 0, voiceRequests: 0, acceptVoice: true, failVoice: false, lostResponse: false };
   const assignment = () => ({ id: 'assignment', lesson_id: 'lesson', status: state.status, discovery_in_progress: state.pending,
     objective: 'Listen for the main idea and two supporting details.', message: 'No suitable listening assignment is available right now. Your lesson is saved.',
     content: ['assigned', 'completed'].includes(state.status) ? { provider: 'youtube', provider_id: 'abcdefghijk', canonical_url: 'https://www.youtube.com/watch?v=abcdefghijk', title: 'Science in everyday life', publisher: 'Synthetic acceptance fixture', duration_seconds: 180, validated_at: new Date().toISOString() } : null });
@@ -18,6 +18,7 @@ export async function setup(page: Page, completion = false, options: { capabilit
     }
     if (path === '/api/profile') return route.fulfill({ json: { destination: 'session_ready', profile: { name: 'Maya', goal: 'Meetings', completed_attempts: 3 }, provider: 'demo' } });
     if (path === '/api/exercises/current' || path === '/api/lessons/current') return route.fulfill({ json: null });
+    if (path === '/api/lessons/lesson/farewell-audio') { state.closings++; return route.fulfill({contentType:'audio/wav',body:promptWav()}); }
     if (path === '/api/lessons/lesson') return route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, encouragement: 'Thanks for listening, Maya.' } });
     if (path === '/api/review') return route.fulfill({ json: { summary: { completed_lessons: 0, structured_lessons: 0, earlier_practice: 0, practice_days: 0, undated_lessons: 0, timezone_used: 'UTC', timezone_fallback: false, current_practice_level: null }, insight: 'Complete a lesson to see your listening journey.', patterns_version: 'review-patterns-v1', patterns: [], lessons: [], assessed_practice: [], next_cursor: null } });
     if (path.endsWith('/topic-checkin')) return route.fulfill({ json: { offered: false, plan: null } });
@@ -47,6 +48,5 @@ export async function setup(page: Page, completion = false, options: { capabilit
 
 export async function typeReply(page: Page, text: string) {
   const field = page.getByLabel('Your reply', { exact: true });
-  if (!await field.isVisible()) await page.getByText('Type instead', { exact: true }).click();
   await field.fill(text);
 }

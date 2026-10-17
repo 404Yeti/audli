@@ -17,6 +17,8 @@ from app.storage.repository import utcnow
 
 
 def register_homework_routes(app, repo, settings, database, ai, lock):
+    from app.homework_review import register
+    register(app, repo, ai, lock, settings)
     provider = YouTubeProvider(settings.youtube_api_key.get_secret_value() if settings.youtube_api_key else '')
     engine = HomeworkEngine(provider)
     app.state.homework_engine = engine  # injectable provider for offline contract tests
@@ -143,7 +145,7 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
             raise HTTPException(409, 'There is no assigned listening homework to confirm.')
         # Only application-owned objective copy is spoken, never provider metadata.
         lesson = repo.lesson(assignment.lesson_id)
-        text = 'Your optional listening is ready in Plan. ' + objective(lesson.focus) + ' See you next class.'
+        text = 'Your optional listening is ready in Plan. ' + objective(lesson.focus)
         return await app.state.homework_speech(text, 'homework-confirmation-v2')
 
     @app.post('/api/homework/{assignment_id}/farewell-audio')

@@ -227,14 +227,74 @@ for(const reducedMotion of [false,true])test(`compact completion summary and mas
   expect(animation).toBe('none');
   await expect(page.locator('.lesson-wrapup .audli-mascot')).toHaveAttribute('data-static','true');
   await expect(page.locator('.lesson-wrapup .audli-mascot svg')).toHaveAttribute('viewBox','0 0 172.8 151.2');
-  await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);
-  if(!reducedMotion)await page.screenshot({path:'/tmp/aud22-completion-polish.png',fullPage:true,animations:'disabled'});
-  if(!reducedMotion){await page.evaluate(()=>document.documentElement.dataset.reducedMotion='true');expect(await body.evaluate(node=>getComputedStyle(node).animationName)).toBe('none');}
+  if (reducedMotion) await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);
+  else {
+    await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toHaveCSS('visibility','hidden');
+    const canvas = page.locator('.lesson-wrapup canvas');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox(), mascot = await page.locator('.lesson-wrapup .audli-mascot').boundingBox();
+    expect(box!.width).toBeCloseTo(mascot!.width, 0);
+    expect(box!.height).toBeCloseTo(mascot!.height, 0);
+    const samples=[];
+    for(let i=0;i<65;i++){
+      await page.clock.runFor(100);await page.waitForTimeout(30);
+      samples.push(await canvas.evaluate(node=>{
+        const c=node as HTMLCanvasElement,d=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;
+        let count=0,minX=c.width,minY=c.height,maxX=-1,maxY=-1,bx=0,by=0,bn=0,rx=0,ry=0,rn=0;
+        for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
+          const j=(y*c.width+x)*4,r=d[j],g=d[j+1],b=d[j+2];
+          if(d[j+3]<=100||Math.max(r,g,b)-Math.min(r,g,b)<=50)continue;
+          count++;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);
+          if(b>r*1.5&&b>g*1.3){bx+=x;by+=y;bn++;}
+          if(r>g*1.4&&r>b*1.4){rx+=x;ry+=y;rn++;}
+        }
+        return {count,bounds:[minX,minY,maxX,maxY],width:c.width,height:c.height,angle:bn&&rn?Math.atan2(ry/rn-by/bn,rx/rn-bx/bn):null};
+      }));
+    }
+    // Exclude the brief startup overlay; inspect the actual container without saving passing frames.
+    const visible=samples.slice(samples.findIndex(frame=>frame.count>0));
+    for(const frame of visible){
+      expect(frame.count).toBeGreaterThan(0);
+      expect(frame.bounds[0]).toBeGreaterThan(1);expect(frame.bounds[1]).toBeGreaterThan(1);
+      expect(frame.bounds[2]).toBeLessThan(frame.width-2);expect(frame.bounds[3]).toBeLessThan(frame.height-2);
+    }
+    const angles=visible.map(frame=>frame.angle).filter((angle):angle is number=>angle!==null);
+    let rotation=0;
+    for(let i=1;i<angles.length;i++){const delta=angles[i]-angles[i-1];rotation+=Math.atan2(Math.sin(delta),Math.cos(delta));}
+    expect(Math.abs(rotation)).toBeGreaterThan(5.2);
+    const firstIdle=samples.find(frame=>frame.count>0)!;
+    for(const frame of samples.slice(-10))for(let j=0;j<4;j++)expect(Math.abs(frame.bounds[j]-firstIdle.bounds[j])).toBeLessThan(12);
+    expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(key=>key.startsWith('audli-mascot-v1:')))).toHaveLength(1);
+  }
+
+  if(!reducedMotion){await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toBeVisible();}
   expect(await page.locator('body').innerText()).not.toMatch(/\d+%|\bXP\b/);
   await page.reload();
   await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
   await expect(page.locator('.lesson-wrapup .mascot-body')).toHaveCSS('animation-name','none');
   expect((await probe(page)).plays).toHaveLength(0);
+});
+
+for(const asset of ['audli-mascot.riv','rive.wasm'])test(`success keeps the static mascot and navigation when ${asset} fails`,async({page})=>{
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.route('**/audli/'+asset,route=>route.abort());
+  await setup(page);await runToCompletion(page);
+  await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
+  await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toBeVisible();
+  await page.clock.runFor(11000);
+  await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);
+  await page.getByRole('button',{name:'Return Home'}).click();
+  await expect(page.getByRole('button',{name:'Start today’s session'})).toBeVisible();
+});
+
+test('system reduced motion loads no mascot assets and preserves the silent completion restore',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const assets:string[]=[];page.on('request',request=>{if(/\/audli\/(audli-mascot\.riv|rive\.wasm)/.test(request.url()))assets.push(request.url());});
+  await setup(page);await runToCompletion(page);
+  await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toBeVisible();
+  expect(assets).toEqual([]);
+  await page.reload();await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  expect(assets).toEqual([]);expect((await probe(page)).plays).toHaveLength(0);
 });
 
 test('slow optional acknowledgment audio never blocks completed assessment or coaching',async({page})=>{

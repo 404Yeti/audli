@@ -1,59 +1,52 @@
-# Success mascot — Rive handoff (AUD-64)
+# Success mascot runtime (AUD-64)
 
-No authentic `.riv` asset exists in the accepted repository at PR #46 / 42f2939.
-`web/components/audli-mascot.tsx` contains the approved Figma Mascot System
-(node 7:23) geometry. `web/public/audli/success.svg` is static SVG, not Rive.
+The authentic editor export is `web/public/audli/audli-mascot.riv`, copied byte-for-byte
+from `/mnt/c/Users/Lenovo/Music/untitled.riv` (15,496 bytes).
+SHA-256: `8bd221473b92b8dfaf3f143fcdea2b303c857ce0be84a78544066d585dde494e`.
+The earlier Documents, Pictures and Videos exports failed runtime verification and are not shipped.
 
-`RiveMascot` is a reusable, dependency-free boundary with `idle` and `celebrate`
-presentation states. Both currently render the existing vectors as a static pose.
-It uses the same element, dimensions and margins. Only the finished success view
-uses it; topic check-in, homework and closing retain their existing voice cues.
-There is no asset request, canvas or runtime. Static poses cannot replay on
-rerender or restoration and respect system and Audli reduced-motion settings.
-
-## Create manually in Rive
-
-Import `web/public/audli/mascot-source.svg`, copied directly from the existing
-component's neutral geometry. The older `success.svg` is a different pose; use
-the supplied neutral source as the identity reference. Preserve its 172.8 × 151.2 proportions,
-asymmetric ear pieces, shapes, spacing, colors and white center. Do not redesign
-the mascot or add a face, limbs or accessories. Keep movement within the original
-artboard bounds to preserve layout.
-
-| Item | Exact name / behavior |
+| Contract | Name / behavior |
 | --- | --- |
-| Export | `web/public/audli/mascot.riv` — authentic editor export |
-| Artboard | `AudliMascot` |
+| Artboard | `AudliMascot`, 800 × 800 |
 | State machine | `AudliMascotMachine` |
-| Default state / animation | `idle`: gentle, subtle looping movement |
-| One-shot state / animation | `celebrate`: happy bounce and little dance, 2 seconds, no loop |
-| Trigger input | `celebrate`: transition from idle to celebrate |
-| Completion transition | Return automatically to idle at the end of celebrate |
+| ViewModel | `AudliMascotControls`, default exported instance |
+| Trigger property | `celebrate` (data binding, not a classic input) |
+| Default animation | `idle`, subtle looping motion |
+| Celebration | `celebrate`, two-second backflip, automatically returns to idle |
 
-Export a neutral first frame matching the approved geometry. Keep the file
-self-contained and silent: no audio, external assets or pointer-triggered
-celebrations. Supply the `.riv` and editor source for visual review.
+`RiveMascot` dynamically loads the official React canvas runtime 4.36.0 / canvas
+2.44.0 only when motion is permitted. The matching WASM is self-hosted as
+`/audli/rive.wasm`; no asset CDN is needed. On runtime upgrades, replace this WASM
+with the matching package file. The original SVG remains visible while loading,
+on errors and under either system or Audli reduced motion. Runtime resources and
+pending celebration callbacks are released on unmount or preference changes.
 
-## Integration after delivery
+The finished success view passes the saved lesson identity, account scope and a
+fresh-completion presentation flag. ViewModel binding precedes state-machine
+playback. This exact export includes brief Rive startup branding; the celebration
+waits for 2.5 seconds of rendered runtime time so the backflip is visible afterward.
+A session-storage key and in-memory guard are claimed before firing. Rerenders,
+remounts, restored completions and re-enabling motion cannot replay a celebration.
+Storage is optional and has no effect on lesson or database state.
 
-This PR does not install or implement an untestable runtime adapter. Use the
-[official React runtime](https://rive.app/docs/runtimes/react/react), choosing
-the renderer after inspecting the export and checking iPhone Safari. Load it
-inside `RiveMascot`; retain the static fallback for loading, failure, unsupported
-rendering and reduced motion, with the same sizing and decorative aria-hidden role.
+The existing mascot box, SVG proportions, margins and surrounding layout remain
+unchanged. `Fit.Contain` centers the square artboard within that box; the React
+runtime resizes for device pixel ratio. Statistics, homework, navigation and voice
+behavior are unchanged.
 
-Before enabling motion, pass an account-scoped lesson completion identity and a
-fresh-completion flag from the existing saved checkpoint. After runtime readiness,
-fire `celebrate` only once for that fresh completion. Use a ref guard plus browser
-presentation memory keyed by account and lesson, marking it before firing so
-Strict Mode, rerenders and remounts cannot repeat it. Restored/revisited
-completions start idle. If storage is unavailable, fail closed to idle on
-restoration. Never update lesson/database state for animation. A suppressed
-celebration must not run when motion is later re-enabled.
+## Verification
 
-Check both `prefers-reduced-motion` and Audli's setting in JavaScript; CSS cannot
-stop a canvas. Release runtime resources on unmount and fall back immediately if
-reduced motion changes during playback. Verify readiness delays, failures, Strict
-Mode, reload/revisit, a second fresh lesson, account switching, both preferences
-and real iPhone Safari before enabling the runtime. The static fallback currently
-needs no playback guard because it performs no animation.
+The existing official 2.44.0 Chromium harness at a 390 × 844 viewport and 300 × 300
+canvas passed two separately triggered celebrations. Each returned to centered
+idle at about two seconds and remained centered for over three seconds, without
+edge clipping, displacement or cumulative drift. Passing frames were not saved.
+The startup branding was excluded from mascot clipping measurements.
+
+Focused frontend checks cover one-shot ViewModel binding and presentation memory,
+separate lessons/accounts, storage failure, reduced motion, mobile container
+bounds/rotation, restored completion and failed asset/WASM loading. Real-device
+iPhone Safari acceptance remains a review step; Chromium is not Safari.
+
+The editor document and vector artwork were not modified. No manual Rive editor
+work is required for this candidate. Keep the exported names and ViewModel contract
+when producing future versions.

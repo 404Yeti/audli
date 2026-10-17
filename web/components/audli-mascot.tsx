@@ -1,5 +1,5 @@
 'use client';
-import { useId, type CSSProperties } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 
 export type MascotState = 'Idle' | 'Listening' | 'Thinking' | 'Speaking' | 'Success' | 'Retry';
 
@@ -11,10 +11,10 @@ function WavePair({ id }: { id: string }) {
 }
 
 /** Geometry from Figma Mascot System, node 7:23; state marks follow its storyboard. */
-export function AudliMascot({ state = 'Idle', activity = false, small = false, staticPose = false }: { state?: MascotState; activity?: boolean; small?: boolean; staticPose?: boolean }) {
+export function AudliMascot({ state = 'Idle', activity = false, small = false, staticPose = false, artworkHidden = false, children }: { state?: MascotState; activity?: boolean; small?: boolean; staticPose?: boolean; artworkHidden?: boolean; children?: ReactNode }) {
   const waveId = useId();
   return <div className={`audli-mascot ${small ? 'small' : ''}`} data-state={state} data-active={activity} data-static={staticPose || undefined} style={{ '--voice-activity': activity ? 1 : .35 } as CSSProperties} aria-hidden="true">
-    <svg viewBox="0 0 172.8 151.2" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg style={artworkHidden ? { visibility: 'hidden' } : undefined} viewBox="0 0 172.8 151.2" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs><path id={waveId} d="M160 82 C152 84 152 108 160 110 M166 77 C156 80 156 112 166 115" fill="none" stroke="#FACC15" strokeWidth="1.8" strokeLinecap="round"/></defs>
       <g className="mascot-pose"><g className="mascot-body">
         <ellipse cx="86.4" cy="55.44" rx="54" ry="42.48" fill="#14B8A6"/>
@@ -27,6 +27,6 @@ export function AudliMascot({ state = 'Idle', activity = false, small = false, s
       <g data-visible={state === 'Speaking'} className="mascot-cue sound-waves"><WavePair id={waveId}/></g>
       <g data-visible={state === 'Success'} className="mascot-cue success-marks" fill="#FACC15"><ellipse cx="128" cy="28" rx="3" ry="8" transform="rotate(25 128 28)"/><ellipse cx="149" cy="33" rx="3" ry="8"/></g>
       <g data-visible={state === 'Retry'} className="mascot-cue retry-mark"><text x="142" y="52" fill="#FACC15" fontSize="22" fontWeight="700">↻</text></g>
-    </svg>
+    </svg>{children}
   </div>;
 }

@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
 import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
+type MascotFrame = { count:number; white:number; bounds:number[]; width:number; height:number; angle:number|null };
+type MascotCapture = { frames:MascotFrame[]; raf:number };
 
 async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string, accentConsent=false, loseAttemptResponse=false, accentFallback=false) {
   await installVoice(page,{autoPlayback,delayBody:delayIntroduction?'/introduction-audio':delayCue?'/recognition/acknowledgment-audio':undefined});
@@ -238,31 +240,43 @@ for(const reducedMotion of [false,true])test(`compact completion summary and mas
   if (reducedMotion) await expect(page.locator('.lesson-wrapup canvas')).toHaveCount(0);
   else {
     await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toBeVisible();
-    releaseAsset();
-    await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toHaveCSS('visibility','hidden');
     const canvas = page.locator('.lesson-wrapup canvas');
-    await expect(canvas).toBeVisible();
-    const box = await canvas.boundingBox(), mascot = await page.locator('.lesson-wrapup .audli-mascot').boundingBox();
-    expect(box!.width).toBeCloseTo(mascot!.width, 0);
-    expect(box!.height).toBeCloseTo(mascot!.height, 0);
-    const samples=[];
-    for(let i=0;i<65;i++){
-      await page.clock.runFor(100);await page.waitForTimeout(30);
-      samples.push(await canvas.evaluate(node=>{
-        const c=node as HTMLCanvasElement,d=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;
-        let count=0,minX=c.width,minY=c.height,maxX=-1,maxY=-1,bx=0,by=0,bn=0,rx=0,ry=0,rn=0;
+    // Observe before releasing the export: production startup can otherwise
+    // complete part of the flip before assertion polling begins sampling.
+    await canvas.evaluate(node=>{
+      const c=node as HTMLCanvasElement;
+      const capture:MascotCapture={frames:[],raf:0};
+      (window as unknown as {mascotCapture:MascotCapture}).mascotCapture=capture;
+      const sample=()=>{
+        const d=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data;
+        let count=0,white=0,minX=c.width,minY=c.height,maxX=-1,maxY=-1,bx=0,by=0,bn=0,rx=0,ry=0,rn=0;
         for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
           const j=(y*c.width+x)*4,r=d[j],g=d[j+1],b=d[j+2];
-          if(d[j+3]<=100||Math.max(r,g,b)-Math.min(r,g,b)<=50)continue;
+          if(d[j+3]<=100)continue;
+          if(Math.min(r,g,b)>200&&Math.max(r,g,b)-Math.min(r,g,b)<20)white++;
+          if(Math.max(r,g,b)-Math.min(r,g,b)<=50)continue;
           count++;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);
           if(b>r*1.5&&b>g*1.3){bx+=x;by+=y;bn++;}
           if(r>g*1.4&&r>b*1.4){rx+=x;ry+=y;rn++;}
         }
-        return {count,bounds:[minX,minY,maxX,maxY],width:c.width,height:c.height,angle:bn&&rn?Math.atan2(ry/rn-by/bn,rx/rn-bx/bn):null};
-      }));
-    }
-    // Cadet renders the mascot immediately, without a branded startup overlay.
-    const visible=samples;
+        capture.frames.push({count,white,bounds:[minX,minY,maxX,maxY],width:c.width,height:c.height,angle:bn&&rn?Math.atan2(ry/rn-by/bn,rx/rn-bx/bn):null});
+        if(capture.frames.length<1200)capture.raf=requestAnimationFrame(sample);
+      };
+      capture.raf=requestAnimationFrame(sample);
+    });
+    releaseAsset();
+    await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toHaveCSS('visibility','hidden');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox(), mascot = await page.locator('.lesson-wrapup .audli-mascot').boundingBox();
+    expect(box!.width).toBeCloseTo(mascot!.width, 0);
+    expect(box!.height).toBeCloseTo(mascot!.height, 0);
+    for(let i=0;i<65;i++){await page.clock.runFor(100);await page.waitForTimeout(30);}
+    const samples=await page.evaluate(()=>{
+      const capture=(window as unknown as {mascotCapture:MascotCapture}).mascotCapture;
+      cancelAnimationFrame(capture.raf);return capture.frames;
+    });
+    expect(samples.some(frame=>frame.count===0&&frame.white>50)).toBe(false);
+    const visible=samples.slice(samples.findIndex(frame=>frame.count>0));
     for(const frame of visible){
       expect(frame.count).toBeGreaterThan(0);
       expect(frame.bounds[0]).toBeGreaterThan(1);expect(frame.bounds[1]).toBeGreaterThan(1);

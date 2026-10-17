@@ -1,7 +1,22 @@
 # AUD-62 — voice identity and adaptive classroom
 
 This follow-up starts from production `fef4413a7f2b618b7b88a37784ef2ca84fa999d6`.
-No production configuration, credentials, schema or learner records were changed.
+The implementation did not change production credentials, schema or learner records.
+
+## Production verification and cleanup
+
+PR #44 merged at `1c098ff95e51b50418b4142fe54ea4c2a9de9758`. The controlled
+production diagnostic returned `http_status=200 category=accepted` at
+2026-10-17T01:45:11Z. This verifies acceptance of the configured synthesis request,
+not audible identity or the cause of the historical401 responses. The subsequent
+01:51 deployment is live at the same revision; startup telemetry confirms
+ElevenLabs, the original custom Audli voice, and `eleven_flash_v2_5`.
+
+Cleanup removes the temporary module, lifespan hook, probe tests and execution
+runbook. Permanent provider routing, fallback disclosure/cache recovery, spoken
+choice handling and adaptive layouts remain unchanged. The owner confirmed the diagnostic disabled and revision variable removed on
+2026-10-17 before cleanup merge/deployment. Owner iPhone
+acceptance follows deployment and is not a cleanup release blocker.
 
 ## Investigation evidence
 
@@ -97,10 +112,10 @@ without AAC reports an explicit skip. WebKit emulation is not native iOS Safari,
 and automated accessibility semantics/keyboard checks are not a real VoiceOver
 session. [WebKit documents Safari MediaRecorder MP4/AAC support](https://webkit.org/blog/11353/mediarecorder-api/).
 
-No new live ElevenLabs, OpenAI or YouTube synthesis/discovery test was performed.
-**Production deployment remains NO-GO until the ElevenLabs401 availability issue
-is resolved/verified securely and the owner reviews the implementation.** Green
-mocked tests alone cannot establish that the intended production voice is audible.
+The original implementation used mocked providers. The later controlled
+production ElevenLabs request succeeded as recorded above; no additional live
+provider request is needed for cleanup. The historical401 cause remains unknown.
+Owner iPhone testing must establish audible identity and native device behavior.
 
 After approved deployment, owner acceptance must cover:
 

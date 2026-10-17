@@ -34,7 +34,7 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: saved.revision, ...(typed !== undefined ? { text: typed } : {}) }),
       });
       operation.assertCurrent(); setPlan(result); done();
-    } catch (cause) { if (operation.current) setError((cause as Error).message); }
+    } catch (cause) { if (operation.current) { voice.idle(); setError((cause as Error).message); } }
     finally { if (operation.current) setBusy(false); if (active.current === operation) active.current = null; operation.release(); }
   }
   const offer = useEffectEvent(async () => {

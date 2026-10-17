@@ -301,7 +301,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       operation.assertCurrent(); lesson.current = value; intent.start();
       setActive(true); setCompletion(null); setBusy(false);
       await structuredLesson(operation, value, intentionalRestart);
-    } catch (error) { if (operation.current) { setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); } }
+    } catch (error) { if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
   function end() {

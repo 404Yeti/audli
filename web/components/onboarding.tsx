@@ -178,7 +178,7 @@ export function SpokenOnboarding({ onComplete }: { onComplete: (operation: Lesso
         }
         data = await captureAnswer(operation, data);
       }
-    } catch (error) { if (operation.current) { setError((error as Error).message); setBusy(false); } }
+    } catch (error) { if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
   async function saveName() {

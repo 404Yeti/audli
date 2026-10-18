@@ -108,7 +108,9 @@ test('an interrupted check-in is deferred: not asked at the next Start, still av
 });
 
 test('the celebration waits for the new homework decision; duplicate events and time cannot start it', async ({ page }) => {
-  const { server, entries } = await begin(page, { due: false, motion: true });
+  const { server, homework, entries } = await begin(page, { due: false, motion: true });
+  // The autoplayed invitation listens for a spoken choice; a silent recording is not a decision, so hold it.
+  await page.route('**/api/homework/assignment/decision/attempts', () => { /* never answered */ });
   await toHomework(page);
   await page.locator('audio').evaluate(audio => { for (let i = 0; i < 3; i++) audio.dispatchEvent(new Event('ended')); });
   await page.evaluate(() => {
@@ -119,7 +121,7 @@ test('the celebration waits for the new homework decision; duplicate events and 
   await page.clock.install(); await page.clock.runFor(90000);
   await phaseIs(page, 'HOMEWORK');
   await expect(page.getByRole('heading', { name: 'Great job!' })).toHaveCount(0);
-  expect(await entries()).toBe(0); expect(server.farewells).toBe(0); expect(server.starts).toBe(1);
+  expect(await entries()).toBe(0); expect(server.farewells).toBe(0); expect(server.starts).toBe(1); expect(homework.decisions).toBe(0);
 });
 
 test('a failed homework decision keeps the query on screen until it is completed or explicitly skipped', async ({ page }) => {

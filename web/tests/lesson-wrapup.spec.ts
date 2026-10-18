@@ -51,6 +51,9 @@ test('three-lesson topic check-in precedes homework once; reload never speaks it
   await page.route('**/api/lessons/start', route => route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, elapsed_seconds: 600, encouragement: 'Thanks for listening.' } }));
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Start today’s session' }).click();
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
+  expect(offers).toBe(0); // Optional speech starts after the silent celebration.
+  await expect(page.locator('.lesson-wrapup')).toBeVisible({ timeout: 15000 });
   await expect.poll(() => answers).toBe(1);
   await expect.poll(() => state.confirmations).toBe(1);
   expect(offers).toBe(1); expect(state.voiceRequests).toBe(1);

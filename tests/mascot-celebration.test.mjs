@@ -69,3 +69,13 @@ test('initialization finishes before the one-shot trigger is consumed', () => {
   initialized(); initialized();
   assert.equal(calls.filter(value => value === 'trigger').length, 1);
 });
+
+test('transparent export changes only the approved background fill alpha', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { createHash } = await import('node:crypto');
+  const bytes = readFileSync(new URL('../web/public/audli/audli-mascot.riv', import.meta.url));
+  // SolidColor (18), parentId (5) = 44, colorValue (37) = #00282828.
+  assert.deepEqual([...bytes.subarray(935, 944)], [18, 5, 44, 37, 40, 40, 40, 0, 0]);
+  bytes[942] = 255;
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), '0e09c9268c894b4d95b38cfdef1c1004f3d19d8914a260318319f4340b8aa9d6');
+});

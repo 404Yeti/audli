@@ -86,6 +86,32 @@ def test_checkin_claim_is_atomic(repository_factory):
     assert sum(item is not None for item in claims) == 1
 
 
+def test_answered_topic_preferences_persist_and_same_lesson_cannot_offer_again(lesson_client, monkeypatch):
+    client = lesson_client
+    repo = client.app.state.repository
+    ready(repo)
+    for _ in range(3):
+        lesson = complete(repo)
+    offered = client.post(f'/api/lessons/{lesson.id}/topic-checkin').json()
+    assert offered['offered']
+
+    async def extract(stage, text):
+        return {'name': None, 'target_language': None, 'goal': None, 'target_situations': None, 'interests': ['travel']}
+
+    monkeypatch.setattr(client.provider, 'extract_profile', extract)
+    response = client.post('/api/plan/checkin/text', json={
+        'revision': offered['plan']['revision'], 'text': 'More travel please',
+    })
+    assert response.status_code == 200, response.text
+    feedback = repo.roadmap().feedback[-1]
+    assert feedback.response == 'More travel please'
+    assert feedback.interests == ['travel']
+    for _ in range(3):
+        assert not client.get('/api/plan').json()['checkin']['available']
+        assert not client.post(f'/api/lessons/{lesson.id}/topic-checkin').json()['offered']
+    assert repo.roadmap().feedback[-1] == feedback
+
+
 def test_topic_claim_is_owned_and_never_claims_active_or_unrelated_lessons(accounts):
     from test_auth import USER_A, USER_B
     a, b, _ = accounts

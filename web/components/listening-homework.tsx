@@ -124,12 +124,13 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
       }
 
     } catch (e) { if (operation.current) failed = !(e instanceof HomeworkRequestError && e.status === 422); if (operation.current) setError(assigned ? 'Your assignment is saved in Plan. Audli’s voice could not play; use Hear assignment to retry.' : (voice || e instanceof HomeworkRequestError && e.status === 422) && e instanceof Error && !['TimeoutError', 'AbortError'].includes(e.name) ? e.message : 'The connection was interrupted. Reload your saved assignment; your lesson is saved.'); }
-    finally { if (operation.current) { setBusy(false); (sharedVoice ?? localVoice).idle(); } if (active.current === operation) active.current = null; operation.release(); if (inline && (settled || failed)) onFinished?.(true); }
+    finally { if (operation.current) { setBusy(false); (sharedVoice ?? localVoice).idle(); } if (active.current === operation) active.current = null; operation.release(); if (operation.current && inline && (settled || failed)) onFinished?.(true); }
   }
   function cancelVoice() {
     stop(); active.current = null; awaitingConfirmation.current = false; setBusy(false);
     setError(''); if (inline) onFinished?.(true);
   }
+  useEffect(() => () => { active.current?.cancel(); }, []);
   const suspend = useEffectEvent(cancelVoice);
   useEffect(() => { if (disabled && active.current) suspend(); }, [disabled]);
   const startVoice = useEffectEvent(() => {
@@ -178,11 +179,11 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
     submittingText.current = true;
     void runChoice(false, { text: reply.trim() }).finally(() => { submittingText.current = false; });
   }
-  if (finished && !item.content) return null;
   return <article ref={card} tabIndex={-1} className={'homework-card' + (inline ? ' classroom-homework' : '')} aria-label="Optional listening assignment" aria-busy={pending}>
     {!sharedVoice && <audio ref={audio} hidden/>}
     <p className="homework-label" role="status">Optional listening · {item.status === 'completed' ? 'Completed (self-reported)' : item.status}</p>
-    {item.status === 'offered' && <>
+    {finished && item.status === 'offered' && <p>You can return to optional listening in Plan.</p>}
+    {!finished && item.status === 'offered' && <>
       <p className={pending ? 'sr-only' : 'homework-invitation'}>Would you like a short listening assignment about something you’re interested in?</p>
       <div className="classroom-reply-controls">
         {!pending && <button className="primary" disabled={disabled} onClick={() => void runChoice(true)}>Speak</button>}

@@ -1,6 +1,8 @@
 'use client';
 import { HomeworkReview } from '../components/homework-review';
 import { LessonTopicCheckin } from '../components/lesson-topic-checkin';
+import { INITIAL_PHASE, lessonPhase, after, type PhaseEvent } from '../lib/lesson-phase';
+import type { Plan } from '../lib/planner';
 import { ListeningHomework } from '../components/listening-homework';
 import { AdaptivePlan, PlanningInvitation } from '../components/adaptive-plan';
 import { ReviewHub } from '../components/review-hub';
@@ -83,19 +85,26 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const [destination, setDestination] = useState<Destination>('Home');
   const [active, setActive] = useState(false);
   const [homeworkVoice, setHomeworkVoice] = useState(false);
-  const [wrapupReady, setWrapupReady] = useState(false);
-  const presentedCompletion = useRef<string | null>(null);
-  const completedTopic = useRef<string | null>(null);
-  const [wrapupFinished, setWrapupFinished] = useState(false);
+  // One lifecycle for every screen; the ref mirrors it for async continuations that must not read stale renders.
+  const [lifecycle, setLifecycle] = useState(INITIAL_PHASE);
+  const phase = useRef(INITIAL_PHASE);
+  function send(event: PhaseEvent) {
+    const next = lessonPhase(phase.current, event);
+    if (next !== phase.current) { phase.current = next; setLifecycle(next); }
+    return next;
+  }
+  useEffect(() => { document.documentElement.dataset.lifecyclePhase = lifecycle.phase; return () => { delete document.documentElement.dataset.lifecyclePhase; }; }, [lifecycle.phase]);
+  const [topicPlan, setTopicPlan] = useState<Plan | null>(null);
+  const topicDone = useRef<(() => void) | null>(null);
+  const wrapupFinished = lifecycle.phase === 'FINISHED';
   const [closing, setClosing] = useState(false);
   const closingStarted = useRef(false);
   const [reviewLesson, setReviewLesson] = useState<string | null>(null);
   const reviewDone = useRef<(() => void) | null>(null);
   const [classroomLayout, setClassroomLayout] = useState<'focus' | 'interaction' | 'content'>('focus');
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
-  const [celebrationLesson, setCelebrationLesson] = useState<string | null>(null);
   const completionHeading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, wrapupFinished, celebrationLesson, wrapupReady]);
+  useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, lifecycle.phase]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -127,13 +136,9 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       const completedId = sessionStorage.getItem(storageKey);
       if (!checkpoint && completedId) {
         const saved = await operation.api<LessonCheckpoint>(`/lessons/${completedId}`);
-        operation.assertCurrent(); if (saved.status === 'completed') {
-          presentedCompletion.current = saved.id;
-          completedTopic.current = saved.id; // Restoring never automatically reopens optional preferences.
-          setWrapupReady(true);
-          setWrapupFinished(sessionStorage.getItem(storageKey + ':finished') === saved.id);
-          setCompletion(saved);
-        }
+        operation.assertCurrent();
+        // A restored completion resumes at wrap-up or the final card, never earlier; its celebration is not replayed.
+        if (saved.status === 'completed' && send({ type: 'restored', lessonId: saved.id, finished: sessionStorage.getItem(storageKey + ':finished') === saved.id }).lessonId === saved.id) setCompletion(saved);
       }
     } catch { operation.assertCurrent(); }
   }
@@ -235,14 +240,16 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     let value = initial;
     while (operation.current) {
       operation.assertCurrent(); lesson.current = value;
+      const before = phase.current;
+      send({ type: 'checkpoint', lessonId: value.id, phase: value.phase });
       setStartedAt(Date.now() - value.elapsed_seconds * 1000);
       setPrompt(value.prompt ?? '');
       if (value.phase === 'COMPLETED') {
         await refresh(operation); operation.assertCurrent();
         try { sessionStorage.setItem(storageKey, value.id); } catch { /* Optional completion presentation memory. */ }
-        if (presentedCompletion.current === value.id) { setWrapupReady(completedTopic.current === value.id); setCompletion(value); setActive(false); return; }
-        presentedCompletion.current = value.id; completedTopic.current = null;
-        closingStarted.current = false; setClosing(false); setWrapupFinished(false); setWrapupReady(false); setHomeworkVoice(true); setCelebrationLesson(value.id); setCompletion(value); setActive(false); return;
+        // Duplicate or delayed completion responses find the lifecycle already past FEEDBACK and change nothing.
+        if (before.lessonId !== value.id || !after(before, 'SUCCESS')) { closingStarted.current = false; setClosing(false); setHomeworkVoice(true); }
+        setCompletion(value); setActive(false); return;
       }
       if (value.phase === 'TRANSITION' && account.homeworkEnabled) {
         await operation.wait(() => new Promise<void>(resolve => { reviewDone.current = resolve; setReviewLesson(value.id); }));
@@ -295,6 +302,17 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       }
     }
   }
+  /** Optional preferences are asked here, before any lesson exists, and never again once one has begun. */
+  async function topicSetup(operation: LessonOperation) {
+    if (phase.current.phase !== 'HOME') return;
+    let plan: Plan;
+    try { plan = await operation.api<Plan>('/plan'); } catch { operation.assertCurrent(); return; } // Optional planning never gates a lesson.
+    if (!plan.checkin.available) return;
+    send({ type: 'topic_setup' }); setTopicPlan(plan);
+    await operation.wait(() => new Promise<void>(resolve => { topicDone.current = resolve; }));
+    topicDone.current = null; setTopicPlan(null); send({ type: 'topic_resolved' });
+    operation.assertCurrent();
+  }
   async function start(preflight = true) {
     if (running.current) return;
     const operation = voice.begin(); running.current = true; setError(''); setBusy(true);
@@ -304,6 +322,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (ending.current) await operation.wait(() => ending.current!);
       if (preflight) await operation.wait(() => microphonePermission(navigator.mediaDevices));
       microphoneReady = true; operation.assertCurrent();
+      if (preflight) await topicSetup(operation);
       let value = await operation.api<LessonCheckpoint>('/lessons/start', { method: 'POST' });
       const intentionalRestart = intent.ended() || value.status === 'paused';
       if (intent.ended() && value.status === 'active') value = await operation.api<LessonCheckpoint>(`/lessons/${value.id}/end`, { method: 'POST' });
@@ -314,8 +333,9 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     } catch (error) { if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
+  function leaveSetup() { topicDone.current?.(); topicDone.current = null; setTopicPlan(null); }
   function end() {
-    reviewDone.current?.(); reviewDone.current = null; setReviewLesson(null);
+    reviewDone.current?.(); reviewDone.current = null; setReviewLesson(null); leaveSetup(); send({ type: 'home' });
     voice.stop(); running.current = false; retained.current = null; personalCapture.current = null; setTopic(null);
     intent.end(); setActive(false); setBusy(false); setError(''); setPrompt(''); setDestination('Home');
     const value = lesson.current;
@@ -331,7 +351,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     cancelPendingOperations();
     document.querySelectorAll('audio').forEach(player => player.pause());
     voice.stop(); running.current = false; retained.current = null; personalCapture.current = null;
-    intent.end(); lesson.current = null; current.current = null; ending.current = null;
+    intent.end(); lesson.current = null; current.current = null; ending.current = null; leaveSetup(); send({ type: 'home' });
     setActive(false); setBusy(false); setCompletion(null); setTranscript(null); setEligibleExercise(null);
     setTopic(null); setPrompt(''); setError('');
   }
@@ -350,11 +370,6 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     }
     if (active) { await start(false); }
     else { const operation = voice.begin(); try { await refresh(operation); setError(''); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); } }
-  }
-  function finishTopic(id: string) {
-    if (presentedCompletion.current !== id || completedTopic.current === id) return;
-    completedTopic.current = id;
-    setWrapupReady(true);
   }
   async function finishWrapup(audible = homeworkVoice) {
     if (!completion || closingStarted.current) return;
@@ -377,34 +392,34 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     finally {
       if (timer) clearTimeout(timer);
       if (closingTimer.current === timer) closingTimer.current = null;
-      if (operation.current && presentedCompletion.current === completionId) { operation.cancel(); voice.idle(); setClosing(false); setWrapupFinished(true); setHomeworkVoice(false); try { sessionStorage.setItem(storageKey + ':finished', completion.id); } catch { /* Presentation memory only. */ } }
+      if (operation.current && phase.current.lessonId === completionId && send({ type: 'finished', lessonId: completionId }).phase === 'FINISHED') { operation.cancel(); voice.idle(); setClosing(false); setHomeworkVoice(false); try { sessionStorage.setItem(storageKey + ':finished', completion.id); } catch { /* Presentation memory only. */ } }
       operation.release();
     }
   }
   const closingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (closingTimer.current) clearTimeout(closingTimer.current); reviewDone.current?.(); }, []);
   const finishOptional = useEffectEvent(() => { void finishWrapup(); });
-  useEffect(() => { if (completion && wrapupReady && !account.homeworkEnabled && !wrapupFinished) finishOptional(); }, [completion, wrapupReady, account.homeworkEnabled, wrapupFinished]);
+  useEffect(() => { if (completion && lifecycle.phase === 'WRAPUP' && !account.homeworkEnabled) finishOptional(); }, [completion, lifecycle.phase, account.homeworkEnabled]);
   async function navigate(value: Destination) {
     setDestination(value); setTranscript(null); setError('');
   }
   if (!initialized && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => void retry()}/>;
-  if (active) return <><SessionShell backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} layout={reviewLesson ? 'interaction' : undefined} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
+  if (active) return <><SessionShell backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} layout={reviewLesson ? 'interaction' : lifecycle.phase === 'TOPIC_SETUP' ? classroomLayout : undefined} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
+    {lifecycle.phase === 'TOPIC_SETUP' && topicPlan && <LessonTopicCheckin initial={topicPlan} autoVoice voice={voice} onLayout={setClassroomLayout} onFinished={() => topicDone.current?.()}/>}
     {reviewLesson && <HomeworkReview key={reviewLesson} lessonId={reviewLesson} voice={voice} onFinished={() => { reviewDone.current?.(); reviewDone.current = null; }}/>}
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
-  if (completion && celebrationLesson === completion.id) return <LessonCelebration completionId={completion.id} scope={account.scope} reducedMotion={reducedMotion} onComplete={() => setCelebrationLesson(current => current === completion.id ? null : current)}/>;
+  if (completion && lifecycle.phase === 'SUCCESS' && lifecycle.lessonId === completion.id) return <LessonCelebration completionId={completion.id} scope={account.scope} reducedMotion={reducedMotion} onComplete={() => send({ type: 'celebrated', lessonId: completion.id })}/>;
   if (completion) return <><SessionShell completed label={voice.state === 'Speaking' ? 'Audli is speaking' : voice.state === 'Listening' ? 'Listening to you' : 'Your lesson is saved.'} showPresence={voice.state === 'Speaking' || voice.state === 'Listening' || voice.state === 'Thinking'} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
-    voice.stop(); if (closingTimer.current) clearTimeout(closingTimer.current); setClosing(false); setHomeworkVoice(false); setWrapupReady(false); setCompletion(null); lesson.current = null;
+    voice.stop(); if (closingTimer.current) clearTimeout(closingTimer.current); setClosing(false); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null;
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
   }}>
     <h1 className="wrapup-heading" ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
     <p className="sr-only">{completion.encouragement}</p>
     <div className="completion-summary"><p>{completion.exercises_completed} exercise{completion.exercises_completed === 1 ? '' : 's'} completed · {focusCopy[completion.focus]}</p>{completion.strength && <p>A demonstrated strength: {completion.strength}</p>}{completion.improvement_focus && <p>Next listening focus: {completion.improvement_focus}</p>}</div>
-    {!wrapupReady && !wrapupFinished && <LessonTopicCheckin key={completion.id} lessonId={completion.id} autoVoice={homeworkVoice} voice={voice} onLayout={setClassroomLayout} onFinished={() => finishTopic(completion.id)}/>}
-    {wrapupReady && <ListeningHomework inline disabled={closing} finished={wrapupFinished} lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout}/>}
-    {wrapupReady && account.homeworkEnabled && !wrapupFinished && <button className="primary" disabled={closing} onClick={() => { voice.stop(); void finishWrapup(true); }}>{closing ? 'Finishing…' : 'Finish lesson'}</button>}
+    <ListeningHomework inline disabled={closing} finished={wrapupFinished} lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout}/>
+    {account.homeworkEnabled && !wrapupFinished && <button className="primary" disabled={closing} onClick={() => { voice.stop(); void finishWrapup(true); }}>{closing ? 'Finishing…' : 'Finish lesson'}</button>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
 
   return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>

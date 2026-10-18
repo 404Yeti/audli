@@ -7,8 +7,9 @@ import type { ClassroomLayout } from './product-shell';
 import type { Plan } from '../lib/planner';
 
 type Voice = ReturnType<typeof useVoiceLifecycle>;
-export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onLayout }: { lessonId: string; autoVoice: boolean; voice: Voice; onFinished: () => void; onLayout?: (mode: ClassroomLayout) => void }) {
-  const [plan, setPlan] = useState<Plan | null>(null);
+/** Setup-only: rendered by the lifecycle's TOPIC_SETUP phase, before any lesson exists. */
+export function LessonTopicCheckin({ initial, autoVoice, voice, onFinished, onLayout }: { initial: Plan; autoVoice: boolean; voice: Voice; onFinished: () => void; onLayout?: (mode: ClassroomLayout) => void }) {
+  const [plan, setPlan] = useState<Plan>(initial);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +18,8 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
   const active = useRef<LessonOperation | null>(null);
   const submittingText = useRef(false);
   const completed = useRef(false);
+  // Cancel only this prompt's operation: the lifecycle's own setup operation outlives it.
+  function interrupt() { active.current?.cancel(); active.current = null; voice.idle(); }
   function done() { if (completed.current) return; completed.current = true; setFinished(true); onFinished(); }
   async function answer(saved: Plan, typed?: string) {
     if (completed.current || active.current) return;
@@ -39,38 +42,27 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
     } catch (cause) { if (operation.current) { voice.idle(); setError((cause as Error).message); } }
     finally { if (operation.current) setBusy(false); if (active.current === operation) active.current = null; operation.release(); }
   }
-  const offer = useEffectEvent(async () => {
-    if (!autoVoice) { done(); return; }
-    const operation = voice.begin(); active.current = operation;
-    try {
-      const result = await operation.api<{ offered: boolean; plan: Plan | null }>(`/lessons/${lessonId}/topic-checkin`, { method: 'POST' });
-      operation.assertCurrent();
-      if (!result.offered || !result.plan) { done(); return; }
-      setPlan(result.plan); operation.release(); active.current = null;
-      await answer(result.plan);
-    } catch { if (operation.current) done(); } // Optional planning never gates a saved lesson.
-    finally { if (active.current === operation) active.current = null; operation.release(); }
-  });
+  const begin = useEffectEvent(() => { if (autoVoice) void answer(initial); });
   useEffect(() => {
-    const timer = setTimeout(() => void offer(), 0);
+    const timer = setTimeout(begin, 0);
     return () => { clearTimeout(timer); active.current?.cancel(); };
-  }, [lessonId]);
+  }, []);
   function typed(event: FormEvent) {
     event.preventDefault();
-    if (!plan || !reply.trim() || submittingText.current) return;
+    if (!reply.trim() || submittingText.current) return;
     if (active.current && busy && !['Listening', 'Speaking'].includes(voice.state)) return;
-    voice.stop(); active.current = null;
+    interrupt();
     submittingText.current = true;
     void answer(plan, reply.trim()).finally(() => { submittingText.current = false; });
   }
   function keepTopics() {
-    if (!plan || completed.current || submittingText.current) return;
+    if (completed.current || submittingText.current) return;
     if (active.current && busy && !['Listening', 'Speaking'].includes(voice.state)) return;
     submittingText.current = true;
-    voice.stop(); active.current = null;
+    interrupt();
     void answer(plan, 'keep them').finally(() => { submittingText.current = false; });
   }
-  if (!plan || finished) return null;
+  if (finished) return null;
   return <section className="topic-checkin" aria-label="Listening topic check-in">
     <p className={busy ? 'sr-only' : undefined}>{plan.checkin.prompt}</p>
     <div className="classroom-reply-controls">
@@ -82,6 +74,6 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
         <input id="topic-reply" value={reply} maxLength={200} onChange={event => setReply(event.target.value)} placeholder="Keep them, or name a topic"/>
         <button className="primary" disabled={!reply.trim() || (busy && !['Listening','Speaking'].includes(voice.state))}>Send</button>
       </div></form>
-    {error && <div role="alert"><p>{error}</p><button className="text-button" onClick={() => { voice.stop(); active.current = null; done(); }}>Continue lesson wrap-up</button></div>}
+    {error && <div role="alert"><p>{error}</p><button className="text-button" onClick={() => { interrupt(); done(); }}>Continue to lesson</button></div>}
   </section>;
 }

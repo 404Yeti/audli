@@ -125,12 +125,12 @@ test('reduced motion disables shared layout transitions without disabling voice'
 
 test('topic check-in uses the same secondary typed input without concurrent recording',async({page})=>{
   const state=await setup(page,false,{continuousVoice:true});state.acceptVoice=false;
-  const plan={revision:1,checkin:{available:true,after_lesson:3,prompt:'Keep your topics or try something different?',pending:null}};
+  let due=true;const plan=()=>({revision:1,checkin:{available:due,after_lesson:3,prompt:'Keep your topics or try something different?',pending:null}});
   let typed=0, spoken=0;
-  await page.route('**/api/lessons/lesson/topic-checkin',route=>route.fulfill({json:{offered:true,plan}}));
+  await page.route('**/api/plan',route=>route.fulfill({json:plan()}));
   await page.route('**/api/plan/checkin/audio',route=>route.fulfill({contentType:'audio/wav',body:promptWav()}));
-  await page.route('**/api/plan/checkin/attempts',route=>{spoken++;return route.fulfill({json:plan});});
-  await page.route('**/api/plan/checkin/text',route=>{typed++;expect(route.request().postDataJSON().text).toBe('science');return route.fulfill({json:{...plan,checkin:{available:false}}});});
+  await page.route('**/api/plan/checkin/attempts',route=>{spoken++;return route.fulfill({json:plan()});});
+  await page.route('**/api/plan/checkin/text',route=>{typed++;due=false;expect(route.request().postDataJSON().text).toBe('science');return route.fulfill({json:plan()});});
   await page.route('**/api/lessons/start',route=>route.fulfill({json:{id:'lesson',phase:'COMPLETED',status:'completed',focus:'details',exercises_completed:1,elapsed_seconds:600,encouragement:'Thanks for listening.'}}));
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('button',{name:'Start today’s session'}).click();
   await expect(page.getByRole('region',{name:'Listening topic check-in'})).toBeVisible();

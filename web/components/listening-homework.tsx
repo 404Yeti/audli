@@ -127,7 +127,9 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
     finally { if (operation.current) { setBusy(false); (sharedVoice ?? localVoice).idle(); } if (active.current === operation) active.current = null; operation.release(); if (operation.current && inline && (settled || failed)) onFinished?.(true); }
   }
   function cancelVoice() {
-    stop(); active.current = null; awaitingConfirmation.current = false; setBusy(false);
+    // A shared lifetime also owns the lesson's own operations (finishing, setup); cancel only this card's.
+    if (sharedVoice) { active.current?.cancel(); sharedVoice.idle(); } else stop();
+    active.current = null; awaitingConfirmation.current = false; setBusy(false);
     setError(''); if (inline) onFinished?.(true);
   }
   useEffect(() => () => { active.current?.cancel(); }, []);

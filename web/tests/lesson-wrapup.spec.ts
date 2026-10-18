@@ -40,26 +40,27 @@ test('typed refusal interrupts the microphone without submitting duplicate speec
   expect((await probe(page)).tracks).toBe(1); expect((await probe(page)).overlaps).toBe(0);
 });
 
-test('three-lesson topic check-in precedes homework once; reload never speaks it', async ({ page }) => {
+test('three-lesson topic check-in is asked in setup, before the lesson; completion and reload never ask it', async ({ page }) => {
   const state = await setup(page);
-  let offers = 0, answers = 0;
-  const plan = { revision: 1, checkin: { available: true, after_lesson: 3, prompt: 'Would you like to keep your listening topics, or try something different?', pending: null } };
-  await page.route('**/api/lessons/lesson/topic-checkin', route => { offers++; return route.fulfill({ json: { offered: offers === 1, plan } }); });
+  let offers = 0, answers = 0, due = true;
+  const plan = () => ({ revision: 1, checkin: { available: due, after_lesson: 3, prompt: 'Would you like to keep your listening topics, or try something different?', pending: null } });
+  await page.route('**/api/plan', route => route.fulfill({ json: plan() }));
+  await page.route('**/api/lessons/lesson/topic-checkin', route => { offers++; return route.fulfill({ json: { offered: true, plan: plan() } }); });
   await page.route('**/api/plan/checkin/audio', route => route.fulfill({ contentType: 'audio/wav', body: promptWav() }));
-  await page.route('**/api/plan/checkin/attempts', route => route.fulfill({ json: { ...plan, revision: 2 } }));
-  await page.route('**/api/plan/checkin/answer', route => { answers++; return route.fulfill({ json: { ...plan, checkin: { available: false } } }); });
-  await page.route('**/api/lessons/start', route => route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, elapsed_seconds: 600, encouragement: 'Thanks for listening.' } }));
+  await page.route('**/api/plan/checkin/attempts', route => route.fulfill({ json: { ...plan(), revision: 2 } }));
+  await page.route('**/api/plan/checkin/answer', route => { answers++; due = false; return route.fulfill({ json: plan() }); });
+  const lessonStarts: string[] = [];
+  await page.route('**/api/lessons/start', route => { lessonStarts.push(due ? 'unresolved' : 'resolved'); return route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, elapsed_seconds: 600, encouragement: 'Thanks for listening.' } }); });
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Start today’s session' }).click();
-  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
-  expect(offers).toBe(0); // Optional speech starts after the silent celebration.
-  await expect(page.locator('.lesson-wrapup')).toBeVisible({ timeout: 15000 });
   await expect.poll(() => answers).toBe(1);
+  await expect(page.locator('.lesson-wrapup')).toBeVisible({ timeout: 15000 });
+  expect(lessonStarts).toEqual(['resolved']); // The lesson begins only after the preference is resolved.
   await expect.poll(() => state.confirmations).toBe(1);
-  expect(offers).toBe(1); expect(state.voiceRequests).toBe(1);
+  expect(offers).toBe(0); expect(state.voiceRequests).toBe(1);
   expect((await probe(page)).overlaps).toBe(0);
   await page.reload(); await expect(page.locator('.lesson-wrapup')).toBeVisible();
-  expect(offers).toBe(1); expect(answers).toBe(1); expect(state.spoken).toBe(1);
+  expect(offers).toBe(0); expect(answers).toBe(1); expect(state.spoken).toBe(1);
 });
 
 test('network failure leaves compact recovery and saved lesson available', async ({ page }) => {

@@ -9,6 +9,7 @@ async function settledMascot(page: Page) {
 
 for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audio at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:844});
+  await page.emulateMedia({reducedMotion:'reduce'});
   const state=await setup(page,true);
   expect((await probe(page)).fixtureReady).toBe(true);
   const shell=page.locator('.session-shell');
@@ -22,12 +23,14 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   await page.route('**/api/homework/assignment/decision/attempts',async route=>{attempts++;await held;await route.fallback();});
   await page.getByRole('button',{name:'Speak',exact:true}).click();
   await expect.poll(()=>attempts).toBe(1);
+  expect(await page.evaluate(()=>document.querySelector('audio')===(window as unknown as {classroomAudio:Element}).classroomAudio)).toBe(true);
   await expect(shell).toHaveAttribute('data-layout','focus');
   await expect(page.getByLabel('Your reply',{exact:true})).toBeVisible();
   await expect(page.locator('.homework-invitation')).toHaveCount(0);
   await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-focus-${width}.png`,fullPage:true});
   release();
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
   await expect(shell).toHaveAttribute('data-layout','content');
   await expect(page.getByRole('button',{name:'Hear assignment'})).toBeEnabled();
   const link=page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'});
@@ -35,7 +38,6 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-content-${width}.png`,fullPage:true});
-  expect(await page.evaluate(()=>document.querySelector('audio')===(window as unknown as {classroomAudio:Element}).classroomAudio)).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect((await probe(page)).overlaps).toBe(0);expect(state.decisions).toBe(1);expect(state.confirmations).toBe(1);
 });
@@ -125,12 +127,12 @@ test('reduced motion disables shared layout transitions without disabling voice'
 
 test('topic check-in uses the same secondary typed input without concurrent recording',async({page})=>{
   const state=await setup(page,false,{continuousVoice:true});state.acceptVoice=false;
-  const plan={revision:1,checkin:{available:true,after_lesson:3,prompt:'Keep your topics or try something different?',pending:null}};
+  let due=true;const plan=()=>({revision:1,checkin:{available:due,after_lesson:3,prompt:'Keep your topics or try something different?',pending:null}});
   let typed=0, spoken=0;
-  await page.route('**/api/lessons/lesson/topic-checkin',route=>route.fulfill({json:{offered:true,plan}}));
+  await page.route('**/api/plan',route=>route.fulfill({json:plan()}));
   await page.route('**/api/plan/checkin/audio',route=>route.fulfill({contentType:'audio/wav',body:promptWav()}));
-  await page.route('**/api/plan/checkin/attempts',route=>{spoken++;return route.fulfill({json:plan});});
-  await page.route('**/api/plan/checkin/text',route=>{typed++;expect(route.request().postDataJSON().text).toBe('science');return route.fulfill({json:{...plan,checkin:{available:false}}});});
+  await page.route('**/api/plan/checkin/attempts',route=>{spoken++;return route.fulfill({json:plan()});});
+  await page.route('**/api/plan/checkin/text',route=>{typed++;due=false;expect(route.request().postDataJSON().text).toBe('science');return route.fulfill({json:plan()});});
   await page.route('**/api/lessons/start',route=>route.fulfill({json:{id:'lesson',phase:'COMPLETED',status:'completed',focus:'details',exercises_completed:1,elapsed_seconds:600,encouragement:'Thanks for listening.'}}));
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('button',{name:'Start today’s session'}).click();
   await expect(page.getByRole('region',{name:'Listening topic check-in'})).toBeVisible();

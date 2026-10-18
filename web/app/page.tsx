@@ -84,6 +84,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const [active, setActive] = useState(false);
   const [homeworkVoice, setHomeworkVoice] = useState(false);
   const [wrapupReady, setWrapupReady] = useState(false);
+  const presentedCompletion = useRef<string | null>(null);
+  const completedTopic = useRef<string | null>(null);
   const [wrapupFinished, setWrapupFinished] = useState(false);
   const [closing, setClosing] = useState(false);
   const closingStarted = useRef(false);
@@ -126,6 +128,9 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (!checkpoint && completedId) {
         const saved = await operation.api<LessonCheckpoint>(`/lessons/${completedId}`);
         operation.assertCurrent(); if (saved.status === 'completed') {
+          presentedCompletion.current = saved.id;
+          completedTopic.current = saved.id; // Restoring never automatically reopens optional preferences.
+          setWrapupReady(true);
           setWrapupFinished(sessionStorage.getItem(storageKey + ':finished') === saved.id);
           setCompletion(saved);
         }
@@ -235,6 +240,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (value.phase === 'COMPLETED') {
         await refresh(operation); operation.assertCurrent();
         try { sessionStorage.setItem(storageKey, value.id); } catch { /* Optional completion presentation memory. */ }
+        if (presentedCompletion.current === value.id) { setWrapupReady(completedTopic.current === value.id); setCompletion(value); setActive(false); return; }
+        presentedCompletion.current = value.id; completedTopic.current = null;
         closingStarted.current = false; setClosing(false); setWrapupFinished(false); setWrapupReady(false); setHomeworkVoice(true); setCelebrationLesson(value.id); setCompletion(value); setActive(false); return;
       }
       if (value.phase === 'TRANSITION' && account.homeworkEnabled) {
@@ -302,7 +309,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (intent.ended() && value.status === 'active') value = await operation.api<LessonCheckpoint>(`/lessons/${value.id}/end`, { method: 'POST' });
       if (value.status === 'paused') value = await operation.api<LessonCheckpoint>(`/lessons/${value.id}/resume`, { method: 'POST' });
       operation.assertCurrent(); lesson.current = value; intent.start();
-      setActive(true); setCompletion(null); setBusy(false);
+      setActive(true); if (value.phase !== 'COMPLETED') setCompletion(null); setBusy(false);
       await structuredLesson(operation, value, intentionalRestart);
     } catch (error) { if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); } }
     finally { if (operation.current) running.current = false; operation.release(); }
@@ -344,10 +351,17 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     if (active) { await start(false); }
     else { const operation = voice.begin(); try { await refresh(operation); setError(''); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); } }
   }
+  function finishTopic(id: string) {
+    if (presentedCompletion.current !== id || completedTopic.current === id) return;
+    completedTopic.current = id;
+    setWrapupReady(true);
+  }
   async function finishWrapup(audible = homeworkVoice) {
     if (!completion || closingStarted.current) return;
     closingStarted.current = true; setClosing(true);
     const operation = voice.begin();
+    const completionId = completion.id;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     try {
       if (audible && account.homeworkEnabled) {
         voice.thinking();
@@ -356,13 +370,14 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
         const clip = await operation.wait(() => response.blob());
         await Promise.race([
           voice.speak(operation, URL.createObjectURL(clip)),
-          new Promise<void>((_, reject) => { closingTimer.current = setTimeout(() => reject(new Error('Closing interrupted')), 20000); }),
+          new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new Error('Closing interrupted')), 20000); closingTimer.current = timer; }),
         ]);
       }
     } catch { /* Saved completion always wins over optional closing audio. */ }
     finally {
-      if (closingTimer.current) clearTimeout(closingTimer.current);
-      if (operation.current) { operation.cancel(); voice.idle(); setClosing(false); setWrapupFinished(true); setHomeworkVoice(false); try { sessionStorage.setItem(storageKey + ':finished', completion.id); } catch { /* Presentation memory only. */ } }
+      if (timer) clearTimeout(timer);
+      if (closingTimer.current === timer) closingTimer.current = null;
+      if (operation.current && presentedCompletion.current === completionId) { operation.cancel(); voice.idle(); setClosing(false); setWrapupFinished(true); setHomeworkVoice(false); try { sessionStorage.setItem(storageKey + ':finished', completion.id); } catch { /* Presentation memory only. */ } }
       operation.release();
     }
   }
@@ -379,16 +394,17 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
-  if (completion && celebrationLesson === completion.id) return <LessonCelebration completionId={completion.id} scope={account.scope} reducedMotion={reducedMotion} onComplete={() => setCelebrationLesson(null)}/>;
-  if (completion) return <><SessionShell completed mascot={wrapupFinished ? <AudliMascot state="Success" staticPose/> : undefined} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' || (voice.state === 'Speaking' && !voice.activity) ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
+  if (completion && celebrationLesson === completion.id) return <LessonCelebration completionId={completion.id} scope={account.scope} reducedMotion={reducedMotion} onComplete={() => setCelebrationLesson(current => current === completion.id ? null : current)}/>;
+  if (completion) return <><SessionShell completed label={voice.state === 'Speaking' ? 'Audli is speaking' : voice.state === 'Listening' ? 'Listening to you' : 'Your lesson is saved.'} showPresence={voice.state === 'Speaking' || voice.state === 'Listening' || voice.state === 'Thinking'} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
     voice.stop(); if (closingTimer.current) clearTimeout(closingTimer.current); setClosing(false); setHomeworkVoice(false); setWrapupReady(false); setCompletion(null); lesson.current = null;
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
   }}>
-    <h1 className={wrapupFinished ? 'wrapup-heading' : 'wrapup-heading sr-only'} ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
+    <h1 className="wrapup-heading" ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
     <p className="sr-only">{completion.encouragement}</p>
-    {!wrapupFinished && <LessonTopicCheckin key={completion.id} lessonId={completion.id} autoVoice={homeworkVoice} voice={voice} onLayout={setClassroomLayout} onFinished={() => setWrapupReady(true)}/>}
-    {wrapupReady && <ListeningHomework inline disabled={closing} finished={wrapupFinished} onFinished={responded => void finishWrapup(homeworkVoice || responded === true)} lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout}/>}
-    {wrapupFinished && <div className="completion-summary"><p>{completion.exercises_completed} exercise{completion.exercises_completed === 1 ? '' : 's'} completed · {focusCopy[completion.focus]}</p>{completion.strength && <p>A demonstrated strength: {completion.strength}</p>}{completion.improvement_focus && <p>Next listening focus: {completion.improvement_focus}</p>}</div>}
+    <div className="completion-summary"><p>{completion.exercises_completed} exercise{completion.exercises_completed === 1 ? '' : 's'} completed · {focusCopy[completion.focus]}</p>{completion.strength && <p>A demonstrated strength: {completion.strength}</p>}{completion.improvement_focus && <p>Next listening focus: {completion.improvement_focus}</p>}</div>
+    {!wrapupReady && !wrapupFinished && <LessonTopicCheckin key={completion.id} lessonId={completion.id} autoVoice={homeworkVoice} voice={voice} onLayout={setClassroomLayout} onFinished={() => finishTopic(completion.id)}/>}
+    {wrapupReady && <ListeningHomework inline disabled={closing} finished={wrapupFinished} lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout}/>}
+    {wrapupReady && account.homeworkEnabled && !wrapupFinished && <button className="primary" disabled={closing} onClick={() => { voice.stop(); void finishWrapup(true); }}>{closing ? 'Finishing…' : 'Finish lesson'}</button>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
 
   return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>

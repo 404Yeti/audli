@@ -13,11 +13,13 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
-  useEffect(() => { onLayout?.(plan && !finished && !busy ? 'interaction' : 'focus'); }, [plan, finished, busy, onLayout]);
+  useEffect(() => { onLayout?.(plan && !finished ? 'interaction' : 'focus'); }, [plan, finished, busy, onLayout]);
   const active = useRef<LessonOperation | null>(null);
   const submittingText = useRef(false);
-  function done() { setFinished(true); onFinished(); }
+  const completed = useRef(false);
+  function done() { if (completed.current) return; completed.current = true; setFinished(true); onFinished(); }
   async function answer(saved: Plan, typed?: string) {
+    if (completed.current || active.current) return;
     const operation = voice.begin(); active.current = operation; setBusy(true); setError('');
     try {
       if (typed === undefined) {
@@ -61,14 +63,20 @@ export function LessonTopicCheckin({ lessonId, autoVoice, voice, onFinished, onL
     submittingText.current = true;
     void answer(plan, reply.trim()).finally(() => { submittingText.current = false; });
   }
+  function keepTopics() {
+    if (!plan || completed.current || submittingText.current) return;
+    if (active.current && busy && !['Listening', 'Speaking'].includes(voice.state)) return;
+    submittingText.current = true;
+    voice.stop(); active.current = null;
+    void answer(plan, 'keep them').finally(() => { submittingText.current = false; });
+  }
   if (!plan || finished) return null;
   return <section className="topic-checkin" aria-label="Listening topic check-in">
     <p className={busy ? 'sr-only' : undefined}>{plan.checkin.prompt}</p>
     <div className="classroom-reply-controls">
       {busy && voice.state === 'Speaking' && <button className="text-button compact-replay" aria-label="Replay current speech" onClick={voice.replay}>↻</button>}
       {!busy && <button className="primary" onClick={() => void answer(plan)}>Speak</button>}
-      {busy && <button className="text-button" onClick={event => { if (event.detail >= 2) return; voice.stop(); active.current = null; setBusy(false); void answer(plan, 'keep them'); }}>Keep my topics</button>}
-      {!busy && <button className="text-button" onClick={() => { voice.stop(); active.current = null; void answer(plan, 'keep them'); }}>Keep my topics</button>}
+      <button className="text-button" disabled={busy && !['Listening', 'Speaking'].includes(voice.state)} onClick={keepTopics}>Keep my topics</button>
     </div>
     <form className="onboarding-name inline-reply" onSubmit={typed}><label htmlFor="topic-reply">Your topic preference</label><div>
         <input id="topic-reply" value={reply} maxLength={200} onChange={event => setReply(event.target.value)} placeholder="Keep them, or name a topic"/>

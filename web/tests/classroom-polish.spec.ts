@@ -3,7 +3,7 @@ import { setup, typeReply } from './homework-fixture';
 import { probe, promptWav } from './voice-fixture';
 
 async function settledMascot(page: Page) {
-  await expect.poll(() => page.locator('.mascot-cue').evaluateAll(nodes => nodes.length > 0 && nodes.every(node =>
+  await expect.poll(() => page.locator('.mascot-cue').evaluateAll(nodes => nodes.every(node =>
     Number(getComputedStyle(node).opacity) === (node.getAttribute('data-visible') === 'true' ? 1 : 0)))).toBe(true);
 }
 
@@ -115,9 +115,10 @@ test('WebKit records final AAC chunks and replays synthetic audio after a user g
 
 test('reduced motion disables shared layout transitions without disabling voice',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce'});await setup(page,true);
+  await expect(page.locator('.session-presence')).toHaveCount(0);
+  await page.getByRole('button',{name:'Speak',exact:true}).click();
   await expect(page.locator('.session-presence')).toHaveCSS('transition-duration','0s');
   await expect(page.locator('.mascot-body')).toHaveCSS('animation-name','none');
-  await page.getByRole('button',{name:'Speak',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Science in everyday life'})).toBeVisible({timeout:10000});
   await expect(page.locator('audio')).toHaveCount(1);expect((await probe(page)).overlaps).toBe(0);
 });

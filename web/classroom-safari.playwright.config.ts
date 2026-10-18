@@ -1,3 +1,3 @@
 import { defineConfig, devices } from '@playwright/test';
 import base from './playwright.config';
-export default defineConfig({ ...base, testMatch:'classroom-polish.spec.ts', outputDir:'test-results/webkit', use:{...devices['iPhone 13'],baseURL:'http://127.0.0.1:3100'}, projects:[{name:'webkit-iphone',use:{browserName:'webkit'}}] });
+export default defineConfig({ ...base, testMatch:['classroom-polish.spec.ts', 'completion-regressions.spec.ts'], outputDir:'test-results/webkit', use:{...devices['iPhone 13'],baseURL:'http://127.0.0.1:3100'}, projects:[{name:'webkit-iphone',use:{browserName:'webkit'}}] });

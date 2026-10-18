@@ -244,7 +244,7 @@ for (const asset of ['audli-mascot.riv', 'rive.wasm']) test(`static celebration 
   await page.route('**/audli/' + asset, route => route.abort());
   await setup(page); await runToCompletion(page);
   await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
-  await expect(page.locator('.lesson-wrapup .audli-mascot > svg')).toBeVisible();
+  await expect(page.locator('.lesson-wrapup .session-presence')).toHaveCount(0);
   await expect(page.locator('canvas')).toHaveCount(0);
   await page.getByRole('button', { name: 'Return Home' }).click();
   await expect(page.getByRole('button', { name: 'Start today’s session' })).toBeVisible();

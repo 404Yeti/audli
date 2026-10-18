@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     supabase_publishable_key: SecretStr | None = None
     provider: Literal['openai', 'demo'] = 'openai'
     latency_telemetry: bool = False
+    # Numeric-only aggregate timings logged periodically; no per-request headers, IDs or content.
+    latency_aggregates: bool = False
+    latency_summary_seconds: float = Field(default=300, ge=30, le=3600)
     llm_model: str = 'gpt-4.1-mini'
     transcription_model: str = 'gpt-4o-mini-transcribe'
     speech_model: str = 'gpt-4o-mini-tts'

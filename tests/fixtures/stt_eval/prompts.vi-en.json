@@ -1,0 +1,336 @@
+{
+ "version": 1,
+ "l1": "vi",
+ "description": "Vietnamese-L1 English speech evaluation prompts (AUD-68 Phase 0). Categories: R read-aloud phonology, G learner-style grammar errors, S short replies, N numbers/names.",
+ "prompts": [
+  {
+   "id": "R01",
+   "category": "R",
+   "text": "The team rolled back the update and tested it again.",
+   "targets": [
+    "final_stop",
+    "cluster",
+    "past_ed"
+   ]
+  },
+  {
+   "id": "R02",
+   "category": "R",
+   "text": "She asked three friends to check the next test.",
+   "targets": [
+    "th_stop",
+    "cluster",
+    "final_s"
+   ]
+  },
+  {
+   "id": "R03",
+   "category": "R",
+   "text": "They postponed the release until Friday afternoon.",
+   "targets": [
+    "past_ed",
+    "cluster",
+    "r_l"
+   ]
+  },
+  {
+   "id": "R04",
+   "category": "R",
+   "text": "I think this is the right month for the third meeting.",
+   "targets": [
+    "th_voiceless",
+    "th_voiced",
+    "cluster"
+   ]
+  },
+  {
+   "id": "R05",
+   "category": "R",
+   "text": "Customers could not save their new appointments.",
+   "targets": [
+    "final_stop",
+    "final_s",
+    "plural"
+   ]
+  },
+  {
+   "id": "R06",
+   "category": "R",
+   "text": "The problem was fixed quickly, but we need better checks.",
+   "targets": [
+    "past_ed",
+    "cluster",
+    "final_stop"
+   ]
+  },
+  {
+   "id": "R07",
+   "category": "R",
+   "text": "Please leave the ship at the harbor before six o'clock.",
+   "targets": [
+    "vowel_length",
+    "sh_s",
+    "final_stop"
+   ]
+  },
+  {
+   "id": "R08",
+   "category": "R",
+   "text": "He wants to live near the village where his sister works.",
+   "targets": [
+    "vowel_length",
+    "r_l",
+    "final_s"
+   ]
+  },
+  {
+   "id": "R09",
+   "category": "R",
+   "text": "We usually collect the results after the lesson ends.",
+   "targets": [
+    "final_s",
+    "cluster",
+    "stress"
+   ]
+  },
+  {
+   "id": "R10",
+   "category": "R",
+   "text": "Maya decided to wait because the schedule had changed.",
+   "targets": [
+    "past_ed",
+    "sh_s",
+    "final_stop"
+   ]
+  },
+  {
+   "id": "R11",
+   "category": "R",
+   "text": "Do you want to take the bus or walk to the station?",
+   "targets": [
+    "final_stop",
+    "cluster",
+    "question_intonation"
+   ]
+  },
+  {
+   "id": "R12",
+   "category": "R",
+   "text": "The strength of the plan depends on three simple steps.",
+   "targets": [
+    "cluster",
+    "th_voiceless",
+    "final_s"
+   ]
+  },
+  {
+   "id": "G01",
+   "category": "G",
+   "text": "The team make a mistake and customer cannot save appointment, so they go back to old version.",
+   "targets": [
+    "grammar",
+    "plural_drop"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G02",
+   "category": "G",
+   "text": "Maya say she will wait until Friday because she want more test.",
+   "targets": [
+    "grammar",
+    "agreement"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G03",
+   "category": "G",
+   "text": "Yesterday the app have problem. They fix it and test again next time.",
+   "targets": [
+    "grammar",
+    "tense"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G04",
+   "category": "G",
+   "text": "I understand the update is not working and they return the old one.",
+   "targets": [
+    "grammar",
+    "article_drop"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G05",
+   "category": "G",
+   "text": "She is worry about the same problem will happen again.",
+   "targets": [
+    "grammar"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G06",
+   "category": "G",
+   "text": "They will to check the database before they release.",
+   "targets": [
+    "grammar"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G07",
+   "category": "G",
+   "text": "The speaker is saying the migration delete one field, so the app is broken.",
+   "targets": [
+    "grammar",
+    "final_stop"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "G08",
+   "category": "G",
+   "text": "Maybe the manager want the better check because customers is angry.",
+   "targets": [
+    "grammar",
+    "agreement"
+   ],
+   "note": "Poor grammar, correct meaning: transcription must not \"correct\" it away."
+  },
+  {
+   "id": "S01",
+   "category": "S",
+   "text": "I am fine.",
+   "targets": [
+    "short"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S02",
+   "category": "S",
+   "text": "Good, thanks.",
+   "targets": [
+    "short"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S03",
+   "category": "S",
+   "text": "Yes please.",
+   "targets": [
+    "short"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S04",
+   "category": "S",
+   "text": "No thanks.",
+   "targets": [
+    "short"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S05",
+   "category": "S",
+   "text": "Keep them.",
+   "targets": [
+    "short"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S06",
+   "category": "S",
+   "text": "Travel and music.",
+   "targets": [
+    "short",
+    "topic"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S07",
+   "category": "S",
+   "text": "Football.",
+   "targets": [
+    "short",
+    "topic"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S08",
+   "category": "S",
+   "text": "I am a little tired today.",
+   "targets": [
+    "short",
+    "checkin"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S09",
+   "category": "S",
+   "text": "Not very good.",
+   "targets": [
+    "short",
+    "checkin"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "S10",
+   "category": "S",
+   "text": "Maybe later.",
+   "targets": [
+    "short"
+   ],
+   "note": "Reply length near the 3-word uncertainty rule."
+  },
+  {
+   "id": "N01",
+   "category": "N",
+   "text": "The meeting moved from Monday at nine fifteen to Thursday at four thirty.",
+   "targets": [
+    "numbers",
+    "final_stop"
+   ]
+  },
+  {
+   "id": "N02",
+   "category": "N",
+   "text": "It costs fifty dollars a month, and the next payment is on the thirteenth.",
+   "targets": [
+    "numbers",
+    "th_voiceless"
+   ]
+  },
+  {
+   "id": "N03",
+   "category": "N",
+   "text": "Lan will arrive on flight seven one eight at half past seven.",
+   "targets": [
+    "numbers",
+    "names"
+   ]
+  },
+  {
+   "id": "N04",
+   "category": "N",
+   "text": "The warehouse in Da Nang ships about two hundred boxes every week.",
+   "targets": [
+    "numbers",
+    "names",
+    "final_s"
+   ]
+  }
+ ]
+}

@@ -13,6 +13,9 @@ from app.adaptive import adapt
 from app.audio import validate_upload, sanitize_generated_audio
 from app.config import Settings
 from app.diagnostics import operation, report_failure, timed_lock, request_timings
+from app.telemetry import aggregator, summary_loop
+from app.telemetry_api import register_telemetry_routes
+from time import perf_counter
 from app.evaluation import score_judgments
 from app.models import ExerciseContent, StrictModel, Transcription, AccentPreferences, AccentPreferenceUpdate
 from app.repository import create_repository, SQLProgressRepository
@@ -49,11 +52,16 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @asynccontextmanager
     async def lifespan(app):
+        summary = None
         try:
             from app.services.tutor_tts import emit_configuration
             emit_configuration(settings)
+            summary = asyncio.create_task(summary_loop(settings.latency_summary_seconds)) if settings.latency_aggregates else None
             yield
         finally:
+            if summary:
+                summary.cancel()
+                await asyncio.gather(summary, return_exceptions=True)
             passage_limits.close()
             database.close()
             if identity is not None:
@@ -91,6 +99,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def privacy_headers(request: Request, call_next):
         timings = [] if settings.latency_telemetry or settings.environment == 'development' else None
         token = request_timings.set(timings)
+        started = perf_counter()
         try:
             with operation(settings, 'request_total'):
                 response = await call_next(request)
@@ -99,6 +108,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             response = JSONResponse(status_code=503, content={'detail': 'Audli could not finish that step. Check server configuration and try again; your progress is safe.'})
         finally:
             request_timings.reset(token)
+            if settings.latency_aggregates:
+                # Route template only (e.g. /api/lessons/{lesson_id}/heard), never the concrete path.
+                route = getattr(request.scope.get('route'), 'path', None)
+                aggregator.record(f'http.{request.method} {route}' if route else 'http.unmatched', (perf_counter() - started) * 1000)
         if timings:
             response.headers['Server-Timing'] = ', '.join(
                 f'{name.replace(".", "_")};dur={duration:.1f}' for name, duration in timings)
@@ -350,6 +363,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     from app.tutor_voice_api import register_tutor_voice_routes
     register_tutor_voice_routes(app, repo, lock, settings)
+    register_telemetry_routes(app, settings)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
     register_review_routes(app, repo)

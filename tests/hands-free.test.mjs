@@ -112,3 +112,18 @@ test('turn detection preserves a 1.5-second mid-answer pause before continuation
   for(let now=2550;now<4300;now+=50)assert.equal(detect(now,0).end,false);
   assert.equal(detect(4300,0).end,true);
 });
+
+test('opt-in turn reporter batches bounded integers and flushes at the end of a meaningful turn', async () => {
+  const { createTurnReporter } = await import('../web/lib/turn-timing.ts');
+  const sent = [];
+  const reporter = createTurnReporter(stages => sent.push(stages));
+  reporter.add('assessment', 1234.6);
+  reporter.add('silence_detection', -5);
+  reporter.add('tts_readiness', Number.NaN);          // dropped, never reported
+  assert.equal(sent.length, 0);
+  reporter.add('turn_to_playback', 9e9);              // ends the turn, clamped
+  assert.deepEqual(sent, [{ assessment: 1235, silence_detection: 0, turn_to_playback: 300000 }]);
+  reporter.flush(); assert.equal(sent.length, 1);     // nothing pending
+  const failing = createTurnReporter(() => { throw new Error('network'); });
+  assert.doesNotThrow(() => failing.add('retry_playback', 10)); // telemetry cannot break a lesson
+});

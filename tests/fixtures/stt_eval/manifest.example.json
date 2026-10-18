@@ -1,0 +1,31 @@
+{
+ "version": 1,
+ "description": "Example manifest. Real manifests live OUTSIDE the repository and reference audio outside it. Never commit audio.",
+ "provenance_allowed": [
+  "consented",
+  "synthetic"
+ ],
+ "samples": [
+  {
+   "id": "s001-R01",
+   "prompt_id": "R01",
+   "audio": "audio/s001-R01.wav",
+   "speaker": "spk-001",
+   "provenance": "consented",
+   "consent_record": "CONSENT-2026-001",
+   "l1": "vi",
+   "self_reported_level": "B1",
+   "device": "iphone-safari",
+   "notes": ""
+  },
+  {
+   "id": "syn01-R01",
+   "prompt_id": "R01",
+   "audio": "audio/syn01-R01.mp3",
+   "speaker": "syn-vi-voice-01",
+   "provenance": "synthetic",
+   "synthetic_source": "<tts provider and voice id>",
+   "l1": "vi"
+  }
+ ]
+}

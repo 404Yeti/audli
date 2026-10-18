@@ -49,7 +49,7 @@ Failed assets retain the static fallback, then advance; a 15-second presentation
 watchdog covers failed imports or missing events, independently of saved progress.
 Timers and listeners are cleaned up on unmount.
 
-The presentation box is square, `min(94vw, 500px)`. Its canvas extends 14% beyond
+The presentation box is square, `min(98vw, 50svh, 520px)`. Its canvas extends 10% beyond
 the box on each side to compensate for exported artboard whitespace, with all
 animated artwork remaining inside the visible box. `Fit.Contain` and device-pixel
 ratio sizing remain owned by the official runtime. Results use the existing static

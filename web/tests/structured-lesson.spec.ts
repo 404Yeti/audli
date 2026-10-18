@@ -299,6 +299,7 @@ for (const width of [320, 390, 430]) test(`large transparent one-shot celebratio
   await expect(page.locator('.audli-mascot > svg')).toHaveCSS('visibility', 'hidden');
   const box = (await canvas.boundingBox())!;
   expect(box.width).toBeGreaterThan(width * .9);
+  expect(box.height).toBeCloseTo(box.width, 0);
   expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);
   await page.screenshot({ path: `../docs/screenshots/AUD-65-celebration-${width}.png` });
   for (let i = 0; i < 35 && await canvas.count(); i++) { await page.clock.runFor(100); await page.waitForTimeout(35); }
@@ -307,7 +308,7 @@ for (const width of [320, 390, 430]) test(`large transparent one-shot celebratio
   expect(samples.length).toBeGreaterThan(10);
   for (const frame of samples) {
     // The scaled artboard is clipped to its presentation box; all artwork must stay inside it.
-    const inset = frame.width * (14 / 128);
+    const inset = frame.width * (10 / 120);
     expect(frame.bounds[0]).toBeGreaterThan(inset); expect(frame.bounds[1]).toBeGreaterThan(inset);
     expect(frame.bounds[2]).toBeLessThan(frame.width - inset); expect(frame.bounds[3]).toBeLessThan(frame.height - inset);
   }
@@ -572,6 +573,7 @@ test('returning review remembers accents with one question and honestly acknowle
 for (const skip of ['system preference', 'continue button', 'app preference']) test(`celebration can bypass animation with ${skip}`, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await setup(page);
+  if (skip === 'continue button') await page.setViewportSize({ width: 320, height: 568 });
   if (skip === 'app preference') {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Reduce motion', exact: true }).check();
@@ -591,7 +593,10 @@ for (const skip of ['system preference', 'continue button', 'app preference']) t
   }
   await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   if (skip === 'system preference') await page.emulateMedia({ reducedMotion: 'reduce' });
-  else await page.getByRole('button', { name: 'Continue to results' }).click();
+  else {
+    await expect(page.getByRole('button', { name: 'Continue to results' })).toBeInViewport();
+    await page.getByRole('button', { name: 'Continue to results' }).click();
+  }
   // No clock advancement: skipping is immediate, even if initialization hangs.
   await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeFocused();
   await expect(page.locator('canvas')).toHaveCount(0);

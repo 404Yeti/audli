@@ -7,12 +7,12 @@ const events = [
   { type: 'topic_setup' }, { type: 'topic_resolved' }, { type: 'home' },
   ...['A', 'B'].flatMap(lessonId => [
     ...SERVER.map(phase => ({ type: 'checkpoint', lessonId, phase })),
-    { type: 'restored', lessonId, finished: false }, { type: 'restored', lessonId, finished: true },
-    { type: 'celebrated', lessonId }, { type: 'finished', lessonId },
+    { type: 'restored', lessonId, homeworkResolved: false }, { type: 'restored', lessonId, homeworkResolved: true },
+    { type: 'homework_resolved', lessonId }, { type: 'celebrated', lessonId },
   ]),
 ];
 const run = (list, from = INITIAL_PHASE) => list.reduce(lessonPhase, from);
-const ORDER = ['HOME', 'TOPIC_SETUP', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'LESSON', 'FEEDBACK', 'SUCCESS', 'WRAPUP', 'FINISHED'];
+const ORDER = ['HOME', 'TOPIC_SETUP', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'LESSON', 'FEEDBACK', 'HOMEWORK', 'SUCCESS', 'STATS'];
 
 /** Every event sequence up to a bounded length, with the states each one reaches. */
 function* walk(depth, state = INITIAL_PHASE, path = []) {
@@ -26,8 +26,8 @@ test('the intended lifecycle is reachable in order', () => {
   let state = INITIAL_PHASE;
   for (const event of [{ type: 'topic_setup' }, { type: 'topic_resolved' },
     ...['WELCOME', 'WELCOME_ACK', 'TRANSITION', 'EXERCISE', 'CLOSING', 'COMPLETED'].map(phase => ({ type: 'checkpoint', lessonId: 'A', phase })),
-    { type: 'celebrated', lessonId: 'A' }, { type: 'finished', lessonId: 'A' }, { type: 'home' }]) { state = lessonPhase(state, event); states.push(state.phase); }
-  assert.deepEqual([...new Set(states)], ['TOPIC_SETUP', 'HOME', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'LESSON', 'FEEDBACK', 'SUCCESS', 'WRAPUP', 'FINISHED']);
+    { type: 'homework_resolved', lessonId: 'A' }, { type: 'celebrated', lessonId: 'A' }, { type: 'home' }]) { state = lessonPhase(state, event); states.push(state.phase); }
+  assert.deepEqual([...new Set(states)], ['TOPIC_SETUP', 'HOME', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'LESSON', 'FEEDBACK', 'HOMEWORK', 'SUCCESS', 'STATS']);
 });
 
 test('preferences are allowed only in TOPIC_SETUP, which is reachable only from HOME', () => {
@@ -62,22 +62,33 @@ test('transitions are idempotent: a duplicate or delayed event returns the same 
 });
 
 test('stale checkpoints and completions from an earlier lesson cannot disturb a later one', () => {
-  const wrapup = run([{ type: 'checkpoint', lessonId: 'B', phase: 'COMPLETED' }, { type: 'celebrated', lessonId: 'B' }]);
-  assert.deepEqual(wrapup, { phase: 'WRAPUP', lessonId: 'B' });
+  const wrapup = run([{ type: 'checkpoint', lessonId: 'B', phase: 'COMPLETED' }, { type: 'homework_resolved', lessonId: 'B' }, { type: 'celebrated', lessonId: 'B' }]);
+  assert.deepEqual(wrapup, { phase: 'STATS', lessonId: 'B' });
   for (const phase of SERVER) assert.equal(lessonPhase(wrapup, { type: 'checkpoint', lessonId: 'A', phase }), wrapup);
   assert.equal(lessonPhase(wrapup, { type: 'celebrated', lessonId: 'B' }), wrapup);
+  assert.equal(lessonPhase(wrapup, { type: 'homework_resolved', lessonId: 'B' }), wrapup);
   assert.equal(lessonPhase(wrapup, { type: 'checkpoint', lessonId: 'B', phase: 'COMPLETED' }), wrapup);
 });
 
-test('restoration resumes wrap-up or the final card and never replays the celebration', () => {
-  assert.deepEqual(run([{ type: 'restored', lessonId: 'A', finished: false }]), { phase: 'WRAPUP', lessonId: 'A' });
-  assert.deepEqual(run([{ type: 'restored', lessonId: 'A', finished: true }]), { phase: 'FINISHED', lessonId: 'A' });
-  const celebrating = run([{ type: 'checkpoint', lessonId: 'A', phase: 'COMPLETED' }]);
-  assert.equal(lessonPhase(celebrating, { type: 'restored', lessonId: 'A', finished: false }), celebrating);
+test('the celebration cannot start until the new homework decision is resolved', () => {
+  const homework = run([{ type: 'checkpoint', lessonId: 'A', phase: 'COMPLETED' }]);
+  assert.equal(homework.phase, 'HOMEWORK');
+  assert.equal(lessonPhase(homework, { type: 'celebrated', lessonId: 'A' }), homework);
+  assert.equal(lessonPhase(homework, { type: 'homework_resolved', lessonId: 'B' }), homework);
+  assert.equal(lessonPhase(homework, { type: 'homework_resolved', lessonId: 'A' }).phase, 'SUCCESS');
+  for (const { state, path } of walk(4)) if (state.phase === 'SUCCESS' || state.phase === 'STATS')
+    assert.ok(path.some(event => event.type === 'homework_resolved' || event.type === 'restored'), JSON.stringify(path));
+});
+
+test('restoration resumes the homework query or the final card and never replays the celebration', () => {
+  assert.deepEqual(run([{ type: 'restored', lessonId: 'A', homeworkResolved: false }]), { phase: 'HOMEWORK', lessonId: 'A' });
+  assert.deepEqual(run([{ type: 'restored', lessonId: 'A', homeworkResolved: true }]), { phase: 'STATS', lessonId: 'A' });
+  const celebrating = run([{ type: 'checkpoint', lessonId: 'A', phase: 'COMPLETED' }, { type: 'homework_resolved', lessonId: 'A' }]);
+  assert.equal(lessonPhase(celebrating, { type: 'restored', lessonId: 'A', homeworkResolved: false }), celebrating);
 });
 
 test('only an explicit home event leaves the final card', () => {
-  const finished = run([{ type: 'restored', lessonId: 'A', finished: true }]);
+  const finished = run([{ type: 'restored', lessonId: 'A', homeworkResolved: true }]);
   for (const event of events.filter(e => e.type !== 'home')) assert.equal(lessonPhase(finished, event).phase === 'HOME', false);
   assert.deepEqual(lessonPhase(finished, { type: 'home' }), INITIAL_PHASE);
 });

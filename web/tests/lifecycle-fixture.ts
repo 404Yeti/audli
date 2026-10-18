@@ -10,6 +10,8 @@ export type Options = {
   from?: 'WELCOME' | 'CLOSING';
   /** A planner topic check-in is due (every third completed lesson). */
   due?: boolean;
+  /** Homework switched off for the account (nothing to decide). */
+  homework?: boolean;
 };
 
 export function newServer(options: Options) {
@@ -38,7 +40,7 @@ export function plan(server: Server) {
 
 export async function lifecycle(page: Page, options: Options = {}) {
   const server = newServer(options);
-  const state = await setup(page, false, { autoPlayback: true });
+  const state = await setup(page, false, { autoPlayback: true, ...(options.homework === false ? { capability: false } : {}) });
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, json: body });
   const audio = (route: Route) => route.fulfill({ contentType: 'audio/wav', body: promptWav() });
   await page.route('**/api/lessons/**', async route => {
@@ -47,7 +49,7 @@ export async function lifecycle(page: Page, options: Options = {}) {
     if (path === 'current') return json(route, lesson);
     if (path === 'start') {
       if (!lesson) {
-        server.starts++; server.lesson = base(server.starts === 1 ? 'lesson' : 'lesson-' + server.starts, options.from ?? 'WELCOME', 0);
+        server.starts++; server.lesson = base('lesson', options.from ?? 'WELCOME', 0);
       }
       return json(route, server.lesson);
     }

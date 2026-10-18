@@ -4,43 +4,49 @@ import { endAudio, probe, promptWav } from './voice-fixture';
 
 for (const width of [320,390]) test(`inline reply and explicit completion stay quiet at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:844});
+  await page.emulateMedia({reducedMotion:'reduce'});
   const state=await setup(page,true,{autoPlayback:false});
   await expect(page.getByLabel('Your reply',{exact:true})).toBeVisible();
   await expect(page.locator('.typed-alternative, .wrapup-summary')).toHaveCount(0);
   await page.screenshot({path:`../docs/screenshots/AUD-63-inline-reply-${width}.png`,fullPage:true});
   await typeReply(page,'yes please');await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect.poll(()=>state.confirmations).toBe(1);
-  expect(state.closings).toBe(0);await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
-  await endAudio(page);
-  await expect(page.getByRole('button',{name:'Hear assignment'})).toBeEnabled();
+  // The celebration waits for the confirmation to finish playing.
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','HOMEWORK');
   expect(state.closings).toBe(0);
-  await page.getByRole('button',{name:'Finish lesson',exact:true}).click();
-  await expect.poll(()=>state.closings).toBe(1);
-  await expect(page.getByRole('button',{name:'Hear assignment'})).toBeDisabled();
+  await endAudio(page);
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','STATS');
   await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
-  await endAudio(page);await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await expect(page.getByRole('button',{name:'Hear assignment'})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Finish lesson'})).toHaveCount(0);
   await expect(page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'})).toBeVisible();
   expect(state.decisions).toBe(1);expect((await probe(page)).overlaps).toBe(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.reload();await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
-  expect(state.closings).toBe(1);expect(state.confirmations).toBe(1);
+  expect(state.closings).toBe(0);expect(state.confirmations).toBe(1);
 });
 
-for(const outcome of ['decline','discovery failure','audio failure','skip recording'] as const)test(`wrap-up waits for explicit Finish after ${outcome}`,async({page})=>{
+for(const outcome of ['decline','discovery failure','confirmation audio failure','skip recording'] as const)test(`the celebration waits for the homework decision: ${outcome}`,async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
   const state=await setup(page,true,{continuousVoice:true});
-  if(outcome==='audio failure')await page.route('**/api/lessons/lesson/farewell-audio',route=>route.fulfill({status:503}));
+  if(outcome==='confirmation audio failure')await page.route('**/api/homework/assignment/confirmation-audio',route=>route.fulfill({status:503}));
   if(outcome==='discovery failure')await page.route('**/api/homework/assignment/decision/text',route=>route.abort('internetdisconnected'));
   if(outcome==='skip recording'){
     await page.getByRole('button',{name:'Speak',exact:true}).click();
     await expect(page.getByText('Listening for your choice…')).toBeVisible();
     await page.getByRole('button',{name:'Skip optional listening'}).click();
   }else{
-    await typeReply(page,'no thanks');await page.getByRole('button',{name:'Send',exact:true}).click();
+    await typeReply(page,outcome==='confirmation audio failure'?'yes please':'no thanks');await page.getByRole('button',{name:'Send',exact:true}).click();
   }
+  if(outcome==='discovery failure'||outcome==='skip recording'){
+    // No decision exists: the query stays until the learner decides or explicitly skips.
+    await page.waitForTimeout(1500);
+    await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','HOMEWORK');
+    await expect(page.getByRole('heading',{name:'Great job!'})).toHaveCount(0);
+    await page.getByRole('button',{name:'Skip homework'}).click();
+  }
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','STATS');
   await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
-  expect(state.closings).toBe(0);
-  await page.getByRole('button',{name:'Finish lesson',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Finish lesson',exact:true})).toHaveCount(0);
   expect((await probe(page)).overlaps).toBe(0);expect(state.decisions).toBeLessThanOrEqual(1);
   await expect(page.getByRole('button',{name:'Return Home'})).toBeEnabled();
 });

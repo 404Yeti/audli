@@ -4,6 +4,7 @@ import { probe, promptWav } from './voice-fixture';
 
 for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topic choice at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 950 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const state = await setup(page, true);
   await expect(page.locator('.lesson-wrapup')).toBeVisible();
   await expect(page.getByLabel('Your reply', { exact: true })).toBeVisible();
@@ -13,6 +14,7 @@ for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topi
   await page.screenshot({ path: `../docs/screenshots/AUD-61-wrapup-offer-${width}.png`, fullPage: true });
   await typeReply(page, 'yes about science');
   await page.getByRole('button', { name: 'Send', exact: true }).focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   await expect.poll(() => state.confirmations).toBe(1);
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
@@ -73,12 +75,13 @@ test('network failure leaves compact recovery and saved lesson available', async
 });
 
 test('repeated typed submission joins one saved decision without duplicate requests', async ({ page }) => {
-  await setup(page, true);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const state = await setup(page, true);
   let decisions = 0;
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   await page.route('**/api/homework/assignment/decision/text', async route => {
-    decisions++; await held;
+    decisions++; await held; state.status = 'skipped'; // The server persists the decision.
     await route.fulfill({ json: { id: 'assignment', lesson_id: 'lesson', status: 'skipped', objective: 'Listen.' } });
   });
   await typeReply(page, 'no thanks');

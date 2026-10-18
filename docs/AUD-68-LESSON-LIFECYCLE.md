@@ -61,7 +61,7 @@ that position and uses similar wording.
 ```
 BEFORE (booleans + refs, preferences inside the completion view)
 
- Start ─► SMALL_TALK ─► HOMEWORK_PREFLIGHT ─► LESSON ─► CLOSING ─► COMPLETED
+ Start ─► SMALL_TALK ─► HOMEWORK_PREVIEW ─► LESSON ─► CLOSING ─► COMPLETED
                                                                    │
                                       celebrationLesson (state) ◄──┤
                                                                    ▼
@@ -70,15 +70,19 @@ BEFORE (booleans + refs, preferences inside the completion view)
                                         │           reset by remount, restore, second COMPLETED)
                                         └── wrapupReady ─► homework + stats ─► Finish ─► Return Home
 
-AFTER (one forward-only model; preferences exist only before a lesson)
+AFTER (one forward-only model; the exact requested order)
 
  HOME ─► TOPIC_SETUP? ─► HOME ─► SMALL_TALK ─► HOMEWORK_PREFLIGHT ─► LESSON ─► FEEDBACK
-                                                                                  │
-          server checkpoint (authoritative while a lesson is open)  ──────────────┘
-                                                                                  ▼
-                 browser-only presentation phases:  SUCCESS ─► WRAPUP ─► FINISHED ─► HOME
-                                                   (Rive)     (homework  (explicit    (explicit
-                                                               + stats)   Finish)      Return Home)
+  ▲        (every 3rd lesson,        (server checkpoints WELCOME…REVIEW_ACK / TRANSITION / EXERCISE / CLOSING)
+  │         once per milestone)                                                      │
+  │                                                                                  ▼ COMPLETED
+  │                           browser-only presentation phases (restored from sessionStorage)
+  │                                                                                  │
+  │      HOMEWORK ──(decision persisted, or explicit skip)──► SUCCESS ──► STATS ──(Return Home)──┐
+  │      new-homework query    accepted / declined /           Rive         final card:          │
+  │      alone on screen       unavailable / homework off      backflip     stats + feedback     │
+  │                                                            once         + homework status    │
+  └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Rules, all enforced by the pure reducer and tested exhaustively (every event sequence up to length 4):
@@ -86,45 +90,73 @@ Rules, all enforced by the pure reducer and tested exhaustively (every event seq
 * Phases only move forward within one lesson; duplicate/delayed/stale events return the *same state
   object* (idempotent, no re-render).
 * `TOPIC_SETUP` is reachable only from `HOME` with no lesson. From any later phase the event is a no-op.
-* After `FEEDBACK` a lesson never reaches `TOPIC_SETUP`; only an explicit `home` event leaves `FINISHED`.
-* A checkpoint for a different lesson is accepted only from `HOME`/setup; otherwise it is stale.
-* A restored completed lesson resumes at `WRAPUP` or `FINISHED` and never replays the celebration.
+* `SUCCESS` (the celebration) is reachable only through `homework_resolved`; `STATS` only through
+  `celebrated` or a restore. Neither time nor audio events can skip ahead.
+* Only an explicit `home` event leaves `STATS`. A checkpoint for a different lesson is accepted only
+  from `HOME`/setup; otherwise it is stale.
+* A restored completed lesson resumes at `HOMEWORK` (decision not recorded) or `STATS`, and never
+  replays the celebration or the farewell.
 * The screen is stamped `data-lifecycle-phase` on `<html>` so tests (and support) can read the phase.
 
-Persisted vs client-only: lesson phases up to `COMPLETED` are server checkpoints; `SUCCESS/WRAPUP/FINISHED`
-are presentation (restored from `sessionStorage` exactly as before). No migration, no contract change.
+### What resolves the new-homework query
+
+`ListeningHomework` reports `onResolved` only for a definitive outcome; transient errors never advance:
+
+| Outcome | Resolves? |
+|---|---|
+| Voice/typed decision saved as assigned (after the confirmation audio finishes), skipped, or unavailable | yes |
+| Discovery still running, then finishing (polling) | yes, when it finishes |
+| Assignment already decided (restore, or earlier decision) | yes |
+| Homework off for the account, or no assignment for the lesson | yes (nothing to decide) |
+| Network/timeout error, uncertain speech, "Skip optional listening" mid-recording | **no**: card stays with its recovery controls |
+| Explicit **Skip homework** (saves a skip) | yes |
+| Assignment failed to load | no; explicit **Continue without homework** button |
+
+Persisted vs client-only: lesson phases up to `COMPLETED` and the homework decision are server state;
+`HOMEWORK/SUCCESS/STATS` position is presentation (a `sessionStorage` hint, as before). No migration,
+no contract change.
+
+### Topic check-in cadence and deferral
+
+Asked in `TOPIC_SETUP` when `GET /plan` reports it available (the planner's existing every-third-lesson
+milestone, only while no lesson is open). Answering, or "Keep my topics", completes it on the server
+(existing endpoints). It is offered **once per milestone per browser**: the milestone number is recorded
+in `localStorage` (plus memory) the moment it is shown, so an interrupted or dismissed check-in is
+deferred, not repeated at every Start. It stays available in Plan ("Share feedback") and the next
+milestone asks again. No backend or schema change.
 
 ## Behaviour changes to be aware of
 
-* The three-lesson check-in moves from "after the lesson" to "when you press Start, before the lesson".
-  The server contract is unchanged; the client now uses `GET /plan` + the existing answer/skip
-  endpoints, which the server already only accepts while *no* lesson is open.
-* Because the claim is no longer used, an unanswered check-in is offered again at the next Start
-  until answered or *Keep my topics*. This is the "unanswered preference restored after interruption"
-  category. If nagging is a concern, cap it with a counter on the server in a follow-up.
-* Order of the success page vs homework is **unchanged** from PR #49 (celebration → wrap-up with
-  homework and stats), which differs from the numbered flow in the request (homework → success →
-  stats). Moving homework ahead of the celebration is a larger UX change; I left it for owner decision.
+* The three-lesson check-in moves from after the lesson to the Start of a lesson, before the greeting.
+* The new-homework query now comes **before** the celebration (as requested). The old "Finish lesson"
+  button is gone: the final stats card is reached by the celebration, and **Return Home** is the only
+  exit. The spoken farewell now plays once when the final card appears (not on restore) and never
+  gates it.
+* The final card also shows the homework status (assigned link, declined, or unavailable).
 * `POST /lessons/{id}/topic-checkin` and `Roadmap.offered_checkins` remain for older clients/rollback.
+* The audio element is re-created when the screen changes from the homework query to the celebration
+  (the celebration has no player); playback of the confirmation always finishes first.
 
 ## Tests
 
 * `tests/lesson-phase.test.mjs` — reducer invariants (exhaustive over sequences), in `npm test`.
-* `web/tests/lifecycle.spec.ts` — 12 browser tests against a stateful mock of the lesson/planner
-  contracts: full lifecycle order; not-due; repeated submission; duplicate completion / late audio /
-  `visibilitychange` / `pageshow(persisted)`; delayed farewell; remount + restoration + final-stats
-  persistence; interrupted-in-setup restore; homework accepted/declined/unavailable; history
-  traversal; explicit Return Home and a clean next lesson. Added to the iPhone WebKit CI configs.
-* Updated `completion-regressions`, `lesson-wrapup`, `classroom-polish` specs that encoded the old placement.
+* `web/tests/lifecycle.spec.ts` — browser tests against a stateful mock of the lesson/planner contracts:
+  full requested order; not-due; Keep my topics; repeated submission; deferral after interruption;
+  celebration waits for the homework decision (duplicate events, `visibilitychange`, `pageshow`, 90 s);
+  failed decision stays until completed/skipped; farewell never gates the final card; remount and
+  restore (homework query, then final card, silent); homework off; accepted/declined/unavailable;
+  history entries; Return Home and a clean next lesson. Also in the iPhone WebKit CI configs.
+* Updated `completion-regressions`, `lesson-wrapup`, `lesson-lifecycle-fixes`, `homework-readiness`,
+  `classroom-polish` for the new order (Finish lesson removed; decision precedes celebration).
 * Mock tests establish plumbing and ordering, not provider behaviour.
+* `classroom-polish` timing flakes (5 s polls) appeared only with parallel local workers; CI runs one worker.
 
 ## Still needs a physical iPhone
 
-1. Safari: complete a lesson on the third completion; confirm the topic question is spoken/typed
-   **before** the greeting, never after feedback, and the success page then the final card follow.
-2. Background the app (lock, app switch) during setup check-in, small talk, closing and wrap-up;
-   return; confirm no screen repeats and nothing is skipped.
-3. Press *Finish lesson* while the homework prompt is listening (the stall fixed here).
-4. Audio-unlock: the setup check-in speaks after the Start tap and the microphone permission prompt;
-   confirm it is audible on first run.
-5. Capture the screen if anything topic-like appears after feedback: it would be the homework offer.
+1. Safari, third completion: topic question before the greeting, once; if you leave mid-question it is
+   not asked again at the next Start (Plan still offers it).
+2. After class feedback: the new-homework question alone on screen; answer by voice and by typing; the
+   Rive backflip starts only afterwards, once, then the stats card with homework status.
+3. Background the app (lock, app switch) during each phase; return; nothing repeats, skips or navigates.
+4. The stats card stays until Return Home; the farewell speaks once and is audible after the celebration.
+5. Audio-unlock: the setup check-in speaks after the Start tap and microphone prompt.

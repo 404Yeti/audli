@@ -119,7 +119,8 @@ test('leaving during STT prevents late speech and duplicate decision delivery', 
   expect(state.confirmations).toBe(0); expect((await probe(page)).overlaps).toBe(0);
 });
 
-test('fresh completion sequences one invitation, spoken choice and confirmation; refresh is silent', async ({ page }) => {
+test('fresh completion sequences one invitation, spoken choice and confirmation, then the farewell; refresh is silent', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const state = await setup(page);
   await page.route('**/api/lessons/start', route => route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, elapsed_seconds: 600, encouragement: 'Thanks for listening, Maya.' } }));
   await page.getByRole('button', { name: 'Home', exact: true }).click();
@@ -127,15 +128,15 @@ test('fresh completion sequences one invitation, spoken choice and confirmation;
   await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
   await expect.poll(() => state.spoken).toBe(1);
   await expect.poll(() => state.confirmations).toBe(1);
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
   expect(state.voiceRequests).toBe(1); expect(state.decisions).toBe(1);
-  const audio = await probe(page); expect(audio.plays.length).toBe(2); expect(audio.overlaps).toBe(0);
-  expect(state.closings).toBe(0);
-  await page.getByRole('button', { name: 'Finish lesson', exact: true }).click();
+  // The farewell follows the celebration on the final card; it never gates it.
   await expect.poll(() => state.closings).toBe(1);
   await expect.poll(async () => (await probe(page)).plays.length).toBe(3);
+  expect((await probe(page)).overlaps).toBe(0);
   await page.reload(); await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
-  expect(state.spoken).toBe(1); expect(state.confirmations).toBe(1);
+  expect(state.spoken).toBe(1); expect(state.confirmations).toBe(1); expect(state.closings).toBe(1);
 });
 
 

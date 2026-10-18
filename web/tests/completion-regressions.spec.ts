@@ -53,19 +53,18 @@ test('the retired completion-time preference offer is never requested, even if t
   expect(state.closings).toBe(0);
 });
 
-test('repeated audio endings and elapsed timers cannot dismiss assigned homework', async ({ page }) => {
+test('repeated audio endings and elapsed timers cannot dismiss the final card with assigned homework', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const state = await setup(page, true);
   await typeReply(page, 'yes please');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   await expect.poll(() => state.confirmations).toBe(1);
   await page.locator('audio').evaluate(audio => { for (let i = 0; i < 3; i++) audio.dispatchEvent(new Event('ended')); });
   await page.clock.install();
-  await page.clock.runFor(60000);
+  await page.clock.runFor(10 * 60 * 1000);
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return Home' })).toBeEnabled();
   expect(state.decisions).toBe(1); expect(state.closings).toBe(0);
-  await page.getByRole('button', { name: 'Finish lesson', exact: true }).dblclick();
-  await page.clock.runFor(25000);
-  await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
-  expect(state.closings).toBe(1);
 });

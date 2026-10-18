@@ -96,9 +96,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   useEffect(() => { document.documentElement.dataset.lifecyclePhase = lifecycle.phase; return () => { delete document.documentElement.dataset.lifecyclePhase; }; }, [lifecycle.phase]);
   const [topicPlan, setTopicPlan] = useState<Plan | null>(null);
   const topicDone = useRef<(() => void) | null>(null);
-  const wrapupFinished = lifecycle.phase === 'FINISHED';
-  const [closing, setClosing] = useState(false);
-  const closingStarted = useRef(false);
+  const farewellDue = useRef(false);
+  const offeredTopic = useRef<string | null>(null);
   const [reviewLesson, setReviewLesson] = useState<string | null>(null);
   const reviewDone = useRef<(() => void) | null>(null);
   const [classroomLayout, setClassroomLayout] = useState<'focus' | 'interaction' | 'content'>('focus');
@@ -137,8 +136,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (!checkpoint && completedId) {
         const saved = await operation.api<LessonCheckpoint>(`/lessons/${completedId}`);
         operation.assertCurrent();
-        // A restored completion resumes at wrap-up or the final card, never earlier; its celebration is not replayed.
-        if (saved.status === 'completed' && send({ type: 'restored', lessonId: saved.id, finished: sessionStorage.getItem(storageKey + ':finished') === saved.id }).lessonId === saved.id) setCompletion(saved);
+        // A restored completion resumes at the homework query or the final card, never earlier; its celebration is not replayed.
+        if (saved.status === 'completed' && send({ type: 'restored', lessonId: saved.id, homeworkResolved: sessionStorage.getItem(storageKey + ':homework') === saved.id }).lessonId === saved.id) setCompletion(saved);
       }
     } catch { operation.assertCurrent(); }
   }
@@ -248,7 +247,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
         await refresh(operation); operation.assertCurrent();
         try { sessionStorage.setItem(storageKey, value.id); } catch { /* Optional completion presentation memory. */ }
         // Duplicate or delayed completion responses find the lifecycle already past FEEDBACK and change nothing.
-        if (before.lessonId !== value.id || !after(before, 'SUCCESS')) { closingStarted.current = false; setClosing(false); setHomeworkVoice(true); }
+        if (before.lessonId !== value.id || !after(before, 'HOMEWORK')) { setHomeworkVoice(true); farewellDue.current = true; }
         setCompletion(value); setActive(false); return;
       }
       if (value.phase === 'TRANSITION' && account.homeworkEnabled) {
@@ -308,6 +307,14 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     let plan: Plan;
     try { plan = await operation.api<Plan>('/plan'); } catch { operation.assertCurrent(); return; } // Optional planning never gates a lesson.
     if (!plan.checkin.available) return;
+    // Offered once per three-lesson milestone. Answering or "Keep my topics" resolves it on the server;
+    // an interrupted or dismissed one is deferred (still available in Plan), never re-asked at every Start.
+    const milestone = String(plan.checkin.after_lesson), deferredKey = 'audli-topic-offered:' + account.scope;
+    let deferred = offeredTopic.current === milestone;
+    try { deferred ||= localStorage.getItem(deferredKey) === milestone; } catch { /* In-memory record still applies. */ }
+    if (deferred) return;
+    offeredTopic.current = milestone;
+    try { localStorage.setItem(deferredKey, milestone); } catch { /* Optional browser memory. */ }
     send({ type: 'topic_setup' }); setTopicPlan(plan);
     await operation.wait(() => new Promise<void>(resolve => { topicDone.current = resolve; }));
     topicDone.current = null; setTopicPlan(null); send({ type: 'topic_resolved' });
@@ -371,35 +378,30 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     if (active) { await start(false); }
     else { const operation = voice.begin(); try { await refresh(operation); setError(''); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); } }
   }
-  async function finishWrapup(audible = homeworkVoice) {
-    if (!completion || closingStarted.current) return;
-    closingStarted.current = true; setClosing(true);
-    const operation = voice.begin();
-    const completionId = completion.id;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    try {
-      if (audible && account.homeworkEnabled) {
-        voice.thinking();
-        const response = await operation.wait(() => fetchClosing(operation, completion.id));
-        if (!response.ok) throw new Error('Closing audio unavailable');
-        const clip = await operation.wait(() => response.blob());
-        await Promise.race([
-          voice.speak(operation, URL.createObjectURL(clip)),
-          new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new Error('Closing interrupted')), 20000); closingTimer.current = timer; }),
-        ]);
-      }
-    } catch { /* Saved completion always wins over optional closing audio. */ }
-    finally {
-      if (timer) clearTimeout(timer);
-      if (closingTimer.current === timer) closingTimer.current = null;
-      if (operation.current && phase.current.lessonId === completionId && send({ type: 'finished', lessonId: completionId }).phase === 'FINISHED') { operation.cancel(); voice.idle(); setClosing(false); setHomeworkVoice(false); try { sessionStorage.setItem(storageKey + ':finished', completion.id); } catch { /* Presentation memory only. */ } }
-      operation.release();
-    }
+  /** Resolved = the new homework decision is persisted or explicitly skipped. Only then may the celebration start. */
+  function homeworkResolved(id: string) {
+    try { sessionStorage.setItem(storageKey + ':homework', id); } catch { /* Presentation memory only. */ }
+    send({ type: 'homework_resolved', lessonId: id });
   }
-  const closingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (closingTimer.current) clearTimeout(closingTimer.current); reviewDone.current?.(); }, []);
-  const finishOptional = useEffectEvent(() => { void finishWrapup(); });
-  useEffect(() => { if (completion && lifecycle.phase === 'WRAPUP' && !account.homeworkEnabled) finishOptional(); }, [completion, lifecycle.phase, account.homeworkEnabled]);
+  /** Optional spoken farewell on the final card; never gates it, and never replays on restore. */
+  async function farewell(id: string) {
+    const operation = voice.begin();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      voice.thinking();
+      const response = await operation.wait(() => fetchClosing(operation, id));
+      if (!response.ok) throw new Error('Closing audio unavailable');
+      const clip = await operation.wait(() => response.blob());
+      await Promise.race([
+        voice.speak(operation, URL.createObjectURL(clip)),
+        new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new Error('Closing interrupted')), 20000); }),
+      ]);
+    } catch { /* The saved lesson and final card always win over optional audio. */ }
+    finally { clearTimeout(timer); if (operation.current) { operation.cancel(); voice.idle(); } operation.release(); }
+  }
+  const startFarewell = useEffectEvent((id: string) => { void farewell(id); });
+  useEffect(() => { if (completion && lifecycle.phase === 'STATS' && farewellDue.current && account.homeworkEnabled) { farewellDue.current = false; startFarewell(completion.id); } }, [completion, lifecycle.phase, account.homeworkEnabled]);
+  useEffect(() => () => { reviewDone.current?.(); }, []);
   async function navigate(value: Destination) {
     setDestination(value); setTranscript(null); setError('');
   }
@@ -412,14 +414,17 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
   if (completion && lifecycle.phase === 'SUCCESS' && lifecycle.lessonId === completion.id) return <LessonCelebration completionId={completion.id} scope={account.scope} reducedMotion={reducedMotion} onComplete={() => send({ type: 'celebrated', lessonId: completion.id })}/>;
   if (completion) return <><SessionShell completed label={voice.state === 'Speaking' ? 'Audli is speaking' : voice.state === 'Listening' ? 'Listening to you' : 'Your lesson is saved.'} showPresence={voice.state === 'Speaking' || voice.state === 'Listening' || voice.state === 'Thinking'} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
-    voice.stop(); if (closingTimer.current) clearTimeout(closingTimer.current); setClosing(false); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null;
+    voice.stop(); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null;
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
   }}>
     <h1 className="wrapup-heading" ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
     <p className="sr-only">{completion.encouragement}</p>
-    <div className="completion-summary"><p>{completion.exercises_completed} exercise{completion.exercises_completed === 1 ? '' : 's'} completed · {focusCopy[completion.focus]}</p>{completion.strength && <p>A demonstrated strength: {completion.strength}</p>}{completion.improvement_focus && <p>Next listening focus: {completion.improvement_focus}</p>}</div>
-    <ListeningHomework inline disabled={closing} finished={wrapupFinished} lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout}/>
-    {account.homeworkEnabled && !wrapupFinished && <button className="primary" disabled={closing} onClick={() => { voice.stop(); void finishWrapup(true); }}>{closing ? 'Finishing…' : 'Finish lesson'}</button>}
+    {lifecycle.phase === 'HOMEWORK'
+      ? <ListeningHomework inline lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout} onResolved={() => homeworkResolved(completion.id)}/>
+      : <>
+      <div className="completion-summary"><p>{completion.exercises_completed} exercise{completion.exercises_completed === 1 ? '' : 's'} completed · {focusCopy[completion.focus]}</p>{completion.strength && <p>A demonstrated strength: {completion.strength}</p>}{completion.improvement_focus && <p>Next listening focus: {completion.improvement_focus}</p>}</div>
+      <ListeningHomework inline finished lessonId={completion.id} sharedVoice={voice} onLayout={setClassroomLayout}/>
+      </>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
 
   return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>

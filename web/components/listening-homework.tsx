@@ -22,7 +22,7 @@ async function request<T>(path: string, body?: object, signal?: AbortSignal): Pr
 }
 
 type SharedVoice = ReturnType<typeof useVoiceLifecycle>;
-function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVoice, inline = false, onLayout, onFinished, finished = false }: { initial: HomeworkAssignment; disabled?: boolean; autoVoice?: boolean; sharedVoice?: SharedVoice; inline?: boolean; onLayout?: (mode: ClassroomLayout) => void; onFinished?: (responded?: boolean) => void; finished?: boolean }) {
+function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVoice, inline = false, onLayout, onFinished, onResolved, finished = false }: { initial: HomeworkAssignment; disabled?: boolean; autoVoice?: boolean; sharedVoice?: SharedVoice; inline?: boolean; onLayout?: (mode: ClassroomLayout) => void; onFinished?: (responded?: boolean) => void; onResolved?: () => void; finished?: boolean }) {
   const localVoice = useVoiceLifecycle();
   const { audio, begin, speak, listen, stop, thinking, state: voiceState } = sharedVoice ?? localVoice;
   const active = useRef<LessonOperation | null>(null);
@@ -45,11 +45,11 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
   const confirmRecovered = useEffectEvent(() => {
     if (!awaitingConfirmation.current || confirmationPlayed.current || active.current || disabled) return;
     awaitingConfirmation.current = false; confirmationPlayed.current = true;
-    void hearCue('confirmation').finally(() => onFinished?.());
+    void hearCue('confirmation').finally(() => { onFinished?.(); onResolved?.(); });
   });
   const polled = useEffectEvent((saved: HomeworkAssignment) => {
-    if (saved.status === 'assigned') { setCheckedUrl(freshHomeworkUrl(saved)); if (awaitingConfirmation.current) confirmRecovered(); else onFinished?.(); }
-    if (['unavailable','skipped'].includes(saved.status)) onFinished?.();
+    if (saved.status === 'assigned') { setCheckedUrl(freshHomeworkUrl(saved)); if (awaitingConfirmation.current) confirmRecovered(); else { onFinished?.(); onResolved?.(); } }
+    if (['unavailable','skipped'].includes(saved.status)) { onFinished?.(); onResolved?.(); }
   });
   const pollFailed = useEffectEvent(() => { (sharedVoice ?? localVoice).idle(); if (inline) onFinished?.(true); });
   useEffect(() => {
@@ -124,7 +124,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
       }
 
     } catch (e) { if (operation.current) failed = !(e instanceof HomeworkRequestError && e.status === 422); if (operation.current) setError(assigned ? 'Your assignment is saved in Plan. Audli’s voice could not play; use Hear assignment to retry.' : (voice || e instanceof HomeworkRequestError && e.status === 422) && e instanceof Error && !['TimeoutError', 'AbortError'].includes(e.name) ? e.message : 'The connection was interrupted. Reload your saved assignment; your lesson is saved.'); }
-    finally { if (operation.current) { setBusy(false); (sharedVoice ?? localVoice).idle(); } if (active.current === operation) active.current = null; operation.release(); if (operation.current && inline && (settled || failed)) onFinished?.(true); }
+    finally { if (operation.current) { setBusy(false); (sharedVoice ?? localVoice).idle(); } if (active.current === operation) active.current = null; operation.release(); if (settled) onResolved?.(); if (operation.current && inline && (settled || failed)) onFinished?.(true); }
   }
   function cancelVoice() {
     // A shared lifetime also owns the lesson's own operations (finishing, setup); cancel only this card's.
@@ -137,7 +137,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
   useEffect(() => { if (disabled && active.current) suspend(); }, [disabled]);
   const startVoice = useEffectEvent(() => {
     if (autoStarted.current || disabled || finished) return;
-    if (initial.status !== 'offered' && !initial.discovery_in_progress) { autoStarted.current = true; onFinished?.(false); return; }
+    if (initial.status !== 'offered' && !initial.discovery_in_progress) { autoStarted.current = true; onFinished?.(false); onResolved?.(); return; }
     if (!autoVoice) return;
     autoStarted.current = true;
     void runChoice(true, undefined, true);
@@ -223,17 +223,20 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
   </article>;
 }
 
-type HomeworkProps = { lessonId?: string; disabled?: boolean; autoVoice?: boolean; sharedVoice?: SharedVoice; inline?: boolean; onLayout?: (mode: ClassroomLayout) => void; onFinished?: (responded?: boolean) => void; finished?: boolean };
+type HomeworkProps = { lessonId?: string; disabled?: boolean; autoVoice?: boolean; sharedVoice?: SharedVoice; inline?: boolean; onLayout?: (mode: ClassroomLayout) => void; onFinished?: (responded?: boolean) => void; onResolved?: () => void; finished?: boolean };
 
 export function ListeningHomework(props: HomeworkProps) {
   const account = useAccount();
+  const { onResolved } = props;
+  // Homework switched off for this account: there is nothing to decide.
+  useEffect(() => { if (!account.homeworkEnabled) onResolved?.(); }, [account.homeworkEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
   // Do not mount effects/audio/state until the existing bootstrap explicitly opts in.
   // Account keys and unmounting also discard saved homework and late continuations.
   if (!account.homeworkEnabled) return null;
   return <EnabledListeningHomework key={account.scope} {...props}/>;
 }
 
-function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = false, sharedVoice, inline = false, onLayout, onFinished, finished }: HomeworkProps) {
+function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = false, sharedVoice, inline = false, onLayout, onFinished, onResolved, finished }: HomeworkProps) {
   const [items, setItems] = useState<HomeworkAssignment[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -243,9 +246,9 @@ function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = fals
     try {
       const view = await request<HomeworkView>('/homework', undefined, signal);
       if (signal.aborted) return;
-      if (!view.enabled) { if (inline) onFinished?.(); return; }
+      if (!view.enabled) { if (inline) onFinished?.(); onResolved?.(); return; }
       const assignments = lessonId ? [await request<HomeworkAssignment>(`/lessons/${lessonId}/homework`, {}, signal)] : view.assignments;
-      if (!signal.aborted) { setItems(assignments); setEnabled(true); }
+      if (!signal.aborted) { setItems(assignments); setEnabled(true); if (assignments.length === 0) onResolved?.(); }
     } catch { if (!signal.aborted) { setLoadError(true); if (inline) onFinished?.(); } }
   }
   const initialLoad = useEffectEvent(load);
@@ -256,10 +259,10 @@ function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = fals
     void initialLoad(pending.signal);
     return () => pending.abort();
   }, [lessonId]);
-  if (loadError) return <div className="session-error" role="alert">Your lesson is saved. Optional listening could not load.<button className="text-button" onClick={() => { if (controller.current) void load(controller.current.signal); }}>Retry optional listening</button></div>;
+  if (loadError) return <div className="session-error" role="alert">Your lesson is saved. Optional listening could not load.<button className="text-button" onClick={() => { if (controller.current) void load(controller.current.signal); }}>Retry optional listening</button>{onResolved && <button className="text-button" onClick={onResolved}>Continue without homework</button>}</div>;
   if (!enabled || items.length === 0) return null;
   return <section className="listening-homework" aria-labelledby={lessonId ? 'completion-homework' : 'plan-homework'}>
     <h2 className={inline ? 'sr-only' : undefined} id={lessonId ? 'completion-homework' : 'plan-homework'}>Optional listening</h2>
-    {items.map(item => <AssignmentCard key={item.id} initial={item} disabled={disabled} autoVoice={autoVoice} sharedVoice={sharedVoice} inline={inline} onLayout={onLayout} onFinished={onFinished} finished={finished}/>)}
+    {items.map(item => <AssignmentCard key={item.id} initial={item} disabled={disabled} autoVoice={autoVoice} sharedVoice={sharedVoice} inline={inline} onLayout={onLayout} onFinished={onFinished} onResolved={onResolved} finished={finished}/>)}
   </section>;
 }

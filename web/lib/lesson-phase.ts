@@ -1,23 +1,24 @@
 /** The one lesson lifecycle the learner sees. Pure; React owns media, never ordering.
  *
  *  HOME → TOPIC_SETUP? → SMALL_TALK → HOMEWORK_PREFLIGHT → LESSON → FEEDBACK
- *       → SUCCESS → WRAPUP → FINISHED → HOME
+ *       → HOMEWORK → SUCCESS → STATS → HOME
  *
  *  Server checkpoints are authoritative while a lesson is open. After the lesson completes the
- *  server has nothing left to say, so SUCCESS/WRAPUP/FINISHED are browser presentation phases.
+ *  server has nothing left to say, so HOMEWORK/SUCCESS/STATS are browser presentation phases.
+ *  HOMEWORK is the new-homework query; SUCCESS (the celebration) cannot start until it is resolved.
  *  Phases only move forward within one lesson. Topic preferences exist solely in TOPIC_SETUP,
  *  which is reachable only from HOME, before any lesson exists. */
 export type ServerPhase = 'WELCOME' | 'WELCOME_ACK' | 'REVIEW' | 'REVIEW_ACK' | 'TRANSITION' | 'EXERCISE' | 'CLOSING' | 'COMPLETED';
-export type LessonPhase = 'HOME' | 'TOPIC_SETUP' | 'SMALL_TALK' | 'HOMEWORK_PREFLIGHT' | 'LESSON' | 'FEEDBACK' | 'SUCCESS' | 'WRAPUP' | 'FINISHED';
+export type LessonPhase = 'HOME' | 'TOPIC_SETUP' | 'SMALL_TALK' | 'HOMEWORK_PREFLIGHT' | 'LESSON' | 'FEEDBACK' | 'HOMEWORK' | 'SUCCESS' | 'STATS';
 export type PhaseState = { phase: LessonPhase; lessonId: string | null };
 
 export const INITIAL_PHASE: PhaseState = { phase: 'HOME', lessonId: null };
 
-const order: LessonPhase[] = ['HOME', 'TOPIC_SETUP', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'LESSON', 'FEEDBACK', 'SUCCESS', 'WRAPUP', 'FINISHED'];
+const order: LessonPhase[] = ['HOME', 'TOPIC_SETUP', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'LESSON', 'FEEDBACK', 'HOMEWORK', 'SUCCESS', 'STATS'];
 const rank = (phase: LessonPhase) => order.indexOf(phase);
 const fromServer: Record<ServerPhase, LessonPhase> = {
   WELCOME: 'SMALL_TALK', WELCOME_ACK: 'SMALL_TALK', REVIEW: 'SMALL_TALK', REVIEW_ACK: 'SMALL_TALK',
-  TRANSITION: 'HOMEWORK_PREFLIGHT', EXERCISE: 'LESSON', CLOSING: 'FEEDBACK', COMPLETED: 'SUCCESS',
+  TRANSITION: 'HOMEWORK_PREFLIGHT', EXERCISE: 'LESSON', CLOSING: 'FEEDBACK', COMPLETED: 'HOMEWORK',
 };
 
 export type PhaseEvent =
@@ -25,9 +26,10 @@ export type PhaseEvent =
   | { type: 'topic_resolved' }
   | { type: 'checkpoint'; lessonId: string; phase: ServerPhase }
   /** Saved completed lesson restored in a new page lifetime; its celebration is never replayed. */
-  | { type: 'restored'; lessonId: string; finished: boolean }
+  | { type: 'restored'; lessonId: string; homeworkResolved: boolean }
+  /** The new-homework decision is persisted (accepted, declined, unavailable) or explicitly skipped. */
+  | { type: 'homework_resolved'; lessonId: string }
   | { type: 'celebrated'; lessonId: string }
-  | { type: 'finished'; lessonId: string }
   | { type: 'home' };
 
 /** Phases from which a lesson's instructional content is over. Preferences can never return here. */
@@ -41,15 +43,15 @@ export function lessonPhase(state: PhaseState, event: PhaseEvent): PhaseState {
     case 'topic_setup': return state.phase === 'HOME' ? move('TOPIC_SETUP', null) : state;
     case 'topic_resolved': return state.phase === 'TOPIC_SETUP' ? move('HOME', null) : state;
     case 'home': return move('HOME', null);
-    case 'restored': return state.phase === 'HOME' ? move(event.finished ? 'FINISHED' : 'WRAPUP', event.lessonId) : state;
+    case 'restored': return state.phase === 'HOME' ? move(event.homeworkResolved ? 'STATS' : 'HOMEWORK', event.lessonId) : state;
     case 'checkpoint': {
       const next = fromServer[event.phase];
       // A different lesson may begin only from HOME or setup; otherwise the event is stale.
       if (state.lessonId !== event.lessonId) return rank(state.phase) <= rank('TOPIC_SETUP') ? move(next, event.lessonId) : state;
-      // Duplicate or delayed checkpoints cannot move a lesson backwards. WRAPUP+ is presentation-only.
+      // Duplicate or delayed checkpoints cannot move a lesson backwards. HOMEWORK+ is presentation-only.
       return rank(next) > rank(state.phase) ? move(next) : state;
     }
-    case 'celebrated': return state.lessonId === event.lessonId && state.phase === 'SUCCESS' ? move('WRAPUP') : state;
-    case 'finished': return state.lessonId === event.lessonId && state.phase === 'WRAPUP' ? move('FINISHED') : state;
+    case 'homework_resolved': return state.lessonId === event.lessonId && state.phase === 'HOMEWORK' ? move('SUCCESS') : state;
+    case 'celebrated': return state.lessonId === event.lessonId && state.phase === 'SUCCESS' ? move('STATS') : state;
   }
 }

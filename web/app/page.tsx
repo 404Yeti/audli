@@ -95,7 +95,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
   const [celebrationLesson, setCelebrationLesson] = useState<string | null>(null);
   const completionHeading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, wrapupFinished, celebrationLesson]);
+  useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, wrapupFinished, celebrationLesson, wrapupReady]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');

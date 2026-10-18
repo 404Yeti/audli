@@ -34,9 +34,11 @@ wrap-up logic. Previously, `wrapupFinished` put Rive next to the statistics insi
 `SessionShell`; there was no separate “Great job” heading in current main.
 Now a fresh completion enters `LessonCelebration`, a full-height completion
 presentation with a centered “Great job!” heading and prominent mascot. After
-Rive reports `celebrate` → `idle`, the existing completion shell resumes its
-optional topic/homework/closing flow and shows saved statistics, homework and
-Return Home with a static mascot. Completion restore skips celebration.
+Rive reports `celebrate` → `idle`, results appear with saved statistics and the
+optional topic/homework flow. There is no second standalone static success
+mascot. Tutor presence remains during active voice interaction. Homework stays
+visible; Finish lesson explicitly starts closing speech, and Return Home
+explicitly exits. Completion restore skips celebration and topic invitations.
 No voice method or TTS request is called by the celebration.
 
 ViewModel binding precedes state-machine playback; the trigger fires after the
@@ -52,8 +54,8 @@ Timers and listeners are cleaned up on unmount.
 The presentation box is square, `min(98vw, 50svh, 520px)`. Its canvas extends 10% beyond
 the box on each side to compensate for exported artboard whitespace, with all
 animated artwork remaining inside the visible box. `Fit.Contain` and device-pixel
-ratio sizing remain owned by the official runtime. Results use the existing static
-SVG. The pinned runtime still supports state-change events; migration to a future
+ratio sizing remain owned by the official runtime. The existing static SVG remains
+the celebration fallback. The pinned runtime still supports state-change events; migration to a future
 runtime that removes them will require an exported completion binding/event.
 
 ## Verification

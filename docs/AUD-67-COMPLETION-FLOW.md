@@ -18,6 +18,8 @@ The static shell, homework auto-finish wiring and focus resize existed before PR
 ## Verification
 
 - Before fixes: focused browser assertions reproduced the extra Nice work presentation and disappearing skipped homework. The delayed typed preference test exposed the lost submission described above.
+- Focused backend lifecycle/planner/wrap-up: 92 passed; after adding the persistence regression the wrap-up suite passed all 11 tests. Frontend unit tests, lint/coverage, build and TypeScript passed.
+- Broader local browser run: 81 passed, one WebKit-only test skipped. The remaining test expected automatic farewell; it now explicitly chooses Finish lesson and verifies farewell follows that action.
 - New browser regressions: retained error/skipped/assigned homework; delayed preference response; rapid submission; repeated audio endings; rerenders; duplicate completed checkpoint; reload/remount; one preference offer/answer; no automatic closing; explicit Finish lesson; elapsed timers.
 - Backend regression reads persisted topic feedback and repeatedly requests the same completed lesson's offer: it remains unavailable.
 - Existing structured-lesson fallback/reduced-motion tests remain; only assertions expecting the removed second mascot were updated. Classroom voice layout/backup disclosure checks remain.

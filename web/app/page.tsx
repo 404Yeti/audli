@@ -12,7 +12,7 @@ import { AccentSettings, type AccentPreferences } from '../components/accent-set
 import { SpokenOnboarding } from '../components/onboarding';
 import { AudliLoadingScreen } from '../components/audli-loading-screen';
 import { startup } from '../lib/startup';
-import { RiveMascot } from '../components/rive-mascot';
+import { LessonCelebration } from '../components/lesson-celebration';
 import { AudliMascot } from '../components/audli-mascot';
 import { BottomNavigation, TutorVoiceNotice, SessionShell, type Destination } from '../components/product-shell';
 import { authenticatedFetch, ApiError, cancelPendingOperations, LessonLifetime, type LessonOperation } from '../lib/api';
@@ -93,7 +93,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
   const [celebrationLesson, setCelebrationLesson] = useState<string | null>(null);
   const completionHeading = useRef<HTMLHeadingElement | null>(null);
-  useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, wrapupFinished]);
+  useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, wrapupFinished, celebrationLesson]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -379,7 +379,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
-  if (completion) return <><SessionShell completed mascot={wrapupFinished ? <RiveMascot completionId={completion.id} scope={account.scope} state={celebrationLesson === completion.id ? 'celebrate' : 'idle'} reducedMotion={reducedMotion}/> : undefined} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' || (voice.state === 'Speaking' && !voice.activity) ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
+  if (completion && celebrationLesson === completion.id) return <LessonCelebration completionId={completion.id} scope={account.scope} reducedMotion={reducedMotion} onComplete={() => setCelebrationLesson(null)}/>;
+  if (completion) return <><SessionShell completed mascot={wrapupFinished ? <AudliMascot state="Success" staticPose/> : undefined} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' || (voice.state === 'Speaking' && !voice.activity) ? 'Success' : voice.state} activity={voice.activity} onEnd={() => {
     voice.stop(); if (closingTimer.current) clearTimeout(closingTimer.current); setClosing(false); setHomeworkVoice(false); setWrapupReady(false); setCompletion(null); lesson.current = null;
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
   }}>

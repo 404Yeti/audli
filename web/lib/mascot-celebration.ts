@@ -30,7 +30,7 @@ export function startMascot(
   celebrate: boolean,
   claim = claimCelebration,
   storage = presentationStorage(),
-  whenInitialized: (fire: () => void) => void = fire => fire(),
+  whenInitialized: (fire: () => boolean) => void = fire => fire(),
 ) {
   const instance = rive.viewModelByName('AudliMascotControls')?.defaultInstance();
   const trigger = instance?.trigger('celebrate');
@@ -38,5 +38,9 @@ export function startMascot(
   rive.setViewModelInstance(instance);
   rive.bind();
   rive.play('AudliMascotMachine');
-  if (celebrate) whenInitialized(() => { if (claim(key, storage)) trigger.trigger(); });
+  if (celebrate) whenInitialized(() => {
+    if (!claim(key, storage)) return false;
+    trigger.trigger();
+    return true;
+  });
 }

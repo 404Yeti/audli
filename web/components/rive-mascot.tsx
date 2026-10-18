@@ -5,7 +5,7 @@ import { AudliMascot } from './audli-mascot';
 import { celebrationKey, claimCelebration, presentationStorage } from '../lib/mascot-celebration';
 
 export type RiveMascotState = 'idle' | 'celebrate';
-export type RiveMascotProps = { completionId: string; scope: string; state?: RiveMascotState; reducedMotion?: boolean };
+export type RiveMascotProps = { completionId: string; scope: string; state?: RiveMascotState; reducedMotion?: boolean; onComplete?: () => void };
 
 const Runtime = dynamic(() => import('./rive-mascot-runtime'), {
   ssr: false,
@@ -25,15 +25,16 @@ class MascotBoundary extends Component<{ children: ReactNode }, { failed: boolea
   render() { return this.state.failed ? <AudliMascot state="Success" staticPose/> : this.props.children; }
 }
 
-export function RiveMascot({ completionId, scope, state = 'idle', reducedMotion = false }: RiveMascotProps) {
+export function RiveMascot({ completionId, scope, state = 'idle', reducedMotion = false, onComplete }: RiveMascotProps) {
   const systemReduced = useSyncExternalStore(subscribeMotion, motionSnapshot, serverMotion);
   const key = celebrationKey(scope, completionId);
   useEffect(() => {
     // Enabling motion later must not replay a celebration that was suppressed.
     if (state === 'celebrate' && (reducedMotion || systemReduced === true)) {
       claimCelebration(key, presentationStorage());
+      onComplete?.();
     }
-  }, [key, state, reducedMotion, systemReduced]);
+  }, [key, state, reducedMotion, systemReduced, onComplete]);
   if (systemReduced !== false || reducedMotion) return <AudliMascot state="Success" staticPose/>;
-  return <MascotBoundary key={key}><Runtime identity={key} celebrate={state === 'celebrate'}/></MascotBoundary>;
+  return <MascotBoundary key={key}><Runtime identity={key} celebrate={state === 'celebrate'} onComplete={onComplete}/></MascotBoundary>;
 }

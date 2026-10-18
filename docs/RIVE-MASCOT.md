@@ -1,8 +1,16 @@
-# Success mascot runtime (AUD-64)
+# Success mascot runtime (AUD-64 / AUD-65)
 
-The authentic editor export is `web/public/audli/audli-mascot.riv`, copied byte-for-byte
-from `/mnt/c/Users/Lenovo/untitled.riv` (5,147 bytes).
-SHA-256: `0e09c9268c894b4d95b38cfdef1c1004f3d19d8914a260318319f4340b8aa9d6`.
+The authentic editor export originated at `/mnt/c/Users/Lenovo/untitled.riv`
+(5,147 bytes; original SHA-256
+`0e09c9268c894b4d95b38cfdef1c1004f3d19d8914a260318319f4340b8aa9d6`).
+AUD-65 changes exactly one byte in `web/public/audli/audli-mascot.riv`: the
+background SolidColor object's alpha at offset 942, from 255 to 0. Its colorValue
+(property 37, object type 18, parent 44) was opaque `#282828`. The original runtime
+rendered all 640,000 artboard pixels opaque; the corrected export has transparent
+corners and approximately 78,000 occupied idle pixels. CSS and canvas clearing
+were already transparent. No geometry, animation, timing or bindings changed.
+The regression test reverses that alpha byte and verifies the original SHA-256.
+Current SHA-256: `5466e2a42ac5d39ceb8edea9a9436923dc49f5b9d0d00e263f7adf2987683c2c`.
 The earlier Documents, Pictures and Videos exports failed runtime verification and are not shipped.
 
 | Contract | Name / behavior |
@@ -21,37 +29,46 @@ with the matching package file. The original SVG remains visible while loading,
 on errors and under either system or Audli reduced motion. Runtime resources and the pending initialization callback are
 released on unmount or preference changes.
 
-The finished success view passes the saved lesson identity, account scope and a
-fresh-completion presentation flag. ViewModel binding precedes state-machine
-playback. The Cadet export renders immediately without Rive startup branding, so
-the celebration fires after the first state-machine advance, with no branding delay.
-This lets the default state initialize before the ViewModel trigger is consumed.
-A session-storage key and in-memory guard are claimed before firing. Rerenders,
-remounts, restored completions and re-enabling motion cannot replay a celebration.
-Storage is optional and has no effect on lesson or database state.
+`Product` keeps the saved completion and optional spoken topic/homework/closing
+wrap-up logic. Previously, `wrapupFinished` put Rive next to the statistics inside
+`SessionShell`; there was no separate “Great job” heading in current main.
+Now a fresh completion enters `LessonCelebration`, a full-height completion
+presentation with a centered “Great job!” heading and prominent mascot. After
+Rive reports `celebrate` → `idle`, the existing completion shell resumes its
+optional topic/homework/closing flow and shows saved statistics, homework and
+Return Home with a static mascot. Completion restore skips celebration.
+No voice method or TTS request is called by the celebration.
 
-The existing mascot box, SVG proportions, margins and surrounding layout remain
-unchanged. `Fit.Contain` centers the square artboard within that box; the React
-runtime resizes for device pixel ratio. Statistics, homework, navigation and voice
-behavior are unchanged.
+ViewModel binding precedes state-machine playback; the trigger fires after the
+first advance, preserving the iPhone initialization fix. A per-account/lesson
+session-storage key and in-memory guard prevent replay. Already-consumed triggers
+advance directly to results. System or app reduced motion consumes the celebration
+and immediately shows results without loading Rive. Changing system preference
+while waiting also bypasses immediately. Continue to results is always available.
+Failed assets retain the static fallback, then advance; a 15-second presentation
+watchdog covers failed imports or missing events, independently of saved progress.
+Timers and listeners are cleaned up on unmount.
+
+The presentation box is square, `min(94vw, 500px)`. Its canvas extends 14% beyond
+the box on each side to compensate for exported artboard whitespace, with all
+animated artwork remaining inside the visible box. `Fit.Contain` and device-pixel
+ratio sizing remain owned by the official runtime. Results use the existing static
+SVG. The pinned runtime still supports state-change events; migration to a future
+runtime that removes them will require an exported completion binding/event.
 
 ## Verification
 
-The existing official 2.44.0 Chromium harness at a 390 × 844 viewport and 300 × 300
-canvas passed two separately triggered celebrations. Each returned to centered
-idle at about two seconds and remained centered for over three seconds, without
-edge clipping, displacement or cumulative drift. Passing frames were not saved.
-All 65 startup samples rendered the mascot, without a branded splash. The runtime
-contains only `AudliMascot`; the prior export also contained `Watermark`,
-`NuRiveBrandmark01` and `NuRiveWordmark01`. The idle loop crosses its boundary at
-2.8 seconds; celebrate is a non-looping two-second animation. Both celebrations
-rotated approximately 360 degrees and returned to the original resting bounds.
+AUD-65 browser checks use mobile Chromium at 320 × 844, 390 × 844 and 430 × 844.
+They hold the export until observation starts, sample alpha and artwork bounds
+through the flip, measure one full rotation, assert no clipping in the scaled
+presentation box, then require automatic results and no canvas replay. Separate
+checks cover restore, failure of either asset, app/system reduced motion,
+preference change during loading, immediate Continue, Return Home and unchanged
+voice calls. Synthetic review screenshots are in `docs/screenshots/AUD-65-*.png`.
+Unit coverage includes binding order, one-shot memory, skipped claims and exact
+background-only binary correction. Real-device iPhone Safari acceptance remains
+a review step; Chromium is not Safari.
 
-Focused frontend checks cover one-shot ViewModel binding and presentation memory,
-separate lessons/accounts, storage failure, reduced motion, mobile container
-bounds/rotation, restored completion and failed asset/WASM loading. Real-device
-iPhone Safari acceptance remains a review step; Chromium is not Safari.
-
-The editor document and vector artwork were not modified. No manual Rive editor
-work is required for this candidate. Keep the exported names and ViewModel contract
-when producing future versions.
+The editor source and vector artwork were not modified. Future editor exports
+should disable the background fill before export. Keep the exported names and
+ViewModel contract when producing future versions.

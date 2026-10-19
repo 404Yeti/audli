@@ -41,7 +41,7 @@ class SlowProvider(FakeProvider):
         return Transcription(text='The team rolled back the update after the migration removed a field.', confidence=.99, uncertainty=[])
 
 
-async def measure(repository, delay=0.4):
+async def measure(repository, delay=0.4, per_learner=False):
     """Return wall-clock timings (seconds) for two learners hitting provider-bound routes."""
     provider = SlowProvider(); provider.delay = delay
     async def speak(text, speech_rate=.9):
@@ -49,7 +49,7 @@ async def measure(repository, delay=0.4):
     provider.speak = speak
     tmp = Path(tempfile.mkdtemp(prefix='audli-lock-'))
     auth = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp, latency_aggregates=True), provider, repository=repository, auth_client=auth)
+    app = create_app(settings_for(tmp, latency_aggregates=True, per_learner_locks=per_learner), provider, repository=repository, auth_client=auth)
     aggregator.reset()
     tokens = {'a': 'valid-a', 'b': 'valid-b'}
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
@@ -92,7 +92,7 @@ async def measure(repository, delay=0.4):
     await auth.aclose()
     snapshot = aggregator.snapshot()
     app.state.repository.close()
-    return {'provider_delay_s': delay, 'solo_upload_s': round(solo, 3),
+    return {'per_learner_locks': per_learner, 'provider_delay_s': delay, 'solo_upload_s': round(solo, 3),
             'two_learners_wall_s': round(both_wall, 3), 'two_learners_each_s': [round(a, 3), round(b, 3)],
             'serialization_ratio': round(both_wall / solo, 2),
             'b_unlocked_profile_read_s': round(unlocked[0], 3), 'b_locked_listened_s': round(locked[0], 3),

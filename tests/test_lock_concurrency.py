@@ -11,7 +11,7 @@ from test_persistence import repository_factory  # noqa: F401  (fixture)
 
 def test_global_lock_serializes_two_learners(repository_factory):
     delay = 0.3
-    result = asyncio.run(measure(repository_factory(None), delay=delay))
+    result = asyncio.run(measure(repository_factory(None), delay=delay, per_learner=False))
     # Bounds are relative to the injected provider delay, not to a noisy baseline: if two learners ran
     # in parallel the wall time would be ~1 delay; serialized it is >= 2 delays.
     assert result['two_learners_wall_s'] >= 1.8 * delay, result

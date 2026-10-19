@@ -46,7 +46,11 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     repo = RequestRepository(database if identity is None else None)
     audio_dir = settings.data_dir / 'exercise_audio'
     audio_dir.mkdir(parents=True, exist_ok=True)
-    lock = asyncio.Lock()
+    from app.locking import LearnerLocks
+    def new_lock():
+        # Key comes only from the server-verified request scope (RequestRepository), never from the client.
+        return LearnerLocks(settings.per_learner_locks, lambda: repo.learner_id)
+    lock = new_lock()
     from app.storage.accent_controls import SharedAccentControls
     passage_limits = SharedAccentControls(database.engine, settings)
 
@@ -78,6 +82,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database
+    app.state.locks = lock
 
     def ai():
         nonlocal provider
@@ -362,15 +367,15 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return repo.history()
 
     from app.tutor_voice_api import register_tutor_voice_routes
-    register_tutor_voice_routes(app, repo, lock, settings)
+    register_tutor_voice_routes(app, repo, lock, settings, new_lock)
     register_telemetry_routes(app, settings)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
     register_review_routes(app, repo)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_onboarding_reset_routes(app, repo, lock)
-    register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio)
-    register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits)
+    register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio, new_lock)
+    register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits, new_lock)
     return app
 
 app = create_app()

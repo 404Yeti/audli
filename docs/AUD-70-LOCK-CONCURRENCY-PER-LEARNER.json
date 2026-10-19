@@ -1,0 +1,107 @@
+{
+ "harness": "fake providers; fixed delay; SQLite; ASGI in-process",
+ "results": [
+  {
+   "run": 1,
+   "per_learner_locks": true,
+   "provider_delay_s": 0.3,
+   "solo_upload_s": 0.345,
+   "two_learners_wall_s": 0.351,
+   "two_learners_each_s": [
+    0.342,
+    0.35
+   ],
+   "serialization_ratio": 1.02,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.009,
+   "lock_queue_depth_at_arrival": {
+    "0": 5
+   }
+  },
+  {
+   "run": 2,
+   "per_learner_locks": true,
+   "provider_delay_s": 0.3,
+   "solo_upload_s": 0.338,
+   "two_learners_wall_s": 0.344,
+   "two_learners_each_s": [
+    0.343,
+    0.343
+   ],
+   "serialization_ratio": 1.02,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.008,
+   "lock_queue_depth_at_arrival": {
+    "0": 5
+   }
+  },
+  {
+   "run": 3,
+   "per_learner_locks": true,
+   "provider_delay_s": 0.3,
+   "solo_upload_s": 0.345,
+   "two_learners_wall_s": 0.34,
+   "two_learners_each_s": [
+    0.34,
+    0.34
+   ],
+   "serialization_ratio": 0.99,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.01,
+   "lock_queue_depth_at_arrival": {
+    "0": 5
+   }
+  },
+  {
+   "run": 1,
+   "per_learner_locks": true,
+   "provider_delay_s": 1.0,
+   "solo_upload_s": 1.036,
+   "two_learners_wall_s": 1.042,
+   "two_learners_each_s": [
+    1.042,
+    1.041
+   ],
+   "serialization_ratio": 1.01,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.009,
+   "lock_queue_depth_at_arrival": {
+    "0": 5
+   }
+  },
+  {
+   "run": 2,
+   "per_learner_locks": true,
+   "provider_delay_s": 1.0,
+   "solo_upload_s": 1.043,
+   "two_learners_wall_s": 1.048,
+   "two_learners_each_s": [
+    1.04,
+    1.047
+   ],
+   "serialization_ratio": 1.01,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.012,
+   "lock_queue_depth_at_arrival": {
+    "0": 5
+   }
+  },
+  {
+   "run": 3,
+   "per_learner_locks": true,
+   "provider_delay_s": 1.0,
+   "solo_upload_s": 1.032,
+   "two_learners_wall_s": 1.042,
+   "two_learners_each_s": [
+    1.041,
+    1.041
+   ],
+   "serialization_ratio": 1.01,
+   "b_unlocked_profile_read_s": 0.005,
+   "b_locked_listened_s": 0.014,
+   "lock_queue_depth_at_arrival": {
+    "0": 5
+   }
+  }
+ ]
+}

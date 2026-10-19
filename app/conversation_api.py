@@ -38,8 +38,8 @@ class CueRequest(StrictModel):
         return self
 
 
-def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio):
-    retry_lock = asyncio.Lock()
+def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio, new_lock):
+    retry_lock = new_lock()
     @app.post('/api/recognition/retry-audio')
     async def retry_audio():
         # Protected by the same authenticated request boundary as every /api resource.

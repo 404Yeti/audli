@@ -15,7 +15,7 @@ from app.models import EvidenceEvaluation, Evaluation
 from app.diagnostics import operation, timed_lock
 from app.models import StrictModel, Conversation, ConversationTurn, ExerciseContent
 from app.models import Transcription
-from app.recognition import reliable_recognition
+from app.recognition import check_recognition
 from app.tutor_voice import tutor_settings
 
 SUMMARY_PROMPT = 'Tell me what you understood. Use your own words; grammar does not matter.'
@@ -149,7 +149,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 raise HTTPException(422, 'Check and confirm what you said first.')
             recognized = Transcription.model_validate_json(attempt['transcription'])
             if body.hands_free and (body.text.strip() != recognized.text.strip()
-                    or not reliable_recognition(recognized, settings.min_transcription_confidence)):
+                    or not check_recognition(settings, 'exercise.assess', recognized, settings.min_transcription_confidence)):
                 return JSONResponse(status_code=422, content={'detail': "I didn't quite catch that. Could you say it again?", 'uncertain': True})
             conversation = conversation or Conversation(exercise_id=exercise_id)
             question = conversation.active_followup

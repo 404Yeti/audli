@@ -6,7 +6,7 @@ from app.audio import validate_upload
 from app.services.tutor_tts import TutorSpeech
 from app.models import Transcription
 from app.diagnostics import operation, timed_lock
-from app.recognition import reliable_recognition
+from app.recognition import check_recognition
 from app.onboarding import Revision, WalkthroughUpdate, Answer, TypedName, GoalAnswer, apply_goal, name_entry_available, apply_extraction, apply_accent_answer, application_destination, onboarding_prompt
 
 
@@ -185,7 +185,7 @@ def register_onboarding_routes(app, repo, ai, lock, settings):
             if profile.onboarding.pending is None:
                 raise HTTPException(409, 'Record an answer before confirming recognition.')
             if body.hands_free and (body.text.strip() != profile.onboarding.pending.text.strip()
-                    or not reliable_recognition(profile.onboarding.pending, settings.min_transcription_confidence)):
+                    or not check_recognition(settings, 'onboarding.answer', profile.onboarding.pending, settings.min_transcription_confidence)):
                 raise HTTPException(422, "I didn't quite catch that. Could you say it again?")
             if not body.text.strip():
                 raise HTTPException(422, 'Please check recognition or record again.')

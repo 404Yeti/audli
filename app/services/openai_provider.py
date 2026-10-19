@@ -8,6 +8,7 @@ from pydantic import Field, create_model
 from app.config import Settings
 from app.diagnostics import operation
 from app.evaluation import expected_units
+from app.recognition import LOW_CONFIDENCE_WARNING, MINIMUM_REPLY_WORDS, NO_CONFIDENCE_WARNING, SHORT_REPLY_WARNING
 from app.models import ExerciseContent, EvaluationJudgments, LearnerProfile, Transcription, Text, StrictModel, EvidenceAssessment
 
 EVALUATOR_PROMPT = '''You evaluate English LISTENING comprehension, never speaking ability.
@@ -249,11 +250,11 @@ Use a different scenario each exercise. The topic must be a short, specific scen
                 confidence = min(1, math.exp(sum(logs) / len(logs)))
         uncertainty = []
         if confidence is None:
-            uncertainty.append('Transcription confidence unavailable; please verify the text.')
+            uncertainty.append(NO_CONFIDENCE_WARNING)
         elif confidence < self.settings.min_transcription_confidence:
-            uncertainty.append('Speech recognition was uncertain; please verify or record again.')
-        if len(result.text.strip().split()) < 3:
-            uncertainty.append('Too little recognized speech to evaluate reliably.')
+            uncertainty.append(LOW_CONFIDENCE_WARNING)
+        if len(result.text.strip().split()) < MINIMUM_REPLY_WORDS:
+            uncertainty.append(SHORT_REPLY_WARNING)
         return Transcription(text=result.text, confidence=confidence, uncertainty=uncertainty)
 
     async def evaluate(self, exercise: ExerciseContent, transcript: str) -> EvaluationJudgments:

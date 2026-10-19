@@ -11,6 +11,7 @@ from app.services.youtube import YouTubeProvider
 from app.audio import validate_upload
 from app.models import Transcription
 from app.homework_voice import spoken_decision, reliable_choice
+from app.recognition import observe_recognition
 from app.storage import homework as store
 from app.storage import schema as s
 from app.storage.repository import utcnow
@@ -117,6 +118,7 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
                 except Exception:
                     raise HTTPException(503, 'I could not hear your choice. Try again or type your reply. Your lesson is saved.') from None
                 recognized = reliable_choice(transcription, settings.min_transcription_confidence)
+                observe_recognition(settings, 'homework.decision', transcription, settings.min_transcription_confidence, recognized)
                 logging.getLogger('uvicorn.error').info('Homework voice outcome=%s confidence_available=%s',
                     'recognized' if recognized else 'uncertain_or_ambiguous', transcription.confidence is not None)
                 if not recognized:

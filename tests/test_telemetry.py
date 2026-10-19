@@ -46,7 +46,7 @@ def test_cardinality_and_names_are_bounded():
 def test_snapshot_reset_starts_a_new_window():
     agg = LatencyAggregator(); agg.record('a', 5); agg.record_queue_depth(3)
     assert agg.snapshot(reset=True)['lock_queue_depth_at_arrival'] == {'3': 1}
-    assert agg.snapshot() == {'version': 1, 'buckets_ms': list(BUCKETS_MS), 'stages': {}, 'gauges': {}, 'lock_queue_depth_at_arrival': {}}
+    assert agg.snapshot() == {'version': 1, 'buckets_ms': list(BUCKETS_MS), 'stages': {}, 'gauges': {}, 'counters': {}, 'lock_queue_depth_at_arrival': {}}
 
 
 def test_aggregation_is_off_by_default(tmp_path):

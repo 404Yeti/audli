@@ -1,0 +1,2633 @@
+{
+"description": "Current recognition-gate behavior (AUD-71 Step A). Expected values were produced by the pre-refactor implementation. Python and the web client must both agree; changing any row is a behavior change that needs owner approval.",
+"cases": [
+{
+"text": "",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": null,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": null,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": null,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.5,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.5,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.5,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.649,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.649,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.649,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.649,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.65,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.65,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.65,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.65,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.651,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.651,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.651,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.651,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.99,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.99,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.99,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 0.99,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 1.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 1.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 1.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "",
+"confidence": 1.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": null,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": null,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": null,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.5,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.5,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.5,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.649,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.649,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.649,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.649,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.65,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.65,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.65,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.65,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.651,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.651,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.651,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.651,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.99,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.99,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.99,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 0.99,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 1.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 1.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 1.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "   ",
+"confidence": 1.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": null,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": null,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": null,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.5,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.5,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.5,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.649,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.649,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.649,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.649,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.65,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.65,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.65,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.65,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.651,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.651,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.651,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.651,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.99,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.99,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.99,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 0.99,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 1.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 1.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 1.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes.",
+"confidence": 1.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": null,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": null,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": null,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.5,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.5,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.5,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.649,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.649,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.649,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.649,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.65,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes please.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.65,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.65,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.65,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.651,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes please.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.651,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.651,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.651,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.99,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes please.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.99,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.99,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 0.99,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 1.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "Yes please.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 1.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 1.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Yes please.",
+"confidence": 1.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": null,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": null,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": null,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.5,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.5,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.5,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.649,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.649,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.649,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.649,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.65,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.65,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.65,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.65,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.651,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.651,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.651,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.651,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.99,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.99,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.99,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 0.99,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 1.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "I am a little tired today.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 1.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 1.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "I am a little tired today.",
+"confidence": 1.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": null,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": null,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": null,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": null,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.5,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.5,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.5,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.5,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.649,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.649,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.649,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.649,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.649,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.65,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.65,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.65,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.65,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.65,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.651,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.651,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.651,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.651,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.651,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.99,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.99,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.99,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.99,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 0.99,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 1.0,
+"uncertainty": [],
+"minimum": 0.65,
+"reliable": true
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 1.0,
+"uncertainty": [
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 1.0,
+"uncertainty": [
+"Transcription confidence unavailable; please verify the text."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 1.0,
+"uncertainty": [
+"Too little recognized speech to evaluate reliably.",
+"Speech recognition was uncertain; please verify or record again."
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "The team rolled back the update.",
+"confidence": 1.0,
+"uncertainty": [
+"Some other warning"
+],
+"minimum": 0.65,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.5,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.49,
+"uncertainty": [],
+"minimum": 0.5,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.5,
+"reliable": true
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.84,
+"uncertainty": [],
+"minimum": 0.5,
+"reliable": true
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.85,
+"uncertainty": [],
+"minimum": 0.5,
+"reliable": true
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.86,
+"uncertainty": [],
+"minimum": 0.5,
+"reliable": true
+},
+{
+"text": "Some recognized speech here",
+"confidence": null,
+"uncertainty": [],
+"minimum": 0.85,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.49,
+"uncertainty": [],
+"minimum": 0.85,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.5,
+"uncertainty": [],
+"minimum": 0.85,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.84,
+"uncertainty": [],
+"minimum": 0.85,
+"reliable": false
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.85,
+"uncertainty": [],
+"minimum": 0.85,
+"reliable": true
+},
+{
+"text": "Some recognized speech here",
+"confidence": 0.86,
+"uncertainty": [],
+"minimum": 0.85,
+"reliable": true
+}
+]
+}

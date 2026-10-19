@@ -17,6 +17,7 @@ MAX_STAGES = 160
 MAX_DEPTH = 16
 MAX_GAUGES = 16
 MAX_GAUGE_VALUE = 32
+MAX_COUNTERS = 128
 # Code constants and route templates such as 'http.POST /api/lessons/{lesson_id}/heard'; never request values.
 STAGE_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_.:/{} -]{0,95}$')
 
@@ -53,6 +54,7 @@ class LatencyAggregator:
             self._stages: dict[str, _Stage] = {}
             self._depth = [0] * (MAX_DEPTH + 1)
             self._gauges: dict[str, list[int]] = {}
+            self._counters: dict[str, int] = {}
 
     def record(self, name: str, elapsed_ms: float, ok: bool = True) -> None:
         if not (elapsed_ms >= 0 and elapsed_ms < 1e9):  # also rejects NaN
@@ -81,6 +83,14 @@ class LatencyAggregator:
             levels = self._gauges.setdefault(key, [0] * (MAX_GAUGE_VALUE + 1))
             levels[max(0, min(MAX_GAUGE_VALUE, int(value)))] += 1
 
+    def count(self, name: str, amount: int = 1) -> None:
+        """Monotonic event counter for the current window (names are code constants; bounded)."""
+        key = name if STAGE_NAME.match(name) else 'other'
+        with self._lock:
+            if key not in self._counters and len(self._counters) >= MAX_COUNTERS:
+                key = 'other'
+            self._counters[key] = self._counters.get(key, 0) + int(amount)
+
     def record_queue_depth(self, depth: int) -> None:
         """Requests ahead (current holder plus waiters) on the shared lock when a new one arrives."""
         with self._lock:
@@ -96,9 +106,10 @@ class LatencyAggregator:
             } for name, stage in sorted(self._stages.items())}
             depth = {str(i): n for i, n in enumerate(self._depth) if n}
             gauges = {name: {str(i): n for i, n in enumerate(levels) if n} for name, levels in sorted(self._gauges.items())}
+            counters = dict(sorted(self._counters.items()))
             if reset:
-                self._stages, self._depth, self._gauges = {}, [0] * (MAX_DEPTH + 1), {}
-        return {'version': 1, 'buckets_ms': list(BUCKETS_MS), 'stages': stages, 'gauges': gauges,
+                self._stages, self._depth, self._gauges, self._counters = {}, [0] * (MAX_DEPTH + 1), {}, {}
+        return {'version': 1, 'buckets_ms': list(BUCKETS_MS), 'stages': stages, 'gauges': gauges, 'counters': counters,
                 'lock_queue_depth_at_arrival': depth}
 
 
@@ -114,7 +125,7 @@ def emit_summary() -> None:
     """Log the window as small, self-describing lines: {window, part, parts, stages, ...}; part 1 carries the rest."""
     snapshot = aggregator.snapshot(reset=True)
     stages = snapshot.pop('stages')
-    if not stages and not snapshot['lock_queue_depth_at_arrival'] and not snapshot['gauges']:
+    if not stages and not snapshot['lock_queue_depth_at_arrival'] and not snapshot['gauges'] and not snapshot['counters']:
         return
     names = sorted(stages)
     chunks = [names[i:i + MAX_LINE_STAGES] for i in range(0, len(names), MAX_LINE_STAGES)] or [[]]

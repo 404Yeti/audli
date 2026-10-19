@@ -5,6 +5,7 @@ Cardinality is still bounded so a future mistake cannot create unbounded memory 
 Quantiles are histogram upper bounds, i.e. conservative estimates, not exact samples.
 """
 import asyncio
+import itertools
 import json
 import logging
 import re
@@ -91,10 +92,24 @@ aggregator = LatencyAggregator()
 _logger = logging.getLogger('uvicorn.error')
 
 
+MAX_LINE_STAGES = 24   # ~4-5 KB per line: well below any log pipeline's line limit
+_windows = itertools.count(1)
+
+
 def emit_summary() -> None:
+    """Log the window as small, self-describing lines: {window, part, parts, stages, ...}; part 1 carries the rest."""
     snapshot = aggregator.snapshot(reset=True)
-    if snapshot['stages']:
-        _logger.info('Latency summary %s', json.dumps(snapshot, sort_keys=True, separators=(',', ':')))
+    stages = snapshot.pop('stages')
+    if not stages and not snapshot['lock_queue_depth_at_arrival']:
+        return
+    names = sorted(stages)
+    chunks = [names[i:i + MAX_LINE_STAGES] for i in range(0, len(names), MAX_LINE_STAGES)] or [[]]
+    window = next(_windows)
+    for index, chunk in enumerate(chunks, 1):
+        part = {'window': window, 'part': index, 'parts': len(chunks), 'stages': {name: stages[name] for name in chunk}}
+        if index == 1:
+            part.update(snapshot)
+        _logger.info('Latency summary %s', json.dumps(part, sort_keys=True, separators=(',', ':')))
 
 
 async def summary_loop(interval_seconds: float) -> None:

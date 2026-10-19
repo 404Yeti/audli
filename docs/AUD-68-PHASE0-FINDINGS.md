@@ -44,14 +44,14 @@ Raw: `docs/AUD-68-LOCK-CONCURRENCY.json`. Guarded by `tests/test_lock_concurrenc
 
 * `app/telemetry.py`: bounded in-memory aggregator — fixed histogram buckets (25 ms … 60 s), per-stage count/errors/mean/max and **upper-bound** p50/p90/p99, lock queue depth at arrival. Stage names are code constants or route *templates* (`http.POST /api/lessons/{lesson_id}/heard`); anything else collapses to `other`; ≤160 stages.
 * `app/diagnostics.py`: `operation()` feeds the aggregator; `timed_lock()` now also records **`<name>.lock_hold`** and queue depth (previously only `lock_wait`).
-* `app/main.py`: per-route request timing; one `Latency summary {json}` log line per window (default 300 s), flushed at shutdown.
+* `app/main.py`: per-route request timing; the window (default 300 s, flushed at shutdown) is logged as a few small `Latency summary {json}` lines (≤24 stages each, with `window`/`part`/`parts`), so no single line approaches a log-pipeline limit (worst case with every route populated would otherwise be ≈28 KB).
 * `POST /api/telemetry/turn`: browser timings, **authenticated like every `/api` route**, strict schema (fixed stage enum, integers 0–300000, no extra keys), never touches learner state or the shared lock.
 * Web: `createTurnReporter` batches stage timings and sends one report per meaningful turn; build-time opt-in `NEXT_PUBLIC_AUDLI_LATENCY_REPORTING=1`; failures ignored.
 * Off by default: `AUDLI_LATENCY_AGGREGATES=false`. Existing `AUDLI_LATENCY_TELEMETRY` (Server-Timing headers) unchanged.
 
 Privacy verification (`tests/test_telemetry.py`): the emitted line contains none of the exercise ID, attempt ID, transcript text, bearer token or user UUID; invalid/long/free-text stage names never become keys; the report endpoint rejects free text, unknown stages, floats, negatives and extra keys. No audio, transcript, learner ID or per-request record is retained; the aggregate is per-process and resets each window.
 
-Expected cost: ~one dict update per stage per request; log volume ≈ one line (a few KB) per 5 min.
+Expected cost: ~one dict update per stage per request; log volume ≈ 2–7 lines of ≲5 KB per 5 min when active; nothing when idle.
 
 ## 4. Baselines (task 3)
 

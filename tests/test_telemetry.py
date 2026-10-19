@@ -70,9 +70,12 @@ def test_summary_log_contains_route_templates_but_no_ids_text_or_credentials(tmp
     client.post(f"/api/attempts/{attempt['id']}/assess", json={'text': attempt['transcription']['text'], 'confirmed': True, 'followup_id': None})
     with caplog.at_level(logging.INFO, logger='uvicorn.error'):
         emit_summary()
-    line = next(r.getMessage() for r in caplog.records if r.getMessage().startswith('Latency summary '))
-    payload = json.loads(line.removeprefix('Latency summary '))
-    names = set(payload['stages'])
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith('Latency summary ')]
+    parts = [json.loads(line.removeprefix('Latency summary ')) for line in lines]
+    assert [p['part'] for p in parts] == list(range(1, len(parts) + 1)) and all(p['parts'] == len(parts) for p in parts)
+    assert len({p['window'] for p in parts}) == 1
+    names = {name for p in parts for name in p['stages']}
+    line = '\n'.join(lines)
     assert 'http.POST /api/exercises/{exercise_id}/attempts' in names
     assert 'turn.upload.lock_wait' in names and 'turn.upload.lock_hold' in names
     for forbidden in (exercise['id'], attempt['id'], 'rolled back', 'secret-token-xyz', sentinel_user, 'Bearer'):
@@ -164,3 +167,25 @@ def test_telemetry_report_never_waits_for_the_account_lease(tmp_path, repository
     status, fast = asyncio.run(run())
     assert status == 204 and fast < .5, (status, fast)
     app.state.repository.close(); asyncio.run(http.aclose())
+
+
+def test_summary_is_split_into_small_consistent_lines(caplog):
+    from app import telemetry
+    agg_names = [f'http.POST /api/route/{i}/{{id}}' for i in range(80)] + [f'stage.{i}.lock_wait' for i in range(60)]
+    aggregator.reset()
+    for name in agg_names:
+        aggregator.record(name, 1234.5)
+    aggregator.record_queue_depth(2)
+    with caplog.at_level(logging.INFO, logger='uvicorn.error'):
+        emit_summary()
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith('Latency summary ')]
+    parts = [json.loads(line.removeprefix('Latency summary ')) for line in lines]
+    assert len(parts) == -(-len(agg_names) // telemetry.MAX_LINE_STAGES) and len(parts) > 1
+    assert max(len(line) for line in lines) < 8000                       # far below any log-line limit
+    assert {n for p in parts for n in p['stages']} == set(agg_names)       # nothing lost or duplicated
+    assert sum(len(p['stages']) for p in parts) == len(agg_names)
+    assert 'buckets_ms' in parts[0] and 'buckets_ms' not in parts[1]       # shared fields only once
+    assert parts[0]['lock_queue_depth_at_arrival'] == {'2': 1}
+    caplog.clear()
+    emit_summary()                                                          # empty window: no log noise
+    assert not [r for r in caplog.records if r.getMessage().startswith('Latency summary ')]

@@ -121,3 +121,14 @@ def test_http_decisions_and_responses_are_unchanged_and_counted(tmp_path, audio_
     assert response.status_code == 422 and response.json()['uncertain'] and not calls
     counters = aggregator.snapshot()['counters']
     assert counters['recognition.exercise.assess.rejected'] == 1 and counters['recognition.exercise.assess.issue.low_confidence'] == 1
+
+
+def test_a_window_with_only_counters_is_still_logged(caplog):
+    import logging
+    from app.telemetry import emit_summary
+    aggregator.reset()
+    aggregator.count('recognition.lesson.answer.rejected')
+    with caplog.at_level(logging.INFO, logger='uvicorn.error'):
+        emit_summary()
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith('Latency summary ')]
+    assert len(lines) == 1 and '"recognition.lesson.answer.rejected":1' in lines[0]

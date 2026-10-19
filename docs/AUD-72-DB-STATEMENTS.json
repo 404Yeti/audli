@@ -1,0 +1,61 @@
+{
+ "harness": "local PostgreSQL 17 (loopback), zero-delay fakes, one exercise turn",
+ "requests": [
+  {
+   "request": "PUT /api/profile",
+   "status": 200,
+   "statements": 3,
+   "db_ms_local": 7.0
+  },
+  {
+   "request": "GET /api/profile",
+   "status": 200,
+   "statements": 1,
+   "db_ms_local": 1.5
+  },
+  {
+   "request": "POST /api/exercises",
+   "status": 200,
+   "statements": 14,
+   "db_ms_local": 23.0
+  },
+  {
+   "request": "POST \u2026/conversation/listened",
+   "status": 200,
+   "statements": 11,
+   "db_ms_local": 16.5
+  },
+  {
+   "request": "POST \u2026/attempts (upload+STT)",
+   "status": 200,
+   "statements": 10,
+   "db_ms_local": 18.6
+  },
+  {
+   "request": "POST \u2026/assess",
+   "status": 200,
+   "statements": 45,
+   "db_ms_local": 63.2
+  },
+  {
+   "request": "POST \u2026/coach-audio",
+   "status": 200,
+   "statements": 13,
+   "db_ms_local": 24.0
+  },
+  {
+   "request": "POST \u2026/conversation/ready",
+   "status": 200,
+   "statements": 25,
+   "db_ms_local": 36.1
+  }
+ ],
+ "statements_per_exercise_turn": 118,
+ "event_loop_blocked_seconds_per_turn_at_rtt_ms": {
+  "1": 0.12,
+  "3": 0.35,
+  "20": 2.36,
+  "80": 9.44,
+  "200": 23.6
+ }
+}

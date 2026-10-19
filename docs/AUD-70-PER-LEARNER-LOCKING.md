@@ -46,9 +46,11 @@ Tests (`tests/test_per_learner_locking.py`, 17 cases; HTTP scenarios run with th
 * unit: FIFO, disabled-flag ≡ one global lock, exception releases, release-without-hold rejected.
 
 Mutation checks (tests can fail): removing mutual exclusion fails 8 tests (incl. double evaluation); forcing a global key fails the two overlap tests.
-Full suite: **1158 passed** (flag off, before the new tests were added) and **1175 passed** with `AUDLI_PER_LEARNER_LOCKS=true`; 19 Postgres tests skip locally.
+Full suite on SQLite: **1158 passed** (flag off, before the new tests) and **1175 passed** with `AUDLI_PER_LEARNER_LOCKS=true`.
+Full suite against a disposable local **PostgreSQL 17** container (so the advisory-lease path and the 19 formerly skipped tests run):
+**1759 passed, 21 skipped with the flag off and 1759 passed, 21 skipped with it on.** The repo's CI "PostgreSQL integration" job is the independent check.
 
-**Not verified locally:** Postgres + advisory lease behavior (no server available here; Docker Desktop was not running). The repo's CI "PostgreSQL integration" job is the check. Real production concurrency has not been observed.
+**Not verified:** real production concurrency, ElevenLabs behavior under parallel load, multi-worker deployment with the flag on.
 
 ## 5. Risks
 1. **More simultaneous provider calls.** Previously ≈1 locked provider call at a time app-wide. Now one per active learner. OpenAI rate limits are rarely the issue at this scale, but **ElevenLabs plans cap concurrent requests**; a 429 makes the router fall back to the OpenAI voice (voice identity degrades). Lesson/classroom/onboarding speech already runs without the lock today, so exposure exists but grows. Watch `Tutor TTS … fallback` events / `X-Audli-Tutor-Fallback`. If fallbacks rise, add a process-wide cap for ElevenLabs synthesis (not included; needs the plan's real limit — unverified).

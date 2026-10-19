@@ -8,8 +8,10 @@ from sqlalchemy.engine import make_url
 from contextlib import contextmanager, asynccontextmanager
 from time import perf_counter
 from contextvars import ContextVar
+from weakref import WeakKeyDictionary
 from pydantic import ValidationError
 from app.config import Settings
+from app.telemetry import aggregator
 
 # Request-local numeric metadata only; never attach IDs, text, or provider payloads.
 request_timings: ContextVar[list[tuple[str, float]] | None] = ContextVar('request_timings', default=None)
@@ -76,26 +78,44 @@ def report_failure(settings: Settings, operation: str, exc: Exception):
 def operation(settings: Settings, name: str):
     """Log at the precise failure boundary and preserve the original exception."""
     started = perf_counter()
+    ok = True
     try:
         yield
     except Exception as exc:
+        ok = False
         report_failure(settings, name, exc)
         raise
     finally:
+        elapsed_ms = (perf_counter() - started) * 1000
         timings = request_timings.get()
         if timings is not None:
-            timings.append((name, (perf_counter() - started) * 1000))
+            timings.append((name, elapsed_ms))
+        if settings.latency_aggregates:
+            aggregator.record(name, elapsed_ms, ok)
         if settings.environment == 'development':
             logger = logging.getLogger('uvicorn.error')
-            logger.info('Turn timing stage=%s elapsed_ms=%.1f', name, (perf_counter() - started) * 1000)
+            logger.info('Turn timing stage=%s elapsed_ms=%.1f', name, elapsed_ms)
+
+
+# Requests currently queued per lock (the holder is counted separately via lock.locked()); the shared lock serializes provider work (see AUD-68 findings).
+_waiting: WeakKeyDictionary = WeakKeyDictionary()
 
 
 @asynccontextmanager
 async def timed_lock(settings, lock, name):
-    """Same lock/cancellation semantics; measure queueing separately from work."""
-    with operation(settings, name + '.lock_wait'):
-        await lock.acquire()
+    """Same lock/cancellation semantics; measure queueing and hold time separately from work."""
+    if settings.latency_aggregates:
+        aggregator.record_queue_depth(_waiting.get(lock, 0) + int(lock.locked()))
+    _waiting[lock] = _waiting.get(lock, 0) + 1
+    try:
+        with operation(settings, name + '.lock_wait'):
+            await lock.acquire()
+    finally:
+        _waiting[lock] = _waiting.get(lock, 1) - 1
+    acquired = perf_counter()
     try:
         yield
     finally:
         lock.release()
+        if settings.latency_aggregates:
+            aggregator.record(name + '.lock_hold', (perf_counter() - acquired) * 1000)

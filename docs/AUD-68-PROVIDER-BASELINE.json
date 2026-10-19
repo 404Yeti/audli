@@ -1,0 +1,230 @@
+{
+ "version": 1,
+ "harness": "real OpenAI providers; synthetic content; sequential; US-English synthetic voice (NOT accented)",
+ "models": {
+  "llm": "gpt-4.1-mini",
+  "transcription": "gpt-4o-mini-transcribe",
+  "speech": "gpt-4o-mini-tts",
+  "voice": "coral"
+ },
+ "caps": {
+  "stt": 24,
+  "tts_stt_inputs": 20,
+  "tts_feedback": 6,
+  "llm_exercise": 1,
+  "llm_assess": 6
+ },
+ "calls": {
+  "stt": 24,
+  "tts_stt_inputs": 20,
+  "tts_feedback": 6,
+  "llm_exercise": 1,
+  "llm_assess": 6
+ },
+ "stt": {
+  "latency_seconds": {
+   "n": 24,
+   "min": 0.553,
+   "p50": 0.726,
+   "p90": 1.062,
+   "max": 1.477
+  },
+  "summary": {
+   "gate_min_confidence": 0.65,
+   "nonspeech": {
+    "n": 4,
+    "text_returned": 0,
+    "gate_false_accepts": 0,
+    "returned_words_max": 0
+   },
+   "overall": {
+    "n": 20,
+    "wer_mean": 0.0261,
+    "wer_median": 0.0,
+    "wer_p90": 0.2143,
+    "gate_pass_rate": 0.7,
+    "false_reliable_rate": 0.0714,
+    "false_unreliable_rate": 1.0,
+    "confidence_missing": 0,
+    "uncertainty_codes": {
+     "low_confidence": 1,
+     "too_short": 6
+    },
+    "stt_seconds_p50": 0.734,
+    "stt_seconds_p90": 1.363
+   },
+   "by_category": {
+    "G": {
+     "n": 3,
+     "wer_mean": 0.0,
+     "wer_median": 0.0,
+     "wer_p90": 0.0,
+     "gate_pass_rate": 1.0,
+     "false_reliable_rate": 0.0,
+     "false_unreliable_rate": null,
+     "confidence_missing": 0,
+     "uncertainty_codes": {},
+     "stt_seconds_p50": 0.712,
+     "stt_seconds_p90": 0.737
+    },
+    "N": {
+     "n": 2,
+     "wer_mean": 0.261,
+     "wer_median": 0.261,
+     "wer_p90": 0.3077,
+     "gate_pass_rate": 1.0,
+     "false_reliable_rate": 0.5,
+     "false_unreliable_rate": null,
+     "confidence_missing": 0,
+     "uncertainty_codes": {},
+     "stt_seconds_p50": 1.013,
+     "stt_seconds_p90": 1.363
+    },
+    "R": {
+     "n": 5,
+     "wer_mean": 0.0,
+     "wer_median": 0.0,
+     "wer_p90": 0.0,
+     "gate_pass_rate": 1.0,
+     "false_reliable_rate": 0.0,
+     "false_unreliable_rate": null,
+     "confidence_missing": 0,
+     "uncertainty_codes": {},
+     "stt_seconds_p50": 0.796,
+     "stt_seconds_p90": 1.477
+    },
+    "S": {
+     "n": 10,
+     "wer_mean": 0.0,
+     "wer_median": 0.0,
+     "wer_p90": 0.0,
+     "gate_pass_rate": 0.4,
+     "false_reliable_rate": 0.0,
+     "false_unreliable_rate": 1.0,
+     "confidence_missing": 0,
+     "uncertainty_codes": {
+      "low_confidence": 1,
+      "too_short": 6
+     },
+     "stt_seconds_p50": 0.695,
+     "stt_seconds_p90": 0.793
+    }
+   },
+   "by_provenance": {
+    "synthetic": {
+     "n": 20,
+     "wer_mean": 0.0261,
+     "wer_median": 0.0,
+     "wer_p90": 0.2143,
+     "gate_pass_rate": 0.7,
+     "false_reliable_rate": 0.0714,
+     "false_unreliable_rate": 1.0,
+     "confidence_missing": 0,
+     "uncertainty_codes": {
+      "low_confidence": 1,
+      "too_short": 6
+     },
+     "stt_seconds_p50": 0.734,
+     "stt_seconds_p90": 1.363
+    }
+   },
+   "by_speaker": {
+    "syn-openai-coral": {
+     "n": 20,
+     "wer_mean": 0.0261,
+     "wer_median": 0.0,
+     "wer_p90": 0.2143,
+     "gate_pass_rate": 0.7,
+     "false_reliable_rate": 0.0714,
+     "false_unreliable_rate": 1.0,
+     "confidence_missing": 0,
+     "uncertainty_codes": {
+      "low_confidence": 1,
+      "too_short": 6
+     },
+     "stt_seconds_p50": 0.734,
+     "stt_seconds_p90": 1.363
+    }
+   },
+   "threshold_sweep": [
+    {
+     "min_confidence": 0.5,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.55,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.6,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.65,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.7,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.75,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.8,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.85,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    },
+    {
+     "min_confidence": 0.9,
+     "pass_rate": 0.7,
+     "false_reliable_rate": 0.0714
+    }
+   ]
+  },
+  "note": "Synthetic US-English baseline. Accent accuracy is NOT measured here."
+ },
+ "llm_exercise_generation_seconds": 3.219,
+ "llm_assessment_seconds": {
+  "n": 6,
+  "min": 2.271,
+  "p50": 2.404,
+  "p90": 2.877,
+  "max": 2.877
+ },
+ "feedback_tts_seconds": {
+  "n": 6,
+  "min": 1.632,
+  "p50": 2.352,
+  "p90": 3.092,
+  "max": 3.092
+ },
+ "sanitization_seconds": {
+  "n": 6,
+  "min": 0.106,
+  "p50": 0.124,
+  "p90": 0.332,
+  "max": 0.332
+ },
+ "tts_synthetic_input_seconds": {
+  "n": 20,
+  "min": 0.938,
+  "p50": 1.342,
+  "p90": 2.332,
+  "max": 2.969
+ },
+ "composite_provider_p50_seconds": 5.606,
+ "composite_note": "STT + assessment + feedback TTS + sanitization at each stage p50. Excludes 1.8 s silence window, upload/network, playback start. Small n; indicative only."
+}

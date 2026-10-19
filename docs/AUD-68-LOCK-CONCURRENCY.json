@@ -1,0 +1,107 @@
+{
+ "harness": "fake providers; fixed delay; SQLite; ASGI in-process",
+ "results": [
+  {
+   "run": 1,
+   "provider_delay_s": 0.3,
+   "solo_upload_s": 0.34,
+   "two_learners_wall_s": 0.66,
+   "two_learners_each_s": [
+    0.337,
+    0.659
+   ],
+   "serialization_ratio": 1.94,
+   "b_unlocked_profile_read_s": 0.003,
+   "b_locked_listened_s": 0.272,
+   "lock_queue_depth_at_arrival": {
+    "0": 3,
+    "1": 1
+   }
+  },
+  {
+   "run": 2,
+   "provider_delay_s": 0.3,
+   "solo_upload_s": 0.33,
+   "two_learners_wall_s": 0.656,
+   "two_learners_each_s": [
+    0.333,
+    0.656
+   ],
+   "serialization_ratio": 1.99,
+   "b_unlocked_profile_read_s": 0.003,
+   "b_locked_listened_s": 0.269,
+   "lock_queue_depth_at_arrival": {
+    "0": 3,
+    "1": 1
+   }
+  },
+  {
+   "run": 3,
+   "provider_delay_s": 0.3,
+   "solo_upload_s": 0.333,
+   "two_learners_wall_s": 0.655,
+   "two_learners_each_s": [
+    0.333,
+    0.655
+   ],
+   "serialization_ratio": 1.97,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.27,
+   "lock_queue_depth_at_arrival": {
+    "0": 3,
+    "1": 1
+   }
+  },
+  {
+   "run": 1,
+   "provider_delay_s": 1.0,
+   "solo_upload_s": 1.036,
+   "two_learners_wall_s": 2.062,
+   "two_learners_each_s": [
+    1.036,
+    2.061
+   ],
+   "serialization_ratio": 1.99,
+   "b_unlocked_profile_read_s": 0.003,
+   "b_locked_listened_s": 0.832,
+   "lock_queue_depth_at_arrival": {
+    "0": 3,
+    "1": 1
+   }
+  },
+  {
+   "run": 2,
+   "provider_delay_s": 1.0,
+   "solo_upload_s": 1.03,
+   "two_learners_wall_s": 2.06,
+   "two_learners_each_s": [
+    1.036,
+    2.059
+   ],
+   "serialization_ratio": 2.0,
+   "b_unlocked_profile_read_s": 0.004,
+   "b_locked_listened_s": 0.833,
+   "lock_queue_depth_at_arrival": {
+    "0": 3,
+    "1": 1
+   }
+  },
+  {
+   "run": 3,
+   "provider_delay_s": 1.0,
+   "solo_upload_s": 1.038,
+   "two_learners_wall_s": 2.064,
+   "two_learners_each_s": [
+    1.038,
+    2.063
+   ],
+   "serialization_ratio": 1.99,
+   "b_unlocked_profile_read_s": 0.003,
+   "b_locked_listened_s": 0.832,
+   "lock_queue_depth_at_arrival": {
+    "0": 3,
+    "1": 1
+   }
+  }
+ ]
+}

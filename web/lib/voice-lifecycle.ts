@@ -5,9 +5,11 @@ import { captureRecording, recordingDiagnostic, InterruptedRecording } from './r
 import { microphoneError } from './session';
 import { turnDetector } from './hands-free';
 import { measureTurn, turnTiming, speechLatency, measuredAudioBody } from './turn-timing';
+import { installTurnReporting } from './turn-reporting';
 import { PreparedAudio } from './prepared-audio';
 import type { LessonCheckpoint } from './lesson-lifecycle';
 import type { MascotState } from '../components/audli-mascot';
+installTurnReporting();
 type AcknowledgmentCue = 'assessment' | 'followup' | 'reflection';
 const acknowledgmentText = { assessment: 'Okay, I heard you.', followup: 'Okay, I’ve heard that.', reflection: 'Let me keep that in mind.' };
 type CoachingCheckpoint = { lesson_id: string; lesson_revision: number };

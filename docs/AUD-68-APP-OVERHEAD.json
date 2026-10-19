@@ -1,0 +1,159 @@
+{
+ "harness": "zero-delay fakes; real ffmpeg sanitization; SQLite; in-process ASGI; one learner",
+ "turns": 20,
+ "stages": {
+  "ProgressRepository.complete_conversation": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 9.3,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 12.9
+  },
+  "SpeechService.coach_audio": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 26.9,
+   "p50_ms_upper": 50.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 31.3
+  },
+  "http.POST /api/attempts/{attempt_id}/assess": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 24.0,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 33.9
+  },
+  "http.POST /api/exercises": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 36.2,
+   "p50_ms_upper": 50.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 100.0,
+   "max_ms": 57.2
+  },
+  "http.POST /api/exercises/{exercise_id}/attempts": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 26.8,
+   "p50_ms_upper": 50.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 28.8
+  },
+  "http.POST /api/exercises/{exercise_id}/coach-audio": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 35.4,
+   "p50_ms_upper": 50.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 39.7
+  },
+  "http.POST /api/exercises/{exercise_id}/conversation/listened": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 6.5,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 8.6
+  },
+  "http.POST /api/exercises/{exercise_id}/conversation/ready": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 12.9,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 14.9
+  },
+  "turn.adaptive_decision": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 0.8,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 1.8
+  },
+  "turn.assessment.lock_hold": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 22.7,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 32.6
+  },
+  "turn.assessment_checkpoint_persistence": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 2.2,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 2.7
+  },
+  "turn.coach_audio.lock_hold": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 34.3,
+   "p50_ms_upper": 50.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 38.5
+  },
+  "turn.transcription": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 0.0,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 0.0
+  },
+  "turn.tts_sanitization": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 17.4,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 19.5
+  },
+  "turn.upload.lock_hold": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 24.9,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 50.0,
+   "p99_ms_upper": 50.0,
+   "max_ms": 27.2
+  },
+  "turn.upload.lock_wait": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 0.0,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 0.0
+  },
+  "turn.upload_validation": {
+   "count": 20,
+   "errors": 0,
+   "mean_ms": 18.9,
+   "p50_ms_upper": 25.0,
+   "p90_ms_upper": 25.0,
+   "p99_ms_upper": 25.0,
+   "max_ms": 21.3
+  }
+ }
+}

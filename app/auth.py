@@ -60,6 +60,11 @@ class SupabaseIdentity:
         await self.client.aclose()
 
 
+# Authenticated, but never reads or writes learner state, so it must not queue for (or churn
+# connections polling) the per-account save lease while a real step is in flight (AUD-68).
+LEASE_EXEMPT_PATHS = frozenset({'/api/telemetry/turn'})
+
+
 class LearnerAuthentication:
     def __init__(self, app, identity, repository, request_repository):
         self.app, self.identity = app, identity
@@ -82,7 +87,8 @@ class LearnerAuthentication:
         lease = None
         token = None
         try:
-            if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')):
+            if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
+                    and scope['path'] not in LEASE_EXEMPT_PATHS):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
                 for _ in range(100):
                     candidate = self.lease_engine.connect()

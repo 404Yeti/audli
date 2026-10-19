@@ -131,3 +131,36 @@ def test_summary_loop_survives_a_failing_window(monkeypatch, caplog):
         await asyncio.gather(task, return_exceptions=True)
     asyncio.run(run())
     assert len(calls) >= 3          # kept reporting after the failure, plus the shutdown flush
+
+
+def test_telemetry_report_never_waits_for_the_account_lease(tmp_path, repository_factory):
+    """Postgres only: a held account lease blocks real writes but not the (state-free) timing report."""
+    import asyncio
+    from hashlib import sha256
+    from sqlalchemy import text
+    from test_auth import USER_A
+    repo = repository_factory(None)
+    if repo.engine.dialect.name != 'postgresql':
+        pytest.skip('The account lease exists only on PostgreSQL.')
+    aggregator.reset()
+    provider = FakeProvider()
+    http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
+    app = create_app(settings_for(tmp_path, latency_aggregates=True), provider, repository=repo, auth_client=http)
+    key = int.from_bytes(sha256(('audli-account:' + USER_A).encode()).digest()[:8], 'big', signed=True)
+    headers = {'Authorization': 'Bearer valid-a'}
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver') as client:
+            blocker = repo.engine.connect(); transaction = blocker.begin()
+            try:
+                blocker.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': key})   # another worker is saving this account
+                started = asyncio.get_running_loop().time()
+                report = await client.post('/api/telemetry/turn', json={'stages': {'assessment': 5}}, headers=headers)
+                fast = asyncio.get_running_loop().time() - started
+                with pytest.raises(asyncio.TimeoutError):                                     # real writes still queue behind the lease
+                    await asyncio.wait_for(client.put('/api/profile', json={'name': 'A', 'goal': 'B'}, headers=headers), .6)
+            finally:
+                transaction.rollback(); blocker.close()
+            return report.status_code, fast
+    status, fast = asyncio.run(run())
+    assert status == 204 and fast < .5, (status, fast)
+    app.state.repository.close(); asyncio.run(http.aclose())

@@ -1,0 +1,53 @@
+{
+ "harness": "local PostgreSQL 17 in Docker (loopback); production connects over a network, so each blocking attempt is longer",
+ "results": [
+  {
+   "waiters": 0,
+   "blocking_ms_per_attempt_p50": null,
+   "loop_lag_ms_p50": 0.2,
+   "loop_lag_ms_p99": 0.4,
+   "loop_lag_ms_max": 0.9,
+   "attempts": 0
+  },
+  {
+   "waiters": 1,
+   "blocking_ms_per_attempt_p50": 18.3,
+   "loop_lag_ms_p50": 0.2,
+   "loop_lag_ms_p99": 19.1,
+   "loop_lag_ms_max": 27.0,
+   "attempts": 29
+  },
+  {
+   "waiters": 2,
+   "blocking_ms_per_attempt_p50": 16.7,
+   "loop_lag_ms_p50": 0.3,
+   "loop_lag_ms_p99": 18.7,
+   "loop_lag_ms_max": 26.5,
+   "attempts": 60
+  },
+  {
+   "waiters": 5,
+   "blocking_ms_per_attempt_p50": 17.6,
+   "loop_lag_ms_p50": 31.2,
+   "loop_lag_ms_p99": 82.2,
+   "loop_lag_ms_max": 91.9,
+   "attempts": 109
+  },
+  {
+   "waiters": 10,
+   "blocking_ms_per_attempt_p50": 17.5,
+   "loop_lag_ms_p50": 118.5,
+   "loop_lag_ms_p99": 136.7,
+   "loop_lag_ms_max": 197.5,
+   "attempts": 118
+  },
+  {
+   "waiters": 20,
+   "blocking_ms_per_attempt_p50": 17.0,
+   "loop_lag_ms_p50": 290.5,
+   "loop_lag_ms_p99": 337.9,
+   "loop_lag_ms_max": 349.0,
+   "attempts": 129
+  }
+ ]
+}

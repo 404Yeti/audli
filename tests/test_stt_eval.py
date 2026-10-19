@@ -38,7 +38,7 @@ def test_wer_basics_and_normalization():
 
 def test_prompt_set_covers_required_categories_and_poor_grammar():
     prompts = json.loads(PROMPTS.read_text())['prompts']
-    assert {p['category'] for p in prompts} == {'R', 'G', 'S', 'N'}
+    assert {p['category'] for p in prompts} == {'R', 'G', 'S', 'N', 'Z'}
     assert len({p['id'] for p in prompts}) == len(prompts)
     assert sum(p['category'] == 'G' for p in prompts) >= 6        # AGENTS.md: poor grammar, correct meaning
     assert any(len(p['text'].split()) < 3 for p in prompts if p['category'] == 'S')   # exercises the <3-word rule
@@ -84,3 +84,14 @@ def test_include_text_is_explicit_opt_in(tmp_path):
     out = tmp_path / 'r.json'
     ev.main(['--manifest', str(path), '--provider', 'fake', '--include-text', '--out', str(out)])
     assert json.loads(out.read_text())['samples'][0]['hypothesis']
+
+
+def test_nonspeech_clips_measure_hallucination_without_diluting_speech_metrics(tmp_path):
+    samples = [sample('s1-R01', 'R01'), sample('z1-Z01', 'Z01'), sample('z2-Z02', 'Z02')]
+    out = tmp_path / 'r.json'
+    path = manifest(tmp_path, samples)
+    assert ev.main(['--manifest', str(path), '--provider', 'fake', '--out', str(out)]) == 0
+    summary = json.loads(out.read_text())['summary']
+    assert summary['overall']['n'] == 1                      # speech only
+    assert summary['nonspeech']['n'] == 2 and 'Z' not in summary['by_category']
+    assert summary['nonspeech']['text_returned'] == 2         # the fake returns text for everything

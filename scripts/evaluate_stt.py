@@ -87,6 +87,9 @@ def load_manifest(path: Path, prompts_path: Path, max_bytes: int) -> list[dict]:
 
 
 def summarize(rows: list[dict], minimum: float) -> dict:
+    # Non-speech clips measure hallucination; they must not dilute speech accuracy or pass rates.
+    silent = [r for r in rows if not r['expect_speech']]
+    rows = [r for r in rows if r['expect_speech']]
     def block(items):
         scored = [r for r in items if r['wer'] is not None]
         wers = sorted(r['wer'] for r in scored)
@@ -116,7 +119,10 @@ def summarize(rows: list[dict], minimum: float) -> dict:
         accepted = [r for r in rows if r['confidence'] is not None and r['confidence'] >= t and not r['uncertainty_other_than_confidence']]
         sweep.append({'min_confidence': t, 'pass_rate': round(len(accepted) / len(rows), 4),
                       'false_reliable_rate': round(sum(r['wer'] > FALSE_RELIABLE_WER for r in accepted if r['wer'] is not None) / len(accepted), 4) if accepted else None})
-    return {'gate_min_confidence': minimum, 'overall': block(rows), 'by_category': by('category'),
+    nonspeech = {'n': len(silent), 'text_returned': sum(r['returned_words'] > 0 for r in silent),
+                 'gate_false_accepts': sum(r['gate_reliable'] and r['returned_words'] > 0 for r in silent),
+                 'returned_words_max': max((r['returned_words'] for r in silent), default=0)} if silent else None
+    return {'gate_min_confidence': minimum, 'nonspeech': nonspeech, 'overall': block(rows), 'by_category': by('category'),
             'by_provenance': by('provenance'), 'by_speaker': by('speaker'), 'threshold_sweep': sweep}
 
 
@@ -132,7 +138,10 @@ async def run(samples, provider, settings, include_text):
         codes = uncertainty_codes(result)
         row = {'id': sample['id'], 'prompt_id': sample['prompt_id'], 'category': sample['prompt']['category'],
                'speaker': sample['speaker'], 'provenance': sample['provenance'],
-               'wer': round(wer(sample['prompt']['text'], result.text), 4) if result.text.strip() else 1.0,
+               'wer': None if sample['prompt'].get('expect_speech') is False
+                      else round(wer(sample['prompt']['text'], result.text), 4) if result.text.strip() else 1.0,
+               'expect_speech': sample['prompt'].get('expect_speech') is not False,
+               'returned_words': len(normalize(result.text)),
                'confidence': None if result.confidence is None else round(result.confidence, 4),
                'uncertainty': codes, 'uncertainty_other_than_confidence': any(c in ('too_short', 'other') for c in codes),
                'gate_reliable': reliable_recognition(result, settings.min_transcription_confidence),
@@ -152,7 +161,7 @@ class FakeProvider:
     async def transcribe(self, audio, filename):
         self.calls += 1
         prompt_id = filename.rsplit('-', 1)[-1].split('.')[0]
-        text = self.prompts.get(prompt_id, 'unknown')
+        text = self.prompts.get(prompt_id, 'unknown') or 'Thank you.'   # empty reference = non-speech: simulate a hallucination
         words = text.split()
         if self.calls % 4 == 0 and len(words) > 3:
             words[1] = 'zzz'

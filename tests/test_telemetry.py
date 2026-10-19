@@ -96,3 +96,38 @@ def test_client_report_requires_authentication_and_strict_numeric_schema(tmp_pat
     stages = aggregator.snapshot()['stages']
     assert stages['client.assessment']['count'] == 1 and stages['client.turn_to_playback']['count'] == 1
     app.state.repository.close(); asyncio.run(http.aclose())
+
+
+def test_recording_overhead_is_microseconds_and_memory_is_constant():
+    import time, tracemalloc
+    agg = LatencyAggregator()
+    for i in range(500):
+        agg.record(f'warm.{i % 50}', 3)
+    tracemalloc.start()
+    before = tracemalloc.take_snapshot()
+    started = time.perf_counter()
+    for i in range(50_000):
+        agg.record(f'stage.{i % 40}', (i % 97) * 3.0)
+    per_call_us = (time.perf_counter() - started) / 50_000 * 1e6
+    growth = sum(s.size_diff for s in tracemalloc.take_snapshot().compare_to(before, 'filename') if 'telemetry.py' in str(s.traceback))
+    tracemalloc.stop()
+    assert per_call_us < 100, per_call_us          # generous CI bound; typical is a few microseconds
+    assert growth < 64 * 1024, growth              # 50k samples add no per-sample memory
+
+
+def test_summary_loop_survives_a_failing_window(monkeypatch, caplog):
+    import asyncio
+    from app import telemetry
+    calls = []
+    def flaky():
+        calls.append(1)
+        if len(calls) == 1:
+            raise ValueError('boom')
+    monkeypatch.setattr(telemetry, 'emit_summary', flaky)
+    async def run():
+        task = asyncio.create_task(telemetry.summary_loop(0.01))
+        await asyncio.sleep(0.12)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(run())
+    assert len(calls) >= 3          # kept reporting after the failure, plus the shutdown flush

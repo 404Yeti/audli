@@ -10,13 +10,15 @@ from test_persistence import repository_factory  # noqa: F401  (fixture)
 
 
 def test_global_lock_serializes_two_learners(repository_factory):
-    result = asyncio.run(measure(repository_factory(None), delay=0.3))
-    # Two simultaneous uploads take about two provider delays, not one.
-    assert result['serialization_ratio'] >= 1.7, result
+    delay = 0.3
+    result = asyncio.run(measure(repository_factory(None), delay=delay))
+    # Bounds are relative to the injected provider delay, not to a noisy baseline: if two learners ran
+    # in parallel the wall time would be ~1 delay; serialized it is >= 2 delays.
+    assert result['two_learners_wall_s'] >= 1.8 * delay, result
     # A cheap lock-taking route for learner B waits behind learner A's STT...
-    assert result['b_locked_listened_s'] >= 0.15, result
+    assert result['b_locked_listened_s'] >= 0.4 * delay, result
     # ...while a route that does not take the lock is unaffected.
-    assert result['b_unlocked_profile_read_s'] < 0.15, result
-    assert result['turn_upload_lock_wait']['max_ms'] >= 200, result
+    assert result['b_unlocked_profile_read_s'] < 0.5 * delay, result
+    assert result['turn_upload_lock_wait']['max_ms'] >= 0.6 * delay * 1000, result
     # Depth counts the holder: B arrived behind A (>=1), and sole requests saw 0.
     assert any(int(depth) >= 1 for depth in result['lock_queue_depth_at_arrival']), result

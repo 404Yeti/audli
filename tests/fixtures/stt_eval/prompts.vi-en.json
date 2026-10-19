@@ -1,7 +1,7 @@
 {
  "version": 1,
  "l1": "vi",
- "description": "Vietnamese-L1 English speech evaluation prompts (AUD-68 Phase 0). Categories: R read-aloud phonology, G learner-style grammar errors, S short replies, N numbers/names.",
+ "description": "Vietnamese-L1 English speech evaluation prompts (AUD-68 Phase 0). Categories: R read-aloud phonology, G learner-style grammar errors, S short replies, N numbers/names. Z: non-speech clips (silence/noise/tone) with no reference text; used to measure ASR hallucination, the risk the short-reply rule defends against.",
  "prompts": [
   {
    "id": "R01",
@@ -331,6 +331,46 @@
     "names",
     "final_s"
    ]
+  },
+  {
+   "id": "Z01",
+   "category": "Z",
+   "text": "",
+   "expect_speech": false,
+   "targets": [
+    "nonspeech"
+   ],
+   "note": "digital silence"
+  },
+  {
+   "id": "Z02",
+   "category": "Z",
+   "text": "",
+   "expect_speech": false,
+   "targets": [
+    "nonspeech"
+   ],
+   "note": "very quiet room noise"
+  },
+  {
+   "id": "Z03",
+   "category": "Z",
+   "text": "",
+   "expect_speech": false,
+   "targets": [
+    "nonspeech"
+   ],
+   "note": "moderate broadband noise"
+  },
+  {
+   "id": "Z04",
+   "category": "Z",
+   "text": "",
+   "expect_speech": false,
+   "targets": [
+    "nonspeech"
+   ],
+   "note": "steady tone"
   }
  ]
 }

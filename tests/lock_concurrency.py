@@ -70,7 +70,8 @@ async def measure(repository, delay=0.4):
             assert response.status_code == 200, response.text
             return perf_counter() - started
 
-        # 1. Baseline: one learner alone.
+        # 1. Baseline: one learner alone, after a warm-up so first-request costs do not skew it.
+        await upload('a')
         solo = await upload('a')
         # Fresh exercises are needed for repeat uploads; attempts are idempotent per exercise so reuse is fine.
         # 2. Two learners at the same instant.

@@ -16,7 +16,8 @@ Legend — **[M]** measured by this PR in a controlled local harness · **[C]** 
 | 4 | Production-safe numeric telemetry is implemented, off by default, and verified not to emit IDs, text, tokens or concrete paths. | **[M]** (tests) |
 | 5 | End-to-end turn latency in production is **still unknown**: no p50/p90 exists. Earlier dev-mode samples: 9.8, 10.3, 12.1, 43.2 s. | **[C]** / **[?]** |
 | 6 | Vietnamese-accent STT accuracy is **unknown**. Harness, prompt set (34 prompts) and consent protocol are ready; **no audio has been evaluated.** | **[?]** |
-| 7 | Short replies are a measurable risk: the current transcriber appends an uncertainty note for replies under 3 words (`openai_provider.py` `transcribe`), and `reliable_recognition` rejects any uncertainty. "Yes please." or "Football." can never pass the automatic gate. The harness quantifies this (category `S`). | code fact; rate **[?]** |
+| 7 | Short replies: the transcriber flags replies under 3 words and the general gate rejects any uncertainty, so correct 1–2-word answers fail. Real-provider run: 6/10 short replies rejected as `too_short`; non-speech clips produced no text (n=4). Homework already uses a closed-intent exception. Context-aware proposal: [AUD-68-SHORT-REPLY-RULE.md](AUD-68-SHORT-REPLY-RULE.md). | **[M]** small n |
+| 8 | Real-provider baseline (synthetic): STT p50 0.73 s, assessment p50 2.4 s, OpenAI feedback TTS p50 2.35 s. See §4b. | **[M]** small n |
 
 ## 2. The shared lock (task 2)
 
@@ -66,11 +67,30 @@ Expected cost: ~one dict update per stage per request; log volume ≈ one line (
 | **Production p50/p90 for any stage** | — | **[?]** |
 
 Not obtained, and why:
-1. **Production logs.** The Render connector has no workspace selected and requires you to confirm one; I did not pick one. Existing `Tutor TTS` log lines would refresh the TTS numbers above.
-2. **Real-provider runs.** No provider key is available to this session; a run would spend your credits. A script exists for the STT part (§5). A full real-provider turn benchmark is not included.
+1. **Production logs.** The Render connector has no workspace selected; awaiting the owner to identify the correct one. Existing `Tutor TTS` log lines would refresh the TTS numbers above.
+2. **Production-voice benchmark.** Local env has no ElevenLabs key (see §4b).
 3. **Production end-to-end.** Requires deploying this telemetry with the two flags on (owner decision).
 
 Interpretation [E]: if the earlier samples are representative, assessment (~35–45%) and the sum of STT+TTS+silence (~40–50%) dominate; our own code is ~1%. Do not treat this split as measured production truth.
+
+### 4b. Controlled real-provider benchmark (owner-authorized; added after review)
+`scripts/benchmark_providers.py` → `docs/AUD-68-PROVIDER-BASELINE.json`. Synthetic content only; local env key read by variable *name* allowlist
+(no value printed, no database/Supabase/production account); 24 STT + 26 TTS + 1 generation + 6 assessment calls per run (estimated spend: cents;
+two runs). Models as configured: `gpt-4.1-mini`, `gpt-4o-mini-transcribe`, `gpt-4o-mini-tts` / `coral`. **No ElevenLabs key is present locally, so the
+ElevenLabs tutor voice was not benchmarked.** Small n; US-English synthetic voice, **not** accented learners. [M]
+
+| Stage (provider-only, run 2) | n | p50 | p90 |
+|---|---|---|---|
+| STT (`gpt-4o-mini-transcribe`, 3–6 s clips) | 24 | 0.73 s | 1.06 s |
+| Evidence assessment (`gpt-4.1-mini`, structured) | 6 | 2.40 s | 2.88 s |
+| Feedback TTS (OpenAI `coral`, ≈15 words) | 6 | 2.35 s | 3.09 s |
+| ffmpeg sanitization of that audio | 6 | 0.12 s | 0.33 s |
+| Provider-bound composite at stage p50s | — | **≈5.1–5.6 s** | — |
+
+Add the 1.8 s silence window, upload/network, app overhead (≈0.1 s) and playback start for a full turn: roughly **7.5–9 s** at p50 with the OpenAI
+voice, consistent with earlier dev-mode samples (9.8–12.1 s) given their older, slower TTS. Production uses ElevenLabs for the tutor voice
+(earlier production logs: validated audio readiness median ≈0.8 s), which would lower the TTS term. That is an [E], not a measurement.
+Runs differed slightly (assessment p50 2.6 s vs 2.4 s; TTS 1.7 s vs 2.35 s): TTS and LLM latency varies by a second or more run to run.
 
 ## 5. Vietnamese-accent STT evaluation (task 4)
 
@@ -94,9 +114,9 @@ Adaptive logic, evaluator, ElevenLabs/Coral voice and fallback, transcript gates
 1. **Per-learner locking** (Phase 4 in the proposal): finding 1–2 is measurable today. Authorize a separate scoped change? It alters serialization semantics, so I will not fold it into Phase 1.
 2. **Enable telemetry in production** (`AUDLI_LATENCY_AGGREGATES=true`; web build flag) to get real p50/p90. Needs a deploy, which I will not do.
 3. **Render workspace** — confirm which workspace I may read logs from (read-only) to refresh production TTS numbers.
-4. **Real-provider benchmark/STT run** — authorize use of your local `.env` provider keys (estimated spend: small, but not zero) and/or supply consented audio.
-5. **Short-reply rule** — whether the <3-word uncertainty rule should be revisited for yes/no and topic answers (behaviour change; not touched here).
-6. **Linear numbering** — AUD-68 is now this Phase 0 issue, but the earlier lifecycle work (PR #50, `docs/AUD-68-LESSON-LIFECYCLE.md`, branch `fix/AUD-68-lesson-lifecycle`) also carries "AUD-68" in its name. Branch here: `feat/AUD-68-phase0-latency-diagnostics`. Phase 1 is AUD-69.
+4. **Consented accent audio** — the real-provider benchmark is done (§4b, synthetic). Accent accuracy still needs consented Vietnamese-accent recordings.
+5. **Short-reply rule** — approve Step A (pure refactor + counters) of [AUD-68-SHORT-REPLY-RULE.md](AUD-68-SHORT-REPLY-RULE.md)? Step B (behaviour change) awaits accent/noise data.
+6. **Linear numbering (resolved)** — AUD-68 = Phase 0, AUD-69 = Phase 1. The earlier lifecycle work (PR #50, `docs/AUD-68-LESSON-LIFECYCLE.md`) carries the same number in history; it is left unchanged and new documents cite "AUD-68 Phase 0" or the PR number.
 
 ## 8. Reproduce
 ```sh

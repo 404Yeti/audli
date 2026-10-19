@@ -101,7 +101,13 @@ async def summary_loop(interval_seconds: float) -> None:
     try:
         while True:
             await asyncio.sleep(interval_seconds)
-            emit_summary()
+            try:
+                emit_summary()
+            except Exception:  # Diagnostics must never take the API down or stop reporting.
+                _logger.warning('Latency summary failed')
     except asyncio.CancelledError:
-        emit_summary()  # Do not lose the final partial window on shutdown.
+        try:
+            emit_summary()  # Do not lose the final partial window on shutdown.
+        except Exception:
+            pass
         raise

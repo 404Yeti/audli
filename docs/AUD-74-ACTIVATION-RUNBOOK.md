@@ -48,3 +48,23 @@ Budget: a passage is ~500-1,000 characters, so two passages use ~1,000-2,000 of 
 
 ## Scale-up (separate approval)
 Raise `AUDLI_PASSAGE_TTS_MAX_CONCURRENT` to 2-3 and both daily ceilings (env + `accent_control.daily_limit`) to ~10,000 after the owner reviews a day of logs and the credit delta.
+
+## Status log
+- 2026-10-20 22:37 UTC: global activation (owner-approved product decision: ElevenLabs is the default passage provider for all users). Render deploy `dep-dbbuq2jl9sls739b4j7g`, revision `6a50adc`, flag `true`, `daily_characters=5000`, `max_concurrent=1`, voice `yKYzqEa22xh5PdidhN70`. Budget, concurrency, `accent_control`, tutor and accent settings unchanged.
+- Rollback trigger conditions: sustained passage failures, unexpectedly high credit use, degraded tutor speech, or lesson-reliability regression. Action: set the flag `false`, redeploy, confirm the startup line shows `default_passage_elevenlabs_enabled: false`.
+- Alert thresholds (owner): remaining credits < 5,000, or frequent passage fallbacks.
+
+## Follow-up (not implemented; needs separate approval): overlapping passages should not fall back to Coral unnecessarily
+Problem. With `AUDLI_PASSAGE_TTS_MAX_CONCURRENT=1` the shared ledger admits one passage synthesis at a time; a second learner starting a passage while one is in flight (or within the 90 s lease after a failed attempt) gets `fallback_reason=concurrency_limit` and hears Coral, although ElevenLabs Creator Flash allows 10 concurrent requests account-wide.
+
+Options, smallest first:
+1. **Raise the cap to 2-3** (`AUDLI_PASSAGE_TTS_MAX_CONCURRENT` and `accent_control.concurrent_limit`). Configuration only; leaves >= 7 of 10 slots to the tutor. Watch the `inflight_at_start` field.
+2. **Bounded wait before fallback.** In `default_passage_audio`, when admission returns `concurrency_limit`, retry `reserve_default` for up to a few seconds (e.g. 3 x 1 s) before falling back. A normal passage holds the slot ~5 s and the learner already waits ~7-10 s for generation, so most overlaps resolve with no Coral. Pure code, tested with the existing burst test.
+3. **Release failed slots sooner.** A failed or timed-out attempt currently holds its slot for the 90 s lease. A definitive provider answer (HTTP error, invalid audio) could release immediately; only an ambiguous timeout needs the lease.
+4. **Pre-generate the next passage** while the learner answers, removing generation latency from the critical path (larger change; interacts with the lesson lifecycle, so out of scope here).
+5. **Circuit breaker for quota exhaustion.** After `quota_exceeded` skip ElevenLabs for passages (and tutor cues) for a short period instead of paying one failed attempt per request.
+
+Recommended order: 1 (config) then 2 and 3 (small code) after at least a week of fallback-reason data.
+
+## Credit-burn caveat (observed 20 Oct 2026)
+Creator balance read by the owner: 16,791 of 121,314 remaining, renewing 3 Nov. Usage 92,077 (10 Oct) -> 104,523 (20 Oct) is ~1.2k credits/day before this change. The 5,000-character budget adds up to ~1.1k credits/day, so the balance can reach the 5,000 alert floor in roughly 5-7 days. Monitor daily; raise credits or lower the budget before exhaustion (exhaustion degrades to Coral, never to silence).

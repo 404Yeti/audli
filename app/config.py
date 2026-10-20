@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     passage_tts_max_characters: int = Field(default=4000, ge=1, le=4000)
     passage_tts_daily_characters: int = Field(default=0, ge=0)
     passage_voices: dict[str, VerifiedPassageVoice] = Field(default_factory=dict)
+    # AUD-74 rollout flag: ordinary (non-accent) passages use the tutor's ElevenLabs voice ID. OFF = previous OpenAI route.
+    default_passage_elevenlabs_enabled: bool = False
     tutor_tts_provider: Literal['openai', 'elevenlabs'] = 'openai'
     elevenlabs_api_key: SecretStr | None = Field(default=None, validation_alias='ELEVENLABS_API_KEY')
     elevenlabs_model: Literal['eleven_flash_v2_5', 'eleven_multilingual_v2'] = 'eleven_flash_v2_5'
@@ -121,6 +123,13 @@ class Settings(BaseSettings):
             if not self.passage_voices or any(approved.get(accent, {}).get('voice_id') != voice.voice_id
                     for accent, voice in self.passage_voices.items()):
                 raise ValueError('Configured passage voices have not passed human approval/hash validation')
+        if self.default_passage_elevenlabs_enabled:
+            if self.provider == 'demo':
+                raise ValueError('ElevenLabs default passages require AUDLI_PROVIDER=openai')
+            if not self.elevenlabs_api_key or not self.elevenlabs_api_key.get_secret_value().strip():
+                raise ValueError('ElevenLabs default passages require ELEVENLABS_API_KEY')
+            if self.passage_tts_daily_characters <= 0:
+                raise ValueError('ElevenLabs default passages require a positive AUDLI_PASSAGE_TTS_DAILY_CHARACTERS ceiling')
         if self.tutor_tts_provider == 'elevenlabs':
             if self.provider == 'demo':
                 raise ValueError('ElevenLabs tutor TTS requires AUDLI_PROVIDER=openai')

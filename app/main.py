@@ -60,6 +60,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         try:
             from app.services.tutor_tts import emit_configuration
             emit_configuration(settings)
+            from app.default_passage import emit_default_passage_configuration
+            emit_default_passage_configuration(settings)
             summary = asyncio.create_task(summary_loop(settings.latency_summary_seconds)) if settings.latency_aggregates else None
             yield
         finally:

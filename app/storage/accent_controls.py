@@ -134,6 +134,32 @@ class SharedAccentControls:
             db.execute(update(s.accent_control).where(s.accent_control.c.id == 1).values(budget_day=day, characters=used+count))
             return token, control['revision']
 
+    def reserve_default(self, count):
+        """Admit one ordinary-passage synthesis against the same fleet budget/concurrency as accents.
+
+        Not tied to accent consent or the accent kill switch. Returns (token, revision) or a fixed reason."""
+        if not 1 <= count <= self.settings.passage_tts_max_characters:
+            return 'too_long'
+        with self.transaction() as db:
+            control = db.execute(select(s.accent_control).where(s.accent_control.c.id == 1).with_for_update()).mappings().one()
+            at = self.clock(db)
+            day = at.date().isoformat()
+            used = control['characters'] if control['budget_day'] == day else 0
+            if used + count > min(control['daily_limit'], self.settings.passage_tts_daily_characters):
+                return 'budget_exhausted'
+            active = db.execute(select(func.count()).select_from(s.accent_reservations)
+                .where(s.accent_reservations.c.lease_until > at)).scalar_one()
+            if active >= min(control['concurrent_limit'], self.settings.passage_tts_max_concurrent):
+                return 'concurrency_limit'
+            db.execute(update(s.accent_reservations).where((s.accent_reservations.c.state == 'active')
+                & (s.accent_reservations.c.lease_until <= at)).values(state='abandoned'))
+            token = str(uuid4())
+            db.execute(s.accent_reservations.insert().values(scope=hashlib.sha256(f'default:{token}'.encode()).hexdigest(),
+                token=token, budget_day=day, characters=count, flag_revision=control['revision'], state='active',
+                created_at=at, lease_until=at+timedelta(seconds=LEASE_SECONDS)))
+            db.execute(update(s.accent_control).where(s.accent_control.c.id == 1).values(budget_day=day, characters=used+count))
+            return token, control['revision']
+
     def finish(self, token, state):
         with self.transaction() as db:
             # Same lock order as admission/disable. Characters are never refunded.

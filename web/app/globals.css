@@ -434,3 +434,8 @@ main.audli-loading-screen { max-width: none; min-height: 100svh; margin: 0; bord
 .celebration-content p { color: var(--muted); }
 
 .celebration-content .mascot-overlay { inset: -10%; }
+/* One screen: Pip, the statistics and Return Home must fit together on small phones, so Pip shares the height. */
+.lesson-success .celebration-content .audli-mascot { width: min(80vw, 36svh, 400px); height: min(80vw, 36svh, 400px); }
+.lesson-success .completion-summary { margin: .25rem 0 1rem; }
+.lesson-success .completion-summary p { margin: .25rem 0; }
+.wrapup-status { color: var(--muted); }

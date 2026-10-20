@@ -44,3 +44,17 @@ export function startMascot(
     return true;
   });
 }
+
+let prefetched = false;
+/** Warm the celebration's runtime, wasm and artwork while the learner is still in wrap-up. Idempotent and best-effort:
+ *  presentation only, never throws, skipped when no animation will play. It does not change what is rendered. */
+export function prefetchCelebration(reducedMotion: boolean) {
+  if (prefetched || reducedMotion || typeof window === 'undefined') return;
+  try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
+  } catch { return; }
+  prefetched = true;
+  void import('../components/rive-mascot-runtime').catch(() => {});
+  for (const url of ['/audli/rive.wasm', '/audli/audli-mascot.riv']) void fetch(url).catch(() => {});
+}

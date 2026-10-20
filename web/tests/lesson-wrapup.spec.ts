@@ -14,7 +14,7 @@ for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topi
   await page.screenshot({ path: `../docs/screenshots/AUD-61-wrapup-offer-${width}.png`, fullPage: true });
   await typeReply(page, 'yes about science');
   await page.getByRole('button', { name: 'Send', exact: true }).focus(); await page.keyboard.press('Enter');
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'SUCCESS');
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   await expect.poll(() => state.confirmations).toBe(1);
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
@@ -23,7 +23,7 @@ for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topi
   await page.locator('.homework-card').evaluate(node => (node as HTMLElement).blur());
   await page.screenshot({ path: `../docs/screenshots/AUD-61-wrapup-assigned-${width}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.reload(); await expect(page.locator('.lesson-wrapup')).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(state.confirmations).toBe(1); expect(state.spoken).toBe(0);
   await page.getByRole('button', { name: 'Return Home' }).click();
   await page.getByRole('button', { name: 'Plan', exact: true }).click();
@@ -61,7 +61,7 @@ test('three-lesson topic check-in is asked in setup, before the lesson; completi
   await expect.poll(() => state.confirmations).toBe(1);
   expect(offers).toBe(0); expect(state.voiceRequests).toBe(1);
   expect((await probe(page)).overlaps).toBe(0);
-  await page.reload(); await expect(page.locator('.lesson-wrapup')).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(offers).toBe(0); expect(answers).toBe(1); expect(state.spoken).toBe(1);
 });
 
@@ -70,7 +70,7 @@ test('network failure leaves compact recovery and saved lesson available', async
   await page.route('**/api/homework/assignment/decision/text', route => route.abort('internetdisconnected'));
   await typeReply(page, 'yes please');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Return Home' })).toBeEnabled();
 });
 
@@ -106,7 +106,7 @@ test('completion dismisses a pending End dialog before the inline wrap-up', asyn
   await page.getByRole('button', { name: 'End', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   release();
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Return Home' })).toBeEnabled();
 });

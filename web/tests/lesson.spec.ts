@@ -84,8 +84,8 @@ test('normal session completes with zero clicks after Start and automatically ha
   const fixture=await setup(page,{autoPlayback:true});await page.clock.install();
   await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
   await page.clock.fastForward(600000);
-  for(let i=0;i<16;i++){await page.clock.runFor(1000);await page.waitForTimeout(20);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<16;i++){await page.clock.runFor(1000);await page.waitForTimeout(20);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect((await probe(page)).clicks).toBe(1);expect(fixture.requests.filter(x=>x.path.endsWith('/assess'))).toHaveLength(2);
   expect(fixture.requests.some(x=>x.path.endsWith('/ready'))).toBe(true);await expect(page.locator('textarea')).toHaveCount(0);
 });
@@ -130,7 +130,7 @@ test('119 second recording limit remains authoritative for continuous voice',asy
 test('countdown tracks actual elapsed time and no zero is shown before server completion',async({page})=>{
   await setup(page);await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();await state(page,'Speaking');
   await expect(page.getByLabel('Session time remaining')).toHaveText('10 min left');await page.clock.fastForward(60000);await expect(page.getByLabel('Session time remaining')).toHaveText('9 min left');
-  await page.clock.fastForward(600000);await expect(page.getByLabel('Session time remaining')).toHaveText('Finishing this conversation');await expect(page.getByRole('heading',{name:'Lesson completed'})).toHaveCount(0);
+  await page.clock.fastForward(600000);await expect(page.getByLabel('Session time remaining')).toHaveText('Finishing this conversation');await expect(page.getByRole('heading',{name:'Great job!'})).toHaveCount(0);
 });
 test('refresh restores pending answer and original session timing without rerecording',async({page})=>{
   const fixture=await setup(page);await page.clock.install();await beginListening(page);
@@ -154,7 +154,7 @@ test('reduced motion keeps static poses and understandable state labels',async({
 });
 test('completed Review exposes only server-eligible transcript, with no score dashboard',async({page})=>{
   await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);await endAudio(page);await state(page,'Listening');await finishTurn(page);await page.clock.fastForward(600000);await endAudio(page);
-  await expect.poll(async()=>(await probe(page)).plays.length).toBe(5);await endAudio(page);await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();await page.getByRole('button',{name:'Return Home'}).click();await page.getByRole('button',{name:'Review',exact:true}).click();await page.getByRole('button',{name:/Listening lesson/}).click();await page.getByRole('button',{name:'Passage transcript'}).click();
+  await expect.poll(async()=>(await probe(page)).plays.length).toBe(5);await endAudio(page);await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();await page.getByRole('button',{name:'Return Home'}).click();await page.getByRole('button',{name:'Review',exact:true}).click();await page.getByRole('button',{name:/Listening lesson/}).click();await page.getByRole('button',{name:'Passage transcript'}).click();
   await expect(page.getByText('Only after completed assessment.')).toBeVisible();await expect(page.getByText('Observed comprehension:',{exact:false})).toHaveCount(0);
 });
 test('persisted learner-confirmed correction survives resuming an interrupted assessment',async({page})=>{

@@ -5,7 +5,7 @@ import { typeReply } from './homework-fixture';
 /** Browser lifecycle regressions (AUD-68). The mock server mirrors the lesson/planner contracts;
  *  these establish ordering and plumbing, not evaluator or provider accuracy.
  *  Sequence under test: small talk → previous-homework query → lesson → class feedback → new-homework
- *  query → Rive celebration → final stats card → explicit Return Home. */
+ *  query → one Success screen (Pip's celebration + final stats) → explicit Return Home. */
 async function begin(page: Page, options: Options & { motion?: boolean } = {}) {
   if (!options.motion) await page.emulateMedia({ reducedMotion: 'reduce' });
   const entries = await countTopicEntries(page);
@@ -19,7 +19,7 @@ const topic = (page: Page) => page.getByLabel('Your topic preference');
 const phaseIs = (page: Page, phase: string) => expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', phase);
 const toHomework = async (page: Page) => { await start(page); await expect.poll(() => phaseNow(page), { timeout: 30000 }).toBe('HOMEWORK'); };
 const decide = async (page: Page, reply = 'no thanks') => { await typeReply(page, reply); await page.getByRole('button', { name: 'Send', exact: true }).click(); };
-const toStats = async (page: Page, reply = 'no thanks') => { await toHomework(page); await decide(page, reply); await phaseIs(page, 'STATS'); };
+const toSuccess = async (page: Page, reply = 'no thanks') => { await toHomework(page); await decide(page, reply); await phaseIs(page, 'SUCCESS'); };
 const inOrder = (log: string[], expected: string[]) => {
   let at = 0;
   for (const phase of expected) { at = log.indexOf(phase, at); expect(at, `${phase} in ${log.join('>')}`).toBeGreaterThanOrEqual(0); }
@@ -42,18 +42,17 @@ test('full lifecycle in the requested order, ending only on explicit Return Home
   await decide(page, 'no thanks');
   await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(homework.decisions).toBe(1);
-  await page.getByRole('button', { name: 'Continue to results' }).click();
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
   await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Finish lesson' })).toHaveCount(0);
   await expect.poll(() => server.farewells).toBe(1);
   await page.clock.install(); await page.clock.runFor(10 * 60 * 1000);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await page.getByRole('button', { name: 'Return Home' }).click();
   await phaseIs(page, 'HOME');
   const log = await phases();
-  inOrder(log, ['TOPIC_SETUP', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'FEEDBACK', 'HOMEWORK', 'SUCCESS', 'STATS', 'HOME']);
+  inOrder(log, ['TOPIC_SETUP', 'SMALL_TALK', 'HOMEWORK_PREFLIGHT', 'FEEDBACK', 'HOMEWORK', 'SUCCESS', 'HOME']);
   expect(server.homeworkReviews).toBe(1);
   expect(log.filter(phase => phase === 'TOPIC_SETUP')).toHaveLength(1);
   expect(await entries()).toBe(1); expect(server.topicTexts).toBe(1); expect(server.offers).toBe(0);
@@ -134,7 +133,7 @@ test('a failed homework decision keeps the query on screen until it is completed
   await phaseIs(page, 'HOMEWORK');
   await page.unroute('**/api/homework/assignment/decision/text');
   await page.getByRole('button', { name: 'Skip homework' }).click();
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   expect(homework.decisions).toBe(1); // The aborted attempt never reached the server.
 });
 
@@ -145,15 +144,15 @@ test('a delayed farewell never gates the final card; it plays once', async ({ pa
   const held = new Promise<void>(resolve => { release = resolve; });
   await page.route('**/api/lessons/lesson/farewell-audio', async route => { await held; await route.fallback(); });
   await decide(page);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await expect(page.locator('.completion-summary')).toBeVisible();
   await page.waitForTimeout(500);
   release();
   await expect.poll(() => server.farewells).toBe(1);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
 });
 
-test('remount and restoration resume the homework query, then the final card, without a second celebration or farewell', async ({ page }) => {
+test('remount and restoration resume the homework query, then the final card, without repeating the decision, a celebration replay or a farewell', async ({ page }) => {
   const { server, entries, phases } = await begin(page, { due: true });
   await start(page);
   await topic(page).fill('science');
@@ -163,21 +162,24 @@ test('remount and restoration resume the homework query, then the final card, wi
   await phaseIs(page, 'HOMEWORK');
   await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible();
   await decide(page);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await page.reload();
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await expect(page.locator('.completion-summary')).toBeVisible();
   await expect(page.getByText('No homework today. Your next lesson is ready when you are.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Great job!' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   await page.waitForTimeout(500);
   expect(await entries()).toBe(1); expect(server.offers).toBe(0); expect(server.topicTexts).toBe(1); expect(server.farewells).toBe(0); // A restored session is silent.
-  expect((await phases()).filter(phase => phase === 'SUCCESS').length).toBeLessThanOrEqual(1);
+  // Restoring into Success re-enters that screen, but never goes back to the homework query after the decision.
+  const log = await phases();
+  expect(log.lastIndexOf('HOMEWORK')).toBeLessThan(log.indexOf('SUCCESS'));
+  expect(log).not.toContain('STATS');
 });
 
-test('homework off for the account: nothing to decide, celebration then final card', async ({ page }) => {
+test('homework off for the account: nothing to decide, Success screen directly', async ({ page }) => {
   await begin(page, { due: false, homework: false });
   await start(page);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await expect(page.locator('.completion-summary')).toBeVisible();
 });
 
@@ -191,7 +193,7 @@ for (const [outcome, reply, expected] of [
   await toHomework(page);
   await typeReply(page, reply);
   await page.getByRole('button', { name: 'Send', exact: true }).dblclick();
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await expect(page.getByText(expected).first()).toBeVisible();
   await expect(page.locator('.completion-summary')).toBeVisible();
   expect(homework.decisions).toBe(1);
@@ -202,14 +204,14 @@ test('in-app history entries cannot step the lesson backwards', async ({ page })
   // The app has no routes: leaving its first history entry exits the app itself, which no state can prevent.
   // Entries the app or the browser adds (bfcache, extensions, OAuth return) must be inert.
   const { entries } = await begin(page, { due: false });
-  await toStats(page);
+  await toSuccess(page);
   await page.evaluate(() => new Promise<void>(resolve => {
     addEventListener('popstate', () => resolve(), { once: true });
     history.pushState({ stale: true }, '', '/?return=1'); history.back();
   }));
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await expect(page.locator('.completion-summary')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Great job!' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(await entries()).toBe(0);
 });
 
@@ -219,9 +221,9 @@ test('Return Home is explicit and the next lesson starts clean', async ({ page }
   await page.getByRole('button', { name: 'Keep my topics' }).click();
   await phaseIs(page, 'HOMEWORK');
   await decide(page);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await page.clock.install(); await page.clock.runFor(10 * 60 * 1000);
-  await phaseIs(page, 'STATS');
+  await phaseIs(page, 'SUCCESS');
   await page.getByRole('button', { name: 'Return Home' }).click();
   await expect(page.getByRole('button', { name: 'Start today’s session' })).toBeVisible();
   homework.status = 'offered'; // The next lesson brings a fresh, undecided assignment.

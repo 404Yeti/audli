@@ -74,7 +74,7 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
 async function runToCompletion(page:Page){
   await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();
   for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.locator('.completion-summary').isVisible())return;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
 }
 
 for(const lost of [false,true])test(`accent clarification stays voice driven${lost?' after a committed upload loses its response':''}`,async({page})=>{
@@ -83,15 +83,15 @@ for(const lost of [false,true])test(`accent clarification stays voice driven${lo
   for(let i=0;i<45;i++){
     await page.clock.runFor(1000);await page.waitForTimeout(30);
     if(await page.getByRole('button',{name:'Retry conversation'}).count())break;
-    if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;
+    if(await page.getByRole('heading',{name:'Great job!'}).count())break;
   }
   if(lost){
     await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
     expect(fixture.snapshot().pending?.text).toBe('Maybe');
     await page.getByRole('button',{name:'Retry conversation'}).click();
-    for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
+    for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
   }
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(fixture.requests.filter(path=>path==='/api/lessons/structured/attempts')).toHaveLength(2);
   expect(fixture.spoken.filter(text=>text.includes('You can say yes or no'))).toHaveLength(1);
   expect(fixture.spoken.filter(text=>text.includes('Want to practice Australian'))).toHaveLength(1);
@@ -120,7 +120,7 @@ for(const returning of [false,true])test(`${returning?'returning':'first-time'} 
   expect(fixture.spoken).toContain('Let’s listen to the first recording.');
   await expect(page.locator('textarea')).toHaveCount(0);expect((await probe(page)).clicks).toBe(1);
   await expect(page.locator('.completion-summary')).toContainText('following the main idea');
-  await page.reload();await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();expect((await probe(page)).plays).toHaveLength(0);
+  await page.reload();await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();expect((await probe(page)).plays).toHaveLength(0);
   await page.getByRole('button',{name:'Return Home'}).click();await expect(page.getByRole('heading',{name:'Good to see you, Maya.'})).toBeVisible();
 });
 
@@ -132,8 +132,8 @@ for(const recovery of ['exercise','closing'] as const)test(`Retry conversation p
   expect(fixture.snapshot().exercises_completed).toBe(1);expect(fixture.snapshot().exercise).toBeNull();
   const before=fixture.requests.filter(path=>path.endsWith('/assess')).length;
   await page.getByRole('button',{name:'Retry conversation'}).click();
-  for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<45;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(fixture.snapshot().exercises_completed).toBe(recovery==='closing'?1:2);
   expect(fixture.requests.filter(path=>path.endsWith('/assess')).length-before).toBe(recovery==='closing'?0:1);
   expect(fixture.requests.filter(path=>path.endsWith('/exercise'))).toHaveLength(3);
@@ -188,8 +188,8 @@ test('refresh retries an unheard introduction and resumes the same exercise',asy
   await page.reload();
   await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
   await page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody!());
-  for(let i=0;i<30;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<30;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(fixture.requests.filter(path=>path.endsWith('/introduction-audio'))).toHaveLength(2);
   expect(fixture.requests.filter(path=>path.endsWith('/exercise'))).toHaveLength(1);
 });
@@ -213,27 +213,35 @@ test('processing acknowledgment is delayed and deduplicated across retry; topic 
   await release!();
   await expect(page.getByText('Topic: Pottery making',{exact:true})).toBeVisible();
   await expect(page.locator('.session-topic')).toHaveAttribute('aria-live','polite');
-  for(let i=0;i<15;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<15;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
 });
 
-for (const reducedMotion of [false, true]) test(`celebration precedes results with ${reducedMotion ? 'reduced' : 'normal'} motion`, async ({ page }) => {
+for (const reducedMotion of [false, true]) test(`celebration and results share one Success screen with ${reducedMotion ? 'reduced' : 'normal'} motion`, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: reducedMotion ? 'reduce' : 'no-preference' });
   const assets: string[] = [];
   page.on('request', request => { if (/\/audli\/(audli-mascot\.riv|rive\.wasm)/.test(request.url())) assets.push(request.url()); });
   const fixture = await setup(page);
   await runToCompletion(page);
   if (reducedMotion) expect(assets).toEqual([]);
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeFocused();
+  // One screen: the heading, the statistics and the way out are all there at once; no intermediate step.
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeFocused();
   await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
-  await expect(page.locator('canvas')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Return Home' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to results' })).toHaveCount(0);
+  if (reducedMotion) await expect(page.locator('canvas')).toHaveCount(0);
+  else await expect(page.locator('canvas')).toHaveCount(1);
+  // Nothing dismisses it: not time, not network activity.
+  await page.clock.runFor(60000);
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
+  await expect(page.locator('.completion-summary')).toBeVisible();
   const calls = fixture.requests.length;
   await page.clock.runFor(5000);
   expect(fixture.requests.length).toBe(calls);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Great job!' })).toHaveCount(0);
-  await expect(page.locator('canvas')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
+  await expect(page.locator('.completion-summary')).toContainText('1 exercise completed');
+  if (reducedMotion) await expect(page.locator('canvas')).toHaveCount(0);
   expect((await probe(page)).plays).toHaveLength(0);
   await page.getByRole('button', { name: 'Return Home' }).click();
   await expect(page.getByRole('button', { name: 'Start today’s session' })).toBeVisible();
@@ -266,7 +274,9 @@ for (const width of [320, 390, 430]) test(`large transparent one-shot celebratio
   await expect(page.getByRole('heading', { name: 'Great job!' })).toBeFocused();
   await expect(page.locator('.lesson-celebration .wordmark')).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(page.locator('.completion-summary')).toHaveCount(0);
+  // The statistics and Return Home share the screen with Pip, fully reachable without scrolling the page sideways.
+  await expect(page.locator('.completion-summary')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return Home' })).toBeVisible();
   await expect(page.locator('.audli-mascot > svg')).toBeVisible();
   const canvas = page.locator('canvas');
   await canvas.evaluate(node => {
@@ -302,8 +312,8 @@ for (const width of [320, 390, 430]) test(`large transparent one-shot celebratio
   expect(box.height).toBeCloseTo(box.width, 0);
   expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(2);
   await page.screenshot({ path: `../docs/screenshots/AUD-65-celebration-${width}.png` });
-  for (let i = 0; i < 35 && await canvas.count(); i++) { await page.clock.runFor(100); await page.waitForTimeout(35); }
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeFocused();
+  for (let i = 0; i < 35; i++) { await page.clock.runFor(100); await page.waitForTimeout(35); }
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   const samples = await page.evaluate(() => (window as unknown as { mascotCapture: MascotCapture }).mascotCapture.frames);
   expect(samples.length).toBeGreaterThan(10);
   for (const frame of samples) {
@@ -320,7 +330,9 @@ for (const width of [320, 390, 430]) test(`large transparent one-shot celebratio
   expect(fixture.spoken.length).toBe(audioCalls);
   expect((await probe(page)).plays.length).toBe(plays);
   await page.clock.runFor(5000);
-  await expect(page.locator('canvas')).toHaveCount(0);
+  // Success stays until the learner chooses to leave.
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return Home' })).toBeInViewport();
   await page.screenshot({ path: `../docs/screenshots/AUD-65-results-${width}.png` });
 });
 
@@ -333,8 +345,8 @@ test('slow optional acknowledgment audio never blocks completed assessment or co
   await expect.poll(()=>!!release).toBe(true);await page.clock.runFor(1300);
   await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
   await release!();
-  for(let i=0;i<15;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<15;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   const before=(await probe(page)).plays.length;
   await page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody!());
   await page.waitForTimeout(100);
@@ -355,8 +367,8 @@ test('refresh after completed introduction never replays it before the saved pas
   expect(fixture.snapshot().introduction_pending).toBe(false);
   await expect(page.getByRole('note',{name:'Exercise topic'})).toHaveText('Topic: Pottery making');
   await page.reload();await release!();
-  for(let i=0;i<25;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<25;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(fixture.requests.filter(path=>path.endsWith('/introduction-audio'))).toHaveLength(1);
   expect(fixture.requests.filter(path=>path.endsWith('/introduction-heard'))).toHaveLength(1);
   expect(fixture.requests.filter(path=>path.endsWith('/exercise'))).toHaveLength(1);
@@ -374,8 +386,8 @@ test('review extraction recovery keeps the pending reflection and does not repla
   await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
   expect(fixture.snapshot().phase).toBe('REVIEW');expect(fixture.snapshot().pending).not.toBeNull();
   await page.getByRole('button',{name:'Retry conversation'}).click();
-  for(let i=0;i<25;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Lesson completed'}).count())break;}
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  for(let i=0;i<25;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(fixture.spoken).toContain('We can continue with today’s listening.');
   expect(fixture.spoken.filter(text=>text.startsWith('Last time'))).toHaveLength(1);
   expect(fixture.requests.filter(path=>path.endsWith('/attempts')&&path.includes('/lessons/'))).toHaveLength(2);
@@ -570,16 +582,17 @@ test('returning review remembers accents with one question and honestly acknowle
   expect(fixture.phases).toContain('REVIEW_ACK');expect(fixture.phases).toContain('TRANSITION');
 });
 
-for (const skip of ['system preference', 'continue button', 'app preference']) test(`celebration can bypass animation with ${skip}`, async ({ page }) => {
+for (const skip of ['system preference', 'hung animation', 'app preference']) test(`Success shows the statistics at once with ${skip}`, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await setup(page);
-  if (skip === 'continue button') await page.setViewportSize({ width: 320, height: 568 });
+  if (skip === 'hung animation') await page.setViewportSize({ width: 320, height: 568 });
   if (skip === 'app preference') {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Reduce motion', exact: true }).check();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await runToCompletion(page);
     await expect(page.locator('canvas')).toHaveCount(0);
+    await expect(page.locator('.completion-summary')).toBeVisible();
     return;
   }
   let releaseAsset = () => {};
@@ -592,15 +605,13 @@ for (const skip of ['system preference', 'continue button', 'app preference']) t
     if (await page.locator('.lesson-celebration').count()) break;
   }
   await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
+  // The animation is still initialising (or never will), yet nothing is hidden or waiting on it.
+  await expect(page.locator('.completion-summary')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return Home' })).toBeInViewport();
   if (skip === 'system preference') await page.emulateMedia({ reducedMotion: 'reduce' });
-  else {
-    await expect(page.getByRole('button', { name: 'Continue to results' })).toBeInViewport();
-    await page.getByRole('button', { name: 'Continue to results' }).click();
-  }
-  // No clock advancement: skipping is immediate, even if initialization hangs.
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeFocused();
-  await expect(page.locator('canvas')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   releaseAsset();
   await page.clock.runFor(20000);
-  await expect(page.locator('.lesson-celebration')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
+  await expect(page.locator('.completion-summary')).toBeVisible();
 });

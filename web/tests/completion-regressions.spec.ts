@@ -58,7 +58,7 @@ test('repeated audio endings and elapsed timers cannot dismiss the final card wi
   const state = await setup(page, true);
   await typeReply(page, 'yes please');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'SUCCESS');
   await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
   await expect.poll(() => state.confirmations).toBe(1);
   await page.locator('audio').evaluate(audio => { for (let i = 0; i < 3; i++) audio.dispatchEvent(new Event('ended')); });

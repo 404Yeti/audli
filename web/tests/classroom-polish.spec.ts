@@ -30,8 +30,10 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-focus-${width}.png`,fullPage:true});
   release();
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
-  await expect(shell).toHaveAttribute('data-layout','content');
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'SUCCESS');
+  // The decision is settled: the assigned video sits on the single Success screen beside the statistics.
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
+  await expect(page.locator('.completion-summary')).toBeVisible();
   await expect(page.getByRole('button',{name:'Hear assignment'})).toBeEnabled();
   const link=page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'});
   await expect(link).toBeVisible();await link.focus();await expect(link).toBeFocused();

@@ -77,7 +77,7 @@ test('real backend multi-exercise lesson plays each introduction and displays pe
     await expect(page.getByRole('note',{name:'Exercise topic'})).toHaveText(`Topic: ${topic}`);
     await page.screenshot({path:`/tmp/aud22-topic-${index+1}-listening.png`,fullPage:true});
   }
-  await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible({timeout:150000});
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible({timeout:150000});
   await expect(page.locator('.completion-summary')).toContainText('2 exercises completed');
   await expect(page.locator('.completion-summary')).toContainText('The larger bag of flour reduced the cost');
   const media = await trace();
@@ -93,6 +93,6 @@ test('real backend multi-exercise lesson plays each introduction and displays pe
   expect((await completed.json()).exercises_completed).toBe(2);
   await writeFile('/tmp/aud22-native-media-trace.json',JSON.stringify({media,snapshots,completed:await completed.json()},null,2));
   await page.screenshot({path:'/tmp/aud22-native-completion.png',fullPage:true});
-  await page.reload();await expect(page.getByRole('heading',{name:'Lesson completed'})).toBeVisible();
+  await page.reload();await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(await trace()).toEqual([]); // completed introductions and closing never replay
 });

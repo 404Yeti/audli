@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # Numeric-only aggregate timings logged periodically; no per-request headers, IDs or content.
     latency_aggregates: bool = False
     latency_summary_seconds: float = Field(default=300, ge=30, le=3600)
+    # AUD-70: one lock per verified learner instead of one process-wide lock. Off = previous behavior.
+    per_learner_locks: bool = False
     llm_model: str = 'gpt-4.1-mini'
     transcription_model: str = 'gpt-4o-mini-transcribe'
     speech_model: str = 'gpt-4o-mini-tts'

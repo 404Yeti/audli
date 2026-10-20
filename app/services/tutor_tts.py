@@ -1,5 +1,6 @@
 """Tutor-only TTS routing. Passage synthesis and all learner state stay delegated."""
 import asyncio
+from contextlib import contextmanager
 from contextvars import ContextVar
 from hashlib import sha256
 import json
@@ -12,11 +13,30 @@ import httpx
 from app.audio import sanitize_generated_audio, signature_matches
 from app.config import Settings
 from app.services.provider import AIProvider
+from app.telemetry import aggregator
 from app.tutor_voice import TutorVoice, tutor_settings
 
 tts_measurements: ContextVar[list[dict] | None] = ContextVar('tts_measurements', default=None)
 MAX_TUTOR_CHARACTERS = 4000
 MAX_TUTOR_BYTES = 2 * 1024 * 1024
+
+
+# Concurrent ElevenLabs synthesis requests in this process (AUD-70 capacity monitoring; no limiter).
+# Compare the observed peak with the plan's concurrency limit (Creator, Flash/Turbo: 10).
+_elevenlabs_inflight = 0
+
+
+@contextmanager
+def track_elevenlabs_inflight(settings: Settings, metrics: dict):
+    global _elevenlabs_inflight
+    _elevenlabs_inflight += 1
+    metrics['inflight_at_start'] = _elevenlabs_inflight
+    if settings.latency_aggregates:
+        aggregator.record_gauge('tts.elevenlabs.inflight', _elevenlabs_inflight)
+    try:
+        yield
+    finally:
+        _elevenlabs_inflight -= 1
 
 
 def tutor_cache_signature(settings: Settings) -> str:
@@ -182,7 +202,8 @@ class TutorTTSProvider:
                 if provider == 'elevenlabs':
                     metrics.pop('first_audio_byte_ms')
                     metrics['_start'] = started
-                    data = await self.eleven_speak(text, rate, metrics)
+                    with track_elevenlabs_inflight(self.settings, metrics):
+                        data = await self.eleven_speak(text, rate, metrics)
                 elif hasattr(self.base, 'tutor_speak'):
                     data = await self.base.tutor_speak(text, rate, metrics)
                 else:

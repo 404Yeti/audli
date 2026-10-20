@@ -28,8 +28,8 @@ class AcknowledgmentCue(StrictModel):
 class LessonRevision(StrictModel):
     revision: int = Field(ge=0)
 
-def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits):
-    acknowledgment_lock = asyncio.Lock()
+def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits, new_lock):
+    acknowledgment_lock = new_lock()
     def owned(lesson_id):
         lesson = repo.lesson(lesson_id)
         if lesson is None:

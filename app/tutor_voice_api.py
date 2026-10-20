@@ -7,8 +7,8 @@ from app.tutor_voice import TutorVoice, TutorVoiceUpdate, VOICE_LABELS, tutor_se
 from app.services.tutor_preview import existing_preview
 
 
-def register_tutor_voice_routes(app, repo, lock, settings):
-    preview_lock = asyncio.Lock()
+def register_tutor_voice_routes(app, repo, lock, settings, new_lock):
+    preview_lock = new_lock()
 
     def public(voice):
         return {'voice': voice, 'available': settings.tutor_tts_provider == 'elevenlabs',

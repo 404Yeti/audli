@@ -105,7 +105,7 @@ _waiting: WeakKeyDictionary = WeakKeyDictionary()
 async def timed_lock(settings, lock, name):
     """Same lock/cancellation semantics; measure queueing and hold time separately from work."""
     if settings.latency_aggregates:
-        aggregator.record_queue_depth(_waiting.get(lock, 0) + int(lock.locked()))
+        aggregator.record_queue_depth(lock.queue_depth() if hasattr(lock, 'queue_depth') else _waiting.get(lock, 0) + int(lock.locked()))
     _waiting[lock] = _waiting.get(lock, 0) + 1
     try:
         with operation(settings, name + '.lock_wait'):

@@ -1,0 +1,112 @@
+import { test, expect, type Page } from '@playwright/test';
+import { lifecycle } from './lifecycle-fixture';
+import { typeReply } from './homework-fixture';
+
+/** SCRATCH investigation harness for AUD-73. Not committed. Latencies are the ones measured from the real iPhone lesson's server log. */
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function slow(page: Page, glob: string, ms: number, method?: string) {
+  await page.route(glob, async route => { if (!method || route.request().method() === method) await sleep(ms); await route.fallback(); });
+}
+type Shot = { t: number; phase: string; heads: string; len: number; invitation: boolean; canvas: boolean; px: string };
+const sample = (page: Page) => page.evaluate(() => {
+  const text = (document.body.innerText || '').replace(/\s+/g, ' ').trim();
+  const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
+  let px = '';
+  if (canvas) { try { const c = canvas.getContext('2d'); if (c) { const d = c.getImageData(0, 0, canvas.width, canvas.height).data; let h = 0, n = 0; for (let i = 0; i < d.length; i += 4 * 211) { h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3]) | 0; n += d[i + 3] > 0 ? 1 : 0; } px = `${h}/${n}`; } else px = 'no2d'; } catch { px = '?'; } }
+  return { phase: document.documentElement.dataset.lifecyclePhase ?? '', heads: [...document.querySelectorAll('h1,h2')].map(e => e.textContent?.trim()).filter(Boolean).join(' | '),
+    len: text.length, invitation: /short listening assignment/i.test(text), canvas: !!canvas, px };
+});
+async function timeline(page: Page, ms: number, label: string, afterPhase = 'STATS', extra = 3500) {
+  const t0 = Date.now(); const shots: Shot[] = []; let statsAt = 0;
+  while (Date.now() - t0 < ms) {
+    const s = { t: Date.now() - t0, ...(await sample(page).catch(() => ({ phase: '(nav)', heads: '', len: 0, invitation: false, canvas: false, px: '' }))) };
+    shots.push(s);
+    if (s.phase === afterPhase && !statsAt) statsAt = s.t;
+    if (statsAt && s.t - statsAt > extra) break;
+    await sleep(80);
+  }
+  const lines: string[] = []; let prev = '';
+  for (const s of shots) {
+    const key = [s.phase, s.heads, s.len < 90 ? 'THIN' : 'full', s.invitation, s.canvas, s.canvas ? 'px' : ''].join('|');
+    if (key !== prev) { lines.push(`  +${String(s.t).padStart(6)}ms  ${s.phase.padEnd(18)} heads="${s.heads}" textLen=${s.len}${s.len < 90 ? ' <-- THIN/BLANK' : ''}${s.invitation ? ' [HOMEWORK QUESTION VISIBLE]' : ''}${s.canvas ? ' [canvas]' : ''}`); prev = key; }
+  }
+  const frames = new Set(shots.filter(s => s.canvas && s.px && s.px !== '?').map(s => s.px));
+  console.log(`\n=== ${label}\n${lines.join('\n')}\n  distinct canvas frames seen: ${frames.size}; SUCCESS lasted: ${(() => { const a = shots.find(s => s.phase === 'SUCCESS'), b = shots.find(s => s.phase === 'STATS'); return a && b ? (b.t - a.t) + ' ms' : 'n/a'; })()}`);
+  return shots;
+}
+async function toEnding(page: Page, opts: { motion: boolean; reply?: string; latencies?: boolean }) {
+  if (!opts.motion) await page.emulateMedia({ reducedMotion: 'reduce' });
+  const fixture = await lifecycle(page, { from: 'CLOSING', due: false, motion: opts.motion } as never);
+  if (opts.latencies !== false) {
+    await slow(page, '**/api/profile', 1300); await slow(page, '**/api/exercises/current', 900);
+    await slow(page, '**/api/homework', 2000, 'GET'); await slow(page, '**/api/lessons/lesson/homework', 2600, 'POST');
+  }
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  return fixture;
+}
+const start = (page: Page) => page.getByRole('button', { name: 'Start today’s session' }).click();
+
+test('R1 real-latency ending timeline (motion on, "no thanks")', async ({ page }) => {
+  await toEnding(page, { motion: true });
+  await start(page);
+  const run = timeline(page, 90000, 'R1: closing -> homework -> celebration -> stats (latencies from the real lesson)');
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.lifecyclePhase), { timeout: 40000 }).toBe('HOMEWORK');
+  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible({ timeout: 20000 });
+  await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await run;
+});
+
+async function decideNo(page: Page) {
+  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible({ timeout: 25000 });
+  await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send', exact: true }).click();
+}
+const variants: { name: string; motion: boolean; setup?: (page: Page) => Promise<void> }[] = [
+  { name: 'V1 system Reduce Motion ON', motion: false },
+  { name: 'V2 rive.wasm request fails', motion: true, setup: async page => { await page.route('**/audli/rive.wasm', r => r.abort()); } },
+  { name: 'V3 rive.wasm slow (6 s, e.g. cellular)', motion: true, setup: async page => { await slow(page, '**/audli/rive.wasm', 6000); } },
+  { name: 'V4 rive.wasm very slow (14 s)', motion: true, setup: async page => { await slow(page, '**/audli/rive.wasm', 14000); } },
+  { name: 'V5 celebration already claimed for this lesson (sessionStorage)', motion: true, setup: async page => { await page.addInitScript(() => sessionStorage.setItem('audli-mascot-v1:' + JSON.stringify(['local', 'lesson']), '1')); } },
+  { name: 'V6 audli-mascot.riv fails', motion: true, setup: async page => { await page.route('**/audli/audli-mascot.riv', r => r.abort()); } },
+];
+for (const v of variants) test(`R2 ${v.name}`, async ({ page }) => {
+  test.setTimeout(150000);
+  if (v.setup) await v.setup(page);
+  await toEnding(page, { motion: v.motion, latencies: false });
+  await start(page);
+  const run = timeline(page, 100000, 'R2: ' + v.name, 'STATS', 1500);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.lifecyclePhase), { timeout: 40000 }).toBe('HOMEWORK');
+  await decideNo(page);
+  await run;
+});
+
+/** Reload the page at a chosen moment of the ending and report what the restored page shows. */
+const reloadAt: { name: string; when: (page: Page) => Promise<void> }[] = [
+  { name: 'S1 reload during the blank "Lesson completed" gap (before the homework card loads)', when: async page => { await expect.poll(() => page.evaluate(() => document.documentElement.dataset.lifecyclePhase), { timeout: 30000 }).toBe('HOMEWORK'); await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible(); } },
+  { name: 'S2 reload while the homework question is on screen (before deciding)', when: async page => { await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible({ timeout: 30000 }); } },
+  { name: 'S3 reload during the celebration (decision already made)', when: async page => { await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible({ timeout: 30000 }); await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send', exact: true }).click(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible(); } },
+  { name: 'S4 reload on the final stats card', when: async page => { await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible({ timeout: 30000 }); await typeReply(page, 'no thanks'); await page.getByRole('button', { name: 'Send', exact: true }).click(); await expect.poll(() => page.evaluate(() => document.documentElement.dataset.lifecyclePhase), { timeout: 30000 }).toBe('STATS'); } },
+];
+for (const r of reloadAt) test(`R3 ${r.name}`, async ({ page }) => {
+  test.setTimeout(120000);
+  const fixture = await toEnding(page, { motion: true });
+  await start(page);
+  await r.when(page);
+  await page.reload();
+  const shots = await timeline(page, 15000, 'R3: ' + r.name + ' (after reload)', 'STATS', 3000);
+  const last = shots.at(-1)!;
+  console.log(`  RESULT: final phase=${last.phase} invitation visible now=${last.invitation} | server: decisions=${fixture.homework.decisions} spoken(invitation audio)=${fixture.homework.spoken} farewells=${fixture.server.farewells}`);
+});
+
+for (const outcome of ['skipped (no thanks)', 'assigned (yes please)', 'unavailable (yes, nothing found)']) test(`R4 final card text: ${outcome}`, async ({ page }) => {
+  test.setTimeout(120000);
+  const fixture = await toEnding(page, { motion: false, latencies: false });
+  if (outcome.startsWith('unavailable')) fixture.homework.failVoice = false;
+  await start(page);
+  await expect(page.getByRole('article', { name: 'Optional listening assignment' })).toBeVisible({ timeout: 30000 });
+  if (outcome.startsWith('unavailable')) { fixture.homework.status = 'unavailable'; await page.getByRole('button', { name: 'Skip homework' }).click().catch(() => {}); }
+  await typeReply(page, outcome.startsWith('skipped') ? 'no thanks' : 'yes please'); await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.lifecyclePhase), { timeout: 30000 }).toBe('STATS');
+  await page.waitForTimeout(1500);
+  const text = await page.evaluate(() => (document.body.innerText || '').replace(/\n+/g, ' / '));
+  console.log(`\n=== R4 ${outcome}\n  FINAL CARD TEXT: ${text}\n  contains a question mark: ${text.includes('?')}; contains "Would you like": ${/would you like/i.test(text)}`);
+});

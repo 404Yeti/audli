@@ -203,5 +203,8 @@ async def passage_audio(settings, provider, content, accent, limits=None, *, own
                   'missing_credentials' if not settings.elevenlabs_api_key else
                   'unsupported_rate' if not supported_rate else 'provider_disabled')
         logging.getLogger('audli').warning('Accent passage outcome=eligibility_fallback reason=%s', reason)
+    if settings.default_passage_elevenlabs_enabled:
+        from app.default_passage import default_passage_audio
+        return await default_passage_audio(settings, provider, content, limits, fallback=bool(accent))
     return await provider.speech(content), PassageVoice(provider=settings.provider,
         voice_id=settings.voice, fallback=bool(accent))

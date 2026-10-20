@@ -15,14 +15,14 @@ for (const width of [320,390]) test(`inline reply and explicit completion stay q
   await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','HOMEWORK');
   expect(state.closings).toBe(0);
   await endAudio(page);
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','STATS');
-  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','SUCCESS');
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Hear assignment'})).toBeEnabled();
   await expect(page.getByRole('button',{name:'Finish lesson'})).toHaveCount(0);
   await expect(page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'})).toBeVisible();
   expect(state.decisions).toBe(1);expect((await probe(page)).overlaps).toBe(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.reload();await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await page.reload();await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(state.closings).toBe(0);expect(state.confirmations).toBe(1);
 });
 
@@ -45,8 +45,8 @@ for(const outcome of ['decline','discovery failure','confirmation audio failure'
     await expect(page.getByRole('heading',{name:'Great job!'})).toHaveCount(0);
     await page.getByRole('button',{name:'Skip homework'}).click();
   }
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','STATS');
-  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase','SUCCESS');
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect((await probe(page)).overlaps).toBe(0);expect(state.decisions).toBeLessThanOrEqual(1);
   await expect(page.getByRole('button',{name:'Return Home'})).toBeEnabled();
 });

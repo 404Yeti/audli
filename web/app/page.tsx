@@ -16,7 +16,6 @@ import { AudliLoadingScreen } from '../components/audli-loading-screen';
 import { startup } from '../lib/startup';
 import { LessonSuccess } from '../components/lesson-success';
 import { prefetchCelebration } from '../lib/mascot-celebration';
-import type { HomeworkAssignment } from '../lib/homework';
 import { AudliMascot } from '../components/audli-mascot';
 import { BottomNavigation, TutorVoiceNotice, SessionShell, type Destination } from '../components/product-shell';
 import { authenticatedFetch, ApiError, cancelPendingOperations, LessonLifetime, type LessonOperation } from '../lib/api';
@@ -103,8 +102,6 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const reviewDone = useRef<(() => void) | null>(null);
   const [classroomLayout, setClassroomLayout] = useState<'focus' | 'interaction' | 'content'>('focus');
   const [completion, setCompletion] = useState<LessonCheckpoint | null>(null);
-  // What the learner decided at wrap-up; handed to Success so it needs no second load (loaded once after a reload).
-  const [assignment, setAssignment] = useState<HomeworkAssignment | null>(null);
   const completionHeading = useRef<HTMLHeadingElement | null>(null);
   useEffect(() => { if (completion) completionHeading.current?.focus(); }, [completion, lifecycle.phase]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -388,15 +385,14 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     else { const operation = voice.begin(); try { await refresh(operation); setError(''); } catch (error) { if (operation.current) setError((error as Error).message); } finally { operation.release(); } }
   }
   /** Resolved = the new homework decision is persisted or explicitly skipped. Only then may the celebration start. */
-  function homeworkResolved(id: string, saved?: HomeworkAssignment) {
+  function homeworkResolved(id: string) {
     if (phase.current.lessonId !== id || phase.current.phase !== 'HOMEWORK') return;
-    if (saved) setAssignment(saved);
     try { sessionStorage.setItem(storageKey + ':homework', id); } catch { /* Presentation memory only. */ }
     send({ type: 'homework_resolved', lessonId: id });
   }
   /** Return Home is the only way out of Success. */
   function returnHome() {
-    voice.stop(); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); setAssignment(null); lesson.current = null; farewellDue.current = false;
+    voice.stop(); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null; farewellDue.current = false;
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
     refreshQuietly();
   }
@@ -420,12 +416,6 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   useEffect(() => { if (completion && lifecycle.phase === 'SUCCESS' && farewellDue.current && account.homeworkEnabled) { farewellDue.current = false; startFarewell(completion.id); } }, [completion, lifecycle.phase, account.homeworkEnabled]);
   // Warm the celebration while the learner is still deciding about homework.
   useEffect(() => { if (completion) prefetchCelebration(reducedMotion); }, [completion, reducedMotion]);
-  // After a reload Success has no in-memory decision: read the saved one once (idempotent get-or-create), silently.
-  const loadAssignment = useEffectEvent((id: string) => {
-    void authenticatedFetch(`/api/lessons/${id}/homework`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then(r => r.ok ? r.json() as Promise<HomeworkAssignment> : null).then(saved => { if (saved && phase.current.lessonId === id) setAssignment(saved); }).catch(() => {});
-  });
-  useEffect(() => { if (completion && lifecycle.phase === 'SUCCESS' && !assignment && account.homeworkEnabled) loadAssignment(completion.id); }, [completion, lifecycle.phase, assignment, account.homeworkEnabled]);
   useEffect(() => () => { reviewDone.current?.(); }, []);
   async function navigate(value: Destination) {
     setDestination(value); setTranscript(null); setError('');
@@ -437,11 +427,11 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
-  if (completion && lifecycle.phase === 'SUCCESS' && lifecycle.lessonId === completion.id) return <LessonSuccess lesson={completion} assignment={assignment} scope={account.scope} reducedMotion={reducedMotion} audio={voice.audio} onHome={returnHome}/>;
+  if (completion && lifecycle.phase === 'SUCCESS' && lifecycle.lessonId === completion.id) return <LessonSuccess lesson={completion} scope={account.scope} reducedMotion={reducedMotion} voice={voice} audio={voice.audio} onHome={returnHome}/>;
   if (completion) return <><SessionShell completed label={voice.state === 'Speaking' ? 'Audli is speaking' : voice.state === 'Listening' ? 'Listening to you' : 'Wrapping up your lesson…'} showPresence={voice.state === 'Speaking' || voice.state === 'Listening' || voice.state === 'Thinking'} layout={classroomLayout} backupVoice={voice.backupVoice} state={voice.state === 'Idle' ? 'Success' : voice.state} activity={voice.activity} onEnd={returnHome}>
     <h1 className="wrapup-heading" ref={completionHeading} tabIndex={-1}>Lesson completed</h1>
     <p className="sr-only">{completion.encouragement}</p>
-    <ListeningHomework inline lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout} onResolved={saved => homeworkResolved(completion.id, saved)}/>
+    <ListeningHomework inline lessonId={completion.id} autoVoice={homeworkVoice} sharedVoice={voice} onLayout={setClassroomLayout} onResolved={() => homeworkResolved(completion.id)}/>
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
 
   return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>

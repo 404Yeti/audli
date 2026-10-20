@@ -39,15 +39,15 @@ The former `STATS` phase and the `celebrated` event are removed. Success no long
 ## 4. Wrap-up and Success behaviour
 * **Never blank.** From COMPLETED the screen always shows a heading and either a status line ("Getting your wrap-up ready…") or the homework step. Only one blocking request remains (`POST /lessons/{id}/homework`); `GET /api/homework` is skipped for the lesson card (the account flag already says homework is on); the profile/exercise `refresh` runs in the background and again on Return Home.
 * **Question asked once.** The invitation is spoken at most once per lesson (existing server/`autoVoice` semantics + the once-guard); a decided assignment never re-asks (`startVoice` resolves immediately for any non-`offered` status).
-* **Success carries its data.** The resolved assignment is handed from wrap-up to Success, so Success needs no second load; after a reload it loads once and shows a status line meanwhile.
+* **Success shows the saved decision read-only.** The assigned video (with its Watch / Hear controls), "no homework today" or the unavailable message come from the same idempotent lesson-homework endpoint, loaded once on Success with a status line meanwhile; Success never re-asks anything.
 * **Pip.** The Rive celebration plays at most once per lesson per tab (existing claim gate), decorative only. Rive assets are prefetched when the lesson reaches COMPLETED (idempotent; skipped for reduced motion/data saver). **This does not claim to fix the unconfirmed iPhone animation issue.** Reduced motion and asset failures show the static Pip with the same layout and the stats already visible.
 * **Success is permanent** until Return Home: no timer (the old 15 s cap and the "Continue to results" button are removed).
-* **Farewell** speaks once per lesson (session marker), on entering Success; it never gates anything.
+* **Farewell** speaks at most once, only for a lesson finished in this page lifetime, on entering Success; it never gates anything and is not replayed after a reload.
 
 ## 5. Reload recovery (state lives in tab `sessionStorage`; AUD-69 remains out of scope)
 | Reload during | Result |
 |---|---|
-| wrap-up, before the decision | wrap-up again; the question is asked **once** more (audibly where the browser allows autoplay; the visible Speak/replay controls always work) |
+| wrap-up, before the decision | wrap-up again, silently: the question is on screen with its Speak / replay / typed-reply / skip controls (a reload has no user gesture, so autoplay would be blocked and would only produce an error); no decision was recorded, so it is still asked exactly once |
 | wrap-up, after the decision was recorded | Success (decision never repeated) |
 | celebration / Success | Success with stats at once; no celebration replay; farewell only if it has not played |
 | after Return Home | Home |

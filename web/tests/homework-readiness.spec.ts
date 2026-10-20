@@ -11,7 +11,7 @@ for (const width of [320, 390, 1440]) test(`release screenshots and keyboard acc
   expect(state.spoken).toBe(0); // Restored completion never repeats an automatic invitation.
   await page.screenshot({ path: `../docs/screenshots/AUD-59-ready-offer-${width}.png`, fullPage: true });
   await typeReply(page, 'yes please'); await page.getByRole('button', { name: 'Send' }).focus(); await page.keyboard.press('Enter');
-  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
   expect(state.decisions).toBe(1); await expect.poll(() => state.confirmations).toBe(1); // Saved before confirmation audio.
   await page.getByRole('button', { name: 'Return Home' }).click();
   await page.getByRole('button', { name: 'Plan', exact: true }).click();
@@ -81,12 +81,12 @@ for (const choice of ['accept', 'refuse', 'unavailable'] as const) test(`spoken 
   await page.getByRole('button', { name: 'Speak' }).click();
   await expect(page.getByText('Listening for your choice…')).toBeVisible();
   await expect.poll(() => state.voiceRequests).toBe(1);
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
   if (choice === 'accept') {
     await expect(page.getByRole('heading', { name: 'Science in everyday life' })).toBeVisible();
     await expect.poll(() => state.confirmations).toBe(1);
   } else {
-    await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+    await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
     expect(state.status).toBe(choice === 'refuse' ? 'skipped' : 'unavailable');
     expect(state.confirmations).toBe(0);
   }
@@ -100,7 +100,7 @@ test('interrupted homework recording releases microphone and never submits or sp
   await page.getByRole('button', { name: 'Speak' }).click();
   await expect(page.getByText('Listening for your choice…')).toBeVisible();
   await page.getByRole('button', { name: 'Skip optional listening' }).click();
-  await expect(page.locator('.wrapup-heading')).not.toHaveClass(/sr-only/);
+  await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
   expect((await probe(page)).tracks).toBe(1); expect(state.voiceRequests).toBe(0); expect(state.confirmations).toBe(0);
 });
 
@@ -125,17 +125,17 @@ test('fresh completion sequences one invitation, spoken choice and confirmation,
   await page.route('**/api/lessons/start', route => route.fulfill({ json: { id: 'lesson', phase: 'COMPLETED', status: 'completed', focus: 'details', exercises_completed: 1, elapsed_seconds: 600, encouragement: 'Thanks for listening, Maya.' } }));
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Start today’s session' }).click();
-  await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Lesson completed|Great job!/ })).toBeVisible();
   await expect.poll(() => state.spoken).toBe(1);
   await expect.poll(() => state.confirmations).toBe(1);
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'SUCCESS');
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
   expect(state.voiceRequests).toBe(1); expect(state.decisions).toBe(1);
-  // The farewell follows the celebration on the final card; it never gates it.
+  // The farewell plays once on the Success screen; it never gates it.
   await expect.poll(() => state.closings).toBe(1);
   await expect.poll(async () => (await probe(page)).plays.length).toBe(3);
   expect((await probe(page)).overlaps).toBe(0);
-  await page.reload(); await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(state.spoken).toBe(1); expect(state.confirmations).toBe(1); expect(state.closings).toBe(1);
 });
 
@@ -148,7 +148,7 @@ test('repeated delivered decision joins existing discovery and confirms once aft
   state.status = 'assigned';
   await expect.poll(() => state.confirmations).toBe(1);
   await expect(page.getByRole('button', { name: 'Hear assignment' })).toBeEnabled();
-  await page.reload(); await expect(page.getByRole('heading', { name: 'Lesson completed' })).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(state.confirmations).toBe(1); expect(state.decisions).toBe(0);
 });
 

@@ -30,7 +30,7 @@ for (const width of [320,390,1440]) test(`adaptive classroom modes preserve audi
   await settledMascot(page);
   await page.screenshot({path:`../docs/screenshots/AUD-62-focus-${width}.png`,fullPage:true});
   release();
-  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'STATS');
+  await expect(page.locator('html')).toHaveAttribute('data-lifecycle-phase', 'SUCCESS');
   await expect(shell).toHaveAttribute('data-layout','content');
   await expect(page.getByRole('button',{name:'Hear assignment'})).toBeEnabled();
   const link=page.getByRole('link',{name:'Watch on YouTube (opens a new tab)'});

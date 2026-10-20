@@ -242,3 +242,58 @@ def test_existing_exercise_is_reused_not_regenerated(tmp_path, eleven):
     assert client.post('/api/exercises').json()['id'] == first['id']
     assert client.get(first['audio_url']).content == audio and len(eleven.requests) == 1
     app.state.accent_controls.close()
+
+
+def test_burst_never_exceeds_passage_concurrency_cap(controls, monkeypatch, caplog):
+    """Six simultaneous ordinary passages: at most the shared cap reach ElevenLabs; the rest fall back explicitly."""
+    settings, control = controls
+    caplog.set_level(logging.INFO)
+    live = {'now': 0, 'peak': 0}
+    async def passthrough(data, kind, **kwargs):
+        return data
+    monkeypatch.setattr('app.audio.sanitize_generated_audio', passthrough)
+    class Slow:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def post(self, url, **kwargs):
+            live['now'] += 1; live['peak'] = max(live['peak'], live['now'])
+            await asyncio.sleep(.05)
+            live['now'] -= 1
+            return httpx.Response(200, content=MP3, request=httpx.Request('POST', url))
+    monkeypatch.setattr('app.default_passage.httpx', shim(Slow))
+    Provider.calls = 0
+    async def burst():
+        return await asyncio.gather(*[passage_audio(settings, Provider(), CONTENT, None, control) for _ in range(6)])
+    results = asyncio.run(burst())
+    assert live['peak'] <= settings.passage_tts_max_concurrent == 2
+    assert sorted(v.provider for _, v in results) == ['elevenlabs'] * 2 + ['openai'] * 4 and Provider.calls == 4
+    assert ' '.join(records(caplog)).count('"fallback_reason": "concurrency_limit"') == 4
+
+
+def test_reserve_default_is_atomic_across_threads_and_shared_with_accents(controls):
+    from concurrent.futures import ThreadPoolExecutor
+    settings, control = controls
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        grants = list(pool.map(lambda _: control.reserve_default(10), range(8)))
+    assert sum(isinstance(g, tuple) for g in grants) == 2 and grants.count('concurrency_limit') == 6
+    assert control.read()['characters'] == 20
+
+
+def test_flag_environment_parsing_and_startup_event(tmp_path, monkeypatch, caplog):
+    monkeypatch.delenv('AUDLI_DEFAULT_PASSAGE_ELEVENLABS_ENABLED', raising=False)
+    assert Settings(_env_file=None).default_passage_elevenlabs_enabled is False
+    monkeypatch.setenv('AUDLI_DEFAULT_PASSAGE_ELEVENLABS_ENABLED', 'true')
+    monkeypatch.setenv('ELEVENLABS_API_KEY', 'fixture')
+    monkeypatch.setenv('AUDLI_PASSAGE_TTS_DAILY_CHARACTERS', '10000')
+    on = Settings(_env_file=None, data_dir=tmp_path)
+    assert on.default_passage_elevenlabs_enabled is True
+    monkeypatch.setenv('AUDLI_DEFAULT_PASSAGE_ELEVENLABS_ENABLED', 'false')  # rollback = unset/false
+    off = Settings(_env_file=None, data_dir=tmp_path)
+    assert off.default_passage_elevenlabs_enabled is False
+    from app.default_passage import emit_default_passage_configuration
+    caplog.set_level(logging.INFO)
+    emit_default_passage_configuration(on); emit_default_passage_configuration(off)
+    first, second = records(caplog)
+    assert '"default_passage_elevenlabs_enabled": true' in first and TUTOR_VOICE in first and 'fixture' not in first
+    assert '"default_passage_elevenlabs_enabled": false' in second and '"voice_id": null' in second

@@ -23,7 +23,7 @@ for (const width of [320, 390, 1440]) test(`inline lesson wrap-up and typed topi
   await page.locator('.homework-card').evaluate(node => (node as HTMLElement).blur());
   await page.screenshot({ path: `../docs/screenshots/AUD-61-wrapup-assigned-${width}.png`, fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.reload(); await expect(page.locator('.lesson-wrapup')).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(state.confirmations).toBe(1); expect(state.spoken).toBe(0);
   await page.getByRole('button', { name: 'Return Home' }).click();
   await page.getByRole('button', { name: 'Plan', exact: true }).click();
@@ -61,7 +61,7 @@ test('three-lesson topic check-in is asked in setup, before the lesson; completi
   await expect.poll(() => state.confirmations).toBe(1);
   expect(offers).toBe(0); expect(state.voiceRequests).toBe(1);
   expect((await probe(page)).overlaps).toBe(0);
-  await page.reload(); await expect(page.locator('.lesson-wrapup')).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Great job!' })).toBeVisible();
   expect(offers).toBe(0); expect(answers).toBe(1); expect(state.spoken).toBe(1);
 });
 

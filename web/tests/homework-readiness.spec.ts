@@ -157,7 +157,7 @@ for (const completion of [false, true]) for (const [name, capability] of [
   ['disabled', false], ['unknown', undefined], ['malformed', 'true'], ['null', null],
 ] as const) test(`${name} capability makes zero homework requests in ${completion ? 'completion' : 'Plan'}`, async ({ page }) => {
   const state = await setup(page, completion, { capability });
-  await expect(page.getByRole('heading', { name: completion ? 'Lesson completed' : 'Next three lessons' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: completion ? 'Great job!' : 'Next three lessons' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Optional listening', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: completion ? 'Return Home' : 'Review', exact: true }).click();
   if (!completion) await expect(page.getByRole('heading', { name: 'Your listening journey' })).toBeVisible();

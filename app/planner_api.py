@@ -6,7 +6,7 @@ from app.audio import validate_upload
 from app.models import Transcription
 from pydantic import Field
 from uuid import UUID
-from app.recognition import reliable_recognition
+from app.recognition import check_recognition
 from app.planner import CHECKIN_PROMPT, requested_focus, qualifying_count
 from app.storage.planner import due
 
@@ -103,7 +103,7 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
             roadmap = check(body.revision)
             if roadmap.pending is None:
                 raise HTTPException(409, 'Record your check-in response first.')
-            if not reliable_recognition(roadmap.pending, settings.min_transcription_confidence):
+            if not check_recognition(settings, 'planner.checkin', roadmap.pending, settings.min_transcription_confidence):
                 raise HTTPException(422, 'Recognition is uncertain. Record again or skip this check-in.')
             text = roadmap.pending.text
             try:

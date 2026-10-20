@@ -14,7 +14,7 @@ from app.audio import validate_upload
 from app.lesson import Lesson, CheckinReply, social_response, routine_checkin_reply, compose_checkin_reply, now, elapsed, closing_due, compose_closing, heard, prompt, introduction, safe_label, TARGET_SECONDS
 from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
-from app.recognition import reliable_recognition
+from app.recognition import check_recognition
 from app.diagnostics import report_failure, operation, timed_lock
 from app.services.tutor_tts import TutorSpeech
 
@@ -254,7 +254,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             lesson = check(lesson_id, body.revision)
             if lesson.phase not in ('WELCOME', 'REVIEW') or lesson.pending is None:
                 raise HTTPException(409, 'Record a response to the current question first.')
-            if not reliable_recognition(lesson.pending, settings.min_transcription_confidence):
+            if not check_recognition(settings, 'lesson.answer', lesson.pending, settings.min_transcription_confidence):
                 raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             text = lesson.pending.text
             available_voices = await passage_limits.voices()

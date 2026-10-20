@@ -6,7 +6,9 @@ import re
 from app.homework import Decision
 from app.models import Transcription
 
-SHORT_ASSESSMENT_WARNING = 'Too little recognized speech to evaluate reliably.'
+from app.recognition import SHORT_REPLY_WARNING
+
+SHORT_ASSESSMENT_WARNING = SHORT_REPLY_WARNING   # historical name, one source of truth (AUD-71)
 
 
 def reliable_choice(transcription: Transcription, minimum: float) -> bool:

@@ -8,7 +8,7 @@ from pydantic import Field
 from sqlalchemy import select, update
 from app.audio import validate_upload
 from app.models import StrictModel, Transcription
-from app.recognition import reliable_recognition
+from app.recognition import observe_recognition, reliable_recognition
 from app.homework_voice import SHORT_ASSESSMENT_WARNING
 from app.storage import schema as s, homework as store
 from app.storage.repository import utcnow
@@ -182,6 +182,7 @@ def register(app, repo, ai, lock, settings):
                     reliable = bool(transcription.confidence is not None
                         and transcription.confidence >= settings.min_transcription_confidence
                         and not [w for w in transcription.uncertainty if w != SHORT_ASSESSMENT_WARNING])
+                observe_recognition(settings, 'homework.review', transcription, settings.min_transcription_confidence, reliable)   # final decision
                 text = transcription.text if len(transcription.text) <= 2000 else ''
                 return owned(answer, lesson_id, revision, text, reliable and bool(text))
         finally:

@@ -127,3 +127,12 @@ test('opt-in turn reporter batches bounded integers and flushes at the end of a 
   const failing = createTurnReporter(() => { throw new Error('network'); });
   assert.doesNotThrow(() => failing.add('retry_playback', 10)); // telemetry cannot break a lesson
 });
+
+test('web gate agrees with the shared recognition-gate fixture (behavior frozen by AUD-71 Step A)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/recognition_gate.json', import.meta.url), 'utf8'));
+  assert.ok(fixture.cases.length > 250);
+  for (const c of fixture.cases) {
+    assert.equal(reliableRecognition({ text: c.text, confidence: c.confidence, uncertainty: c.uncertainty }, c.minimum), c.reliable, JSON.stringify(c));
+  }
+});

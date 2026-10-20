@@ -125,6 +125,12 @@ export async function recordPhases(page: Page) {
     // The root element may not exist yet when init scripts run; sample it, bounded by phase duration.
     setInterval(note, 10);
   });
-  return () => page.evaluate(() => JSON.parse(sessionStorage.getItem('phase-log') ?? '[]') as string[]);
+  // Include the live phase: the sampler is timer-driven, so a phase that is already on screen can be missing from the
+  // log when it is read (seen twice in CI with the DOM correctly on HOME). The log still records order of earlier phases.
+  return () => page.evaluate(() => {
+    const log: string[] = JSON.parse(sessionStorage.getItem('phase-log') ?? '[]');
+    const live = document.documentElement.dataset.lifecyclePhase;
+    return live && log.at(-1) !== live ? [...log, live] : log;
+  });
 }
 export const phaseNow = (page: Page) => page.evaluate(() => document.documentElement.dataset.lifecyclePhase);

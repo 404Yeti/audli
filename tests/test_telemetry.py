@@ -189,3 +189,29 @@ def test_summary_is_split_into_small_consistent_lines(caplog):
     caplog.clear()
     emit_summary()                                                          # empty window: no log noise
     assert not [r for r in caplog.records if r.getMessage().startswith('Latency summary ')]
+
+
+def test_gauges_and_counters_coexist_in_one_window_and_each_alone_still_logs(caplog):
+    """Reconciles AUD-70 (gauges) and AUD-71 (counters): both appear in part 1 and either one alone produces a log line."""
+    from app.telemetry import emit_summary
+    def lines():
+        return [json.loads(r.getMessage().removeprefix('Latency summary ')) for r in caplog.records if r.getMessage().startswith('Latency summary ')]
+    aggregator.reset()
+    aggregator.record_gauge('tts.elevenlabs.inflight', 3)
+    aggregator.count('recognition.lesson.answer.rejected')
+    snapshot = aggregator.snapshot()
+    assert snapshot['gauges'] == {'tts.elevenlabs.inflight': {'3': 1}} and snapshot['counters'] == {'recognition.lesson.answer.rejected': 1}
+    with caplog.at_level(logging.INFO, logger='uvicorn.error'):
+        emit_summary()
+    first = lines()[0]
+    assert first['gauges'] == {'tts.elevenlabs.inflight': {'3': 1}} and first['counters'] == {'recognition.lesson.answer.rejected': 1}
+    for record in ('gauge', 'counter'):
+        caplog.clear(); aggregator.reset()
+        aggregator.record_gauge('g', 1) if record == 'gauge' else aggregator.count('c')
+        with caplog.at_level(logging.INFO, logger='uvicorn.error'):
+            emit_summary()
+        assert len(lines()) == 1, record
+    caplog.clear(); aggregator.reset()
+    with caplog.at_level(logging.INFO, logger='uvicorn.error'):
+        emit_summary()
+    assert lines() == []                                        # an empty window stays silent

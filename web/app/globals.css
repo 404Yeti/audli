@@ -174,6 +174,16 @@ button { transition: background-color .18s ease, color .18s ease, box-shadow .18
 .home-view .audli-mascot { width: clamp(220px, 32vw, 300px); margin: clamp(24px, 4vh, 40px) auto; }
 .home-view h2 { font-size: 21px; font-weight: 600; margin-bottom: 8px; }
 .home-support { font-size: 13px; max-width: 340px; margin: 24px auto 0; }
+/* AUD-47: calm daily-lesson states. Contrast on --paper: --navy 16:1, --muted 4.8:1. */
+.home-note { font-size: 13px; color: var(--muted); max-width: 320px; margin: 12px auto 0; }
+.cooldown-card, .lesson-resume, .lesson-checking { max-width: 340px; margin: 0 auto; padding: 18px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--soft-teal); }
+.lesson-resume { background: var(--soft-blue); }
+.lesson-checking { background: white; }
+.cooldown-card h2, .lesson-resume h2, .lesson-checking h2 { margin-bottom: 10px; }
+.cooldown-countdown { font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.cooldown-caption { color: var(--muted); font-size: 13px; margin: 4px 0 14px; }
+.cooldown-actions { margin-top: 14px; display: grid; gap: 6px; }
+.cooldown-actions .secondary { margin-top: 8px; }
 .next-session { font-weight: 600; color: var(--navy); }
 .bottom-nav { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(calc(100% - 40px), 420px); height: 72px; padding: 7px; margin: 0; border-radius: 25px; z-index: 5; border-color: #e8edf3; box-shadow: 0 6px 26px #0f172a0a; }
 .bottom-nav button { flex: 1; width: auto; height: 56px; gap: 5px; border-radius: 18px; font-size: 11px; font-weight: 500; color: #5b697c; }

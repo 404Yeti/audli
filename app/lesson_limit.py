@@ -25,6 +25,11 @@ class OpenLesson(StrictModel):
     grace_ends_at: datetime
 
 
+class LastLesson(StrictModel):
+    id: str
+    status: Literal['active', 'paused', 'completed', 'expired']
+
+
 class Eligibility(StrictModel):
     mode: Mode
     # True only in enforce mode. Observe and off never block, so clients must not gate on those.
@@ -36,14 +41,17 @@ class Eligibility(StrictModel):
     retry_after_seconds: int | None = None
     last_started_at: datetime | None = None
     open_lesson: OpenLesson | None = None
+    # Lets Home say "nice work" after a completed lesson and "time ended, work saved" after an expired one.
+    last_lesson: LastLesson | None = None
     lesson_max_seconds: int = LESSON_MAX_SECONDS
 
 
 def evaluate(mode: Mode, at: datetime, next_eligible_at: datetime | None, last_started_at: datetime | None,
-             open_lesson: OpenLesson | None) -> Eligibility:
+             open_lesson: OpenLesson | None, last_lesson: LastLesson | None = None) -> Eligibility:
     """`at` is always server time. A learner with an open lesson resumes it; start never creates a second."""
     cooling = next_eligible_at is not None and at < next_eligible_at
-    common = dict(mode=mode, enforced=mode == 'enforce', server_time=at, last_started_at=last_started_at, open_lesson=open_lesson)
+    common = dict(mode=mode, enforced=mode == 'enforce', server_time=at, last_started_at=last_started_at,
+                  open_lesson=open_lesson, last_lesson=last_lesson)
     if open_lesson is not None:
         return Eligibility(eligible=False, reason='lesson_in_progress', **common)
     if cooling:

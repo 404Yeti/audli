@@ -24,7 +24,7 @@ export function TutorVoiceNotice({ used }: { used: boolean }) {
   return used ? <p className="voice-notice" role="status">Backup voice used · your progress is saved.</p> : null;
 }
 
-export function SessionShell({ state, activity, label, topic, startedAt, onEnd, onReplay, children, completed = false, layout, backupVoice = false, mascot, showPresence = true }: { showPresence?: boolean; mascot?: ReactNode; state: MascotState; activity: boolean; label?: string; topic?: string | null; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode; completed?: boolean; layout?: ClassroomLayout; backupVoice?: boolean }) {
+export function SessionShell({ state, activity, label, topic, startedAt, onEnd, onReplay, children, completed = false, layout, backupVoice = false, mascot, showPresence = true, windowNote = false }: { windowNote?: boolean; showPresence?: boolean; mascot?: ReactNode; state: MascotState; activity: boolean; label?: string; topic?: string | null; startedAt?: number; onEnd: () => void; onReplay?: () => void; children?: ReactNode; completed?: boolean; layout?: ClassroomLayout; backupVoice?: boolean }) {
   const [confirmExit, setConfirmExit] = useState(false);
   const endButton = useRef<HTMLButtonElement | null>(null);
   function stay() { setConfirmExit(false); endButton.current?.focus(); }
@@ -40,6 +40,6 @@ export function SessionShell({ state, activity, label, topic, startedAt, onEnd, 
         if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons[1].focus(); }
         else if (!event.shiftKey && document.activeElement === buttons[1]) { event.preventDefault(); buttons[0].focus(); }
       }
-    }}><h2 id="exit-title">End this conversation?</h2><p>Your saved progress will be here when you return.</p><button autoFocus className="primary" onClick={() => { setConfirmExit(false); onEnd(); }}>End session</button><button className="secondary" onClick={stay}>Stay here</button></section></div>}
+    }}><h2 id="exit-title">End this conversation?</h2><p>Your saved progress will be here when you return.</p>{windowNote && <p className="home-note">Today’s 10-minute lesson time keeps running while you’re away.</p>}<button autoFocus className="primary" onClick={() => { setConfirmExit(false); onEnd(); }}>End session</button><button className="secondary" onClick={stay}>Stay here</button></section></div>}
   </main>;
 }

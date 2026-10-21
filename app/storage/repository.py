@@ -567,7 +567,7 @@ class SQLProgressRepository:
         return row[0] if row else None
 
     def eligibility(self, mode, at=None):
-        from app.lesson_limit import OpenLesson, evaluate, LESSON_MAX_SECONDS
+        from app.lesson_limit import OpenLesson, LastLesson, evaluate, LESSON_MAX_SECONDS
         at = at or utcnow()
         if mode == 'off':
             return evaluate(mode, at, None, None, None)
@@ -575,6 +575,8 @@ class SQLProgressRepository:
             current = self._entitlement(db)
             row = db.execute(select(s.lessons.c.id, s.lessons.c.status, s.lessons.c.started_at).where(and_(
                 s.lessons.c.user_id == self.learner_id, s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).mappings().first()
+            newest = db.execute(select(s.lessons.c.id, s.lessons.c.status).where(s.lessons.c.user_id == self.learner_id)
+                .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
         opened = None
         if row:
             started = aware(row['started_at'])
@@ -583,7 +585,9 @@ class SQLProgressRepository:
                                 grace_ends_at=started + timedelta(seconds=LESSON_MAX_SECONDS + GRACE_SECONDS))
             if mode == 'enforce' and at >= opened.grace_ends_at:
                 opened = None  # Server-side expiry is pending; the learner is in cooldown, not mid-lesson.
-        return evaluate(mode, at, current and current['next_eligible_at'], current and current['last_started_at'], opened)
+                newest = {'id': row['id'], 'status': 'expired'}
+        last = LastLesson(id=newest['id'], status=newest['status']) if newest else None
+        return evaluate(mode, at, current and current['next_eligible_at'], current and current['last_started_at'], opened, last)
 
     def cooldown_until(self, at=None):
         """The instant the next lesson opens, or None when the learner may start one."""

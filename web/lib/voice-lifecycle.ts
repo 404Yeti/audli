@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { authenticatedFetch, currentAuthRevision, LessonLifetime, type LessonOperation } from './api';
+import { authenticatedFetch, currentAuthRevision, LessonLifetime, limitErrorFrom, type LessonOperation } from './api';
 import { captureRecording, recordingDiagnostic, InterruptedRecording } from './recording';
 import { microphoneError } from './session';
 import { turnDetector } from './hands-free';
@@ -98,6 +98,7 @@ export function useVoiceLifecycle() {
         method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'audio/*' },
         body: JSON.stringify({ cue_id: cueId, ...checkpoint }), signal: operation.signal,
       }, operation));
+      if (response.status === 429) { const limited = await operation.wait(() => limitErrorFrom(response.clone())); if (limited) throw limited; }
       if (!response.ok) {
         const data: unknown = await operation.wait(() => response.json().catch(() => null));
         operation.assertCurrent();
@@ -133,6 +134,7 @@ export function useVoiceLifecycle() {
       const response = await operation.wait(() => authenticatedFetch(`/api/lessons/${encodeURIComponent(lessonId)}/${action}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }), signal: operation.signal,
       }, operation));
+      if (response.status === 429) { const limited = await limitErrorFrom(response); if (limited) throw limited; }
       if (!response.ok) throw new Error('Audli’s lesson voice is unavailable. Retry the conversation; your progress is saved.');
       return operation.wait(() => measuredAudioBody(response));
     });
@@ -185,6 +187,7 @@ export function useVoiceLifecycle() {
   async function retrySpeech(operation: LessonOperation) {
     setState('Retry');
     const response = await operation.wait(() => authenticatedFetch('/api/recognition/retry-audio', { method: 'POST', signal: operation.signal }, operation));
+    if (response.status === 429) { const limited = await limitErrorFrom(response); if (limited) throw limited; }
     if (!response.ok) throw new Error('Audli’s retry voice is unavailable. Please retry audio.');
     const body = await operation.wait(() => response.blob());
     operation.assertCurrent();

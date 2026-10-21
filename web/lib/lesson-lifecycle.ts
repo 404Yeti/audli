@@ -2,7 +2,7 @@ import type { Recognition } from './hands-free';
 
 /** Server checkpoint only. The browser orchestrates media, never phase policy. */
 export type LessonCheckpoint = {
-  id: string; revision: number; status: 'active' | 'paused' | 'completed';
+  id: string; revision: number; status: 'active' | 'paused' | 'completed' | 'expired';
   phase: 'WELCOME' | 'WELCOME_ACK' | 'REVIEW' | 'REVIEW_ACK' | 'TRANSITION' | 'EXERCISE' | 'CLOSING' | 'COMPLETED';
   prompt: string | null; pending: Recognition | null;
   exercise: { id: string; audio_url: string; completed_attempt_id: string | null; topic?: string | null } | null;

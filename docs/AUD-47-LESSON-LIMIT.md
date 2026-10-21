@@ -95,3 +95,29 @@ Codes: `lesson_cooldown` (new lesson or billable action inside the 24 h window),
 Two **consecutive** verified provider failures on a lesson's first tutor speech (revision 0, WELCOME, ledger's current unvoided lesson) expire
 that lesson and return the allowance in one transaction (`note_first_speech`). A success resets the counter. Abandonment, microphone
 denial, client retries, cache replays, refusals (429) and cancelled requests never count.
+
+# Phase 4 — frontend (Home countdown, revalidation, 429 and expired handling)
+
+`GET /api/eligibility` is Home's single source of truth (`web/lib/eligibility.ts`, `use-eligibility.ts`, `components/home-lesson.tsx`).
+The response also carries `last_lesson {id,status}` so Home can tell "done" from "time ended, work saved".
+
+| Server answer | Home |
+|---|---|
+| absent (404), unreachable, malformed, `off`, `observe` | today's Home, unchanged (the browser shows nothing in observe) |
+| enforce, eligible | Start button + "your 10-minute lesson keeps running, even if you pause" |
+| enforce, cooldown | calm card: "Today's lesson is done. Nice work." (or "Today's lesson time has ended" after an expiry), `18 h 42 min`, "It opens tomorrow around 6:42 AM", Review / Plan buttons; no Start, no error |
+| enforce, open lesson | "Your lesson is waiting", minutes left, "the 10 minutes keep running while you're away", Continue |
+| enforce, countdown reached zero | "Checking your next lesson…" until the server answers; **Start never appears from a local timer** |
+
+* The countdown is `server_time` plus the browser's **monotonic** clock (`performance.now`), never `Date.now()`, so a wrong device clock or time zone cannot change it. The "today/tomorrow" label is judged against server-derived time.
+* Revalidation: on mount, when the countdown ends, on focus, visibility, `pageshow` (back/forward cache) and reconnect (coalesced to 1 per second), when another tab of the same account announces a change (BroadcastChannel), after End / completion / Return Home, and again right before Start.
+* 429 `lesson_cooldown` on start and 429 `lesson_time_expired` mid-lesson never reach the generic error screen: the browser asks the server for the lesson's settled state and either continues its closing sequence into the existing wrap-up/Success/Return Home flow, or shows the ended-lesson Home (work kept, not counted as completed).
+* Compatibility: a new frontend works against an old backend (404 → legacy Home), and an old frontend against the new backend ignores the new endpoint; the server enforces regardless.
+
+## Proposed rollout (each step needs owner approval; production stays `off` until step 5)
+1. Review and merge #59 (ledger, off/observe) → deploy. Mode `off`; schema 5 still works.
+2. Merge Phase 3 and Phase 4 PRs → deploy. Mode `off`: no behavior change, frontend falls back to legacy Home.
+3. Decide the grace-cap mechanism (docs/AUD-47-GRACE-CAP-PROPOSAL.md); if the column is adopted, amend 006 **before** applying it.
+4. Apply migration 006 to production in a quiet window (backup first; brief lock on `lesson_lifecycles`); verify `schema_migrations` = 1–6 and the backfill row count equals the number of learners with lessons.
+5. Set `AUDLI_LESSON_LIMIT_MODE=observe`; watch `lesson_limit would_refuse` logs and `/api/eligibility` for several days (no learner is blocked).
+6. If the logs match expectations, set `enforce` at a low-traffic time and watch 429 rates, Retry-After values and support feedback. Rollback is setting the mode back to `off` (instant; the ledger and trigger can stay).

@@ -106,10 +106,31 @@ export async function audioBlobUrl(url: string, signal?: AbortSignal, operation?
   return URL.createObjectURL(blob);
 }
 
+/** Structured daily-limit refusal (HTTP 429): a stable code, never a generic failure. */
+export type LimitInfo = { code: 'lesson_cooldown' | 'lesson_time_expired'; nextAvailableAt: string | null; retryAfterSeconds: number | null; serverTime: string | null };
 export class ApiError extends Error {
   status: number;
   uncertain: boolean;
-  constructor(message: string, status: number, uncertain = false) { super(message); this.status = status; this.uncertain = uncertain; }
+  limit?: LimitInfo;
+  constructor(message: string, status: number, uncertain = false, limit?: LimitInfo) { super(message); this.status = status; this.uncertain = uncertain; this.limit = limit; }
+}
+export function limitFrom(data: unknown): LimitInfo | undefined {
+  const error = data && typeof data === 'object' && 'error' in data ? (data as { error: unknown }).error : null;
+  if (!error || typeof error !== 'object') return undefined;
+  const e = error as Record<string, unknown>;
+  if (e.code !== 'lesson_cooldown' && e.code !== 'lesson_time_expired') return undefined;
+  return { code: e.code, nextAvailableAt: typeof e.next_available_at === 'string' ? e.next_available_at : null,
+    retryAfterSeconds: typeof e.retry_after_seconds === 'number' ? e.retry_after_seconds : null, serverTime: typeof e.server_time === 'string' ? e.server_time : null };
+}
+export const isLimitError = (error: unknown): error is ApiError & { limit: LimitInfo } => error instanceof ApiError && error.status === 429 && !!error.limit;
+/** For raw fetch paths (audio): turn a 429 response into the same structured error. */
+export async function limitErrorFrom(response: Response): Promise<ApiError | null> {
+  if (response.status !== 429) return null;
+  const data: unknown = await response.json().catch(() => null);
+  const limit = limitFrom(data);
+  if (!limit) return null;
+  const detail = data && typeof data === 'object' && 'detail' in data && typeof (data as { detail: unknown }).detail === 'string' ? (data as { detail: string }).detail : 'Your next lesson opens soon.';
+  return new ApiError(detail, 429, false, limit);
 }
 export async function api<T>(url: string, init?: RequestInit, onResponse?: (status: number) => void, operation?: LessonOperation): Promise<T> {
   const response = await authenticatedFetch(`/api${url}`, init, operation);
@@ -126,7 +147,7 @@ export async function api<T>(url: string, init?: RequestInit, onResponse?: (stat
   if (!response.ok) {
     const detail = data && typeof data === 'object' && 'detail' in data ? data.detail : null;
     throw new ApiError(typeof detail === 'string' ? detail : 'Please check your input and try again.', response.status,
-      !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true));
+      !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true), response.status === 429 ? limitFrom(data) : undefined);
   }
   return data as T;
 }

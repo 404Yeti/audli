@@ -481,3 +481,16 @@ def test_postgres_schema5_starts_in_off_mode_and_fails_closed_for_observe(reposi
             create_app(Settings(data_dir=tmp_path, lesson_limit_mode='observe', _env_file=None), provider, restarted)
     finally:
         restarted.close()
+
+
+def test_eligibility_reports_the_last_lesson_so_home_can_tell_done_from_expired(repository_factory):
+    repo = repository_factory()
+    lesson = make(T0)
+    repo.create_lesson(lesson, limit_mode='enforce')
+    assert repo.eligibility('enforce', T0 + timedelta(minutes=1)).last_lesson.status == 'active'
+    # Past the closing grace the server reports it as expired even before the lazy write happens.
+    assert repo.eligibility('enforce', T0 + timedelta(minutes=14)).last_lesson.status == 'expired'
+    assert repo.eligibility('enforce', T0 + timedelta(minutes=14)).reason == 'cooldown'
+    repo.expire_lesson(lesson.id, T0 + timedelta(minutes=14))
+    assert repo.eligibility('enforce', T0 + timedelta(hours=1)).last_lesson.status == 'expired'
+    assert repo.eligibility('off', T0).last_lesson is None

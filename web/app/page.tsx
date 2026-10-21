@@ -18,7 +18,10 @@ import { LessonSuccess } from '../components/lesson-success';
 import { prefetchCelebration } from '../lib/mascot-celebration';
 import { AudliMascot } from '../components/audli-mascot';
 import { BottomNavigation, TutorVoiceNotice, SessionShell, type Destination } from '../components/product-shell';
-import { authenticatedFetch, ApiError, cancelPendingOperations, LessonLifetime, type LessonOperation } from '../lib/api';
+import { authenticatedFetch, ApiError, cancelPendingOperations, isLimitError, LessonLifetime, type LessonOperation } from '../lib/api';
+import { HomeLesson } from '../components/home-lesson';
+import { useEligibility } from '../lib/use-eligibility';
+import { homeView } from '../lib/eligibility';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
 import { recordingUpload, sendRecording, InterruptedRecording } from '../lib/recording';
@@ -79,6 +82,9 @@ function ApplicationFlow() {
 
 function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (operation: LessonOperation) => Promise<void>; reducedMotion: boolean; setReducedMotion: (value: boolean) => void }) {
   const account = useAccount();
+  const eligibility = useEligibility(account.scope);
+  // A calm, non-error explanation when a daily-limit refusal arrives but the eligibility endpoint is unavailable.
+  const [limitMessage, setLimitMessage] = useState('');
   const voice = useVoiceLifecycle();
   const [initialized, setInitialized] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -260,6 +266,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
         await operation.wait(() => new Promise<void>(resolve => { reviewDone.current = resolve; setReviewLesson(value.id); }));
         operation.assertCurrent(); setReviewLesson(null);
       }
+      if (value.status === 'expired') { limitEnded(value.id); return; }
       if (value.status !== 'active') throw new Error('Resume your lesson to continue.');
       if (value.phase === 'EXERCISE') {
         if (!value.exercise) { setTopic(null); value = await lessonAction(operation, value, 'exercise'); continue; }
@@ -326,6 +333,38 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     topicDone.current = null; setTopicPlan(null); send({ type: 'topic_resolved' });
     operation.assertCurrent();
   }
+  /** The daily limit ended this lesson (or refused its start): a calm Home, never a generic error screen. Saved work stays. */
+  function limitEnded(lessonId: string | null, message = '') {
+    voice.stop(); voice.idle(); running.current = false; retained.current = null; personalCapture.current = null;
+    leaveSetup(); reviewDone.current?.(); reviewDone.current = null; setReviewLesson(null); send({ type: 'home' });
+    intent.end(); lesson.current = null; setActive(false); setBusy(false); setError(''); setPrompt(''); setTopic(null); setDestination('Home');
+    setLimitMessage(message || (lessonId ? 'Today’s lesson time has ended. We saved your work.' : ''));
+    void eligibility.refresh(true).then(() => eligibility.announce()); refreshQuietly();
+  }
+  /** A refusal mid-lesson (429 lesson_time_expired) is resolved by the server's own settled state: the closing sequence
+   *  continues from completed work, or the lesson is shown as expired. The browser never decides which. */
+  async function runWithLimitRecovery(operation: LessonOperation, first: LessonCheckpoint, intentionalRestart: boolean) {
+    let value = first, restart = intentionalRestart;
+    for (let attempt = 0; ; attempt++) {
+      try { return await structuredLesson(operation, value, restart); }
+      catch (error) {
+        const id = lesson.current?.id;
+        if (!isLimitError(error) || error.limit.code !== 'lesson_time_expired' || !id || attempt >= 3 || !operation.current) throw error;
+        const latest = await operation.api<LessonCheckpoint>(`/lessons/${id}`); operation.assertCurrent();
+        if (latest.status === 'expired') { limitEnded(latest.id); return; }
+        value = latest.status === 'paused' ? await operation.api<LessonCheckpoint>(`/lessons/${latest.id}/resume`, { method: 'POST' }) : latest;
+        restart = true;
+      }
+    }
+  }
+  /** Home's only door to the classroom: an enforcing server must confirm eligibility again right now. */
+  async function startFromHome() {
+    setLimitMessage('');
+    // Always ask (joins the request already in flight): Home may not have heard from the server yet.
+    const confirmed = homeView(await eligibility.refresh(eligibility.view.kind !== 'legacy'), performance.now());
+    if (confirmed.kind === 'cooldown' || confirmed.kind === 'checking') return;
+    void start();
+  }
   async function start(preflight = true) {
     if (running.current) return;
     const operation = voice.begin(); running.current = true; setError(''); setBusy(true);
@@ -342,8 +381,12 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       if (value.status === 'paused') value = await operation.api<LessonCheckpoint>(`/lessons/${value.id}/resume`, { method: 'POST' });
       operation.assertCurrent(); lesson.current = value; intent.start();
       setActive(true); if (value.phase !== 'COMPLETED') setCompletion(null); setBusy(false);
-      await structuredLesson(operation, value, intentionalRestart);
-    } catch (error) { if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); } }
+      eligibility.announce();
+      await runWithLimitRecovery(operation, value, intentionalRestart);
+    } catch (error) {
+      if (operation.current && isLimitError(error)) limitEnded(lesson.current?.id ?? null, error.message);
+      else if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); }
+    }
     finally { if (operation.current) running.current = false; operation.release(); }
   }
   function leaveSetup() { topicDone.current?.(); topicDone.current = null; setTopicPlan(null); }
@@ -355,7 +398,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     if (value) {
       const operation = voice.begin();
       ending.current = operation.api<LessonCheckpoint>(`/lessons/${value.id}/end`, { method: 'POST' })
-        .then(saved => { operation.assertCurrent(); lesson.current = saved; })
+        .then(saved => { operation.assertCurrent(); lesson.current = saved; void eligibility.refresh(true).then(() => eligibility.announce()); })
         .catch(error => { if (operation.current) setError((error as Error).message); })
         .finally(() => { operation.release(); ending.current = null; });
     }
@@ -393,6 +436,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   /** Return Home is the only way out of Success. */
   function returnHome() {
     voice.stop(); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null; farewellDue.current = false;
+    void eligibility.refresh(true).then(() => eligibility.announce());
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
     refreshQuietly();
   }
@@ -421,7 +465,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     setDestination(value); setTranscript(null); setError('');
   }
   if (!initialized && !active) return <AudliLoadingScreen message="Getting your listening space ready…" error={error} onRetry={() => void retry()}/>;
-  if (active) return <><SessionShell backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} layout={reviewLesson ? 'interaction' : lifecycle.phase === 'TOPIC_SETUP' ? classroomLayout : undefined} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
+  if (active) return <><SessionShell windowNote={eligibility.snapshot?.value.enforced === true} backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} layout={reviewLesson ? 'interaction' : lifecycle.phase === 'TOPIC_SETUP' ? classroomLayout : undefined} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     {lifecycle.phase === 'TOPIC_SETUP' && topicPlan && <LessonTopicCheckin initial={topicPlan} autoVoice voice={voice} onLayout={setClassroomLayout} onFinished={() => topicDone.current?.()}/>}
     {reviewLesson && <HomeworkReview key={reviewLesson} lessonId={reviewLesson} voice={voice} onFinished={() => { reviewDone.current?.(); reviewDone.current = null; }}/>}
     <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
@@ -436,7 +480,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
 
   return <main className="product-shell"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><TutorVoiceNotice used={voice.backupVoice}/>
     {destination === 'Home' && <section className="home-view"><h1>{`Good to see you${profile?.name ? ', ' + profile.name : ''}.`}</h1><AudliMascot/>
-      <PlanningInvitation open={() => setDestination('Plan')}/><h2>Today’s listening lesson</h2><p>10 minutes · English · adapted for you</p><button className="primary" disabled={busy || !profile} onClick={() => void start()}>Start today’s session</button><p className="home-support">Your next lesson will build from what Audli heard last time.</p>
+      <PlanningInvitation open={() => setDestination('Plan')}/>{limitMessage && <p className="home-note" role="status">{limitMessage}</p>}
+      <HomeLesson view={eligibility.view} nowMs={eligibility.nowMs} busy={busy} ready={!!profile} onStart={() => void startFromHome()} onReview={() => void navigate('Review')} onPlan={() => setDestination('Plan')}/>
     </section>}
     {destination === 'Review' && <ReviewHub key={account.scope}/>}
     {destination === 'Plan' && <AdaptivePlan/>}

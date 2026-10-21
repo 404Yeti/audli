@@ -391,6 +391,8 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   }
   function leaveSetup() { topicDone.current?.(); topicDone.current = null; setTopicPlan(null); }
   function end() {
+    // Ask now, before End's own request: Home must show the open lesson, and nothing new may be requested after End settles.
+    void eligibility.refresh(true);
     reviewDone.current?.(); reviewDone.current = null; setReviewLesson(null); leaveSetup(); send({ type: 'home' });
     voice.stop(); running.current = false; retained.current = null; personalCapture.current = null; setTopic(null);
     intent.end(); setActive(false); setBusy(false); setError(''); setPrompt(''); setDestination('Home');
@@ -398,7 +400,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     if (value) {
       const operation = voice.begin();
       ending.current = operation.api<LessonCheckpoint>(`/lessons/${value.id}/end`, { method: 'POST' })
-        .then(saved => { operation.assertCurrent(); lesson.current = saved; void eligibility.refresh(true).then(() => eligibility.announce()); })
+        .then(saved => { operation.assertCurrent(); lesson.current = saved; eligibility.announce(); })
         .catch(error => { if (operation.current) setError((error as Error).message); })
         .finally(() => { operation.release(); ending.current = null; });
     }

@@ -207,7 +207,7 @@ class SQLProgressRepository:
             if onboarding_revision is not None and profile['data']['onboarding']['revision'] != onboarding_revision:
                 raise ValueError('Onboarding changed; discard generated exercise')
             open_lesson = db.execute(select(s.lessons).where(and_(s.lessons.c.user_id == self.learner_id,
-                s.lessons.c.status != 'completed')).with_for_update()).mappings().first()
+                s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES))).with_for_update()).mappings().first()
             if open_lesson:
                 from app.lesson import Lesson, closing_due
                 checkpoint = Lesson.model_validate(open_lesson['data'])
@@ -462,7 +462,7 @@ class SQLProgressRepository:
         if lesson_id:
             query = query.where(s.lessons.c.id == lesson_id)
         else:
-            query = query.where(s.lessons.c.status == 'completed' if completed else s.lessons.c.status != 'completed')
+            query = query.where(s.lessons.c.status == 'completed' if completed else s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES))
         with self.engine.connect() as db:
             row = db.execute(query.order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
             return Lesson.model_validate(row['data']) if row else None
@@ -478,7 +478,7 @@ class SQLProgressRepository:
         with self.transaction() as db:
             row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == self.learner_id).with_for_update()).scalar_one()
             if db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == self.learner_id,
-                    s.lessons.c.status != 'completed'))).first():
+                    s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).first():
                 raise ValueError('Resume the existing lesson.')
             completed = db.execute(select(s.lessons.c.data).where(and_(s.lessons.c.user_id == self.learner_id,
                 s.lessons.c.status == 'completed')).order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc())).scalars().all()

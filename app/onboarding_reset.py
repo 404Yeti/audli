@@ -50,11 +50,11 @@ def reset_onboarding(repo, revision):
                 s.sessions.c.user_id == repo.learner_id, s.sessions.c.status == 'active',
                 ~select(s.exercises.c.id).where(s.exercises.c.session_id == s.sessions.c.id).exists()))
         open_lessons = select(s.lessons.c.id).where(s.lessons.c.user_id == repo.learner_id,
-            s.lessons.c.status != 'completed')
+            s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES))
         db.execute(s.lesson_exercises.delete().where(s.lesson_exercises.c.user_id == repo.learner_id,
             s.lesson_exercises.c.lesson_id.in_(open_lessons)))
         db.execute(s.lessons.delete().where(s.lessons.c.user_id == repo.learner_id,
-            s.lessons.c.status != 'completed'))
+            s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))
         defaults = LearnerProfile()
         for field in RESET_FIELDS:
             setattr(profile, field, getattr(defaults, field))

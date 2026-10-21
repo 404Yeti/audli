@@ -133,6 +133,8 @@ lesson_exercises = Table('lesson_exercises', metadata,
     Column('exercise_id', identifier, ForeignKey('exercises.id'), primary_key=True),
     Column('lesson_id', identifier, nullable=False), Column('user_id', identifier, nullable=False),
     ForeignKeyConstraint(['lesson_id', 'user_id'], ['lesson_lifecycles.id', 'lesson_lifecycles.user_id'], name='lesson_exercise_owner'))
+# Lessons that can still be resumed. 'expired' (AUD-47) keeps partial work but is never open or completed.
+OPEN_LESSON_STATUSES = ('active', 'paused')
 Index('lessons_by_learner_time', lessons.c.user_id, lessons.c.started_at)
 Index('one_open_lesson_per_learner', lessons.c.user_id, unique=True,
     sqlite_where=lessons.c.status != 'completed', postgresql_where=lessons.c.status != 'completed')

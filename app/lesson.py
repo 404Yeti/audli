@@ -37,7 +37,7 @@ class Lesson(StrictModel):
     version: Literal[1] = 1
     id: str
     revision: int = Field(default=0, ge=0)
-    status: Literal['active', 'paused', 'completed'] = 'active'
+    status: Literal['active', 'paused', 'completed', 'expired'] = 'active'
     phase: Phase = 'WELCOME'
     started_at: datetime
     active_since: datetime | None

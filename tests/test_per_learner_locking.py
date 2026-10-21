@@ -23,6 +23,18 @@ from test_persistence import repository_factory  # noqa: F401  (fixture)
 DELAY = .3
 
 
+@pytest.fixture(autouse=True)
+def instant_audio_validation(monkeypatch):
+    """These HTTP scenarios measure the learner lock, not audio decoding.
+
+    Real validation shells out to ffmpeg (~0.2 s per upload, ~0.7 s on a cold process); that variance is inside the measured
+    window and can exceed the 0.15 s overhead the timing assertions allow. Validation has its own tests (test_audio.py); here it
+    returns the uploaded bytes at once so every assertion and threshold below stays exactly as written."""
+    async def accept(upload, settings):
+        return await upload.read(), upload.filename or 'upload.wav'
+    monkeypatch.setattr('app.main.validate_upload', accept)
+
+
 # --------------------------------------------------------------------------- LearnerLocks unit tests
 def keyed(enabled=True):
     current = {'key': 'a'}

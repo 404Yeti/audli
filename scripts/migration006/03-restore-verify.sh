@@ -21,6 +21,8 @@ DUMP="$RUN_DIR/backup.dump"
 [ "$(sha256_of "$DUMP")" = "$(manifest get "$RUN_DIR/backup.json" dump_sha256)" ] || die "the dump file changed since it was written"
 use_target "$REHEARSAL_VAR" postgres
 info "rehearsal server: $TARGET_LABEL"
+require_rehearsal_not_older
+client="$(pg_restore --version | grep -oE '[0-9]+' | head -1)"; [ "$client" -ge "$(manifest get "$RUN_DIR/preflight.json" server_version | grep -oE '^[0-9]+')" ] || die "pg_restore is version $client, older than the production server; install a newer postgresql-client"
 DB="audli_rehearsal_$(date -u +%Y%m%dT%H%M%S)_$$"
 psql_rw -c "CREATE DATABASE \"$DB\"" >/dev/null
 info "created database $DB; restoring (exit on first error)"

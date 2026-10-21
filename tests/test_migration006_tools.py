@@ -51,13 +51,14 @@ def test_every_stage_declares_what_it_may_do():
     for name, category in banners.items():
         assert f'banner {category}' in (TOOLS / name).read_text(), name
     for name in ('01-preflight.sh', '02-backup.sh', '05-postcheck.sh'):  # these touch production only through read-only sessions
-        assert 'psql_rw' not in (TOOLS / name).read_text(), name
-    assert 'default_transaction_read_only=on' in (TOOLS / 'lib.sh').read_text()
+        assert 'psql_rw' not in (TOOLS / name).read_text() and 'psql_apply' not in (TOOLS / name).read_text(), name
+    assert 'default_transaction_read_only = on' in (TOOLS / 'lib.sh').read_text()
+    assert 'default_transaction_read_only = on' in (TOOLS / '02-backup.sh').read_text()
 
 
 def test_only_the_two_marked_scripts_can_write_to_production():
     writers = [path.name for path in TOOLS.glob('*.sh') if path.name not in ('lib.sh', 'selftest.sh')
-               and 'psql_rw' in path.read_text() and 'use_target "$PROD_VAR"' in path.read_text()]
+               and ('psql_rw' in path.read_text() or 'psql_apply' in path.read_text()) and 'use_target "$PROD_VAR"' in path.read_text()]
     assert sorted(writers) == ['06-apply-production.sh', '07-rollback-production.sh']
 
 
@@ -178,3 +179,35 @@ def test_full_toolchain_selftest_on_a_local_postgres():
     result = subprocess.run(['bash', str(TOOLS / 'selftest.sh')], capture_output=True, text=True, timeout=900,
                             env={**os.environ, 'AUDLI_SELFTEST_ADMIN_URL': local_postgres_admin_url(), 'AUDLI_PYTHON': sys.executable})
     assert result.returncode == 0 and ', 0 failed' in result.stdout, result.stdout[-3000:]
+
+
+def test_every_entry_point_is_executable_in_git():
+    """The scripts are run as ./name.sh by the operator; a mode-644 commit makes them fail with 'Permission denied'."""
+    listing = subprocess.run(['git', 'ls-files', '-s', 'scripts/migration006'], capture_output=True, text=True, cwd=ROOT).stdout.splitlines()
+    modes = {line.split('\t')[1].rsplit('/', 1)[1]: line.split()[0] for line in listing}
+    entry_points = [name for name in modes if name[:2].isdigit() and name.endswith('.sh')] + ['selftest.sh', 'pgenv.py', 'manifest.py', 'envfile.py']
+    assert entry_points and all(modes[name] == '100755' for name in entry_points), {name: modes.get(name) for name in entry_points}
+
+
+def test_transaction_pooler_port_is_refused_before_any_connection(run_dir):
+    result, output = run('01-preflight.sh', '--run-dir', str(run_dir), env={'AUDLI_PROD_DATABASE_URL': PROD.replace(':5432/', ':6543/')})
+    assert result.returncode != 0 and 'transaction pooler' in output and CANARY not in output
+
+
+def test_production_url_prompt_rejects_the_transaction_pooler_and_stores_nothing(tmp_path):
+    env_file = tmp_path / 'migration006.env'
+    url = PROD.replace(':5432/', ':6543/')
+    result = subprocess.run(['bash', str(TOOLS / '00-set-production-url.sh'), '--env-file', str(env_file)], input=url + '\n', capture_output=True,
+                            text=True, env={**os.environ, 'HOME': str(tmp_path)}, timeout=60)
+    assert result.returncode != 0 and 'transaction pooler' in result.stderr and not env_file.exists()
+    assert CANARY not in result.stdout + result.stderr
+
+
+def test_production_url_prompt_stores_a_private_file_and_prints_no_secret(tmp_path):
+    env_file = tmp_path / 'migration006.env'
+    result = subprocess.run(['bash', str(TOOLS / '00-set-production-url.sh'), '--env-file', str(env_file)], input=PROD + '\n', capture_output=True,
+                            text=True, env={**os.environ, 'HOME': str(tmp_path)}, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert oct(env_file.stat().st_mode & 0o777) == '0o600' and CANARY in env_file.read_text()
+    assert CANARY not in result.stdout + result.stderr and 'deploy_user' not in result.stdout + result.stderr
+    assert fingerprint() in result.stdout

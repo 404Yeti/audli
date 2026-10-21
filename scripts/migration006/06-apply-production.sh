@@ -28,6 +28,9 @@ info "migration file sha256: $ACTUAL"
 [ "$DRY" = 1 ] || [ "$CONFIRM" = "$PHRASE_APPLY" ] || die "refusing: pass --confirm \"$PHRASE_APPLY\" to apply to production"
 manifest require "$RUN_DIR" --migration-sha "$ACTUAL" --fingerprint "$TARGET_FP" --max-age-hours "$MAX_AGE" preflight backup restore rehearsal \
   || die "the rehearsal evidence is missing, failed, stale, or for another file/database (details above)"
+[ "$(manifest get "$RUN_DIR/restore.json" dump_sha256)" = "$(manifest get "$RUN_DIR/backup.json" dump_sha256)" ] \
+  && [ "$(manifest get "$RUN_DIR/rehearsal.json" rehearsal_database)" = "$(manifest get "$RUN_DIR/restore.json" rehearsal_database)" ] \
+  || die "the restore and rehearsal evidence do not describe the same backup; repeat 02, 03 and 04 in one run directory"
 info "evidence ok: preflight, backup, restore verification and rehearsal all PASSED for this file and this database"
 info "backup: $(manifest get "$RUN_DIR/backup.json" bytes) bytes, sha256 $(manifest get "$RUN_DIR/backup.json" dump_sha256)"
 info "rehearsal apply time: $(manifest get "$RUN_DIR/rehearsal.json" apply_seconds)s"
@@ -37,7 +40,7 @@ if [ "$DRY" = 1 ]; then echo; echo "DRY RUN COMPLETE: every gate passed; with --
 psql_ro -f "$HERE/sql/counts.sql" > "$RUN_DIR/pre-apply-counts.txt"; chmod 600 "$RUN_DIR/pre-apply-counts.txt"
 echo; info "APPLYING (single transaction; lock_timeout 5s, statement_timeout 30s)"
 T0="$(date +%s.%N)"
-if PGOPTIONS='-c lock_timeout=5s -c statement_timeout=30s' psql_rw -f "$MIGRATION_FILE" >/dev/null; then
+if psql_apply -f "$MIGRATION_FILE" >/dev/null; then
   TOOK="$(python3 -c "print(round($(date +%s.%N) - $T0, 3))")"
   manifest write "$RUN_DIR/apply.json" result=PASS source_fingerprint="$TARGET_FP" migration_sha256="$ACTUAL" seconds="$TOOK"
   info "applied in ${TOOK}s; running the read-only post-checks"

@@ -15,7 +15,14 @@ each behind several explicit gates.** Production changes need the owner's separa
 | `07-rollback-production.sh` | **PRODUCTION-MUTATING** | **writes** | manual only; applies `docs/postgres-006-rollback.sql` only if the live verdict is SAFE |
 | `selftest.sh` | local only | no | runs the whole toolchain + every refusal path against a local PostgreSQL stand-in; `make_fixture.py` builds the production-shaped data |
 
+## Operator guide
+Step-by-step instructions for the owner (what to install, which steps need approval, what PASS looks like, what to do on failure):
+`docs/AUD-47-MIGRATION-006-OPERATOR-GUIDE.md`.
+
 ## Setup (credentials are never printed or stored)
+* `00-set-production-url.sh` stores the production URL with a hidden prompt; `00-rehearsal-server.sh start` starts a disposable local PostgreSQL 17 (Docker, or npm `embedded-postgres`) and stores its URL.
+* Supabase connection: the **direct** connection (IPv6 unless the IPv4 add-on is enabled) or the **session pooler** (port 5432, user `postgres.<project-ref>`, works over IPv4). The **transaction pooler (port 6543) is refused**: it cannot hold the exported snapshot or session settings.
+* Session settings (`read only`, timeouts) are sent as `SET` commands, not as the libpq `options` startup parameter, which Supabase's poolers reject.
 * Client tools (`psql`, `pg_dump`, `pg_restore`) must be **at least the server's major version** (`02` stops otherwise).
 * Put the two URLs in a file with mode `600` (default `~/.config/audli/migration006.env`, or `--env-file`), or export them:
   ```sh

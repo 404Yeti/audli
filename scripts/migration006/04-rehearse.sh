@@ -29,7 +29,7 @@ PRE="$(psql_ro -f "$HERE/sql/preflight.sql")"; echo "$PRE" | print_lines
 [ "$(echo "$PRE" | count_fails)" = 0 ] || die "the restored copy is not in the expected pre-006 shape"
 
 step "apply migration 006 (lock_timeout 5s, statement_timeout 30s, as in production)"
-T0="$(now)"; PGOPTIONS='-c lock_timeout=5s -c statement_timeout=30s' psql_rw -f "$MIGRATION_FILE" >/dev/null
+T0="$(now)"; psql_apply -f "$MIGRATION_FILE" >/dev/null
 SECONDS_TAKEN="$(python3 -c "print(round($(now) - $T0, 3))")"; info "applied in ${SECONDS_TAKEN}s"
 
 step "post-checks and baseline comparison"
@@ -65,14 +65,14 @@ if [ "$APP_SMOKE" = 1 ]; then
 fi
 
 step "rollback rehearsal: apply the shipped rollback file and prove the copy is back to the pre-006 shape"
-PGOPTIONS='-c lock_timeout=5s -c statement_timeout=30s' psql_rw -f "$ROLLBACK_FILE" >/dev/null
+psql_apply -f "$ROLLBACK_FILE" >/dev/null
 BACK="$(psql_ro -f "$HERE/sql/preflight.sql")"; [ "$(echo "$BACK" | count_fails)" = 0 ] || { echo "$BACK" >&2; die "after the rollback the schema is not back to the pre-006 shape"; }
 psql_ro -f "$HERE/sql/counts.sql" > "$RUN_DIR/after-rollback-counts.txt"
 diff -q "$RUN_DIR/backup-counts.txt" "$RUN_DIR/after-rollback-counts.txt" >/dev/null || die "the rollback changed data (compare backup-counts.txt and after-rollback-counts.txt)"
 info "rollback restored the pre-006 shape and every count, status and checksum equals the dump snapshot"
 
 step "re-apply 006 after the rollback (repeatability) and re-run the post-checks"
-PGOPTIONS='-c lock_timeout=5s -c statement_timeout=30s' psql_rw -f "$MIGRATION_FILE" >/dev/null
+psql_apply -f "$MIGRATION_FILE" >/dev/null
 "$HERE/05-postcheck.sh" --target rehearsal --run-dir "$RUN_DIR" --phase migration >/dev/null 2>&1 || die "post-checks failed after re-applying"
 info "re-applied and verified"
 

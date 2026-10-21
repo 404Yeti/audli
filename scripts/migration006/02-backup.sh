@@ -17,8 +17,9 @@ manifest require "$RUN_DIR" --migration-sha "$SHA" --fingerprint "$TARGET_FP" --
 check_client_versions
 DUMP="$RUN_DIR/backup.dump"; [ ! -e "$DUMP" ] || die "$DUMP already exists; use a new run directory"
 # One read-only REPEATABLE READ session exports a snapshot; pg_dump and the counts both read it.
-coproc SNAP { PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=0' psql -X -q -At -v ON_ERROR_STOP=1 2> >(redact >&2); }
+coproc SNAP { psql -X -q -At -v ON_ERROR_STOP=1 2> >(redact >&2); }
 trap 'kill "$SNAP_PID" 2>/dev/null || true' EXIT
+echo 'SET default_transaction_read_only = on; SET statement_timeout = 0;' >&"${SNAP[1]}"
 echo 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;' >&"${SNAP[1]}"
 echo 'SELECT pg_export_snapshot();' >&"${SNAP[1]}"
 read -r SNAPSHOT <&"${SNAP[0]}" || die "could not export a snapshot"

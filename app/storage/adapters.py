@@ -16,6 +16,9 @@ from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
 SCHEMA_VERSION = 5
+# Bridge (AUD-47): schema 6 is accepted but not yet claimed or required; the next release applies it.
+ACCEPTED_SQLITE_VERSIONS = ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6])
+ACCEPTED_POSTGRES_VERSIONS = ([1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6])
 
 
 def initialize_accent_control(db):
@@ -46,10 +49,10 @@ def initialize_sqlite(repo):
         existing = set(inspect(db).get_table_names())
         if 'schema_migrations' in existing:
             versions = sorted(db.execute(select(s.versions.c.version)).scalars().all())
-            if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5]):
+            if versions not in ACCEPTED_SQLITE_VERSIONS:
                 raise RuntimeError('Unsupported SQLite schema version')
             s.metadata.create_all(db)
-            for version in range(max(versions) + 1, SCHEMA_VERSION + 1):
+            for version in range(max(versions) + 1, SCHEMA_VERSION + 1):  # Empty when a newer accepted schema exists.
                 db.execute(s.versions.insert().values(version=version, applied_at=utcnow()))
             initialize_accent_control(db)
             return
@@ -164,7 +167,7 @@ class PostgresRepository(SQLProgressRepository):
             stage = 'database connection'
             with engine.connect() as db:
                 stage = 'schema version validation'
-                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in (list(range(1, 5)), list(range(1, 6))):
+                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in ACCEPTED_POSTGRES_VERSIONS:
                     detail = ('Expected migrations 001 through 005. Apply missing migrations with '
                               'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')

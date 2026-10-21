@@ -61,7 +61,7 @@ def access(repo, revision=None, pending=None, feedback=None, claim_lesson=None):
                     or not roadmap.completed_ids or roadmap.completed_ids[-1] != claim_lesson
                     or profile.onboarding_status != 'complete'
                     or db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == repo.learner_id,
-                        s.lessons.c.status != 'completed'))).first() is not None):
+                        s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).first() is not None):
                 return None
             roadmap.offered_checkins.append(milestone)
             persist(repo, db, roadmap)
@@ -70,7 +70,7 @@ def access(repo, revision=None, pending=None, feedback=None, claim_lesson=None):
             if roadmap.revision != revision or not due(roadmap):
                 raise ValueError('Your plan changed. Reload the saved plan.')
             if profile.onboarding_status != 'complete' or db.execute(select(s.lessons.c.id).where(and_(
-                    s.lessons.c.user_id == repo.learner_id, s.lessons.c.status != 'completed'))).first():
+                    s.lessons.c.user_id == repo.learner_id, s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).first():
                 raise ValueError('Finish or resume your lesson before this check-in.')
             if feedback is not None:
                 roadmap.feedback.append(PlannerFeedback(activation_at=roadmap.activation_at, after_lesson=due(roadmap), **feedback))

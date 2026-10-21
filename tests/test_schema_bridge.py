@@ -29,6 +29,12 @@ def test_release_restart_on_schema3_preserves_profiles_and_rejects_future_schema
         restarted.close()
     with repo.engine.begin() as db:
         db.execute(s.versions.insert().values(version=6, applied_at=now()))
+    # AUD-47 bridge: schema 6 is accepted before the migration that creates it ships.
+    accepted = PostgresRepository(repo.engine.url.render_as_string(hide_password=False))
+    assert accepted.for_learner(repo.learner_id).profile() == profile
+    accepted.close()
+    with repo.engine.begin() as db:
+        db.execute(s.versions.insert().values(version=7, applied_at=now()))
     with pytest.raises(RuntimeError, match='schema version validation'):
         PostgresRepository(repo.engine.url.render_as_string(hide_password=False))
 

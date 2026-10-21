@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import select, text, update
 from app.config import Settings
 from app.lesson import Lesson
-from app.lesson_limit import LessonCooldown, evaluate, WINDOW
+from app.lesson_limit import LessonCooldown, evaluate, WINDOW, GRACE_ACTION_LIMIT
 from app.main import create_app
 from app.onboarding_reset import reset_onboarding
 from app.repository import ProgressRepository
@@ -307,6 +307,19 @@ def test_ledger_is_per_account(repository_factory):
 
 # ---- PostgreSQL only: database-level backstop and the migration itself (run in CI) ----
 
+def downgrade_to_schema5(repo):
+    """The production shape before migration 006: no ledger, original status check and open-lesson index."""
+    from sqlalchemy import text
+    with repo.engine.begin() as db:
+        db.execute(text('DROP TABLE lesson_entitlements'))
+        db.execute(text('DROP FUNCTION lesson_entitlement_guard()'))
+        db.execute(text('ALTER TABLE lesson_lifecycles DROP CONSTRAINT lesson_status_valid'))
+        db.execute(text("ALTER TABLE lesson_lifecycles ADD CONSTRAINT lesson_status_valid CHECK (status IN ('active','paused','completed'))"))
+        db.execute(text('DROP INDEX one_open_lesson_per_learner'))
+        db.execute(text("CREATE UNIQUE INDEX one_open_lesson_per_learner ON lesson_lifecycles (user_id) WHERE status != 'completed'"))
+        db.execute(text('DELETE FROM schema_migrations WHERE version = 6'))
+
+
 def pg(repo):
     if repo.engine.dialect.name != 'postgresql':
         pytest.skip('PostgreSQL trigger and migration behavior')
@@ -336,14 +349,7 @@ def test_postgres_migration_006_backfills_existing_learners_and_allows_expired(r
     repo.create_lesson(old); finish(repo, old)
     repo.create_lesson(latest); finish(repo, latest)
     sql = Path('docs/postgres-006.sql').read_text()
-    with repo.engine.begin() as db:  # Return to the schema-5 shape, then apply the checked-in migration.
-        db.execute(text('DROP TABLE lesson_entitlements'))
-        db.execute(text('DROP FUNCTION lesson_entitlement_guard()'))
-        db.execute(text('ALTER TABLE lesson_lifecycles DROP CONSTRAINT lesson_status_valid'))
-        db.execute(text("ALTER TABLE lesson_lifecycles ADD CONSTRAINT lesson_status_valid CHECK (status IN ('active','paused','completed'))"))
-        db.execute(text('DROP INDEX one_open_lesson_per_learner'))
-        db.execute(text("CREATE UNIQUE INDEX one_open_lesson_per_learner ON lesson_lifecycles (user_id) WHERE status != 'completed'"))
-        db.execute(text('DELETE FROM schema_migrations WHERE version = 6'))
+    downgrade_to_schema5(repo)
     with repo.engine.begin() as db:
         db.exec_driver_sql(sql)
     row = ledger(repo)
@@ -359,3 +365,106 @@ def test_postgres_migration_006_backfills_existing_learners_and_allows_expired(r
         repo.create_lesson(make(T0 + timedelta(seconds=1)))
     with repo.engine.connect() as db:
         assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() == 6
+
+
+# ---- Shared grace-slot accounting (AUD-47): atomic, per lesson, cross-worker, restart-proof ----
+
+def test_grace_slots_count_up_and_stop_exactly_at_the_cap(repository_factory):
+    repo = repository_factory()
+    lesson = make(T0)
+    repo.create_lesson(lesson, limit_mode='enforce')
+    assert [repo.take_grace_slot(lesson.id) for _ in range(GRACE_ACTION_LIMIT)] == list(range(1, GRACE_ACTION_LIMIT + 1))
+    assert repo.take_grace_slot(lesson.id) is None and repo.take_grace_slot(lesson.id) is None
+    assert ledger(repo)['grace_actions'] == GRACE_ACTION_LIMIT  # Refusals never move the counter.
+
+
+def test_no_slot_without_a_claimed_lesson_or_after_a_void(repository_factory):
+    repo = repository_factory()
+    assert repo.take_grace_slot(str(uuid4())) is None  # No ledger row (mode off): nothing to take.
+    lesson = make(T0)
+    repo.create_lesson(lesson, limit_mode='enforce')
+    assert repo.void_allowance(lesson.id, T0) is True
+    assert repo.take_grace_slot(lesson.id) is None
+
+
+def test_a_delayed_request_from_an_older_lesson_cannot_consume_the_next_lessons_allowance(repository_factory):
+    repo = repository_factory()
+    first = make(T0)
+    repo.create_lesson(first, limit_mode='enforce')
+    assert [repo.take_grace_slot(first.id) for _ in range(3)] == [1, 2, 3]
+    finish(repo, first)
+    second = make(T0 + WINDOW)
+    repo.create_lesson(second, limit_mode='enforce')
+    assert ledger(repo)['last_lesson_id'] == second.id and ledger(repo)['grace_actions'] == 0  # A new claim resets the count.
+    for _ in range(5):  # The first lesson's late requests arrive after the next lesson started.
+        assert repo.take_grace_slot(first.id) is None
+    assert ledger(repo)['grace_actions'] == 0
+    assert repo.take_grace_slot(second.id) == 1  # The new lesson still has its full allowance.
+    assert [repo.take_grace_slot(second.id) for _ in range(GRACE_ACTION_LIMIT - 1)][-1] == GRACE_ACTION_LIMIT
+
+
+def test_the_cap_is_shared_by_every_worker_and_survives_restarts(repository_factory):
+    workers = [repository_factory() for _ in range(3)]  # Three processes over one database.
+    lesson = make(T0)
+    workers[0].create_lesson(lesson, limit_mode='enforce')
+    taken = 0
+    for turn in range(GRACE_ACTION_LIMIT):
+        taken += workers[turn % 3].take_grace_slot(lesson.id) is not None
+        if turn == 5:  # A restart: a brand-new repository object, no in-memory state carried over.
+            workers[0] = repository_factory()
+    assert taken == GRACE_ACTION_LIMIT
+    assert all(worker.take_grace_slot(lesson.id) is None for worker in workers)
+    assert repository_factory().take_grace_slot(lesson.id) is None
+
+
+def test_simultaneous_grace_requests_never_exceed_the_cap(repository_factory):
+    base = repository_factory()
+    lesson = make(T0)
+    base.create_lesson(lesson, limit_mode='enforce')
+    repos = [repository_factory() for _ in range(6)]
+    barrier, results = threading.Barrier(len(repos)), []
+    def hammer(repo):
+        barrier.wait()
+        for _ in range(6):
+            results.append(repo.take_grace_slot(lesson.id))
+    threads = [threading.Thread(target=hammer, args=(repo,)) for repo in repos]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join(120)
+    granted = sorted(value for value in results if value is not None)
+    assert len(results) == 36 and granted == list(range(1, GRACE_ACTION_LIMIT + 1))  # Exactly 12, each count once.
+    assert ledger(base)['grace_actions'] == GRACE_ACTION_LIMIT
+
+
+def test_postgres_check_is_an_absolute_ceiling_behind_the_application_cap(repository_factory):
+    repo = repository_factory()
+    if repo.engine.dialect.name != 'postgresql':
+        pytest.skip('PostgreSQL constraint')
+    from sqlalchemy import text
+    repo.create_lesson(make(T0), limit_mode='enforce')
+    with repo.engine.begin() as db:
+        db.execute(text('UPDATE lesson_entitlements SET grace_actions = 25'))  # Allowed by the ceiling, and by the guard trigger.
+    with pytest.raises(Exception, match='entitlement_grace_bounded'):
+        with repo.engine.begin() as db:
+            db.execute(text('UPDATE lesson_entitlements SET grace_actions = 26'))
+
+
+def test_postgres_schema5_starts_in_off_mode_and_fails_closed_for_observe(repository_factory, tmp_path, audio_bytes):
+    """The production database is at schema 5 until 006 is applied: mode=off must boot and behave exactly as before."""
+    repo = repository_factory(); pg(repo)
+    downgrade_to_schema5(repo)
+    from app.repository import PostgresRepository
+    url = repo.engine.url.render_as_string(hide_password=False)
+    owner = repo.learner_id
+    restarted = PostgresRepository(url, owner)  # Startup validation must not demand the schema-6 table.
+    try:
+        profile = restarted.profile(); profile.name = 'Maya'; profile.onboarding_status = 'complete'; restarted.save_profile(profile)
+        provider = FakeProvider()
+        async def speak(text, speech_rate=.9): return audio_bytes
+        provider.speak = speak
+        client = ASGIClient(create_app(Settings(data_dir=tmp_path, _env_file=None), provider, restarted), provider)
+        assert client.post('/api/lessons/start').status_code == 200
+        assert client.get('/api/eligibility').json()['mode'] == 'off'
+        with pytest.raises(RuntimeError, match='migration 006'):
+            create_app(Settings(data_dir=tmp_path, lesson_limit_mode='observe', _env_file=None), provider, restarted)
+    finally:
+        restarted.close()

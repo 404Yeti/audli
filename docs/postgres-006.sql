@@ -9,9 +9,11 @@ CREATE TABLE lesson_entitlements (
 	last_lesson_id UUID,
 	voided_at TIMESTAMP WITH TIME ZONE,
 	first_speech_failures INTEGER DEFAULT '0' NOT NULL,
+	grace_actions INTEGER DEFAULT '0' NOT NULL,
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	PRIMARY KEY (user_id),
 	CONSTRAINT entitlement_window_ordered CHECK (next_eligible_at >= last_started_at),
+	CONSTRAINT entitlement_grace_bounded CHECK (grace_actions BETWEEN 0 AND 25),
 	FOREIGN KEY(user_id) REFERENCES users (id)
 );
 

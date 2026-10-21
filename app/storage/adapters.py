@@ -175,8 +175,8 @@ class PostgresRepository(SQLProgressRepository):
                 stage = 'required table and column validation'
                 inspector = inspect(db)
                 for table in s.metadata.sorted_tables:
-                    if table in s.HOMEWORK_TABLES:
-                        continue  # Optional feature validates these only when enabled.
+                    if table in s.HOMEWORK_TABLES or table in s.LIMIT_TABLES:
+                        continue  # Optional features validate these only when enabled (mode=off starts on schema 5).
                     names = {column['name'] for column in inspector.get_columns(table.name)}
                     if not set(table.columns.keys()).issubset(names):
                         detail = 'Required schema columns are missing; inspect the numbered migrations.'

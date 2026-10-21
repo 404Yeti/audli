@@ -48,3 +48,14 @@ Creates the ledger (RLS on, browser roles revoked), backfills, installs the trig
 `lesson_status_valid`, and recreates `one_open_lesson_per_learner` for `status IN ('active','paused')`.
 Release order: bridge (PR #58) → apply 006 (separate owner approval) → this release with mode `off` → `observe`.
 Rollback: `off` needs no schema change; the table and trigger are additive and can remain.
+
+## Grace slots (ledger column `grace_actions`, in migration 006)
+Provider-backed wrap-up actions after a lesson's deadline (Phase 3) are counted in the ledger row, not in process memory:
+`UPDATE lesson_entitlements SET grace_actions = grace_actions + 1 WHERE user_id = :u AND last_lesson_id = :lesson AND voided_at IS NULL AND grace_actions < 12 RETURNING grace_actions`.
+* **One lesson:** the slot matches `last_lesson_id`, so a delayed request from an older lesson can never consume the next lesson's allowance; every claim resets the count to 0.
+* **Shared:** a single atomic statement, so the cap holds across workers, concurrent requests and restarts; a `CHECK (grace_actions BETWEEN 0 AND 25)` is the absolute database ceiling.
+* **Consumption:** a slot is taken on admission and never refunded, so a failed or cancelled provider call still counts and retries cannot be unlimited. Cached replays never reach the method.
+* Slots are taken only after the deadline (no database write during a normal lesson) and only in enforce mode.
+
+## Schema-5 compatibility
+Until 006 is applied, mode `off` must run exactly as before: Postgres startup validation skips the ledger table (`LIMIT_TABLES`), `off` never reads or writes it, and `observe`/`enforce` fail closed at startup with "requires migration 006". Tested against a database downgraded to the production schema-5 shape.

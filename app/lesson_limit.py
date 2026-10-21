@@ -5,6 +5,8 @@ from app.models import StrictModel
 
 WINDOW = timedelta(hours=24)
 LESSON_MAX_SECONDS = 600
+# Provider-backed wrap-up actions allowed per lesson after its deadline (closing speech, feedback, farewell, homework, planner).
+GRACE_ACTION_LIMIT = 12
 Mode = Literal['off', 'observe']
 
 

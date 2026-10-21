@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
 from app.models import LearnerProfile, Conversation, TrainingSession, Transcription
 from app.storage import schema as s
-from app.lesson_limit import WINDOW, LessonCooldown
+from app.lesson_limit import WINDOW, LessonCooldown, GRACE_ACTION_LIMIT
 
 LOG = logging.getLogger('uvicorn.error')
 
@@ -528,7 +528,7 @@ class SQLProgressRepository:
                      current['next_eligible_at'].isoformat())
             return 'would_refuse'
         values = dict(user_id=self.learner_id, last_started_at=at, next_eligible_at=at + WINDOW,
-                      last_lesson_id=lesson.id, voided_at=None, first_speech_failures=0, updated_at=utcnow())
+                      last_lesson_id=lesson.id, voided_at=None, first_speech_failures=0, grace_actions=0, updated_at=utcnow())
         insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
         statement = insert(s.lesson_entitlements).values(**values)
         # One atomic statement: the window may only advance when it has already elapsed.
@@ -540,6 +540,24 @@ class SQLProgressRepository:
                 raise LessonCooldown(self._entitlement(db)['next_eligible_at'])
             return 'would_refuse'
         return 'claimed'
+
+    def take_grace_slot(self, lesson_id, limit=None, at=None):
+        """Take one provider-backed wrap-up slot for THIS lesson after its deadline. Returns the new count, or None
+        when refused.
+
+        One atomic statement shared by every worker and surviving restarts. It matches the ledger's current
+        lesson only, so a delayed request from an older lesson can never consume the next lesson's allowance.
+        A slot is consumed on admission and never refunded: a failed or cancelled provider call still counts,
+        so retries cannot be unlimited. Cached replays never reach this method."""
+        limit = GRACE_ACTION_LIMIT if limit is None else limit
+        at = at or utcnow()
+        with self.transaction() as db:
+            row = db.execute(update(s.lesson_entitlements).where(and_(
+                s.lesson_entitlements.c.user_id == self.learner_id, s.lesson_entitlements.c.last_lesson_id == lesson_id,
+                s.lesson_entitlements.c.voided_at.is_(None), s.lesson_entitlements.c.grace_actions < limit))
+                .values(grace_actions=s.lesson_entitlements.c.grace_actions + 1, updated_at=at)
+                .returning(s.lesson_entitlements.c.grace_actions)).first()
+        return row[0] if row else None
 
     def eligibility(self, mode, at=None):
         from app.lesson_limit import OpenLesson, evaluate, LESSON_MAX_SECONDS

@@ -209,6 +209,10 @@ lesson_entitlements = Table('lesson_entitlements', metadata,
     Column('voided_at', timestamp),
     # Consecutive verified provider failures before a lesson's first tutor speech; reset on success.
     Column('first_speech_failures', Integer, nullable=False, default=0, server_default='0'),
+    # Provider-backed wrap-up actions taken after the lesson's deadline, for last_lesson_id only; reset by each claim.
+    Column('grace_actions', Integer, nullable=False, default=0, server_default='0'),
     Column('updated_at', timestamp, nullable=False),
-    CheckConstraint('next_eligible_at >= last_started_at', name='entitlement_window_ordered'))
+    CheckConstraint('next_eligible_at >= last_started_at', name='entitlement_window_ordered'),
+    # Absolute ceiling behind the application cap (12): no code path can exceed it.
+    CheckConstraint('grace_actions BETWEEN 0 AND 25', name='entitlement_grace_bounded'))
 LIMIT_TABLES = (lesson_entitlements,)

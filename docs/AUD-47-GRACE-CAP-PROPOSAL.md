@@ -1,6 +1,6 @@
-# AUD-47 — shared enforcement for the closing-grace action cap (proposal only)
+# AUD-47 — shared enforcement for the closing-grace action cap
 
-Status: **proposal; no code or schema change is made by this document.** Decision needed before migration 006 is finalized.
+Status: **adopted and implemented (option A).** The column is part of migration 006 (merged in #59, not yet applied to any database) and `take_grace_slot` is the primitive; Phase 3 (#60) wires it into the gate and removes the in-memory counter. Final semantics: slots match `last_lesson_id` only (a request from any other lesson matches no row and never consumes the current lesson's allowance); a new claim resets the count to 0; a slot is consumed on admission and never refunded (failed and cancelled provider calls still count, so retries are bounded by the cap); cache replays never reach the gate; observe mode never takes slots. Tests: cap, per-lesson tie, restart, multiple workers, 36 simultaneous requests racing for 12 slots (SQLite and PostgreSQL), replay, failed provider, cancellation, observe. The text below is the original proposal.
 
 ## Today
 After a lesson's 10-minute deadline only the closing sequence is allowed (closing speech, final-feedback cue, farewell, homework and planner

@@ -111,6 +111,7 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
                 existing = owned(store.get, str(assignment_id))
                 if existing.status != 'offered' or existing.discovery_in_progress:
                     return existing
+                app.state.limits.admit('wrapup', 'homework.decision.attempt')
                 data, filename = await validate_upload(audio, settings)
                 try:
                     transcription = Transcription.model_validate(await asyncio.wait_for(ai().transcribe(data, filename), timeout=15))

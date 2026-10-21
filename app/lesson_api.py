@@ -17,6 +17,7 @@ from app.onboarding import ProfileExtraction
 from app.recognition import reliable_recognition
 from app.diagnostics import report_failure, operation, timed_lock
 from app.services.tutor_tts import TutorSpeech
+from app.lesson_limit import LimitRefused, LessonCooldown, window_phase
 
 ACKNOWLEDGMENT = 'Okay, I heard you.'
 ACKNOWLEDGMENTS = {'assessment': ACKNOWLEDGMENT, 'followup': 'Okay, I’ve heard that.',
@@ -30,8 +31,31 @@ class LessonRevision(StrictModel):
 
 def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits, new_lock):
     acknowledgment_lock = new_lock()
+    limits = app.state.limits
+
+    def settle(lesson):
+        """Enforce mode only: the 10 wall-clock minutes end the lesson on the server, whatever the browser does.
+
+        Past the deadline an unfinished lesson moves to its closing sequence (completed work only; no new
+        exercise or provider call). Past the closing grace it expires: partial work is kept, never completed."""
+        if lesson is None or settings.lesson_limit_mode != 'enforce' or lesson.status not in ('active', 'paused'):
+            return lesson
+        at = now()
+        phase = window_phase(lesson, at)
+        if phase == 'over':
+            return repo.expire_lesson(lesson.id, at) or repo.lesson(lesson.id)
+        pending_feedback = lesson.phase == 'EXERCISE' and lesson.exercise_id and repo.completed(lesson.exercise_id)
+        if phase == 'closing' and lesson.phase not in ('CLOSING', 'COMPLETED') and not pending_feedback:
+            revision = lesson.revision
+            close(lesson)
+            try:
+                return repo.save_lesson(lesson, revision)
+            except ValueError:
+                return repo.lesson(lesson.id)  # Another request settled it first.
+        return lesson
+
     def owned(lesson_id):
-        lesson = repo.lesson(lesson_id)
+        lesson = settle(repo.lesson(lesson_id))
         if lesson is None:
             raise HTTPException(404, 'Lesson not found.')
         return lesson
@@ -62,7 +86,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             'exercise': public_exercise(repo.exercise(lesson.exercise_id)) if lesson.exercise_id else None,
             'introduction_pending': intro_pending,
             'introduction_prompt': introduction(lesson) if intro_pending else None,
-            'elapsed_seconds': elapsed(lesson, at), 'remaining_seconds': max(0, TARGET_SECONDS - elapsed(lesson, at)),
+            'elapsed_seconds': elapsed(lesson, at, repo.wall_clock), 'remaining_seconds': max(0, TARGET_SECONDS - elapsed(lesson, at, repo.wall_clock)),
             'server_time': at, 'focus': lesson.focus, 'exercises_completed': lesson.exercises_completed,
             'strength': lesson.strength, 'improvement_focus': lesson.improvement_focus,
             'encouragement': f'Thanks for making time to listen, {lesson.name}.'}
@@ -74,13 +98,18 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         lesson.phase = 'CLOSING'
         lesson.exercise_id = None
 
-    async def speech(text, key):
+    def wrapup_key(key):
+        return key.startswith(('homework-', 'lesson-farewell', 'planner-'))
+
+    async def speech(text, key, purpose=None, lesson=None):
         tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'homework' if key.startswith('homework-') else 'classroom')
         kind = tutor.kind
         # Cache is scoped to the verified owner and complete spoken message.
         name = sha256((str(repo.learner_id) + ':' + tutor.signature + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
         data = repo.audio_blob(name)
         if data is None:
+            # Only a cache miss is billable: saved audio replays freely, in cooldown too.
+            limits.admit(purpose or ('wrapup' if wrapup_key(key) else 'practice'), 'lesson.speech:' + key.split('-v')[0], lesson)
             with operation(settings, 'lesson.tts_provider'):
                 generated = await tutor.speak(text)
             with operation(settings, 'lesson.tts_sanitization'):
@@ -100,7 +129,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         lesson = owned(lesson_id)
         if lesson.status != 'completed':
             raise HTTPException(409, 'Finish your lesson first.')
-        return await speech('Your lesson is saved. Thanks for listening with me. See you next class.', 'lesson-farewell-v1')
+        return await speech('Your lesson is saved. Thanks for listening with me. See you next class.', 'lesson-farewell-v1', 'wrapup', lesson)
 
     @app.get('/api/eligibility')
     async def eligibility():
@@ -109,8 +138,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
 
     @app.get('/api/lessons/current')
     async def current():
-        lesson = repo.lesson()
-        return public(lesson) if lesson else None
+        lesson = settle(repo.lesson())
+        return public(lesson) if lesson and lesson.status in ('active', 'paused') else None
 
     @app.get('/api/lessons/{lesson_id}')
     async def get_lesson(lesson_id: str):
@@ -119,9 +148,14 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     @app.post('/api/lessons/start')
     async def start():
         async with lock:
-            existing = repo.lesson()
-            if existing:
+            existing = settle(repo.lesson())
+            if existing and existing.status in ('active', 'paused'):
                 return public(existing)
+            if settings.lesson_limit_mode == 'enforce':
+                # Refuse before any preparation work; the ledger claim below stays the atomic authority.
+                until = repo.cooldown_until(now())
+                if until is not None:
+                    raise LimitRefused('lesson_cooldown', now(), until)
             profile = repo.profile()
             if profile.onboarding_status != 'complete':
                 raise HTTPException(409, 'Complete your spoken onboarding first.')
@@ -143,6 +177,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 else 'no_saved_preference' if profile.accent_preferences.status != 'preferred' else 'cadence')
             try:
                 repo.create_lesson(lesson, remember_only=not bool(available_voices), limit_mode=settings.lesson_limit_mode)
+            except LessonCooldown as refused:
+                raise LimitRefused('lesson_cooldown', now(), refused.next_eligible_at) from None
             except ValueError:
                 return public(repo.lesson())
             return public(lesson)
@@ -178,7 +214,18 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         text = prompt(lesson)
         if text is None:
             raise HTTPException(409, 'This phase has no lesson speech.')
-        response = await speech(text, 'lesson-v1')
+        # The very first tutor speech of a lesson: two consecutive verified provider failures return the allowance.
+        first = settings.lesson_limit_mode == 'enforce' and lesson.revision == 0 and lesson.phase == 'WELCOME'
+        try:
+            response = await speech(text, 'lesson-v1', 'wrapup' if lesson.phase == 'CLOSING' else 'practice', lesson)
+        except LimitRefused:
+            raise
+        except Exception:
+            if first:
+                repo.note_first_speech(lesson.id, False)
+            raise
+        if first:
+            repo.note_first_speech(lesson.id, True)
         check(lesson_id, body.revision)  # A delayed body cannot continue an ended phase.
         return response
 
@@ -196,7 +243,9 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 raise HTTPException(409, 'Continue from your current exercise checkpoint.')
             text = introduction(lesson)
         try:
-            response = await speech(text, 'exercise-introduction-v1')
+            response = await speech(text, 'exercise-introduction-v1', 'practice', lesson)
+        except LimitRefused:
+            raise
         except Exception as exc:
             check(lesson_id, body.revision)
             report_failure(settings, 'Lesson introduction speech', exc)
@@ -241,6 +290,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 lesson = check(lesson_id, revision)
                 if lesson.phase not in ('WELCOME', 'REVIEW'):
                     raise HTTPException(409, 'This phase does not request a personal response.')
+                limits.admit('practice', 'lesson.attempt', lesson)
                 with operation(settings, 'lesson.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
                 with operation(settings, 'lesson.transcription'):
@@ -259,6 +309,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             lesson = check(lesson_id, body.revision)
             if lesson.phase not in ('WELCOME', 'REVIEW') or lesson.pending is None:
                 raise HTTPException(409, 'Record a response to the current question first.')
+            limits.admit('practice', 'lesson.answer', lesson)
             if not reliable_recognition(lesson.pending, settings.min_transcription_confidence):
                 raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             text = lesson.pending.text
@@ -436,6 +487,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 raise HTTPException(409, 'Exercises are unavailable in this lesson phase.')
             if lesson.exercise_id:
                 return public(lesson)
+            if not closing_due(lesson, now(), repo.wall_clock):
+                limits.admit('practice', 'lesson.exercise', lesson)  # Generation is billable: only inside the 10 minutes.
             if closing_due(lesson, now()):
                 close(lesson)
                 return public(save(lesson, body.revision))

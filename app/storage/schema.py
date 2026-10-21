@@ -127,7 +127,7 @@ lessons = Table('lesson_lifecycles', metadata,
     Column('status', String(12), nullable=False), Column('revision', Integer, nullable=False),
     Column('started_at', timestamp, nullable=False), Column('data', document, nullable=False),
     UniqueConstraint('id', 'user_id', name='lesson_owner_key'),
-    CheckConstraint("status IN ('active','paused','completed')", name='lesson_status_valid'),
+    CheckConstraint("status IN ('active','paused','completed','expired')", name='lesson_status_valid'),
     CheckConstraint('revision >= 0', name='lesson_revision_valid'))
 lesson_exercises = Table('lesson_exercises', metadata,
     Column('exercise_id', identifier, ForeignKey('exercises.id'), primary_key=True),
@@ -137,7 +137,7 @@ lesson_exercises = Table('lesson_exercises', metadata,
 OPEN_LESSON_STATUSES = ('active', 'paused')
 Index('lessons_by_learner_time', lessons.c.user_id, lessons.c.started_at)
 Index('one_open_lesson_per_learner', lessons.c.user_id, unique=True,
-    sqlite_where=lessons.c.status != 'completed', postgresql_where=lessons.c.status != 'completed')
+    sqlite_where=lessons.c.status.in_(OPEN_LESSON_STATUSES), postgresql_where=lessons.c.status.in_(OPEN_LESSON_STATUSES))
 Index('exercises_by_lesson', lesson_exercises.c.lesson_id)
 
 # Migration 003: operational state only; no scripts, audio, tokens or provider bodies.

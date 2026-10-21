@@ -36,6 +36,38 @@ def sqlite_engine(path):
     return engine
 
 
+def rebuild_lessons_for_expired(path):
+    """Development SQLite files created before AUD-47 cannot store an `expired` lesson: rebuild the table.
+
+    Uses the documented SQLite procedure on its own connection (foreign keys must be off outside a
+    transaction). Rows, ids and child references are preserved exactly."""
+    from sqlalchemy import MetaData
+    from sqlalchemy.dialects import sqlite as sqlite_dialect
+    from sqlalchemy.schema import CreateTable, CreateIndex
+    with sqlite3.connect(path, isolation_level=None) as raw:
+        definition = raw.execute("SELECT sql FROM sqlite_master WHERE name='lesson_lifecycles'").fetchone()
+        if definition is None or "'expired'" in definition[0]:
+            return
+        scratch = MetaData()
+        s.users.to_metadata(scratch)  # The foreign key target must exist to build the table definition.
+        fresh = s.lessons.to_metadata(scratch, name='lesson_lifecycles_new')
+        raw.execute('PRAGMA foreign_keys=OFF')
+        try:
+            raw.execute('BEGIN IMMEDIATE')
+            raw.execute(str(CreateTable(fresh).compile(dialect=sqlite_dialect.dialect())))
+            raw.execute('INSERT INTO lesson_lifecycles_new SELECT id, user_id, status, revision, started_at, data FROM lesson_lifecycles')
+            raw.execute('DROP TABLE lesson_lifecycles')
+            raw.execute('ALTER TABLE lesson_lifecycles_new RENAME TO lesson_lifecycles')
+            for index in s.lessons.indexes:
+                raw.execute(str(CreateIndex(index, if_not_exists=True).compile(dialect=sqlite_dialect.dialect())))
+            raw.execute('COMMIT')
+        except BaseException:
+            raw.execute('ROLLBACK')
+            raise
+        finally:
+            raw.execute('PRAGMA foreign_keys=ON')
+
+
 def initialize_sqlite(repo):
     inspector = inspect(repo.engine)
     legacy = inspector.has_table('learner_profiles') and not inspector.has_table('schema_migrations')
@@ -46,6 +78,8 @@ def initialize_sqlite(repo):
             raise RuntimeError('SQLite migration backup already exists; inspect it before retrying migration')
         with sqlite3.connect(repo.path) as source, sqlite3.connect(backup) as target:
             source.backup(target)
+    if inspect(repo.engine).has_table('schema_migrations'):
+        rebuild_lessons_for_expired(repo.path)
     with repo.transaction() as db:
         existing = set(inspect(db).get_table_names())
         if 'schema_migrations' in existing:

@@ -56,10 +56,11 @@ def test_migration_006_is_generated_private_and_packaged():
     assert 'postgres-006.sql' in Path('scripts/migrate_postgres.py').read_text()
 
 
-def test_enforce_is_not_selectable_in_this_release():
-    with pytest.raises(ValueError):
-        Settings(lesson_limit_mode='enforce', _env_file=None)
+def test_enforce_is_selectable_but_off_is_the_default():
+    assert Settings(lesson_limit_mode='enforce', _env_file=None).lesson_limit_mode == 'enforce'
     assert Settings(_env_file=None).lesson_limit_mode == 'off'
+    with pytest.raises(ValueError):
+        Settings(lesson_limit_mode='strict', _env_file=None)
 
 
 def test_off_mode_never_touches_the_ledger(repository_factory):
@@ -462,8 +463,20 @@ def test_postgres_schema5_starts_in_off_mode_and_fails_closed_for_observe(reposi
         async def speak(text, speech_rate=.9): return audio_bytes
         provider.speak = speak
         client = ASGIClient(create_app(Settings(data_dir=tmp_path, _env_file=None), provider, restarted), provider)
-        assert client.post('/api/lessons/start').status_code == 200
         assert client.get('/api/eligibility').json()['mode'] == 'off'
+        # A whole lesson on the production schema: every route the limit touched in code must stay ledger-free in off mode.
+        from test_lesson_lifecycle import exercises, complete_exercise
+        lesson = exercises(client, audio_bytes)
+        complete_exercise(client, lesson, audio_bytes)
+        cue = {'cue_id': 'feedback', 'lesson_id': lesson['id'], 'lesson_revision': client.get(f"/api/lessons/{lesson['id']}").json()['revision']}
+        assert client.post(f"/api/exercises/{lesson['exercise']['id']}/coach-audio", json=cue).status_code == 200
+        assert client.post(f"/api/lessons/{lesson['id']}/audio", json={'revision': cue['lesson_revision']}).status_code in (200, 409)
+        assert client.post(f"/api/lessons/{lesson['id']}/end").json()['status'] == 'paused'
+        assert client.post(f"/api/lessons/{lesson['id']}/resume").json()['status'] == 'active'
+        assert client.get('/api/lessons/current').json()['id'] == lesson['id']
+        for path in ('/api/review', '/api/onboarding/reset-controls', '/api/history', '/api/eligibility'):
+            assert client.get(path).status_code == 200, path
+        assert client.get('/api/onboarding/reset-controls').json()['restart_available'] is True
         with pytest.raises(RuntimeError, match='migration 006'):
             create_app(Settings(data_dir=tmp_path, lesson_limit_mode='observe', _env_file=None), provider, restarted)
     finally:

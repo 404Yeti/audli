@@ -16,6 +16,7 @@ from app.diagnostics import operation, timed_lock
 from app.models import StrictModel, Conversation, ConversationTurn, ExerciseContent
 from app.models import Transcription
 from app.recognition import reliable_recognition
+from app.lesson_limit import LimitRefused
 from app.tutor_voice import tutor_settings
 
 SUMMARY_PROMPT = 'Tell me what you understood. Use your own words; grammar does not matter.'
@@ -50,6 +51,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
         async with timed_lock(settings, retry_lock, 'retry.audio'):
             data = repo.audio_blob(name)
             if data is None:
+                app.state.limits.admit('practice', 'retry_audio')  # Cache misses only; replay never generates.
                 data = await tutor.sanitize(await tutor.speak(text))
                 if not tutor.fallback:
                     repo.cache_lesson_audio(name, data)
@@ -126,6 +128,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             exercise_or_404(exercise_id)
             if repo.current_exercise()['id'] != exercise_id:
                 raise HTTPException(409, 'Resume the current exercise.')
+            app.state.limits.admit_exercise('conversation.listened', exercise_id)
             if not repo.completed(exercise_id) and not repo.conversation(exercise_id):
                 repo.save_conversation(Conversation(exercise_id=exercise_id))
             return public_conversation(exercise_id)
@@ -145,6 +148,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             lesson = repo.lesson()
             if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
                 raise HTTPException(409, 'Resume the active lesson before assessment.')
+            app.state.limits.admit_exercise('turn.assess', exercise_id)
             if not body.confirmed or not body.text.strip():
                 raise HTTPException(422, 'Check and confirm what you said first.')
             recognized = Transcription.model_validate_json(attempt['transcription'])
@@ -172,7 +176,8 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 return JSONResponse(status_code=422, content={'detail': 'Please check the recognition or record again. No score or difficulty change was applied.', 'uncertain': True})
             conversation.turns, conversation.assessment = turns, assessment
             conversation.pending_attempt_id = conversation.pending_text = None
-            followup = choose_followup(conversation)
+            # After the 10 minutes no further question is asked; unresolved evidence stays unknown.
+            followup = None if app.state.limits.past_deadline(lesson) else choose_followup(conversation)
             if followup:
                 conversation.followups.append(followup)
                 conversation.active_followup = followup
@@ -220,7 +225,22 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'feedback')
             cache_id = tutor_cue_cache_id(tutor.settings, body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
-            if not name or name.endswith('-fallback-openai.mp3') or not restore_audio(name).exists():
+            # Exactly the original condition; the limit is consulted only when it would call the provider.
+            regenerate = not name or name.endswith('-fallback-openai.mp3') or not restore_audio(name).exists()
+            if regenerate and settings.lesson_limit_mode != 'off':
+                try:
+                    # Final feedback belongs to the closing sequence; every other cue is practice.
+                    app.state.limits.admit('wrapup' if body.cue_id == 'feedback' else 'practice', 'coach_audio',
+                                           repo.lesson_for_exercise(exercise_id))
+                except LimitRefused:
+                    try:
+                        saved = bool(name) and restore_audio(name).exists()
+                    except HTTPException:
+                        saved = False
+                    if not saved:
+                        raise
+                    regenerate = False  # A saved (even backup-voice) recording replays without new speech.
+            if regenerate:
                 with operation(settings, 'SpeechService.coach_audio'):
                     with operation(settings, 'turn.tts_provider'):
                         data = await tutor.speak(text)

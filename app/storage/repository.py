@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
 from app.models import LearnerProfile, Conversation, TrainingSession, Transcription
 from app.storage import schema as s
-from app.lesson_limit import WINDOW, LessonCooldown, GRACE_ACTION_LIMIT
+from app.lesson_limit import WINDOW, LessonCooldown, GRACE_ACTION_LIMIT, GRACE_SECONDS
 
 LOG = logging.getLogger('uvicorn.error')
 
@@ -70,13 +70,20 @@ class SQLProgressRepository:
     Domain snapshots keep existing API formats. Relational columns/projections are
     written in the same transaction and support history, ownership and future policy.
     """
+    limit_mode = 'off'  # AUD-47; set from settings by create_app and inherited by every request scope.
+
     def __init__(self, engine, learner_id: str | None):
         self.engine = engine
         self.learner_id = learner_id
 
+    @property
+    def wall_clock(self):
+        return self.limit_mode == 'enforce'
+
     def for_learner(self, learner_id: str):
         """A new request scope; never mutate the pool owner's identity or dispose it."""
         scoped = SQLProgressRepository(self.engine, learner_id)
+        scoped.limit_mode = self.limit_mode
         # Auth has already verified this identity. Existing accounts need a read,
         # not two no-op upserts and a commit on every protected request.
         with self.engine.connect() as db:
@@ -222,7 +229,7 @@ class SQLProgressRepository:
                 checkpoint = Lesson.model_validate(open_lesson['data'])
                 if (lesson is None or checkpoint.id != lesson.id or checkpoint.revision != lesson.revision
                         or checkpoint.status != 'active' or checkpoint.phase != 'EXERCISE'
-                        or checkpoint.exercise_id or closing_due(checkpoint, utcnow())):
+                        or checkpoint.exercise_id or closing_due(checkpoint, utcnow(), self.wall_clock)):
                     raise ValueError('Lesson changed or closing is due; reload the lesson.')
             from app.accent_practice import authorized_accent
             if content.passage_voice and content.passage_voice.accent != 'default':
@@ -524,8 +531,8 @@ class SQLProgressRepository:
         if current is not None and at < current['next_eligible_at']:
             if mode == 'enforce':
                 raise LessonCooldown(current['next_eligible_at'])
-            LOG.info('lesson_limit would_refuse learner=%s next_eligible_at=%s', learner_tag(self.learner_id),
-                     current['next_eligible_at'].isoformat())
+            LOG.info('lesson_limit would_refuse code=lesson_cooldown where=lesson.start learner=%s next_eligible_at=%s',
+                     learner_tag(self.learner_id), current['next_eligible_at'].isoformat())
             return 'would_refuse'
         values = dict(user_id=self.learner_id, last_started_at=at, next_eligible_at=at + WINDOW,
                       last_lesson_id=lesson.id, voided_at=None, first_speech_failures=0, grace_actions=0, updated_at=utcnow())
@@ -572,8 +579,76 @@ class SQLProgressRepository:
         if row:
             started = aware(row['started_at'])
             opened = OpenLesson(id=row['id'], status=row['status'], started_at=started,
-                                expires_at=started + timedelta(seconds=LESSON_MAX_SECONDS))
+                                expires_at=started + timedelta(seconds=LESSON_MAX_SECONDS),
+                                grace_ends_at=started + timedelta(seconds=LESSON_MAX_SECONDS + GRACE_SECONDS))
+            if mode == 'enforce' and at >= opened.grace_ends_at:
+                opened = None  # Server-side expiry is pending; the learner is in cooldown, not mid-lesson.
         return evaluate(mode, at, current and current['next_eligible_at'], current and current['last_started_at'], opened)
+
+    def cooldown_until(self, at=None):
+        """The instant the next lesson opens, or None when the learner may start one."""
+        at = at or utcnow()
+        with self.engine.connect() as db:
+            current = self._entitlement(db)
+        return current['next_eligible_at'] if current is not None and at < current['next_eligible_at'] else None
+
+    def latest_lesson(self):
+        from app.lesson import Lesson
+        with self.engine.connect() as db:
+            row = db.execute(select(s.lessons.c.data).where(s.lessons.c.user_id == self.learner_id)
+                .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).scalar_one_or_none()
+        return Lesson.model_validate(row) if row else None
+
+    def _expire(self, db, lesson_id, at):
+        """Mark an open lesson expired inside the caller's transaction. Work stays; it is never completed."""
+        from app.lesson import Lesson, elapsed
+        row = db.execute(select(s.lessons.c.data, s.lessons.c.revision, s.lessons.c.status).where(and_(
+            s.lessons.c.id == lesson_id, s.lessons.c.user_id == self.learner_id)).with_for_update()).mappings().first()
+        if row is None or row['status'] not in s.OPEN_LESSON_STATUSES:
+            return None
+        lesson = Lesson.model_validate(row['data'])
+        lesson.elapsed_seconds = elapsed(lesson, at, True)
+        lesson.active_since = None
+        lesson.status = 'expired'
+        lesson.revision = row['revision'] + 1
+        db.execute(update(s.lessons).where(s.lessons.c.id == lesson_id).values(
+            status='expired', revision=lesson.revision, data=lesson.model_dump(mode='json')))
+        return lesson
+
+    def expire_lesson(self, lesson_id, at=None):
+        """Server-side expiry; a no-op unless the lesson is still open. Returns the expired lesson or None."""
+        at = at or utcnow()
+        with self.transaction() as db:
+            db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
+            return self._expire(db, lesson_id, at)
+
+    FIRST_SPEECH_FAILURE_LIMIT = 2
+
+    def note_first_speech(self, lesson_id, ok, at=None):
+        """Track the provider outcome of a lesson's first tutor speech (revision 0 only).
+
+        Returns 'ignored', 'ok', 'counted' or 'voided'. After two consecutive verified provider failures the
+        lesson is expired and its allowance returned in one transaction. Only the ledger's current, unvoided,
+        untouched lesson qualifies, so abandonment, microphone denial and client retries never void."""
+        at = at or utcnow()
+        with self.transaction() as db:
+            db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
+            ledger = db.execute(select(s.lesson_entitlements).where(
+                s.lesson_entitlements.c.user_id == self.learner_id)).mappings().first()
+            lesson = db.execute(select(s.lessons.c.revision, s.lessons.c.status).where(and_(
+                s.lessons.c.id == lesson_id, s.lessons.c.user_id == self.learner_id))).mappings().first()
+            if (ledger is None or ledger['last_lesson_id'] != lesson_id or ledger['voided_at'] is not None
+                    or lesson is None or lesson['revision'] != 0 or lesson['status'] != 'active'):
+                return 'ignored'
+            failures = 0 if ok else ledger['first_speech_failures'] + 1
+            if ok and not ledger['first_speech_failures']:
+                return 'ok'
+            values = dict(first_speech_failures=failures, updated_at=at)
+            if failures >= self.FIRST_SPEECH_FAILURE_LIMIT:
+                values.update(next_eligible_at=ledger['last_started_at'], voided_at=at)
+                self._expire(db, lesson_id, at)
+            db.execute(update(s.lesson_entitlements).where(s.lesson_entitlements.c.user_id == self.learner_id).values(**values))
+            return 'ok' if ok else 'voided' if failures >= self.FIRST_SPEECH_FAILURE_LIMIT else 'counted'
 
     def void_allowance(self, lesson_id, at=None):
         """Give back the allowance for a lesson that never reached its first tutor interaction.
@@ -593,7 +668,8 @@ class SQLProgressRepository:
                 .values(next_eligible_at=s.lesson_entitlements.c.last_started_at, voided_at=at, updated_at=at))
             return changed.rowcount == 1
 
-    def create_lesson(self, lesson, remember_only=True, limit_mode='off'):
+    def create_lesson(self, lesson, remember_only=True, limit_mode=None):
+        limit_mode = self.limit_mode if limit_mode is None else limit_mode
         with self.transaction() as db:
             row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == self.learner_id).with_for_update()).scalar_one()
             if db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == self.learner_id,
@@ -657,7 +733,7 @@ class SQLProgressRepository:
         with self.transaction() as db:
             db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == self.learner_id).with_for_update()).one()
             exercise = self.owned_exercise(db, exercise_id)
-            if closing_due(lesson, utcnow()):
+            if closing_due(lesson, utcnow(), self.wall_clock):
                 raise ValueError('Closing is due.')
             lesson.exercise_id = exercise_id
             from app.accent_practice import authorized_accent

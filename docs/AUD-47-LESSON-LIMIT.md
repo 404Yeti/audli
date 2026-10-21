@@ -59,3 +59,39 @@ Provider-backed wrap-up actions after a lesson's deadline (Phase 3) are counted 
 
 ## Schema-5 compatibility
 Until 006 is applied, mode `off` must run exactly as before: Postgres startup validation skips the ledger table (`LIMIT_TABLES`), `off` never reads or writes it, and `observe`/`enforce` fail closed at startup with "requires migration 006". Tested against a database downgraded to the production schema-5 shape.
+# Phase 3 — expiry, 429 contract, endpoint enforcement (enforce mode)
+
+Production stays `off`. Nothing below runs unless `AUDLI_LESSON_LIMIT_MODE=enforce`; `observe` computes the same decisions and only logs
+`lesson_limit would_refuse code=… where=…` (hashed learner tag), never blocking or mutating learner state.
+
+## Clock
+In enforce mode the 10 minutes are wall-clock from the server-recorded `started_at` (pausing, refresh, tabs and devices never stop them).
+`closing_due` uses the same clock, so a new exercise is not started once less than 3 minutes remain.
+deadline = started_at + 600 s; grace ends at deadline + 180 s.
+
+## Settling (lazy, on any lesson request)
+* past the deadline, not yet in the closing sequence, and no assessed exercise awaiting its feedback → the lesson moves to `CLOSING`
+  built from **completed work only** (no provider call, no new exercise);
+* past the grace → the lesson becomes `expired`: partial work, transcripts and attempts stay; it is never `completed`, never counted by
+  the planner/review totals, and not open (the open-lesson index and queries use `active|paused`).
+
+## 429 contract
+`429` with `Retry-After`, body `{"detail": <friendly text>, "error": {"code", "server_time", "next_available_at", "retry_after_seconds"}}`.
+Codes: `lesson_cooldown` (new lesson or billable action inside the 24 h window), `lesson_time_expired` (open lesson past its time).
+`409 lesson_required` (no cooldown to report) for lesson-free legacy generation by an eligible learner.
+
+## Enforcement matrix (enforce)
+| Action | Rule |
+|---|---|
+| `POST /lessons/start` | refused in cooldown before any preparation; the ledger claim stays the atomic authority |
+| lesson attempts/answer, exercise upload/assess/evaluate, `/exercise` generation, legacy `POST /exercises`, listened | only inside the 10 minutes; lesson-free use refused |
+| follow-up questions | none after the deadline; unresolved evidence stays unknown, difficulty stable |
+| tutor speech (lesson, acknowledgment, introduction, retry, coach cues, preview, onboarding prompts) | gated **on cache miss only**; saved audio always replays |
+| closing speech, final-feedback cue, farewell, homework/planner speech and STT | allowed until the lesson’s grace end (3 min after the deadline) |
+| onboarding restart | refused in cooldown; `reset-controls` reports `restart_available:false` and `restart_available_at` |
+| reads (lessons, review, transcripts, saved audio, homework, history, eligibility) | always available |
+
+## Failed-start void
+Two **consecutive** verified provider failures on a lesson's first tutor speech (revision 0, WELCOME, ledger's current unvoided lesson) expire
+that lesson and return the allowance in one transaction (`note_first_speech`). A success resets the counter. Abandonment, microphone
+denial, client retries, cache replays, refusals (429) and cancelled requests never count.

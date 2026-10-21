@@ -172,6 +172,7 @@ def register(app, repo, ai, lock, settings):
                     raise HTTPException(404, 'Homework review not found.')
                 if review.phase == 'done' or review.revision != revision:
                     return review
+                app.state.limits.admit('practice', 'homework.review.attempt', repo.lesson(lesson_id))
                 data, filename = await validate_upload(audio, settings)
                 try:
                     transcription = Transcription.model_validate(await asyncio.wait_for(ai().transcribe(data, filename), 15))

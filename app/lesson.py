@@ -72,11 +72,14 @@ class Lesson(StrictModel):
 def now():
     return datetime.now(timezone.utc)
 
-def elapsed(lesson: Lesson, at: datetime) -> float:
+def elapsed(lesson: Lesson, at: datetime, wall: bool = False) -> float:
+    if wall:
+        # AUD-47 enforcement: the 10 minutes run from the server-recorded start; pausing never stops them.
+        return max(0.0, (at - lesson.started_at).total_seconds())
     return lesson.elapsed_seconds + (max(0, (at - lesson.active_since).total_seconds()) if lesson.active_since else 0)
 
-def closing_due(lesson: Lesson, at: datetime) -> bool:
-    return TARGET_SECONDS - elapsed(lesson, at) < CLOSING_SECONDS + MIN_EXERCISE_SECONDS
+def closing_due(lesson: Lesson, at: datetime, wall: bool = False) -> bool:
+    return TARGET_SECONDS - elapsed(lesson, at, wall) < CLOSING_SECONDS + MIN_EXERCISE_SECONDS
 
 def safe_label(value: str) -> str | None:
     """Use complete labels only; avoid instructions, metrics and oversized prose."""

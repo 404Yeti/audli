@@ -528,7 +528,7 @@ class SQLProgressRepository:
                      current['next_eligible_at'].isoformat())
             return 'would_refuse'
         values = dict(user_id=self.learner_id, last_started_at=at, next_eligible_at=at + WINDOW,
-                      last_lesson_id=lesson.id, voided_at=None, updated_at=utcnow())
+                      last_lesson_id=lesson.id, voided_at=None, first_speech_failures=0, updated_at=utcnow())
         insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
         statement = insert(s.lesson_entitlements).values(**values)
         # One atomic statement: the window may only advance when it has already elapsed.

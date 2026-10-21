@@ -8,6 +8,7 @@ CREATE TABLE lesson_entitlements (
 	next_eligible_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	last_lesson_id UUID,
 	voided_at TIMESTAMP WITH TIME ZONE,
+	first_speech_failures INTEGER DEFAULT '0' NOT NULL,
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	PRIMARY KEY (user_id),
 	CONSTRAINT entitlement_window_ordered CHECK (next_eligible_at >= last_started_at),

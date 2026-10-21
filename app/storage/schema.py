@@ -207,6 +207,8 @@ lesson_entitlements = Table('lesson_entitlements', metadata,
     Column('next_eligible_at', timestamp, nullable=False),
     Column('last_lesson_id', identifier),
     Column('voided_at', timestamp),
+    # Consecutive verified provider failures before a lesson's first tutor speech; reset on success.
+    Column('first_speech_failures', Integer, nullable=False, default=0, server_default='0'),
     Column('updated_at', timestamp, nullable=False),
     CheckConstraint('next_eligible_at >= last_started_at', name='entitlement_window_ordered'))
 LIMIT_TABLES = (lesson_entitlements,)

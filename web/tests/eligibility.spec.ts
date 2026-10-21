@@ -268,3 +268,22 @@ test('ending a lesson explains that the ten minutes keep running, in enforce mod
   await page.getByRole('button', { name: 'End', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('Your saved progress will be here when you return.');
 });
+
+test('background eligibility checks never emit turn-latency logs, even when the clock is replaced mid-request', async ({ page }) => {
+  const logs: { stage: string; elapsedMs: number }[] = [];
+  page.on('console', async message => { if (message.text().startsWith('[Audli turn]')) { const value = await message.args()[1].jsonValue().catch(() => null); if (value) logs.push(value); } });
+  await home(page);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/eligibility', async route => { await held; await route.fulfill({ json: ready() }); });
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Good to see you');
+  const before = logs.length;
+  await page.clock.install();  // Replaces performance.now while the eligibility request is still in flight.
+  await page.clock.runFor(1500);
+  release();
+  await expect(startButton(page)).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(logs.slice(before).every(entry => entry.elapsedMs >= 0)).toBe(true);
+  expect(logs.every(entry => entry.elapsedMs >= 0)).toBe(true);
+});

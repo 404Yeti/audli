@@ -69,7 +69,8 @@ export class LessonOperation {
   }
 }
 
-export async function authenticatedFetch(url: string, init?: RequestInit, operation?: LessonOperation): Promise<Response> {
+/** `telemetry: false` keeps background requests (e.g. eligibility revalidation) out of the per-turn latency logs. */
+export async function authenticatedFetch(url: string, init?: RequestInit, operation?: LessonOperation, telemetry = true): Promise<Response> {
   operation?.assertCurrent();
   if (!url.startsWith('/api/') || url.includes('\\')) throw new Error('Invalid Audli API path.');
   const revision = authRevision;
@@ -84,9 +85,10 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
     headers.set('Authorization', `Bearer ${token}`);
   }
   const submittedAt = performance.now();
-  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
+  const logTurn = telemetry && (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1');
+  if (logTurn) console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
   const response = await fetch(url, { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
-  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
+  if (logTurn) console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
   operation?.assertCurrent();
   if (typeof window !== 'undefined' && response.ok && revision === authRevision && response.headers.get('X-Audli-Tutor-Fallback') === 'true') window.dispatchEvent(new Event('audli-backup-voice'));
   if (response.status === 401 && revision === authRevision && typeof window !== 'undefined') {

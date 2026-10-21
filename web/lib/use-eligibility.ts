@@ -25,7 +25,7 @@ export function useEligibility(scope: string) {
     const signal = AbortSignal.timeout(4000);
     inflight.current = (async () => {
       try {
-        const response = await authenticatedFetch('/api/eligibility', { signal });
+        const response = await authenticatedFetch('/api/eligibility', { signal }, undefined, false);
         if (!alive.current) return latest.current;
         if (response.status === 404) { latest.current = null; setSnapshot(null); return null; }
         if (!response.ok) return latest.current;

@@ -20,7 +20,7 @@ from app.config import Settings
 from app.main import create_app
 from app.repository import ProgressRepository, PostgresRepository
 from app.storage import schema as s
-from app.storage.migrations import postgres_baseline, postgres_lesson_migration, postgres_accent_migration, postgres_planner_migration, postgres_homework_migration
+from app.storage.migrations import postgres_baseline, postgres_lesson_migration, postgres_accent_migration, postgres_planner_migration, postgres_homework_migration, postgres_lesson_limit_migration
 from app.models import Conversation, ConversationTurn, LearnerProfile, Transcription
 from app.conversation import final_evaluation, adapt_final
 from conftest import ASGIClient, FakeProvider
@@ -435,7 +435,7 @@ def test_backend_image_contains_all_numbered_migrations():
 def test_postgres_baseline_matches_schema_and_protects_browser_roles():
     assert (Path(__file__).parents[1] / 'docs/postgres.sql').read_text() == postgres_baseline()
     for table in s.metadata.sorted_tables:
-        assert f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;' in postgres_baseline() + postgres_lesson_migration() + postgres_accent_migration() + postgres_planner_migration() + postgres_homework_migration()
+        assert f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;' in postgres_baseline() + postgres_lesson_migration() + postgres_accent_migration() + postgres_planner_migration() + postgres_homework_migration() + postgres_lesson_limit_migration()
 
 
 def test_import_retains_progress_and_refuses_overwrite(repository_factory, tmp_path, exercise):

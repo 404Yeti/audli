@@ -42,6 +42,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                repository: SQLProgressRepository | None = None, auth_client=None):
     settings = settings or Settings()
     database = repository or create_repository(settings)
+    if settings.lesson_limit_mode != 'off':
+        database.require_lesson_limit_schema()
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
     repo = RequestRepository(database if identity is None else None)
     audio_dir = settings.data_dir / 'exercise_audio'

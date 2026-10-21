@@ -198,3 +198,21 @@ homework_budget = Table('homework_discovery_budget', metadata,
     Column('searches', Integer, nullable=False),
     CheckConstraint('id=1 AND searches>=0', name='homework_budget_valid'))
 HOMEWORK_TABLES = (listening_content, homework, reflections, homework_budget)
+
+# Migration 006 (AUD-47): one durable row per learner. Deliberately no foreign key to lesson rows, so
+# onboarding reset, abandoned-lesson cleanup or retention jobs can never reset the 24-hour allowance.
+lesson_entitlements = Table('lesson_entitlements', metadata,
+    Column('user_id', identifier, ForeignKey('users.id'), primary_key=True),
+    Column('last_started_at', timestamp, nullable=False),
+    Column('next_eligible_at', timestamp, nullable=False),
+    Column('last_lesson_id', identifier),
+    Column('voided_at', timestamp),
+    # Consecutive verified provider failures before a lesson's first tutor speech; reset on success.
+    Column('first_speech_failures', Integer, nullable=False, default=0, server_default='0'),
+    # Provider-backed wrap-up actions taken after the lesson's deadline, for last_lesson_id only; reset by each claim.
+    Column('grace_actions', Integer, nullable=False, default=0, server_default='0'),
+    Column('updated_at', timestamp, nullable=False),
+    CheckConstraint('next_eligible_at >= last_started_at', name='entitlement_window_ordered'),
+    # Absolute ceiling behind the application cap (12): no code path can exceed it.
+    CheckConstraint('grace_actions BETWEEN 0 AND 25', name='entitlement_grace_bounded'))
+LIMIT_TABLES = (lesson_entitlements,)

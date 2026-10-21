@@ -288,13 +288,13 @@ def test_sqlite_upgrade_001_to_002_preserves_existing_history(tmp_path,exercise)
     before=repo.history();profile=repo.profile()
     with repo.engine.begin() as db:
         for table in reversed(s.HOMEWORK_TABLES): table.drop(db)
-        s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db)
+        s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db);s.lesson_entitlements.drop(db)
         s.lesson_exercises.drop(db);s.lessons.drop(db)
         db.execute(s.versions.delete().where(s.versions.c.version>=2))
     repo.close(); upgraded=ProgressRepository(path)
     assert upgraded.history()==before and upgraded.profile()==profile
     with upgraded.engine.connect() as db:
-        assert sorted(db.execute(select(s.versions.c.version)).scalars())==[1,2,3,4,5]
+        assert sorted(db.execute(select(s.versions.c.version)).scalars())==[1,2,3,4,5,6]
     upgraded.close()
 
 def test_postgres_upgrade_001_to_002_is_explicit_and_preserves_history(repository_factory,exercise):
@@ -307,10 +307,10 @@ def test_postgres_upgrade_001_to_002_is_explicit_and_preserves_history(repositor
     url=repo.engine.url.render_as_string(hide_password=False);owner=repo.learner_id
     with repo.engine.begin() as db:
         for table in reversed(s.HOMEWORK_TABLES): table.drop(db)
-        s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db)
+        s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db);s.lesson_entitlements.drop(db)
         s.lesson_exercises.drop(db);s.lessons.drop(db)
         db.execute(s.versions.delete().where(s.versions.c.version>=2))
-    legacy_tables = [table for table in s.metadata.sorted_tables if table not in (s.lessons, s.lesson_exercises, s.versions, s.accent_control, s.accent_reservations, s.roadmaps, *s.HOMEWORK_TABLES)]
+    legacy_tables = [table for table in s.metadata.sorted_tables if table not in (s.lessons, s.lesson_exercises, s.versions, s.accent_control, s.accent_reservations, s.roadmaps, *s.HOMEWORK_TABLES, *s.LIMIT_TABLES)]
     def legacy_rows():
         with repo.engine.connect() as db:
             return {table.name: db.execute(select(table).order_by(*table.primary_key.columns)).mappings().all()

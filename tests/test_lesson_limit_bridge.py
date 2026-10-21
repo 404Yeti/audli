@@ -23,8 +23,8 @@ def test_unknown_status_still_rejected():
         Lesson.model_validate(snapshot(status='archived'))
 
 
-def test_bridge_accepts_schema_six_but_does_not_claim_it():
-    assert SCHEMA_VERSION == 5
+def test_bridge_accepts_schema_six_but_and_current_schema_is_six():
+    assert SCHEMA_VERSION == 6
     assert [1, 2, 3, 4, 5, 6] in ACCEPTED_SQLITE_VERSIONS and [1, 2, 3, 4, 5, 6] in ACCEPTED_POSTGRES_VERSIONS
     assert [1, 2, 3, 4, 5, 7] not in ACCEPTED_SQLITE_VERSIONS and [1, 2, 3, 4, 5, 7] not in ACCEPTED_POSTGRES_VERSIONS
 
@@ -32,8 +32,8 @@ def test_bridge_accepts_schema_six_but_does_not_claim_it():
 def test_sqlite_reopens_with_schema_six_ledger(tmp_path):
     path = tmp_path / 'audli.sqlite3'
     repo = ProgressRepository(path, 'a0000000-0000-4000-8000-000000000001')
-    with repo.engine.begin() as db:
-        db.execute(s.versions.insert().values(version=6, applied_at=now()))
+    with repo.engine.connect() as db:
+        assert db.execute(s.versions.select().order_by(s.versions.c.version)).fetchall()[-1][0] == 6
     repo.close()
     reopened = ProgressRepository(path, 'a0000000-0000-4000-8000-000000000001')
     with reopened.engine.connect() as db:

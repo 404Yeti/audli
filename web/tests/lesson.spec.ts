@@ -261,7 +261,12 @@ test('unexpected refresh during playback still restores the active authoritative
 test('coaching uses one authenticated binary request and genuine processing emits safe stage timings',async({page})=>{
   const logs:{stage:string;elapsedMs:number}[]=[];
   page.on('console',async message=>{if(message.text().startsWith('[Audli turn]'))logs.push(await message.args()[1].jsonValue());});
-  const fixture=await setup(page);await page.clock.install();await beginListening(page);await finishTurn(page);
+  // Install the fake clock BEFORE the page loads. Installed afterwards, it replaces performance.now() with a clock that restarts near
+  // zero while the page still has background work pending (for example the deferred /api/plan request): a request that captured its
+  // start time on the real clock then logs a negative duration when it completes on the fake one. One clock for the whole page
+  // makes every duration consistent. The assertions below are unchanged: no logged stage may be negative.
+  await page.clock.install();
+  const fixture=await setup(page);await beginListening(page);await finishTurn(page);
   expect(fixture.requests.some(x=>x.path==='/api/coach-voice')).toBe(false);
   await expect.poll(()=>logs.map(x=>x.stage)).toEqual(expect.arrayContaining(['silence_detection','recording_finalization','upload_transcription','assessment','tts_readiness','playback_start','turn_to_playback']));
   for(const value of logs){expect(Object.keys(value).sort()).toEqual(['elapsedMs','stage']);expect(value.elapsedMs).toBeGreaterThanOrEqual(0);}

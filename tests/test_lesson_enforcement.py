@@ -525,3 +525,57 @@ def test_observe_never_takes_grace_slots(build, clock, audio_bytes):
     for _ in range(30):
         client.app.state.limits.admit('wrapup', 'probe', stored)  # Logs at most; never blocks or counts.
     assert grace_count(client) == 0
+
+
+def test_displaying_generated_feedback_homework_and_success_never_consumes_a_slot(build, clock, audio_bytes):
+    client = build()
+    lesson = exercises(client, audio_bytes)
+    complete_exercise(client, lesson, audio_bytes)
+    exercise_id = lesson['exercise']['id']
+    cue = {'cue_id': 'feedback', 'lesson_id': lesson['id'], 'lesson_revision': client.get(f"/api/lessons/{lesson['id']}").json()['revision']}
+    assert client.post(f"/api/exercises/{exercise_id}/coach-audio", json=cue).status_code == 200  # Generated inside the 10 minutes.
+    clock.advance(minutes=11)  # Deadline passed: only the closing sequence remains.
+    before = grace_count(client)
+    spoken = len(client.provider.spoken)
+    for path in (f"/api/lessons/{lesson['id']}", f"/api/exercises/{exercise_id}/conversation", f"/api/exercises/{exercise_id}/coach-audio/feedback",
+                 f"/api/exercises/{exercise_id}/transcript", f"/api/exercises/{exercise_id}/audio", '/api/homework', '/api/review',
+                 '/api/history', '/api/eligibility', '/api/lessons/current', '/api/plan'):
+        response = client.get(path)
+        assert response.status_code in (200, 403, 404, 409, 503), (path, response.status_code)  # Never a limit refusal.
+        assert response.status_code != 429, path
+    assert grace_count(client) == before and len(client.provider.spoken) == spoken
+    # Replaying the already-generated feedback cue is a cache hit: no slot, no provider call.
+    assert client.post(f"/api/exercises/{exercise_id}/coach-audio", json={'cue_id': 'feedback'}).status_code == 200
+    assert grace_count(client) == before and len(client.provider.spoken) == spoken
+
+
+def test_only_provider_backed_closing_actions_take_slots(build, clock, audio_bytes):
+    from app.lesson_limit import LimitRefused
+    client = build()
+    lesson = complete_lesson(client, audio_bytes)
+    stored = client.repo.lesson(lesson['id'])
+    limits = client.app.state.limits
+    limits.admit('wrapup', 'early', stored)  # Before the deadline: the normal lesson, no ledger write.
+    limits.admit('practice', 'early', stored) if stored.status in ('active', 'paused') else None
+    assert grace_count(client) == 0
+    clock.advance(minutes=11)
+    with pytest.raises(LimitRefused):
+        limits.admit('practice', 'practice-after-deadline', stored)  # Practice is never authorized in the grace.
+    assert grace_count(client) == 0
+    limits.admit('wrapup', 'closing-speech', stored)  # The authorized kind: one provider-backed closing action.
+    assert grace_count(client) == 1
+    clock.advance(minutes=3)  # Past the grace: refused outright, no slot is touched.
+    with pytest.raises(LimitRefused):
+        limits.admit('wrapup', 'too-late', stored)
+    assert grace_count(client) == 1
+
+
+def test_a_closing_speech_in_an_open_lesson_takes_a_slot_only_after_the_deadline(build, clock, audio_bytes):
+    client = build()
+    lesson = exercises(client, audio_bytes)
+    complete_exercise(client, lesson, audio_bytes)
+    clock.advance(minutes=8)
+    closing = action(client, client.get(f"/api/lessons/{lesson['id']}").json(), 'advance')
+    assert closing['phase'] == 'CLOSING'
+    assert client.post(f"/api/lessons/{lesson['id']}/audio", json={'revision': closing['revision']}).status_code == 200
+    assert grace_count(client) == 0  # Generated before the deadline: ordinary lesson speech, no grace slot.

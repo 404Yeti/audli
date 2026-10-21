@@ -225,15 +225,19 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'feedback')
             cache_id = tutor_cue_cache_id(tutor.settings, body.cue_id, text)
             name = repo.coach_audio(exercise_id, cache_id)
-            cached = bool(name) and restore_audio(name).exists()
-            regenerate = not cached or name.endswith('-fallback-openai.mp3')
-            if regenerate:
+            # Exactly the original condition; the limit is consulted only when it would call the provider.
+            regenerate = not name or name.endswith('-fallback-openai.mp3') or not restore_audio(name).exists()
+            if regenerate and settings.lesson_limit_mode != 'off':
                 try:
                     # Final feedback belongs to the closing sequence; every other cue is practice.
                     app.state.limits.admit('wrapup' if body.cue_id == 'feedback' else 'practice', 'coach_audio',
                                            repo.lesson_for_exercise(exercise_id))
                 except LimitRefused:
-                    if not cached:
+                    try:
+                        saved = bool(name) and restore_audio(name).exists()
+                    except HTTPException:
+                        saved = False
+                    if not saved:
                         raise
                     regenerate = False  # A saved (even backup-voice) recording replays without new speech.
             if regenerate:

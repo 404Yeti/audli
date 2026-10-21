@@ -7,20 +7,16 @@ Cached audio is never gated: replay and review make no provider calls.
 """
 import logging
 from app.lesson import now
-from app.lesson_limit import LimitRefused, window_phase, grace_end, deadline, WINDOW
+from app.lesson_limit import LimitRefused, window_phase, grace_end, deadline, WINDOW, GRACE_ACTION_LIMIT
 from app.storage.repository import learner_tag
 
 LOG = logging.getLogger('uvicorn.error')
 OPEN = ('active', 'paused')
-# Provider-backed wrap-up actions allowed per lesson after its deadline (closing speech, feedback, homework, farewell).
-# Process-local defense in depth: the 3-minute grace bounds it in time, this bounds it in count.
-GRACE_ACTION_LIMIT = 12
 
 
 class LessonLimits:
     def __init__(self, repo, settings, clock=None):
         self.repo, self.settings, self.clock = repo, settings, clock or now
-        self.grace_actions = {}
 
     @property
     def mode(self):
@@ -35,13 +31,15 @@ class LessonLimits:
         return self.repo.cooldown_until(at) or (lesson.started_at + WINDOW if lesson is not None else at)
 
     def _grace_slot(self, lesson, at, code):
-        """Wrap-up work after the deadline is a bounded closing sequence, not a way to keep practicing."""
-        if at < deadline(lesson):
+        """Wrap-up work after the deadline is a bounded closing sequence, not a way to keep practicing.
+
+        The count lives in the ledger row for THIS lesson (shared by every worker, restart-proof) and is taken in one
+        atomic statement on admission: a failed or cancelled provider call still counts, and a request from any other
+        lesson matches no row. Observe mode never takes slots (it must not change learner state)."""
+        if self.mode != 'enforce' or at < deadline(lesson):
             return None
-        used = self.grace_actions.get(lesson.id, 0)
-        if used >= GRACE_ACTION_LIMIT:
+        if self.repo.take_grace_slot(lesson.id, GRACE_ACTION_LIMIT, at) is None:
             return LimitRefused(code, at, self._next(at, lesson))
-        self.grace_actions[lesson.id] = used + 1
         return None
 
     def _refusal(self, purpose, at, lesson):

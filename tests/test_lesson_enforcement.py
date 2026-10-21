@@ -48,7 +48,9 @@ def build(repository_factory, tmp_path, audio_bytes, clock):
         profile = repo.profile(); profile.name = 'Maya'; profile.onboarding_status = 'complete'; repo.save_profile(profile)
         provider = FakeProvider()
         provider.spoken, provider.failing = [], False
+        provider.attempts = 0
         async def speak(text, speech_rate=.9):
+            provider.attempts += 1
             if provider.failing:
                 raise ValueError('Tutor speech temporarily unavailable')
             provider.spoken.append(text)
@@ -417,7 +419,7 @@ def test_postgres_guard_allows_failure_counting_and_void_but_nothing_else(reposi
 
 
 def test_closing_grace_cannot_become_unlimited_speech(build, clock, audio_bytes):
-    from app.limits import GRACE_ACTION_LIMIT
+    from app.lesson_limit import GRACE_ACTION_LIMIT
     client = build()
     lesson = complete_lesson(client, audio_bytes)
     clock.advance(minutes=11)  # After the deadline, inside the grace.
@@ -429,3 +431,97 @@ def test_closing_grace_cannot_become_unlimited_speech(build, clock, audio_bytes)
         limits.admit('wrapup', 'probe', lesson_row)
     with pytest.raises(LimitRefused):
         limits.admit('practice', 'probe', lesson_row)  # Practice is never part of the grace.
+
+
+def grace_count(client):
+    return ledger(client)['grace_actions']
+
+
+def test_cached_replay_consumes_no_grace_slot(build, clock, audio_bytes):
+    client = build()
+    lesson = complete_lesson(client, audio_bytes)
+    clock.advance(minutes=11)  # Inside the grace, after the deadline.
+    assert client.post(f"/api/lessons/{lesson['id']}/farewell-audio").status_code == 200  # One generation, one slot.
+    spoken = len(client.provider.spoken)
+    assert grace_count(client) == 1
+    for _ in range(25):  # Replays: cache hits never reach the gate.
+        assert client.post(f"/api/lessons/{lesson['id']}/farewell-audio").status_code == 200
+    assert grace_count(client) == 1 and len(client.provider.spoken) == spoken
+
+
+def test_failed_provider_calls_consume_slots_so_retries_cannot_be_unlimited(build, clock, audio_bytes):
+    from app.lesson_limit import GRACE_ACTION_LIMIT
+    client = build()
+    lesson = complete_lesson(client, audio_bytes)
+    clock.advance(minutes=11)
+    client.provider.failing = True
+    codes = [client.post(f"/api/lessons/{lesson['id']}/farewell-audio").status_code for _ in range(GRACE_ACTION_LIMIT + 5)]
+    assert codes[:GRACE_ACTION_LIMIT] == [503] * GRACE_ACTION_LIMIT and codes[GRACE_ACTION_LIMIT:] == [429] * 5
+    assert client.provider.attempts == GRACE_ACTION_LIMIT  # The provider was called exactly 12 times, never more.
+    assert grace_count(client) == GRACE_ACTION_LIMIT
+
+
+def test_cancelled_requests_keep_their_slot(build, clock, audio_bytes):
+    client = build()
+    lesson = complete_lesson(client, audio_bytes)
+    clock.advance(minutes=11)
+    limits, stored = client.app.state.limits, client.repo.lesson(lesson['id'])
+    try:
+        limits.admit('wrapup', 'probe', stored)
+        raise TimeoutError('the client went away before the provider answered')
+    except TimeoutError:
+        pass
+    assert grace_count(client) == 1  # Admission is the charge; nothing refunds it.
+
+
+def test_the_cap_holds_across_several_apps_over_one_database(build, clock, audio_bytes):
+    from app.lesson_limit import GRACE_ACTION_LIMIT, LimitRefused
+    first = build()
+    second = build(repo=first.repo)  # A second worker/process with its own in-memory state.
+    lesson = complete_lesson(first, audio_bytes)
+    clock.advance(minutes=11)
+    stored = first.repo.lesson(lesson['id'])
+    admitted = 0
+    for turn in range(GRACE_ACTION_LIMIT + 6):
+        client = (first, second)[turn % 2]
+        try:
+            client.app.state.limits.admit('wrapup', 'probe', stored)
+            admitted += 1
+        except LimitRefused:
+            pass
+    assert admitted == GRACE_ACTION_LIMIT and grace_count(first) == GRACE_ACTION_LIMIT
+
+
+def test_a_late_request_from_an_earlier_lesson_cannot_spend_the_next_lessons_grace(build, clock, audio_bytes):
+    from app.lesson_limit import GRACE_ACTION_LIMIT, LimitRefused
+    client = build()
+    first = start(client)
+    path = f"/api/lessons/{first['id']}/audio"
+    client.provider.failing = True
+    assert client.post(path, json={'revision': 0}).status_code == 503
+    assert client.post(path, json={'revision': 0}).status_code == 503  # Verified failures: lesson expired, allowance returned.
+    client.provider.failing = False
+    earlier = client.repo.lesson(first['id'])
+    assert earlier.status == 'expired'
+    clock.advance(seconds=30)
+    second = start(client)
+    stored = client.repo.lesson(second['id'])
+    clock.advance(minutes=10, seconds=30)  # The second lesson is now in its closing grace.
+    for _ in range(4):  # Delayed requests that still carry the first lesson.
+        with pytest.raises(LimitRefused):
+            client.app.state.limits.admit('wrapup', 'late', earlier)
+    assert grace_count(client) == 0
+    for _ in range(GRACE_ACTION_LIMIT):  # The second lesson keeps its full allowance.
+        client.app.state.limits.admit('wrapup', 'probe', stored)
+    with pytest.raises(LimitRefused):
+        client.app.state.limits.admit('wrapup', 'probe', stored)
+
+
+def test_observe_never_takes_grace_slots(build, clock, audio_bytes):
+    client = build('observe')
+    lesson = complete_lesson(client, audio_bytes)
+    clock.advance(minutes=11)
+    stored = client.repo.lesson(lesson['id'])
+    for _ in range(30):
+        client.app.state.limits.admit('wrapup', 'probe', stored)  # Logs at most; never blocks or counts.
+    assert grace_count(client) == 0

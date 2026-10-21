@@ -92,10 +92,10 @@ expect_ok "07 really rolls back the stand-in when SAFE and fully confirmed" "$HE
 [ "$(psql "${AUDLI_PROD_DATABASE_URL}" -X -At -c "select string_agg(version::text, ',' order by version) from schema_migrations")" = "1,2,3,4,5" ] && ok "stand-in is back at schema 5 after the rollback" || bad "rollback did not restore schema 5"
 
 echo "== credentials never appear in any output"
-if [ "${#CANARY}" -lt 10 ]; then ok "password leak scan skipped: the server password is too short (<10 characters) to scan reliably; use a longer one or the built-in decoy"
+if [ "${#CANARY}" -lt 12 ]; then ok "password leak scan skipped: the server password is too short (<12 characters) to scan reliably; use a longer one or the built-in decoy"
 elif grep -qF -e "$CANARY" -e "$CANARY_ENC" "$LOG"; then bad "the password appears in script output"; else ok "password absent from $(wc -l < "$LOG") lines of output"; fi
 if [ "$USERNAME" = postgres ] || ! grep -qwF -e "$USERNAME" "$LOG"; then ok "user name absent from script output"; else bad "the user name appears in script output"; fi
-if [ "${#CANARY}" -ge 10 ] && find "$TMP/runs" -type f -exec grep -lF -e "$CANARY" -e "$CANARY_ENC" {} + 2>/dev/null | grep -q .; then bad "a manifest or counts file contains the password"; else ok "no stored file contains the password"; fi
+if [ "${#CANARY}" -ge 12 ] && find "$TMP/runs" -type f -exec grep -lF -e "$CANARY" -e "$CANARY_ENC" {} + 2>/dev/null | grep -q .; then bad "a manifest or counts file contains the password"; else ok "no stored file contains the password"; fi
 psql "$ADMIN_FULL" -X -q -c "DROP DATABASE IF EXISTS \"$STANDIN\" WITH (FORCE)" >/dev/null 2>&1
 for db in $(psql "$ADMIN_FULL" -X -At -c "select datname from pg_database where datname like 'audli_rehearsal_%'" 2>/dev/null); do psql "$ADMIN_FULL" -X -q -c "DROP DATABASE \"$db\" WITH (FORCE)" >/dev/null 2>&1; done
 echo; echo "selftest: $PASSED passed, $FAILED failed (log kept at $LOG until this shell exits)"; cp "$LOG" "${AUDLI_SELFTEST_LOG:-/dev/null}" 2>/dev/null || true

@@ -534,8 +534,8 @@ class SQLProgressRepository:
         # One atomic statement: the window may only advance when it has already elapsed.
         result = db.execute(statement.on_conflict_do_update(index_elements=['user_id'],
             set_={key: getattr(statement.excluded, key) for key in values if key != 'user_id'},
-            where=s.lesson_entitlements.c.next_eligible_at <= at))
-        if result.rowcount != 1:
+            where=s.lesson_entitlements.c.next_eligible_at <= at).returning(s.lesson_entitlements.c.user_id))
+        if result.first() is None:
             if mode == 'enforce':
                 raise LessonCooldown(self._entitlement(db)['next_eligible_at'])
             return 'would_refuse'

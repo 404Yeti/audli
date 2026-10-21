@@ -116,7 +116,7 @@ def postgres_homework_migration():
 
 ENTITLEMENT_BACKSTOP = """-- Backstop for the application's atomic claim: no code path may start a new window early.
 -- It compares only values on the row itself, so it does not depend on any clock.
-CREATE FUNCTION lesson_entitlement_guard() RETURNS trigger LANGUAGE plpgsql AS $guard$
+CREATE OR REPLACE FUNCTION lesson_entitlement_guard() RETURNS trigger LANGUAGE plpgsql AS $guard$
 BEGIN
     IF NEW.last_started_at IS DISTINCT FROM OLD.last_started_at THEN
         IF NEW.last_started_at < OLD.next_eligible_at THEN

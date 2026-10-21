@@ -309,16 +309,9 @@ def test_ledger_is_per_account(repository_factory):
 # ---- PostgreSQL only: database-level backstop and the migration itself (run in CI) ----
 
 def downgrade_to_schema5(repo):
-    """The production shape before migration 006: no ledger, original status check and open-lesson index."""
-    from sqlalchemy import text
+    """The production shape before migration 006, produced by the SHIPPED rollback file (docs/postgres-006-rollback.sql)."""
     with repo.engine.begin() as db:
-        db.execute(text('DROP TABLE lesson_entitlements'))
-        db.execute(text('DROP FUNCTION lesson_entitlement_guard()'))
-        db.execute(text('ALTER TABLE lesson_lifecycles DROP CONSTRAINT lesson_status_valid'))
-        db.execute(text("ALTER TABLE lesson_lifecycles ADD CONSTRAINT lesson_status_valid CHECK (status IN ('active','paused','completed'))"))
-        db.execute(text('DROP INDEX one_open_lesson_per_learner'))
-        db.execute(text("CREATE UNIQUE INDEX one_open_lesson_per_learner ON lesson_lifecycles (user_id) WHERE status != 'completed'"))
-        db.execute(text('DELETE FROM schema_migrations WHERE version = 6'))
+        db.exec_driver_sql(Path('docs/postgres-006-rollback.sql').read_text())
 
 
 def pg(repo):

@@ -15,8 +15,9 @@ from app.storage.repository import SQLProgressRepository, profile_values, utcnow
 from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
-SCHEMA_VERSION = 5
-# Bridge (AUD-47): schema 6 is accepted but not yet claimed or required; the next release applies it.
+SCHEMA_VERSION = 6
+# Schema 6 (AUD-47) is optional for Postgres until AUDLI_LESSON_LIMIT_MODE is not off, so mode=off
+# starts against an unmigrated database exactly as before.
 ACCEPTED_SQLITE_VERSIONS = ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6])
 ACCEPTED_POSTGRES_VERSIONS = ([1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6])
 

@@ -294,7 +294,7 @@ def test_sqlite_upgrade_001_to_002_preserves_existing_history(tmp_path,exercise)
     repo.close(); upgraded=ProgressRepository(path)
     assert upgraded.history()==before and upgraded.profile()==profile
     with upgraded.engine.connect() as db:
-        assert sorted(db.execute(select(s.versions.c.version)).scalars())==[1,2,3,4,5]
+        assert sorted(db.execute(select(s.versions.c.version)).scalars())==[1,2,3,4,5,6]
     upgraded.close()
 
 def test_postgres_upgrade_001_to_002_is_explicit_and_preserves_history(repository_factory,exercise):

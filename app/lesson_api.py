@@ -102,6 +102,11 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             raise HTTPException(409, 'Finish your lesson first.')
         return await speech('Your lesson is saved. Thanks for listening with me. See you next class.', 'lesson-farewell-v1')
 
+    @app.get('/api/eligibility')
+    async def eligibility():
+        # Server time only. Read-only, provider-free and available during cooldown.
+        return repo.eligibility(settings.lesson_limit_mode, now())
+
     @app.get('/api/lessons/current')
     async def current():
         lesson = repo.lesson()
@@ -137,7 +142,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 'offered' if lesson.accent_offered else 'voices_unavailable' if not available_voices
                 else 'no_saved_preference' if profile.accent_preferences.status != 'preferred' else 'cadence')
             try:
-                repo.create_lesson(lesson, remember_only=not bool(available_voices))
+                repo.create_lesson(lesson, remember_only=not bool(available_voices), limit_mode=settings.lesson_limit_mode)
             except ValueError:
                 return public(repo.lesson())
             return public(lesson)

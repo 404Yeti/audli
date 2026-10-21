@@ -198,3 +198,15 @@ homework_budget = Table('homework_discovery_budget', metadata,
     Column('searches', Integer, nullable=False),
     CheckConstraint('id=1 AND searches>=0', name='homework_budget_valid'))
 HOMEWORK_TABLES = (listening_content, homework, reflections, homework_budget)
+
+# Migration 006 (AUD-47): one durable row per learner. Deliberately no foreign key to lesson rows, so
+# onboarding reset, abandoned-lesson cleanup or retention jobs can never reset the 24-hour allowance.
+lesson_entitlements = Table('lesson_entitlements', metadata,
+    Column('user_id', identifier, ForeignKey('users.id'), primary_key=True),
+    Column('last_started_at', timestamp, nullable=False),
+    Column('next_eligible_at', timestamp, nullable=False),
+    Column('last_lesson_id', identifier),
+    Column('voided_at', timestamp),
+    Column('updated_at', timestamp, nullable=False),
+    CheckConstraint('next_eligible_at >= last_started_at', name='entitlement_window_ordered'))
+LIMIT_TABLES = (lesson_entitlements,)

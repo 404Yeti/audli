@@ -16,7 +16,7 @@ def migrate(settings: Settings):
                 raise ValueError('Unsupported schema version')
             changed = False
             root = Path(__file__).resolve().parents[1] / 'docs'
-            for version, name in ((1, 'postgres.sql'), (2, 'postgres-002.sql'), (3, 'postgres-003.sql'), (4, 'postgres-004.sql'), (5, 'postgres-005.sql')):
+            for version, name in ((1, 'postgres.sql'), (2, 'postgres-002.sql'), (3, 'postgres-003.sql'), (4, 'postgres-004.sql'), (5, 'postgres-005.sql'), (6, 'postgres-006.sql')):
                 if (version,) not in versions:
                     db.execute((root / name).read_text(), prepare=False)
                     changed = True

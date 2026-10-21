@@ -2,7 +2,8 @@
 import json
 import logging
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from uuid import uuid4
 
 from sqlalchemy import select, update, and_
@@ -11,6 +12,14 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
 from app.models import LearnerProfile, Conversation, TrainingSession, Transcription
 from app.storage import schema as s
+from app.lesson_limit import WINDOW, LessonCooldown
+
+LOG = logging.getLogger('uvicorn.error')
+
+
+def learner_tag(learner_id):
+    """Stable, non-reversible log label; learner IDs are not logged."""
+    return sha256(str(learner_id).encode()).hexdigest()[:12]
 
 
 def utcnow():
@@ -474,7 +483,99 @@ class SQLProgressRepository:
                 .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc())).scalars().all()
             return [Lesson.model_validate(row) for row in rows]
 
-    def create_lesson(self, lesson, remember_only=True):
+    def require_lesson_limit_schema(self):
+        """Fail closed at startup when the limit is switched on before migration 006 is applied."""
+        from sqlalchemy import inspect
+        with self.engine.connect() as db:
+            inspector = inspect(db)
+            ready = inspector.has_table('lesson_entitlements') and set(s.lesson_entitlements.columns.keys()).issubset(
+                {column['name'] for column in inspector.get_columns('lesson_entitlements')})
+            if ready:
+                ready = db.execute(select(s.versions.c.version).where(s.versions.c.version == 6)).first() is not None
+        if not ready:
+            raise RuntimeError('AUDLI_LESSON_LIMIT_MODE requires migration 006 (lesson_entitlements); '
+                               'apply it as the database owner or set the mode to off.')
+
+    def _entitlement(self, db):
+        """Effective 24-hour window. The ledger is authoritative; a lesson row started later than the ledger
+        (written by a release that predates it) is honored until the next claim re-syncs the ledger."""
+        ledger = db.execute(select(s.lesson_entitlements).where(
+            s.lesson_entitlements.c.user_id == self.learner_id)).mappings().first()
+        latest = db.execute(select(s.lessons.c.id, s.lessons.c.started_at).where(s.lessons.c.user_id == self.learner_id)
+            .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
+        if latest is not None and (ledger is None or aware(latest['started_at']) > aware(ledger['last_started_at'])):
+            started = aware(latest['started_at'])
+            return dict(last_started_at=started, next_eligible_at=started + WINDOW,
+                        last_lesson_id=latest['id'], voided_at=None, in_ledger=ledger is not None)
+        if ledger is None:
+            return None
+        return dict(last_started_at=aware(ledger['last_started_at']), next_eligible_at=aware(ledger['next_eligible_at']),
+                    last_lesson_id=ledger['last_lesson_id'], voided_at=ledger['voided_at'], in_ledger=True)
+
+    def claim_lesson_start(self, db, lesson, mode):
+        """Record the start in the learner's durable ledger inside the lesson-creation transaction.
+
+        off: untouched. observe: the ledger tracks the as-if-enforced window and a start inside it is only
+        logged. enforce (not yet selectable by configuration) refuses it with LessonCooldown."""
+        if mode == 'off':
+            return None
+        at = aware(lesson.started_at)
+        current = self._entitlement(db)
+        if current is not None and at < current['next_eligible_at']:
+            if mode == 'enforce':
+                raise LessonCooldown(current['next_eligible_at'])
+            LOG.info('lesson_limit would_refuse learner=%s next_eligible_at=%s', learner_tag(self.learner_id),
+                     current['next_eligible_at'].isoformat())
+            return 'would_refuse'
+        values = dict(user_id=self.learner_id, last_started_at=at, next_eligible_at=at + WINDOW,
+                      last_lesson_id=lesson.id, voided_at=None, updated_at=utcnow())
+        insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
+        statement = insert(s.lesson_entitlements).values(**values)
+        # One atomic statement: the window may only advance when it has already elapsed.
+        result = db.execute(statement.on_conflict_do_update(index_elements=['user_id'],
+            set_={key: getattr(statement.excluded, key) for key in values if key != 'user_id'},
+            where=s.lesson_entitlements.c.next_eligible_at <= at))
+        if result.rowcount != 1:
+            if mode == 'enforce':
+                raise LessonCooldown(self._entitlement(db)['next_eligible_at'])
+            return 'would_refuse'
+        return 'claimed'
+
+    def eligibility(self, mode, at=None):
+        from app.lesson_limit import OpenLesson, evaluate, LESSON_MAX_SECONDS
+        at = at or utcnow()
+        if mode == 'off':
+            return evaluate(mode, at, None, None, None)
+        with self.engine.connect() as db:
+            current = self._entitlement(db)
+            row = db.execute(select(s.lessons.c.id, s.lessons.c.status, s.lessons.c.started_at).where(and_(
+                s.lessons.c.user_id == self.learner_id, s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).mappings().first()
+        opened = None
+        if row:
+            started = aware(row['started_at'])
+            opened = OpenLesson(id=row['id'], status=row['status'], started_at=started,
+                                expires_at=started + timedelta(seconds=LESSON_MAX_SECONDS))
+        return evaluate(mode, at, current and current['next_eligible_at'], current and current['last_started_at'], opened)
+
+    def void_allowance(self, lesson_id, at=None):
+        """Give back the allowance for a lesson that never reached its first tutor interaction.
+
+        Only the ledger's current, unvoided lesson at revision 0 qualifies. The caller must have verified a
+        server/provider failure; ordinary abandonment, microphone denial and client retries never call this."""
+        at = at or utcnow()
+        with self.transaction() as db:
+            revision = db.execute(select(s.lessons.c.revision).where(and_(s.lessons.c.id == lesson_id,
+                s.lessons.c.user_id == self.learner_id))).scalar_one_or_none()
+            if revision != 0:
+                return False
+            changed = db.execute(update(s.lesson_entitlements).where(and_(
+                s.lesson_entitlements.c.user_id == self.learner_id, s.lesson_entitlements.c.last_lesson_id == lesson_id,
+                s.lesson_entitlements.c.voided_at.is_(None),
+                s.lesson_entitlements.c.next_eligible_at > s.lesson_entitlements.c.last_started_at))
+                .values(next_eligible_at=s.lesson_entitlements.c.last_started_at, voided_at=at, updated_at=at))
+            return changed.rowcount == 1
+
+    def create_lesson(self, lesson, remember_only=True, limit_mode='off'):
         with self.transaction() as db:
             row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == self.learner_id).with_for_update()).scalar_one()
             if db.execute(select(s.lessons.c.id).where(and_(s.lessons.c.user_id == self.learner_id,
@@ -488,6 +589,8 @@ class SQLProgressRepository:
             last = next((item.get('suggested_accent') for item in completed if item.get('suggested_accent')), None)
             if remember_only and lesson.previous and len(completed) % 2 == 1 and preferences.status == 'preferred':
                 lesson.suggested_accent = next((item for item in preferences.accents if item != last), None)
+            # Same transaction as the lesson row: a failed start never consumes the allowance.
+            self.claim_lesson_start(db, lesson, limit_mode)
             db.execute(s.lessons.insert().values(id=lesson.id, user_id=self.learner_id,
                 status=lesson.status, revision=lesson.revision, started_at=lesson.started_at,
                 data=lesson.model_dump(mode='json')))

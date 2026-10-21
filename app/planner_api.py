@@ -74,6 +74,7 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
     async def typed_checkin(body: TopicReply):
         async with lock:
             check(body.revision)
+            app.state.limits.admit('wrapup', 'plan.checkin.text')
             try:
                 return await preferences(body.revision, body.text)
             except (ValidationError, ValueError):
@@ -91,6 +92,7 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
         try:
             async with lock:
                 check(revision)
+                app.state.limits.admit('wrapup', 'plan.checkin.attempt')
                 data, filename = await validate_upload(audio, settings)
                 pending = Transcription.model_validate(await ai().transcribe(data, filename))
                 return public(save(revision=revision, pending=pending))
@@ -103,6 +105,7 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
             roadmap = check(body.revision)
             if roadmap.pending is None:
                 raise HTTPException(409, 'Record your check-in response first.')
+            app.state.limits.admit('wrapup', 'plan.checkin.answer')
             if not reliable_recognition(roadmap.pending, settings.min_transcription_confidence):
                 raise HTTPException(422, 'Recognition is uncertain. Record again or skip this check-in.')
             text = roadmap.pending.text

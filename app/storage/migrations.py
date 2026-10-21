@@ -59,7 +59,15 @@ BEGIN
 END
 $audli$;""")
     statements.extend(['INSERT INTO schema_migrations(version, applied_at) VALUES (2, now());', 'COMMIT;'])
-    return '\n'.join(line.rstrip() for line in '\n\n'.join(statements).splitlines()) + '\n'
+    sql = '\n'.join(line.rstrip() for line in '\n\n'.join(statements).splitlines()) + '\n'
+    # Migration 002 is immutable once applied. The current metadata also allows 'expired' (migration 006),
+    # so restore the original constraint and index text exactly.
+    widened = {"CHECK (status IN ('active','paused','completed','expired'))": "CHECK (status IN ('active','paused','completed'))",
+               "WHERE status IN ('active', 'paused')": "WHERE status != 'completed'"}
+    for new, old in widened.items():
+        assert new in sql, new
+        sql = sql.replace(new, old)
+    return sql
 
 
 def postgres_accent_migration():

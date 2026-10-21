@@ -56,10 +56,11 @@ def test_migration_006_is_generated_private_and_packaged():
     assert 'postgres-006.sql' in Path('scripts/migrate_postgres.py').read_text()
 
 
-def test_enforce_is_not_selectable_in_this_release():
-    with pytest.raises(ValueError):
-        Settings(lesson_limit_mode='enforce', _env_file=None)
+def test_enforce_is_selectable_but_off_is_the_default():
+    assert Settings(lesson_limit_mode='enforce', _env_file=None).lesson_limit_mode == 'enforce'
     assert Settings(_env_file=None).lesson_limit_mode == 'off'
+    with pytest.raises(ValueError):
+        Settings(lesson_limit_mode='strict', _env_file=None)
 
 
 def test_off_mode_never_touches_the_ledger(repository_factory):

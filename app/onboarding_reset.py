@@ -70,10 +70,14 @@ def reset_onboarding(repo, revision):
 def register_onboarding_reset_routes(app, repo, lock):
     @app.get('/api/onboarding/reset-controls')
     async def controls():
-        return {'restart_available': True, 'reset_description': RESET_DESCRIPTION,
-                'onboarding_revision': repo.profile().onboarding.revision}
+        until = app.state.limits.restart_blocked_until()
+        return {'restart_available': until is None, 'reset_description': RESET_DESCRIPTION,
+                'onboarding_revision': repo.profile().onboarding.revision,
+                **({'restart_available_at': until.isoformat().replace('+00:00', 'Z')} if until else {})}
 
     @app.post('/api/onboarding/restart')
     async def restart(body: ResetOnboarding):
         async with lock:
+            # A restart re-runs AI-backed onboarding; it is unavailable while the daily lesson window is closed.
+            app.state.limits.block_onboarding_restart()
             return reset_onboarding(repo, body.revision)

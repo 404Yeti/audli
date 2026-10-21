@@ -27,6 +27,8 @@ from app.lesson_api import register_lesson_routes
 from app.review_api import register_review_routes
 from app.onboarding import application_destination
 from app.security import LocalRequestGuard
+from app.limits import LessonLimits
+from app.lesson_limit import LimitRefused
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
 
 class Onboarding(StrictModel):
@@ -44,6 +46,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     database = repository or create_repository(settings)
     if settings.lesson_limit_mode != 'off':
         database.require_lesson_limit_schema()
+    database.limit_mode = settings.lesson_limit_mode
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
     repo = RequestRepository(database if identity is None else None)
     audio_dir = settings.data_dir / 'exercise_audio'
@@ -86,6 +89,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database
+    app.state.limits = LessonLimits(repo, settings)
     app.state.locks = lock
 
     def ai():
@@ -127,6 +131,12 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
+
+    @app.exception_handler(LimitRefused)
+    async def lesson_limit_refused(request, exc):
+        retry = exc.retry_after()
+        return JSONResponse(status_code=exc.status_code, content=exc.body(),
+                            headers={'Retry-After': str(retry)} if retry else None)
 
     @app.exception_handler(Exception)
     async def provider_error(request, exc):
@@ -279,6 +289,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 if lesson.status == 'active' and lesson.phase == 'EXERCISE' and lesson.exercise_id:
                     return public_exercise(exercise_or_404(lesson.exercise_id))
                 raise HTTPException(409, 'Continue the structured lesson before preparing an exercise.')
+            app.state.limits.admit_legacy('exercises.generate')  # Lesson-free generation is a billable bypass.
             return await prepare_exercise()
 
     @app.get('/api/exercises/{exercise_id}/audio')
@@ -296,6 +307,11 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
                 await audio.close()
                 raise HTTPException(409, 'Resume the active lesson exercise first.')
+            try:
+                app.state.limits.admit_exercise('exercise.attempt', exercise_id)
+            except LimitRefused:
+                await audio.close()
+                raise
             exercise_or_404(exercise_id)
             current = repo.current_exercise()
             if current['id'] != exercise_id or repo.completed(exercise_id):
@@ -337,6 +353,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             if repo.completed(row['id']) or repo.current_exercise()['id'] != row['id']:
                 raise HTTPException(409, 'This exercise is already complete.')
             content = ExerciseContent.model_validate_json(row['content'])
+            app.state.limits.admit_exercise('exercise.evaluate', row['id'])
             with operation(settings, 'ComprehensionEvaluator.evaluate'):
                 judgments = await ai().evaluate(content, body.text.strip())
             if judgments.transcription_concern:

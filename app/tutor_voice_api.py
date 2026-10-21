@@ -33,6 +33,7 @@ def register_tutor_voice_routes(app, repo, lock, settings, new_lock):
         async with preview_lock:
             data = repo.audio_blob(name)
             if data is None:
+                app.state.limits.admit('practice', 'tutor.preview')  # Saved previews replay freely.
                 try:
                     data = await existing_preview(config, voice_id)
                 except asyncio.CancelledError:

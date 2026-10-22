@@ -10,6 +10,7 @@ as "improved English":
   4. an independent provider comparison of the two texts (applied by the API layer after 1-3 pass)
 """
 import re
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from hashlib import sha256
 from typing import Literal
@@ -114,7 +115,7 @@ CONTRACTED_MODALS = {"can't": 'can', 'cannot': 'can', "won't": 'will', "shan't":
                      "couldn't": 'could', "shouldn't": 'should', "mustn't": 'must', "mightn't": 'might', "needn't": 'need',
                      'cant': 'can', 'wont': 'will', 'wouldnt': 'would', 'couldnt': 'could', 'shouldnt': 'should',
                      'mustnt': 'must', 'neednt': 'need'}
-MODALS = {'can', 'could', 'may', 'might', 'must', 'should', 'would', 'will', 'shall', 'ought', 'need'}
+MODALS = {'can', 'could', 'may', 'might', 'must', 'should', 'would', 'will', 'shall', 'ought'}
 
 NUMBER_WORDS = {'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
                 'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16,
@@ -161,7 +162,7 @@ CAUSAL_CLASSES = {
     'CONTRAST': {'but', 'however', 'although', 'though', 'whereas', 'while', 'despite', 'yet', 'nevertheless', 'instead'},
 }
 _SO_RESULT = re.compile(r"(?:^|[.!?,;]\s*)so\b|\bso\s+(?:i|we|he|she|it|they|you|the|my|our|their|there|this|that|a|an)\b", re.I)
-_PHRASE_MODALS = (('have to', 'have_to'), ('has to', 'have_to'), ('had to', 'have_to'), ('need to', 'need'),
+_PHRASE_MODALS = (('have to', 'have_to'), ('has to', 'have_to'), ('had to', 'have_to'), ('having to', 'have_to'),
                   ('supposed to', 'supposed_to'), ('going to', 'will'), ('gonna', 'will'), ('able to', 'can'),
                   ('allowed to', 'may'), ('had better', 'should'))
 
@@ -175,6 +176,8 @@ STOPWORDS = {
     'basically', 'literally', 'which', 'who', 'whom', 'whose', 'what', 'when', 'where', 'how', 'why', 'if', 'but', 'because',
     'not', 'no', 'nor', 'one', 'ones', 'such', 'own', 'same', 'other', 'another', 'get', 'got', 'gets', 'getting',
     "n't", 's', 't', 'd', 'll', 've', 're', 'm',
+    # Light verb: "do a decision" -> "make a decision" is a collocation repair, not new content. Layer 4 still compares meaning.
+    'make', 'makes', 'made', 'making',
 }
 
 
@@ -241,19 +244,22 @@ def negation_present(text: str) -> bool:
 
 
 def modality(text: str) -> set[str]:
-    lowered = ' ' + ' '.join(re.findall(r"[a-z']+", text.lower().replace('’', "'"))) + ' '
+    cleaned = text.lower().replace('’', "'")
+    lowered = ' ' + ' '.join(re.findall(r"[a-z']+", cleaned)) + ' '
     found = set()
     for word in lower_words(text):
         word = CONTRACTED_MODALS.get(word, word)
         word = re.sub(r"n't$", '', word)
         if word in MODALS:
             found.add(word)
+        elif word == 'need' and re.search(r"\bneedn't\b|\bneed not\b", cleaned):
+            found.add('need')
     for phrase, name in _PHRASE_MODALS:
         if f' {phrase} ' in lowered:
             found.add(name)
-    # "need to" is a modal-like obligation, not the noun/verb "need": counted once through the phrase.
-    if ' need to ' not in lowered:
-        found.discard('need')
+    # Obligation "need to" in any inflection is one modal; the plain verb or noun "need" ("I need help") is not.
+    if re.search(r'\b(?:need|needs|needed|needing) to\b', lowered):
+        found.add('need')
     return found
 
 
@@ -409,3 +415,29 @@ def available_state(reason: str | None) -> ImprovementState | None:
     if reason in UNAVAILABLE_REASONS:
         return ImprovementState(state='unavailable', reason=reason)
     return ImprovementState(state='available')
+
+
+@dataclass
+class Outcome:
+    """The decision for one answer. `rejection` is a fixed code; a rejected candidate text is never kept."""
+    status: Literal['ready', 'rejected']
+    improved_text: str | None = None
+    notes: list[dict] = field(default_factory=list)
+    rejection: str | None = None
+    verified: bool = False  # True when layer 4 (the independent comparison) was consulted and agreed.
+
+
+async def coach(provider, text: str) -> Outcome:
+    """The one decision path shared by the API and the evaluation harness. Provider errors propagate to the caller."""
+    coaching = await provider.coach_language(text)
+    rejection = reject_reason(text, coaching)
+    if rejection is not None:
+        return Outcome('rejected', rejection=rejection)
+    improved = coaching.improved_text.strip()
+    verified = False
+    if not is_unchanged(text, improved):
+        # Layer 4: an independent comparison of the two texts. Both texts only, never the passage.
+        if not (await provider.check_meaning(text, improved)).same_meaning:
+            return Outcome('rejected', rejection='meaning_check_failed')
+        verified = True
+    return Outcome('ready', improved_text=improved, notes=[n.model_dump(mode='json') for n in coaching.notes], verified=verified)

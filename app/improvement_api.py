@@ -16,7 +16,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from app.improvement import PROMPT_VERSION, ImprovementState, eligibility, reject_reason, is_unchanged
+from app.improvement import PROMPT_VERSION, ImprovementState, eligibility, coach
 from app.storage import improvement as store
 from app.storage.repository import learner_tag, utcnow
 
@@ -85,18 +85,11 @@ def register_improvement_routes(app, repo, ai, settings):
         await slots.acquire()
         try:
             async with asyncio.timeout(settings.review_improvement_timeout_seconds):
-                provider = ai()
-                coaching = await provider.coach_language(text)
-                rejection = reject_reason(text, coaching)
-                if rejection is None and not is_unchanged(text, coaching.improved_text):
-                    # Layer 4: an independent comparison of the two texts. Both texts only, never the passage.
-                    if not (await provider.check_meaning(text, coaching.improved_text)).same_meaning:
-                        rejection = 'meaning_check_failed'
-            if rejection is None:
-                status = 'ready'
-                outcome = dict(improved_text=coaching.improved_text.strip(), notes=[n.model_dump(mode='json') for n in coaching.notes])
+                decision = await coach(ai(), text)
+            if decision.status == 'ready':
+                status, outcome = 'ready', dict(improved_text=decision.improved_text, notes=decision.notes)
             else:
-                status, outcome = 'rejected', dict(rejection=rejection)
+                status, outcome = 'rejected', dict(rejection=decision.rejection)
         except asyncio.CancelledError:
             store.finish(repo, claim.id, app.state.review_clock(), 'abandoned')
             raise

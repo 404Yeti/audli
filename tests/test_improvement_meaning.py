@@ -31,6 +31,8 @@ def check(source, improved, *notes, **kwargs):
     ('We was happy about the result of the test', 'We were happy about the result of the test', ('grammar', 'We was', 'We were')),
     ('Change meeting Monday for the team please', 'Changed the meeting Monday for the team please', ('grammar', 'Change meeting', 'Changed the meeting')),
     ('The manager moved the meeting by maya request', 'The manager moved the meeting by Maya request', ('grammar', 'maya request', 'Maya request')),
+    ('The report need to be finish before Friday', 'The report needs to be finished before Friday', ('grammar', 'need to be finish', 'needs to be finished')),
+    ('The team did a decision to delay the release', 'The team made a decision to delay the release', ('vocabulary', 'did a decision', 'made a decision')),
 ])
 def test_legitimate_grammar_fixes_are_accepted(source, improved, note):
     assert check(source, improved, note) is None
@@ -237,3 +239,18 @@ def test_view_of_an_unchanged_answer_has_no_notes_or_diff_and_changed_words_are_
     state = view('The team fixed it', 'The team fixed it', [Note(kind='grammar', before='a', after='b', why='c')])
     assert state.unchanged and state.notes == [] and state.diff == []
     assert changed_words('The Team fixed it', 'the team fixed it') == ([], [])
+
+
+def test_need_to_is_one_modal_in_any_inflection_but_plain_need_is_not_modality():
+    from app.improvement import modality
+    assert modality('The report need to be done') == modality('The report needs to be done') == modality('She needed to leave') == {'need'}
+    assert modality('I need help with the report') == set() and modality('We have a need for more time') == set()
+    assert modality("You needn't come") == {'need'}
+    # Changing obligation into another modal is still a modality change.
+    assert check('The report needs to be done today', 'The report should be done today', ('vocabulary', 'needs to be', 'should be')) == 'modality_changed'
+
+
+def test_the_light_verb_make_is_a_collocation_repair_but_other_verb_swaps_still_count_as_content():
+    assert check('The team did a decision to delay the release', 'The team made a decision to delay the release', ('vocabulary', 'did a decision', 'made a decision')) is None
+    assert check('The team fixed the bug on Monday', 'The team broke the bug on Monday', ('vocabulary', 'fixed', 'broke')) is None  # equal-size swap: only layer 4 can judge it
+    assert check('The team fixed the bug', 'The team fixed the bug and made it work', ('vocabulary', 'bug', 'bug and made it work')) == 'content_added'

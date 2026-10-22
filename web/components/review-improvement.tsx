@@ -36,7 +36,7 @@ export function ReviewImprovement({ exerciseId, initial }: { exerciseId: string;
   return <div className="review-improvement" aria-label="Improve my answer" role="group">
     {kind === 'unavailable' && <p className="review-caption">{unavailable[state.reason ?? ''] ?? 'Language suggestions are not available for this answer.'}</p>}
     {(kind === 'available' || kind === 'pending') && <>
-      <p className="review-caption">Want a more natural way to say it? Audli can suggest one. This is about English only and never changes your progress.</p>
+      <p className="review-caption">Want a more natural way to say it? Audli can suggest one. This is about English only and never changes your progress. It sends the text of your answer (not your voice) to Audli’s AI provider.</p>
       <button className="secondary" disabled={busy} onClick={() => void request()}>{kind === 'pending' ? 'Check again' : 'Show an improved version'}</button>
       {kind === 'pending' && !busy && <p role="status">Audli is still preparing this suggestion.</p>}
     </>}

@@ -1,0 +1,1185 @@
+[
+ {
+  "id": "g01",
+  "category": "grammar",
+  "label": "legit",
+  "source": "Yesterday the team have a meeting about the new schedule",
+  "candidate": {
+   "improved_text": "Yesterday the team had a meeting about the new schedule",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "team have",
+     "after": "team had",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "g02",
+  "category": "grammar",
+  "label": "legit",
+  "source": "She don't like the early meetings on Monday",
+  "candidate": {
+   "improved_text": "She doesn't like the early meetings on Monday",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "don't",
+     "after": "doesn't",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "negation preserved through agreement fix"
+ },
+ {
+  "id": "g03",
+  "category": "grammar",
+  "label": "legit",
+  "source": "There is many people waiting outside the office",
+  "candidate": {
+   "improved_text": "There are many people waiting outside the office",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "There is many",
+     "after": "There are many",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "g04",
+  "category": "grammar",
+  "label": "legit",
+  "source": "He explained me the problem very quick",
+  "candidate": {
+   "improved_text": "He explained the problem to me very quickly",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "explained me the problem very quick",
+     "after": "explained the problem to me very quickly",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "g05",
+  "category": "grammar",
+  "label": "legit",
+  "source": "The customers was angry because the app crashed",
+  "candidate": {
+   "improved_text": "The customers were angry because the app crashed",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "customers was",
+     "after": "customers were",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "g06",
+  "category": "grammar",
+  "label": "legit",
+  "source": "I am agree with the decision of the manager",
+  "candidate": {
+   "improved_text": "I agree with the decision of the manager",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "am agree",
+     "after": "agree",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "g07",
+  "category": "grammar",
+  "label": "legit",
+  "source": "The report need to be finish before Friday",
+  "candidate": {
+   "improved_text": "The report needs to be finished before Friday",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "need to be finish",
+     "after": "needs to be finished",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "modal-like \"need to\" kept"
+ },
+ {
+  "id": "g08",
+  "category": "grammar",
+  "label": "legit",
+  "source": "She is more smarter than her brother in math",
+  "candidate": {
+   "improved_text": "She is smarter than her brother in math",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "more smarter",
+     "after": "smarter",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "doubled comparative"
+ },
+ {
+  "id": "g09",
+  "category": "grammar",
+  "label": "legit",
+  "source": "We discussed about the budget for the next quarter",
+  "candidate": {
+   "improved_text": "We discussed the budget for the next quarter",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "discussed about the",
+     "after": "discussed the",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "g10",
+  "category": "grammar",
+  "label": "legit",
+  "source": "The engineer fix the bug and then she test it again",
+  "candidate": {
+   "improved_text": "The engineer fixed the bug and then she tested it again",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "engineer fix",
+     "after": "engineer fixed",
+     "why": "Use the standard form here."
+    },
+    {
+     "kind": "grammar",
+     "before": "she test",
+     "after": "she tested",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "two notes"
+ },
+ {
+  "id": "v01",
+  "category": "vocabulary",
+  "label": "legit",
+  "source": "The team did a decision to delay the release",
+  "candidate": {
+   "improved_text": "The team made a decision to delay the release",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "did a decision",
+     "after": "made a decision",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "v02",
+  "category": "vocabulary",
+  "label": "legit",
+  "source": "She said a lie about the missing report",
+  "candidate": {
+   "improved_text": "She told a lie about the missing report",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "said a lie",
+     "after": "told a lie",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "v03",
+  "category": "vocabulary",
+  "label": "legit",
+  "source": "Please open the light because the room is dark",
+  "candidate": {
+   "improved_text": "Please turn on the light because the room is dark",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "open the light",
+     "after": "turn on the light",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "v04",
+  "category": "vocabulary",
+  "label": "legit",
+  "source": "I have twenty years and I work in a software company",
+  "candidate": {
+   "improved_text": "I am twenty years old and I work at a software company",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "have twenty years",
+     "after": "am twenty years old",
+     "why": "Use the standard form here."
+    },
+    {
+     "kind": "vocabulary",
+     "before": "in a software",
+     "after": "at a software",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "strictness probe: adds the word \"old\""
+ },
+ {
+  "id": "n01",
+  "category": "natural",
+  "label": "natural",
+  "source": "The team rolled back the update because customers could not save appointments",
+  "candidate": {
+   "improved_text": "The team rolled back the update because customers could not save appointments",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept_unchanged",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "n02",
+  "category": "natural",
+  "label": "natural",
+  "source": "Maya moved the next release to Friday so the team could test the migration",
+  "candidate": {
+   "improved_text": "Maya moved the next release to Friday so the team could test the migration",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept_unchanged",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "n03",
+  "category": "natural",
+  "label": "natural",
+  "source": "I think the problem was fixed quickly, but they want better checks",
+  "candidate": {
+   "improved_text": "I think the problem was fixed quickly, but they want better checks",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept_unchanged",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "n04",
+  "category": "natural",
+  "label": "natural",
+  "source": "The update removed a field that the app still needed",
+  "candidate": {
+   "improved_text": "The update removed a field that the app still needed",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept_unchanged",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "n05",
+  "category": "natural",
+  "label": "natural",
+  "source": "They will test the migration on a copy of the database before trying again",
+  "candidate": {
+   "improved_text": "They will test the migration on a copy of the database before trying again",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept_unchanged",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m01",
+  "category": "negation",
+  "label": "meaning_changing",
+  "source": "The tests did not pass before the release",
+  "candidate": {
+   "improved_text": "The tests passed before the release",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "did not pass",
+     "after": "passed",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m02",
+  "category": "negation",
+  "label": "meaning_changing",
+  "source": "I like working with the new tool",
+  "candidate": {
+   "improved_text": "I do not like working with the new tool",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "I like",
+     "after": "I do not like",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m03",
+  "category": "negation",
+  "label": "meaning_changing",
+  "source": "Nobody told the manager about the delay",
+  "candidate": {
+   "improved_text": "Somebody told the manager about the delay",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Nobody",
+     "after": "Somebody",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m04",
+  "category": "modality",
+  "label": "meaning_changing",
+  "source": "The team must test the migration first",
+  "candidate": {
+   "improved_text": "The team should test the migration first",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "must test",
+     "after": "should test",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m05",
+  "category": "modality",
+  "label": "meaning_changing",
+  "source": "They can finish the report today",
+  "candidate": {
+   "improved_text": "They will finish the report today",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "can finish",
+     "after": "will finish",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m06",
+  "category": "modality",
+  "label": "meaning_changing",
+  "source": "She might join the call after lunch",
+  "candidate": {
+   "improved_text": "She must join the call after lunch",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "might join",
+     "after": "must join",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m07",
+  "category": "quantity",
+  "label": "meaning_changing",
+  "source": "Three customers reported the problem",
+  "candidate": {
+   "improved_text": "Five customers reported the problem",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Three customers",
+     "after": "Five customers",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m08",
+  "category": "quantity",
+  "label": "meaning_changing",
+  "source": "Some of the tests failed on Monday",
+  "candidate": {
+   "improved_text": "All of the tests failed on Monday",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Some of",
+     "after": "All of",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m09",
+  "category": "quantity",
+  "label": "meaning_changing",
+  "source": "Most users could save appointments again",
+  "candidate": {
+   "improved_text": "Few users could save appointments again",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Most users",
+     "after": "Few users",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m10",
+  "category": "comparison",
+  "label": "meaning_changing",
+  "source": "The new process is faster than the old process",
+  "candidate": {
+   "improved_text": "The new process is slower than the old process",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "faster",
+     "after": "slower",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m11",
+  "category": "comparison",
+  "label": "meaning_changing",
+  "source": "Friday is better than Monday for the release",
+  "candidate": {
+   "improved_text": "Friday is worse than Monday for the release",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "better",
+     "after": "worse",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m12",
+  "category": "certainty",
+  "label": "meaning_changing",
+  "source": "The fix will probably work for most customers",
+  "candidate": {
+   "improved_text": "The fix will definitely work for most customers",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "probably",
+     "after": "definitely",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m13",
+  "category": "certainty",
+  "label": "meaning_changing",
+  "source": "I am not sure the migration is safe",
+  "candidate": {
+   "improved_text": "I am sure the migration is safe",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "not sure",
+     "after": "sure",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m14",
+  "category": "certainty",
+  "label": "meaning_changing",
+  "source": "They sometimes test the update before release",
+  "candidate": {
+   "improved_text": "They always test the update before release",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "sometimes",
+     "after": "always",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m15",
+  "category": "causality",
+  "label": "meaning_changing",
+  "source": "The release was late because the tests failed",
+  "candidate": {
+   "improved_text": "The release was late so the tests failed",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "because",
+     "after": "so",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m16",
+  "category": "causality",
+  "label": "meaning_changing",
+  "source": "We will ship on Friday if the tests pass",
+  "candidate": {
+   "improved_text": "We will ship on Friday unless the tests pass",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "if",
+     "after": "unless",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m17",
+  "category": "causality",
+  "label": "meaning_changing",
+  "source": "The team was happy but the customers were angry",
+  "candidate": {
+   "improved_text": "The team was happy because the customers were angry",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "but",
+     "after": "because",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m18",
+  "category": "entity",
+  "label": "meaning_changing",
+  "source": "Maya postponed the release until Friday",
+  "candidate": {
+   "improved_text": "Maya postponed the release until Monday",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Friday",
+     "after": "Monday",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m19",
+  "category": "entity",
+  "label": "meaning_changing",
+  "source": "Sam and Maya tested the migration",
+  "candidate": {
+   "improved_text": "Sam and Mia tested the migration",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Maya",
+     "after": "Mia",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m20",
+  "category": "entity",
+  "label": "meaning_changing",
+  "source": "The update broke the app in Chicago",
+  "candidate": {
+   "improved_text": "The update broke the app in Boston",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "Chicago",
+     "after": "Boston",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m21",
+  "category": "added_fact",
+  "label": "meaning_changing",
+  "source": "The team fixed the problem",
+  "candidate": {
+   "improved_text": "The team fixed the problem and apologized to every customer",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "problem",
+     "after": "problem and apologized to every customer",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "m22",
+  "category": "removed_fact",
+  "label": "meaning_changing",
+  "source": "The team fixed the problem and tested it",
+  "candidate": {
+   "improved_text": "The team fixed the problem",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "problem and tested it",
+     "after": "problem",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": false,
+  "note": "passes the lexical layers; relies on layer 4"
+ },
+ {
+  "id": "m23",
+  "category": "synonym_swap",
+  "label": "meaning_changing",
+  "source": "The team fixed the database problem fast",
+  "candidate": {
+   "improved_text": "The team repaired the network problem fast",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "fixed the database",
+     "after": "repaired the network",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": false,
+  "note": "passes the lexical layers; relies on layer 4"
+ },
+ {
+  "id": "m24",
+  "category": "synonym_swap",
+  "label": "meaning_changing",
+  "source": "The manager approved the budget on time",
+  "candidate": {
+   "improved_text": "The manager approved the schedule on time",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "budget",
+     "after": "schedule",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": false,
+  "note": "passes the lexical layers; relies on layer 4"
+ },
+ {
+  "id": "c01",
+  "category": "comprehension",
+  "label": "comprehension_preserved",
+  "source": "The team add a field in the database and customers can't save",
+  "candidate": {
+   "improved_text": "The team added a field in the database and customers can't save",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "team add",
+     "after": "team added",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "wrong fact kept; language only",
+  "passage_fact": "The migration REMOVED a field."
+ },
+ {
+  "id": "c02",
+  "category": "comprehension",
+  "label": "comprehension_preserved",
+  "source": "Maya move the release to Monday",
+  "candidate": {
+   "improved_text": "Maya moved the release to Monday",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "Maya move",
+     "after": "Maya moved",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "wrong day kept",
+  "passage_fact": "Maya postponed the release until FRIDAY."
+ },
+ {
+  "id": "c03",
+  "category": "comprehension",
+  "label": "comprehension_preserved",
+  "source": "They was happy that the migration fixed the problem",
+  "candidate": {
+   "improved_text": "They were happy that the migration fixed the problem",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "They was",
+     "after": "They were",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "",
+  "passage_fact": "They rolled back the update."
+ },
+ {
+  "id": "c04",
+  "category": "comprehension",
+  "label": "comprehension_fixed",
+  "source": "Maya moved the release to Monday",
+  "candidate": {
+   "improved_text": "Maya postponed the release until Friday",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "moved the release to Monday",
+     "after": "postponed the release until Friday",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": "a candidate that silently fixes the fact",
+  "passage_fact": "Maya postponed the release until FRIDAY."
+ },
+ {
+  "id": "c05",
+  "category": "comprehension",
+  "label": "comprehension_fixed",
+  "source": "The team added a field to the database",
+  "candidate": {
+   "improved_text": "The team removed a field from the database",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "added a field to",
+     "after": "removed a field from",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": false,
+  "note": "fact fix disguised as vocabulary; relies on layer 4",
+  "passage_fact": "The migration REMOVED a field."
+ },
+ {
+  "id": "u01",
+  "category": "uncertain",
+  "label": "ineligible",
+  "source": "the team roll back the up date because customer not save",
+  "candidate": null,
+  "expect": "unavailable",
+  "verifier_same_meaning": true,
+  "note": "",
+  "transcription": {
+   "confidence": 0.9,
+   "uncertainty": [
+    "Speech recognition was uncertain; please verify or record again."
+   ]
+  }
+ },
+ {
+  "id": "u02",
+  "category": "uncertain",
+  "label": "ineligible",
+  "source": "They rolled back the update because customers could not save",
+  "candidate": null,
+  "expect": "unavailable",
+  "verifier_same_meaning": true,
+  "note": "",
+  "transcription": {
+   "confidence": 0.4,
+   "uncertainty": []
+  }
+ },
+ {
+  "id": "u03",
+  "category": "uncertain",
+  "label": "ineligible",
+  "source": "They rolled back the update because customers could not save",
+  "candidate": null,
+  "expect": "unavailable",
+  "verifier_same_meaning": true,
+  "note": "",
+  "transcription": {
+   "confidence": null,
+   "uncertainty": []
+  }
+ },
+ {
+  "id": "u04",
+  "category": "too_short",
+  "label": "ineligible",
+  "source": "They fixed it",
+  "candidate": null,
+  "expect": "unavailable",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "u05",
+  "category": "too_long",
+  "label": "ineligible",
+  "source": "They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. They fixed the update and then they tested it again. ",
+  "candidate": null,
+  "expect": "unavailable",
+  "verifier_same_meaning": true,
+  "note": ""
+ },
+ {
+  "id": "u06",
+  "category": "learner_corrected",
+  "label": "legit",
+  "source": "The team roll back the update because customer not save",
+  "candidate": {
+   "improved_text": "The team rolled back the update because customers could not save",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "team roll back",
+     "after": "team rolled back",
+     "why": "Use the standard form here."
+    },
+    {
+     "kind": "grammar",
+     "before": "customer not save",
+     "after": "customers could not save",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "learner edited the transcript, so it is confirmed; \"not\"->\"could not\" is a modality addition: strictness probe",
+  "transcription": {
+   "confidence": 0.3,
+   "uncertainty": [
+    "unsure"
+   ]
+  },
+  "recognized_text": "the team roll back the up date because customer not safe"
+ },
+ {
+  "id": "e01",
+  "category": "provider_error",
+  "label": "provider_error",
+  "source": "The team fix the bug yesterday evening",
+  "candidate": {
+   "improved_text": "The team fixed the bug yesterday evening",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "team fix",
+     "after": "team fixed",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "failed",
+  "verifier_same_meaning": true,
+  "note": "",
+  "error": "timeout"
+ },
+ {
+  "id": "e02",
+  "category": "provider_error",
+  "label": "provider_error",
+  "source": "The team fix the bug yesterday evening",
+  "candidate": {
+   "improved_text": "The team fixed the bug yesterday evening",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "team fix",
+     "after": "team fixed",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "failed",
+  "verifier_same_meaning": true,
+  "note": "",
+  "error": "malformed"
+ }
+]

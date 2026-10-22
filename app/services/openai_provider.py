@@ -140,11 +140,11 @@ class OpenAIProvider:
     async def coach_language(self, text: str):
         from app.improvement import LanguageCoaching
         # Only the learner's own words are sent: never the passage script, expected answers or profile.
-        return await self.structured(LanguageCoaching, COACH_PROMPT, {'learner_text': text})
+        return await self.structured(LanguageCoaching, COACH_PROMPT, {'learner_text': text}, retries=0, sensitive=True)
 
     async def check_meaning(self, original: str, improved: str):
         from app.improvement import MeaningCheck
-        return await self.structured(MeaningCheck, MEANING_PROMPT, {'original': original, 'improved': improved})
+        return await self.structured(MeaningCheck, MEANING_PROMPT, {'original': original, 'improved': improved}, retries=0, sensitive=True)
 
     async def respond_checkin(self, text: str):
         from app.lesson import CheckinReply
@@ -161,9 +161,12 @@ Vary your acknowledgment to fit what was said. The application handles lesson tr
         self.settings = settings
         self.client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value() if settings.openai_api_key else None, timeout=90, max_retries=2)
 
-    async def structured(self, schema, system: str, data: dict):
-        with operation(self.settings, f'OpenAI.responses.parse[{schema.__name__}]'):
-            result = await self.client.responses.parse(
+    async def structured(self, schema, system: str, data: dict, retries: int | None = None, sensitive: bool = False):
+        # `retries` overrides the client's automatic retry count. A hidden retry resends the learner's text, so calls
+        # that must be strictly bounded (language coaching) pass 0 and let the application decide what to do on failure.
+        client = self.client if retries is None else self.client.with_options(max_retries=retries)
+        with operation(self.settings, f'OpenAI.responses.parse[{schema.__name__}]', sensitive=sensitive):
+            result = await client.responses.parse(
                 model=self.settings.llm_model, store=False,
                 input=[{'role': 'system', 'content': system}, {'role': 'user', 'content': json.dumps(data)}],
                 text_format=schema)

@@ -1,0 +1,30 @@
+{
+ "harness": "plan",
+ "credentials_loaded": false,
+ "network_calls": 0,
+ "executes_nothing": true,
+ "status": "PROPOSAL ONLY. Approval needed from the owner before any run; this repository has no paid-execution mode.",
+ "model": "gpt-4.1-mini (pin an exact snapshot before approval; account access unverified)",
+ "prompt_version": "v1",
+ "fixtures": 56,
+ "cases_eligible_for_a_provider": 51,
+ "repeats": 3,
+ "max_requests": 306,
+ "concurrency": 1,
+ "sdk_max_retries": 0,
+ "timeout_seconds": 30,
+ "note_on_retries": "Production OpenAIProvider uses max_retries=2; a live harness must build its own client with max_retries=0.",
+ "reserved_input_tokens": 171339,
+ "reserved_output_tokens": 214200,
+ "reservation_usd": 0.4113,
+ "proposed_hard_budget_usd": 1.0,
+ "within_budget": true,
+ "rules": [
+  "synthetic fixtures only; no production learner data",
+  "log intent durably before each request; never resend after an ambiguous failure",
+  "stop on budget, price, model, prompt or fixture-hash change",
+  "report real usage and latency (p50/p95) per call and per improvement",
+  "a model that changes meaning is a finding, not a retry: record it"
+ ],
+ "fixtures_sha256": "6ed3abc6b6293987d58040d867792ae2571f888333b7e343dd4fe6c8fcada83d"
+}

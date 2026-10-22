@@ -51,6 +51,7 @@ const heard = (page: Page) => page.getByRole('region', { name: 'What Audli heard
 test('offers coaching without calling anything, then shows the four labeled parts', async ({ page }) => {
   const fixture = await setup(page, available);
   await expect(heard(page).getByRole('group', { name: 'Improve my answer' })).toContainText('never changes your progress');
+  await expect(heard(page).getByRole('group', { name: 'Improve my answer' })).toContainText('sends the text of your answer (not your voice) to Audli’s AI provider');
   expect(fixture.posts).toEqual([]);
   await heard(page).getByRole('button', { name: 'Show an improved version' }).click();
   await expect(heard(page).getByRole('heading', { name: 'Your answer, improved' })).toBeVisible();

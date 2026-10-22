@@ -13,6 +13,7 @@ from app.config import Settings
 from app.improvement import LanguageCoaching, MeaningCheck, Note, source_hash
 from app.main import create_app
 from app.storage import schema as s
+from app.storage import improvement as store
 from conftest import ASGIClient, FakeProvider
 from test_persistence import repository_factory  # noqa: F401
 from test_auth import accounts_with, USER_A, USER_B  # noqa: F401
@@ -496,3 +497,22 @@ def test_foreign_exercise_id_cannot_be_claimed_even_with_a_valid_own_session(acc
     _, ids = seeded(owner, exercise)
     assert post(b, ids[0]).status_code == 404
     assert rows(owner) == [] and a.provider.coached == []
+
+
+def test_another_learner_cannot_complete_read_or_supersede_a_claim(accounts_on, exercise):
+    """Every storage operation filters on the verified learner: a foreign claim id or exercise id is inert."""
+    a, b, _ = accounts_on
+    a.get('/api/profile'); b.get('/api/profile')
+    clock = Clock()
+    owner, other = a.app.state.repository.for_learner(USER_A), a.app.state.repository.for_learner(USER_B)
+    _, ids = seeded(owner, exercise)
+    root = store.evaluated_root(owner, ids[0])
+    claim = store.claim(owner, ids[0], root['root_attempt'], ANSWER, 'v1', 10, clock())
+    assert claim.kind == 'claimed'
+    assert store.finish(other, claim.id, clock(), 'ready', improved_text='forged', notes=[]) is False   # not theirs
+    assert store.live_row(other, ids[0]) is None and store.evaluated_root(other, ids[0]) is None
+    with pytest.raises(LookupError):
+        store.claim(other, ids[0], root['root_attempt'], ANSWER, 'v1', 10, clock())                       # not their exercise
+    assert [r['status'] for r in rows(owner)] == ['pending'] and rows(owner)[0]['improved_text'] is None
+    assert store.finish(owner, claim.id, clock(), 'ready', improved_text=IMPROVED, notes=[]) is True
+    assert store.finish(owner, claim.id, clock(), 'rejected', rejection='x') is False                   # completion is compare-and-set

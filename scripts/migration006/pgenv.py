@@ -8,6 +8,7 @@ the environment (never argv, never the terminal). On any problem it prints a mes
   pgenv.py NAME --fingerprint   -> 12 hex characters identifying host:port/database (safe to print, not reversible)
   pgenv.py NAME --label         -> masked host and database name (safe to print)
   pgenv.py NAME --host          -> the host name (for the loopback check only; the scripts never print it)
+  pgenv.py --session-fingerprint -> fingerprint of the PGHOST/PGPORT/PGDATABASE currently exported (the session about to be opened)
   pgenv.py NAME --redact        -> copy stdin to stdout with the password, user name, host and IP addresses removed
 """
 import hashlib
@@ -50,6 +51,9 @@ def label(env):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         fail('usage: pgenv.py VARIABLE_NAME [--fingerprint|--label]')
+    if sys.argv[1] == '--session-fingerprint':
+        print(fingerprint({key: os.environ.get(key, default) for key, default in (('PGHOST', ''), ('PGPORT', '5432'), ('PGDATABASE', ''))}))
+        sys.exit(0)
     settings = parse(sys.argv[1])
     mode = sys.argv[2] if len(sys.argv) > 2 else ''
     if mode == '--fingerprint':

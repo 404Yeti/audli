@@ -40,7 +40,7 @@ if [ "$DRY" = 1 ]; then echo; echo "DRY RUN COMPLETE: every gate passed; with --
 psql_ro -f "$HERE/sql/counts.sql" > "$RUN_DIR/pre-apply-counts.txt"; chmod 600 "$RUN_DIR/pre-apply-counts.txt"
 echo; info "APPLYING (single transaction; lock_timeout 5s, statement_timeout 30s)"
 T0="$(date +%s.%N)"
-if psql_apply -f "$MIGRATION_FILE" >/dev/null; then
+if PROD_WRITE_OK=1 psql_apply -f "$MIGRATION_FILE" >/dev/null; then
   TOOK="$(python3 -c "print(round($(date +%s.%N) - $T0, 3))")"
   manifest write "$RUN_DIR/apply.json" result=PASS source_fingerprint="$TARGET_FP" migration_sha256="$ACTUAL" seconds="$TOOK"
   info "applied in ${TOOK}s; running the read-only post-checks"

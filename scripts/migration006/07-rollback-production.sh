@@ -26,7 +26,7 @@ SAFETY="$(psql_ro -f "$HERE/sql/rollback_safety.sql")"; echo "$SAFETY" | print_l
 echo "$SAFETY" | grep -q '^SAFE|' || die "the SQL rollback is NOT safe (see UNSAFE line); use AUDLI_LESSON_LIMIT_MODE=off instead. Production is unchanged."
 if [ "$DRY" = 1 ]; then echo; echo "DRY RUN COMPLETE: the rollback would be applied. Nothing was written."; exit 0; fi
 info "APPLYING the rollback (single transaction; lock_timeout 5s, statement_timeout 30s)"
-psql_apply -f "$ROLLBACK_FILE" >/dev/null || die "the rollback failed; it is one transaction, so production is unchanged"
+PROD_WRITE_OK=1 psql_apply -f "$ROLLBACK_FILE" >/dev/null || die "the rollback failed; it is one transaction, so production is unchanged"
 manifest write "$RUN_DIR/rollback.json" result=PASS source_fingerprint="$TARGET_FP" rollback_sha256="$ACTUAL"
 psql_ro -f "$HERE/sql/preflight.sql" | print_lines
 echo; echo "ROLLED BACK. Verify the lines above are all PASS; the application keeps working (mode off never used the ledger)."

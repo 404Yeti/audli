@@ -43,6 +43,20 @@ What to send me afterwards (no secrets in any of it): the final PASS line of eve
 The real apply (`06` with `--confirm "APPLY MIGRATION 006 TO PRODUCTION"`) is **not** part of this guide. It also needs a recent `01`–`04` run (evidence expires after 24 h)
 and your separate approval. `07-rollback-production.sh` exists but is not used and is not needed for the rehearsal; the rehearsal already tests the rollback file on the copy.
 
+## 2a. Where things live, isolation, and secure cleanup
+* **Outside Git:** the credentials file (`~/.config/audli/migration006.env`, mode 600), the run directories (`~/.config/audli/migration006/<timestamp>/`, mode 700; dump and counts mode 600)
+  and the rehearsal server's data all live under `~/.config/audli`. The scripts refuse a credentials file or run directory inside the repository, and `.gitignore` also covers `*.dump` and `migration006.env`.
+  Nothing from this procedure is uploaded by CI or to Linear/GitHub; I only ever ask for redacted PASS lines and the non-sensitive manifest fields.
+* **Rehearsal isolation:** the rehearsal server listens on `127.0.0.1` only (Docker publishes `127.0.0.1:PORT`), each run restores into a brand-new `audli_rehearsal_*` database,
+  and the scripts refuse a rehearsal URL that is not loopback, looks like Supabase or has the same fingerprint as production. Every write session also passes an internal guard that refuses to address the production database.
+* **Cleanup when the evidence has been reviewed** (the dump contains real learner data; treat it like production):
+  1. `$S/00-rehearsal-server.sh stop` (Docker: removes the container; npm: stops the server).
+  2. Delete the run directory securely: `shred -u $RUN/backup.dump 2>/dev/null; rm -rf $RUN` (on SSDs/journaling filesystems `shred` is best-effort; deleting the file is the main protection, so keep the folder private until then).
+  3. Delete the rehearsal data: `rm -rf ~/.config/audli/migration006/rehearsal-server` (npm engine) — Docker needs nothing more.
+  4. Remove the credentials: `shred -u ~/.config/audli/migration006.env 2>/dev/null; rm -f ~/.config/audli/migration006.env`, then, if you want to rotate it, change the database password in Supabase (Project Settings → Database) afterwards.
+  5. Clear the terminal scrollback; the URL was never typed on a command line, so it is not in shell history.
+  Keep only the stage manifests (`$RUN/*.json`; no secrets) if you want a record, e.g. copy them to a notes folder before step 2.
+
 ## 3. What each PASS proves
 * **A2 preflight**: the live schema is exactly versions 1–5, no ledger yet, original status check and index, no long-running transactions or blocking locks. Baseline counts recorded.
 * **A3 backup**: dump and row counts come from one consistent snapshot, so the next step compares exactly.

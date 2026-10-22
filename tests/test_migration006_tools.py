@@ -211,3 +211,34 @@ def test_production_url_prompt_stores_a_private_file_and_prints_no_secret(tmp_pa
     assert oct(env_file.stat().st_mode & 0o777) == '0o600' and CANARY in env_file.read_text()
     assert CANARY not in result.stdout + result.stderr and 'deploy_user' not in result.stdout + result.stderr
     assert fingerprint() in result.stdout
+
+
+def test_run_directory_and_env_file_inside_the_repository_are_refused(tmp_path):
+    inside = ROOT / 'tmp-run-should-not-exist'
+    inside.mkdir()
+    try:
+        result, output = run('02-backup.sh', '--run-dir', str(inside))
+        assert result.returncode != 0 and 'inside the Git repository' in output and CANARY not in output
+        env_file = ROOT / 'tmp-creds-should-not-exist.env'
+        env_file.write_text('export X=1\n'); env_file.chmod(0o600)
+        try:
+            result, output = run('01-preflight.sh', '--env-file', str(env_file), '--run-dir', str(tmp_path / 'r'))
+            assert result.returncode != 0 and 'credentials file' in output and 'inside the Git repository' in output
+        finally:
+            env_file.unlink()
+    finally:
+        inside.rmdir()
+
+
+def test_write_sessions_cannot_address_the_production_database_without_the_apply_flag():
+    script = f'. "{TOOLS}/lib.sh"; use_target AUDLI_PROD_DATABASE_URL; psql_rw -c "select 1"; echo REACHED'
+    result = subprocess.run(['bash', '-c', script], capture_output=True, text=True, timeout=60,
+                            env={**os.environ, 'HOME': str(ROOT), 'AUDLI_PROD_DATABASE_URL': PROD})
+    assert result.returncode != 0 and 'REACHED' not in result.stdout and 'internal guard' in result.stderr and CANARY not in result.stdout + result.stderr
+
+
+def test_nothing_secret_is_tracked_and_ignore_rules_cover_dumps_and_env_files():
+    tracked = subprocess.run(['git', 'ls-files'], capture_output=True, text=True, cwd=ROOT).stdout.split()
+    assert not [name for name in tracked if name.endswith(('.dump', '.env')) or 'backup-counts' in name]
+    ignored = subprocess.run(['git', 'check-ignore', 'x/backup.dump', 'x/migration006.env'], capture_output=True, text=True, cwd=ROOT).stdout.split()
+    assert ignored == ['x/backup.dump', 'x/migration006.env']

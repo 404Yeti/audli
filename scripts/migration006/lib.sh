@@ -15,6 +15,12 @@ PROD_VAR=AUDLI_PROD_DATABASE_URL
 REHEARSAL_VAR=AUDLI_REHEARSAL_DATABASE_URL
 PYTHON_APP="${AUDLI_PYTHON:-$( [ -x "$REPO/.venv/bin/python" ] && echo "$REPO/.venv/bin/python" || command -v python3 )}"
 
+# Credentials, dumps and run manifests must never live inside the Git working tree (they could be committed or uploaded).
+outside_repo() {
+  local path real
+  path="$1"; real="$(realpath -m "$path")"
+  case "$real/" in "$REPO"/*) die "$2 ($real) is inside the Git repository; use a directory outside it (the default is under ~/.config/audli)";; esac
+}
 die()    { echo "ERROR: $*" >&2; exit 1; }
 info()   { echo "  $*"; }
 banner() { echo; echo "=== [$1] $2 ==="; }
@@ -27,6 +33,7 @@ manifest() { python3 "$HERE/manifest.py" "$@"; }
 load_env_file() {
   local file="${ENV_FILE:-$HOME/.config/audli/migration006.env}"
   if [ -f "$file" ]; then
+    outside_repo "$file" "the credentials file"
     [ "$(stat -c %a "$file")" = 600 ] || die "$file holds credentials and must have mode 600"
     set +x; . "$file"
   fi
@@ -49,7 +56,14 @@ redact() { python3 "$HERE/pgenv.py" "$TARGET_VAR" --redact; }
 # Read-only session: the server itself refuses writes.
 psql_ro() { psql -X -q -At -v ON_ERROR_STOP=1 -c 'SET default_transaction_read_only = on' -c 'SET statement_timeout = 60000' "$@" 2> >(redact >&2); }
 # Read-write session (isolated databases only).
-psql_rw() { psql -X -q -v ON_ERROR_STOP=1 "$@" 2> >(redact >&2); }
+# Internal guard: a write session may never address the production database unless the caller set PROD_WRITE_OK=1 for that one call
+# (only 06 and 07, after all of their gates).
+psql_rw() {
+  if [ "${PROD_WRITE_OK:-0}" != 1 ] && [ "$(python3 "$HERE/pgenv.py" --session-fingerprint)" = "$(python3 "$HERE/pgenv.py" "$PROD_VAR" --fingerprint 2>/dev/null)" ]; then
+    die "refusing a write session against the production database (internal guard)"
+  fi
+  psql -X -q -v ON_ERROR_STOP=1 "$@" 2> >(redact >&2)
+}
 # Read-write session for applying the migration or rollback file: fail fast instead of queueing behind live traffic.
 psql_apply() { psql_rw -c "SET lock_timeout = '5s'" -c "SET statement_timeout = '30s'" "$@"; }
 
@@ -75,12 +89,13 @@ ENV_FILE_DEFAULT="$HOME/.config/audli/migration006.env"
 # env_file_set VAR: store $AUDLI_NEW_VALUE as VAR in the mode-600 env file (value comes from the environment, never argv or output).
 env_file_set() {
   local file="${ENV_FILE:-$ENV_FILE_DEFAULT}"
+  outside_repo "$file" "the credentials file"
   mkdir -p "$(dirname "$file")"; chmod 700 "$(dirname "$file")"
   (umask 077; python3 "$HERE/envfile.py" "$file" "$1"); chmod 600 "$file"
 }
 
-new_run_dir() { local dir="$ROOT/$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$dir"; chmod 700 "$ROOT" "$dir"; echo "$dir"; }
-require_run_dir() { [ -d "${RUN_DIR:-}" ] || die "--run-dir is required (the directory printed by 01-preflight.sh)"; }
+new_run_dir() { outside_repo "$ROOT" "the run directory"; local dir="$ROOT/$(date -u +%Y%m%dT%H%M%SZ)"; mkdir -p "$dir"; chmod 700 "$ROOT" "$dir"; echo "$dir"; }
+require_run_dir() { [ -d "${RUN_DIR:-}" ] || die "--run-dir is required (the directory printed by 01-preflight.sh)"; outside_repo "$RUN_DIR" "the run directory"; }
 
 # The rehearsal server must be loopback (or explicitly allowed), never the production database, never a Supabase host.
 require_isolated() {

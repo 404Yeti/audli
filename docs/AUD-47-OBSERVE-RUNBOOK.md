@@ -57,3 +57,9 @@ All of the following, and then a separate owner approval with its own plan:
 3. At least one natural or owner-supervised case of each: a second start inside 24 h (matching `would_refuse` log and DB row) and a start after the 24 h window with no `would_refuse` and an updated ledger row.
 4. The owner has seen Home on a real iPhone in observe (unchanged legacy view) and, with a test account on a staging-style rehearsal, the enforce countdown and refusal screens.
 5. Testers' expected impact is accepted (see the historical 11/24 above) and a message plan exists.
+
+## 6. Enforce mode (activated 2026-10-22T02:00:54Z, deploy `dep-dbcmslavcj2c73f6mbbg`, by the owner's explicit authorization)
+Rollback is the same single variable: set `AUDLI_LESSON_LIMIT_MODE` back to `off` (never SQL rollback or restore; preserve the database and logs for investigation).
+Report with `08-observe-report.sh --mode enforce --since <ENFORCED>` (voids, grace slots and expired lessons become informational; ledger-integrity metrics 5, 6, 7 and the schema check still ALERT).
+In enforce mode 429 `lesson_cooldown` / `lesson_time_expired` on lesson endpoints are the **expected** refusals; review each one. Return to `off` immediately if: a learner whose window had already passed (ledger `next_eligible_at` earlier than the refusal) or who had no lesson in the previous 24 h is blocked,
+lesson starts fail (5xx), any ledger-integrity metric ALERTs or a ledger-guard exception appears, review/history/cached-audio replay is refused or errors, or the application is unhealthy (health not 200 for more than 5 minutes).

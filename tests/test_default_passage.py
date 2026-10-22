@@ -244,11 +244,26 @@ def test_existing_exercise_is_reused_not_regenerated(tmp_path, eleven):
     app.state.accent_controls.close()
 
 
-def test_burst_never_exceeds_passage_concurrency_cap(controls, monkeypatch, caplog):
-    """Six simultaneous ordinary passages: at most the shared cap reach ElevenLabs; the rest fall back explicitly."""
+@pytest.mark.parametrize('reserve_seconds', [0, .08], ids=['fast-start', 'slow-cold-start'])
+def test_burst_never_exceeds_passage_concurrency_cap(controls, monkeypatch, caplog, reserve_seconds):
+    """Six simultaneous ordinary passages: at most the shared cap reach ElevenLabs; the rest fall back explicitly.
+
+    `slow-cold-start` models what a cold database does: reservations run in worker threads but serialize on the write lock, and
+    each takes 80 ms, longer than the 50 ms fake synthesis. Without the hold-until-decided gate below, the first admitted call
+    would finish and free its slot before the sixth request arrived, so the cap would not be exercised and a third passage would
+    reach ElevenLabs."""
     settings, control = controls
+    if reserve_seconds:
+        import threading, time
+        write_lock, real_reserve = threading.Lock(), control.reserve_default
+        def slow_reserve(count):
+            with write_lock:
+                time.sleep(reserve_seconds)
+                return real_reserve(count)
+        monkeypatch.setattr(control, 'reserve_default', slow_reserve)
     caplog.set_level(logging.INFO)
     live = {'now': 0, 'peak': 0}
+    decided = {}  # Set once all four refused passages have fallen back; created inside the running loop.
     async def passthrough(data, kind, **kwargs):
         return data
     monkeypatch.setattr('app.audio.sanitize_generated_audio', passthrough)
@@ -259,12 +274,23 @@ def test_burst_never_exceeds_passage_concurrency_cap(controls, monkeypatch, capl
         async def post(self, url, **kwargs):
             live['now'] += 1; live['peak'] = max(live['peak'], live['now'])
             await asyncio.sleep(.05)
+            # The burst is simultaneous by construction: the two admitted requests keep their slots until every other request
+            # has asked for one, however long this process takes to start. Otherwise a slow cold start lets the first call finish
+            # (and free its slot) before the sixth request arrives, and the cap is never actually exercised.
+            await asyncio.wait_for(decided['all'].wait(), 15)
             live['now'] -= 1
             return httpx.Response(200, content=MP3, request=httpx.Request('POST', url))
+    class Gated(Provider):
+        async def speech(self, content):
+            result = await super().speech(content)
+            if Provider.calls >= 4:
+                decided['all'].set()
+            return result
     monkeypatch.setattr('app.default_passage.httpx', shim(Slow))
     Provider.calls = 0
     async def burst():
-        return await asyncio.gather(*[passage_audio(settings, Provider(), CONTENT, None, control) for _ in range(6)])
+        decided['all'] = asyncio.Event()
+        return await asyncio.gather(*[passage_audio(settings, Gated(), CONTENT, None, control) for _ in range(6)])
     results = asyncio.run(burst())
     assert live['peak'] <= settings.passage_tts_max_concurrent == 2
     assert sorted(v.provider for _, v in results) == ['elevenlabs'] * 2 + ['openai'] * 4 and Provider.calls == 4

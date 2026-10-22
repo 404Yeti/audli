@@ -10,7 +10,7 @@ SCRIPT = ('On Monday, Maya and her team launched an update to their office sched
           'database. The problem was fixed quickly, but Maya wants better checks to prevent it from happening again.')
 
 class DemoProvider:
-    async def coach_language(self, text):
+    async def coach_language(self, text, repair=None):
         # Synthetic development plumbing only: reports the answer as already natural, never rewrites it.
         from app.improvement import LanguageCoaching
         return LanguageCoaching(improved_text=text, notes=[], meaning_preserved=True, adds_information=False)

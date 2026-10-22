@@ -1181,5 +1181,82 @@
   "verifier_same_meaning": true,
   "note": "",
   "error": "malformed"
+ },
+ {
+  "id": "r01",
+  "category": "repair",
+  "label": "legit",
+  "source": "She change the meeting to Monday because the team was sick",
+  "candidate": {
+   "improved_text": "She changed the meeting to Monday because the team was sick",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "repair_candidate": {
+   "improved_text": "She changed the meeting to Monday because the team was sick",
+   "notes": [
+    {
+     "kind": "grammar",
+     "before": "She change",
+     "after": "She changed",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "accept",
+  "verifier_same_meaning": true,
+  "note": "formatting failure (edit without a note) fixed by the single automatic repair"
+ },
+ {
+  "id": "r02",
+  "category": "repair",
+  "label": "legit",
+  "source": "She change the meeting to Monday because the team was sick",
+  "candidate": {
+   "improved_text": "She changed the meeting to Monday because the team was sick",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "repair_candidate": {
+   "improved_text": "She changed the meeting to Monday because the team was sick",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": "the repair repeats the formatting failure: final, never a third call (strictness probe: a legitimate fix the model could not format)"
+ },
+ {
+  "id": "r03",
+  "category": "repair",
+  "label": "meaning_changing",
+  "source": "They will probably finish the report tomorrow",
+  "candidate": {
+   "improved_text": "They will definitely finish the report tomorrow",
+   "notes": [],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "repair_candidate": {
+   "improved_text": "They will definitely finish the report tomorrow",
+   "notes": [
+    {
+     "kind": "vocabulary",
+     "before": "probably",
+     "after": "definitely",
+     "why": "Use the standard form here."
+    }
+   ],
+   "meaning_preserved": true,
+   "adds_information": false
+  },
+  "expect": "reject",
+  "verifier_same_meaning": true,
+  "note": "formatting repaired but the certainty changed: layer 3 still rejects it"
  }
 ]

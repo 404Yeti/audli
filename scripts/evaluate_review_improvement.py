@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 from hashlib import sha256
 from pathlib import Path
 
-from app.improvement import LanguageCoaching, MeaningCheck, eligibility, coach, PROMPT_VERSION
+from app.improvement import LanguageCoaching, MeaningCheck, eligibility, coach, PROMPT_VERSION, REPAIR_REMINDER
 from app.services.openai_provider import COACH_PROMPT, MEANING_PROMPT
 
 FIXTURES = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'review_improvement_cases.json'
@@ -48,17 +48,21 @@ def load_cases() -> list[dict]:
 class ScriptedProvider:
     """Returns the case's scripted candidate. Records everything it is sent so privacy can be asserted."""
     def __init__(self, case, lenient):
-        self.case, self.lenient, self.sent, self.coach_calls, self.check_calls = case, lenient, [], 0, 0
+        self.case, self.lenient, self.sent, self.coach_calls, self.check_calls, self.returned = case, lenient, [], 0, 0, []
 
-    async def coach_language(self, text):
+    async def coach_language(self, text, repair=None):
         self.coach_calls += 1
         self.sent.append(text)
+        if repair is not None:
+            self.sent.append(repair)
         error = self.case.get('error')
         if error == 'timeout':
             raise TimeoutError()
         if error == 'malformed':
             raise ValueError('Provider returned incomplete structured output')
-        return LanguageCoaching.model_validate(self.case['candidate'])
+        candidate = self.case['repair_candidate'] if repair is not None and self.case.get('repair_candidate') else self.case['candidate']
+        self.returned.append(candidate)
+        return LanguageCoaching.model_validate(candidate)
 
     async def check_meaning(self, original, improved):
         self.check_calls += 1
@@ -71,14 +75,15 @@ def tokens(characters: float) -> float:
 
 
 def estimate(case, provider, outcome) -> tuple[float, float]:
-    """(input tokens, output tokens) actually implied by the calls the pipeline made for this case."""
+    """(input tokens, output tokens) actually implied by the calls the pipeline made for this case, including a repair call."""
     inputs = outputs = 0.
     text = case['source']
-    if provider.coach_calls:
-        inputs += tokens(len(COACH_PROMPT) + len(json.dumps({'learner_text': text})) + SCHEMA_CHARS['coach']) + 30
-        outputs += tokens(len(json.dumps(case['candidate']))) if case.get('candidate') and not case.get('error') else 0
+    for index in range(provider.coach_calls):
+        reminder = len(REPAIR_REMINDER) + len('formatting_reminder') if index else 0
+        inputs += tokens(len(COACH_PROMPT) + len(json.dumps({'learner_text': text})) + reminder + SCHEMA_CHARS['coach']) + 30
+        outputs += tokens(len(json.dumps(provider.returned[index]))) if index < len(provider.returned) else 0
     if provider.check_calls:
-        improved = case['candidate']['improved_text']
+        improved = provider.returned[-1]['improved_text']
         inputs += tokens(len(MEANING_PROMPT) + len(json.dumps({'original': text, 'improved': improved})) + SCHEMA_CHARS['check']) + 30
         outputs += 6
     return inputs, outputs
@@ -109,7 +114,7 @@ async def run_case(case, lenient):
     leaked = [secret for secret in (case.get('passage_fact'),) if secret and secret in json.dumps(provider.sent)]
     return {'id': case['id'], 'category': case['category'], 'label': case['label'], 'expect': case['expect'], 'outcome': outcome,
             'code': code, 'layer': LAYERS.get(code) if outcome == 'rejected' else None, 'coach_calls': provider.coach_calls,
-            'check_calls': provider.check_calls, 'local_ms': round(elapsed, 3), 'input_tokens': round(inputs), 'output_tokens': round(outputs),
+            'check_calls': provider.check_calls, 'repaired': provider.coach_calls == 2, 'local_ms': round(elapsed, 3), 'input_tokens': round(inputs), 'output_tokens': round(outputs),
             'usd': usd(inputs, outputs), 'passage_leaked': bool(leaked)}
 
 
@@ -146,6 +151,8 @@ def summarize(results):
             'preserved_total': len(by['comprehension_preserved']), 'fixed_candidates_accepted': sum(r['outcome'] == 'accepted' for r in by['comprehension_fixed'])},
         'ineligible_inputs': {'total': len(by['ineligible']), 'blocked_before_any_provider_call': sum(r['outcome'] == 'unavailable' and not r['coach_calls'] for r in by['ineligible'])},
         'provider_errors': {'total': len(by['provider_error']), 'recorded_as_failed': sum(r['outcome'] == 'failed' for r in by['provider_error'])},
+        'automatic_repair': {'used': sum(r['repaired'] for r in results), 'recovered': sum(r['repaired'] and r['outcome'] == 'accepted' for r in results),
+            'max_coach_calls_per_case': max((r['coach_calls'] for r in results), default=0)},
         'privacy': {'passage_facts_sent_to_provider': sum(r['passage_leaked'] for r in results)},
         'mismatches_vs_expectation': [{'id': r['id'], 'expected': r['expect'], 'got': r['outcome'], 'code': r['code']} for r in results
             if {'accept': 'accepted', 'accept_unchanged': 'accepted_unchanged', 'reject': 'rejected'}.get(r['expect'], r['expect']) != r['outcome']],
@@ -211,6 +218,7 @@ def render(report) -> str:
              + ', '.join(report['lenient_verifier_worst_case']['meaning_changing_candidates']['accepted_FALSE_ACCEPTS']),
              f"ineligible blocked before any provider call {s['ineligible_inputs']['blocked_before_any_provider_call']}/{s['ineligible_inputs']['total']}; "
              f"provider errors recorded as failed {s['provider_errors']['recorded_as_failed']}/{s['provider_errors']['total']}",
+             f"automatic repair used {s['automatic_repair']['used']}, recovered {s['automatic_repair']['recovered']} (max coach calls per case {s['automatic_repair']['max_coach_calls_per_case']})",
              f"passage facts sent to provider {s['privacy']['passage_facts_sent_to_provider']}; mismatches vs expectation: {len(s['mismatches_vs_expectation'])}",
              f"local pipeline latency ms {s['local_pipeline_latency_ms']} (provider latency NOT measured in mock mode)",
              f"estimated cost per attempt ${cost['mean_usd_per_attempt']} (p95 ${cost['p95_usd_per_attempt']}); ${cost['usd_per_1000_attempts']}/1000 attempts"]

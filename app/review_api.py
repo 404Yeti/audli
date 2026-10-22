@@ -7,6 +7,7 @@ from app.storage import schema as s
 from app.review import (ReviewDashboard, ReviewSummary, LessonReport, display_zone, lesson_card,
                         passage_report, listening_patterns, insight)
 from app.storage.review import inventory, hydrate
+from app.improvement import PROMPT_VERSION
 from app.storage.improvement import live_rows, report_state
 from app.storage.repository import utcnow
 
@@ -56,7 +57,7 @@ def register_review_routes(app, repo, settings=None):
                 raise HTTPException(404, 'Lesson report not found.')
             enabled = bool(settings and settings.review_improvement_enabled)
             if enabled:  # One owner-filtered batched read; never a provider call and never a write.
-                stored = live_rows(repo, db, [row['exercise_id'] for row in entry.passages])
+                stored = live_rows(repo, db, [row['exercise_id'] for row in entry.passages], PROMPT_VERSION)
                 for row in entry.passages:
                     row['improvement_row'] = stored.get(row['exercise_id'])
         at = getattr(app.state, 'review_clock', utcnow)()

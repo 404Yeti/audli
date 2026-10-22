@@ -23,7 +23,7 @@ const report = (improvement: ImprovementState | null | undefined): LessonReport 
 type Reply = { status: number; json: unknown; delay?: number };
 async function setup(page: Page, initial: ImprovementState | null | undefined, replies: Reply[] = []) {
   await installVoice(page);
-  const posts: string[] = [], writes: string[] = [];
+  const posts: string[] = [], writes: string[] = [], bodies: unknown[] = [];
   await page.route('**/api/**', async route => {
     const request = route.request(), path = new URL(request.url()).pathname;
     if (request.method() !== 'GET') writes.push(`${request.method()} ${path}`);
@@ -35,7 +35,7 @@ async function setup(page: Page, initial: ImprovementState | null | undefined, r
     if (path === '/api/review') return route.fulfill({ json: dashboard });
     if (path === '/api/review/lesson/lesson-one') return route.fulfill({ json: report(initial) });
     if (path === '/api/exercises/exercise-one/review/improvement' && request.method() === 'POST') {
-      posts.push(path);
+      posts.push(path); bodies.push(request.postDataJSON());
       const reply = replies.shift() ?? { status: 200, json: { improvement: ready } };
       if (reply.delay) await new Promise(resolve => setTimeout(resolve, reply.delay));
       return route.fulfill({ status: reply.status, json: reply.json });
@@ -44,14 +44,15 @@ async function setup(page: Page, initial: ImprovementState | null | undefined, r
   });
   await page.goto('/'); await page.getByRole('button', { name: 'Review', exact: true }).click();
   await page.getByRole('button', { name: /A change to the Monday meeting/ }).click();
-  return { posts, writes };
+  return { posts, writes, bodies };
 }
 const heard = (page: Page) => page.getByRole('region', { name: 'What Audli heard' });
 
 test('offers coaching without calling anything, then shows the four labeled parts', async ({ page }) => {
   const fixture = await setup(page, available);
   await expect(heard(page).getByRole('group', { name: 'Improve my answer' })).toContainText('never changes your progress');
-  await expect(heard(page).getByRole('group', { name: 'Improve my answer' })).toContainText('sends the text of your answer (not your voice) to Audli’s AI provider');
+  await heard(page).getByText('How your answer is handled').click();
+  await expect(heard(page).getByText(/sends the text of your answer \(not your voice\) to its AI provider, OpenAI/)).toBeVisible();
   expect(fixture.posts).toEqual([]);
   await heard(page).getByRole('button', { name: 'Show an improved version' }).click();
   await expect(heard(page).getByRole('heading', { name: 'Your answer, improved' })).toBeVisible();
@@ -87,12 +88,59 @@ test('an already natural answer says so and invents nothing', async ({ page }) =
   await expect(heard(page).getByRole('heading', { name: 'What changed' })).toHaveCount(0);
 });
 
-test('a rejected suggestion is never shown as improved English', async ({ page }) => {
-  await setup(page, available, [{ status: 200, json: { improvement: { state: 'rejected', reason: 'negation_changed', improved_text: null, unchanged: false, notes: [], diff: [] } } }]);
+const rejection = (reason: string, retry_available: boolean) => ({ improvement: { state: 'rejected', reason, retry_available, improved_text: null, unchanged: false, notes: [], diff: [] } });
+
+test('a rejected suggestion is never shown as improved English and offers one retry that says what it costs', async ({ page }) => {
+  const fixture = await setup(page, available, [{ status: 200, json: rejection('negation_changed', true) }, { status: 200, json: { improvement: ready } }]);
   await heard(page).getByRole('button', { name: 'Show an improved version' }).click();
   await expect(heard(page)).toContainText("couldn't improve this answer without risking its meaning");
   await expect(heard(page).getByRole('heading', { name: 'Your answer, improved' })).toHaveCount(0);
   await expect(heard(page).getByRole('button', { name: 'Show an improved version' })).toHaveCount(0);
+  await expect(heard(page)).toContainText('That uses one of your daily language suggestions');
+  await heard(page).getByRole('button', { name: 'Try once more' }).click();
+  await expect(heard(page).getByRole('heading', { name: 'Your answer, improved' })).toBeVisible();
+  expect(fixture.posts).toHaveLength(2);
+  expect(fixture.bodies).toEqual([null, { retry: true }]);        // only the retry carries a body; it carries nothing else
+});
+
+test('after the retry is spent the result is final with no further button', async ({ page }) => {
+  const fixture = await setup(page, available, [{ status: 200, json: rejection('entity_changed', true) }, { status: 200, json: rejection('entity_changed', false) }]);
+  await heard(page).getByRole('button', { name: 'Show an improved version' }).click();
+  await heard(page).getByRole('button', { name: 'Try once more' }).click();
+  await expect(heard(page)).toContainText("You've already tried twice");
+  await expect(heard(page).getByRole('button')).toHaveCount(0);
+  expect(fixture.posts).toHaveLength(2);
+});
+
+test('formatting failures are described as such, not as a judgment about meaning', async ({ page }) => {
+  await setup(page, { ...available, state: 'rejected', reason: 'unexplained_changes', retry_available: true });
+  await expect(heard(page)).toContainText("couldn't put a suggestion together for this answer this time");
+  await expect(heard(page)).not.toContainText('risking its meaning');
+  await expect(heard(page).getByRole('button', { name: 'Try once more' })).toBeVisible();
+});
+
+test('a retry that hits the daily limit or a busy service explains it and keeps the retry available', async ({ page }) => {
+  const fixture = await setup(page, { ...available, state: 'rejected', reason: 'negation_changed', retry_available: true }, [
+    { status: 429, json: { detail: 'You have used today’s language suggestions. More open in about 3 hours.', improvement: { code: 'improvement_limit', retry_after_seconds: 10800 } } },
+    { status: 503, json: { detail: 'Audli is preparing other suggestions right now. Try again in a moment.', improvement: { code: 'improvement_busy' } } },
+    { status: 200, json: { improvement: ready } }]);
+  const button = heard(page).getByRole('button', { name: 'Try once more' });
+  await button.click(); await expect(heard(page).getByRole('alert')).toContainText('More open in about 3 hours');
+  await button.click(); await expect(heard(page).getByRole('alert')).toContainText('preparing other suggestions');
+  await button.click(); await expect(heard(page).getByRole('heading', { name: 'Your answer, improved' })).toBeVisible();
+  expect(fixture.posts).toHaveLength(3);
+});
+
+test('the disclosure is accurate: provider, 30 days, no training by default, and never a claim of zero retention', async ({ page }) => {
+  await setup(page, available);
+  const group = heard(page).getByRole('group', { name: 'Improve my answer' });
+  await expect(group).toContainText('never changes your progress');
+  await group.getByText('How your answer is handled').click();
+  await expect(group).toContainText('OpenAI may keep it for up to 30 days to check for misuse');
+  await expect(group).toContainText('by default does not use it to train its models');
+  await expect(group).toContainText("Audli can't remove OpenAI's copy sooner");
+  await expect(group).toContainText('never the passage, your voice or your account details');
+  await expect(group).not.toContainText(/zero retention|not stored|never stored|deleted immediately|private forever/i);
 });
 
 for (const [reason, copy] of [['unreliable_recognition', /wasn't sure it heard this answer correctly/], ['too_short', /too short/], ['too_long', /too long/]] as const) {

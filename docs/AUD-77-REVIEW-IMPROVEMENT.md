@@ -17,6 +17,14 @@ For an evaluated passage, Review can show (only when the learner asks): *What Au
   Known limit: a synonym-looking noun swap passes 1-3 by design and is caught only by layer 4. The API requires all four.
 - **Rejected, not corrected.** Rejection codes are fixed strings; the rejected text is never stored or returned.
 
+## Recovery from rejections (bounded)
+- **One automatic repair, formatting failures only** (`unexplained_changes`, `note_not_grounded`, `inconsistent_notes`: the edits were not covered by a note, which says nothing about meaning). Same attempt, no extra allowance; worst case per attempt is 2 coach calls + 1 comparison, never more. Meaning-protective rejections (negation, modality, quantity, comparison, certainty, causality, entities, added/removed content, the independent comparison) are **never** retried automatically: retrying until the comparison agrees would compound its false-accept rate.
+- **One learner-initiated retry per exercise per prompt version** (`POST ... {"retry": true}`, `retry_available` in the report). It is a new attempt that passes the same cooldown, burst and rolling-allowance checks and consumes one of the 10 daily attempts. After two rejected results under a prompt version the result is final.
+- **Prompt-version recovery:** rejections recorded under an older `PROMPT_VERSION` do not count toward the cap, so a prompt or validator improvement can heal false rejections, but only through the same quota (it never bypasses the daily limit).
+- **Explicit error states:** every refusal has a stable `improvement.code`: `improvement_limit`, `improvement_cooldown`, `improvement_unavailable` (429); `improvement_busy`, `improvement_failed` (503). The UI says which, and what a retry costs.
+- **Monitoring:** each outcome logs `outcome`, `rejection`, `layer`, `repaired`, `retry` (no text, no IDs); with latency aggregates on, fixed counter names (`review_improvement.<status>`, `.rejected.layer<N>`, `.repaired`). `scripts/review_improvement_report.sql` (read-only counts) reports outcomes by day and prompt version, rejection percentage and retry recovery.
+- Schema: rejected rows are history (`one_active_improvement_per_exercise` covers pending and ready only); `repaired` is a boolean on the row. Migration 007 is still unapplied, so this changes the file before any database sees it.
+
 ## API and limits
 `POST /api/exercises/{exercise_id}/review/improvement` (exists only when the flag is on). Authenticated, owner-scoped, requires an evaluated attempt. Idempotent: repeating it, or reopening a stored result, is free. A report read (`GET /api/review/{kind}/{id}`) includes the stored state, makes no provider call and writes nothing.
 - **Allowance:** 10 new attempts per learner per rolling 24 h (`AUDLI_REVIEW_IMPROVEMENT_DAILY_LIMIT`). Counted: pending (within its 90 s lease), ready and rejected. **Not counted:** failed, abandoned, busy-refused and cancelled claims. Retry after a failure waits 30 s; 5 failures/abandonments in an hour pause the learner for the rest of that hour; both bounds recover on their own. 429 bodies use `improvement.code` values `improvement_limit|improvement_cooldown|improvement_unavailable` (distinct from AUD-47's `lesson_*` codes).
@@ -25,7 +33,7 @@ For an evaluated passage, Review can show (only when the learner asks): *What Au
 - Cancellation (client disconnect) marks the claim abandoned immediately; a crashed worker's claim is treated as abandoned after the lease.
 
 ## Data and migration 007 (additive, reversible; **not applied**)
-`review_improvements` (see `docs/postgres-007.sql`): backend-only (RLS on, no browser roles). Stores status, improved text, notes, rejection code, model, prompt version, claim time and a **hash** of the source answer. No learner audio and no copy of the answer. It is derived advisory data: dropping it loses cached suggestions only.
+`review_improvements` (see `docs/postgres-007.sql`): backend-only (RLS on, no browser roles). Stores status, improved text, notes, rejection code, model, prompt version, whether the automatic repair was used, claim time and a **hash** of the source answer. No learner audio and no copy of the answer. It is derived advisory data: dropping it loses cached suggestions only.
 - Numbering: **007 is reserved for AUD-77**; AUD-69 takes the next free number (coordinated on AUD-69).
 - Rollback: `docs/postgres-007-rollback.sql` (manual only). Valid at any time; run it only while the running release no longer needs schema 7.
 - Optional until the flag is on: startup accepts schema ledgers `[1..6]` and `[1..7]`; enabling the flag without 007 fails closed at startup.

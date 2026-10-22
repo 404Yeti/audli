@@ -8,21 +8,37 @@ Guarantees, each covered by tests:
 - No account-wide lock and no open database transaction is held while a provider call is in flight.
 - At most `review_improvement_daily_limit` new attempts per learner per rolling 24 hours. Repeating the request,
   reopening a stored result and every report read are free. Failed and abandoned claims do not consume the allowance.
+- Recovery (bounded): one automatic repair for narrowly defined formatting failures (same attempt, no extra allowance);
+  one learner-initiated retry (`{"retry": true}`) of a rejected result per exercise per prompt version, which is a new
+  attempt counted against the same rolling allowance; older-prompt-version rejections become retryable without bypassing it.
+- Every refusal carries a stable `improvement.code`, and every outcome is logged and counted by rejection code.
 """
 import asyncio
 import logging
+from time import perf_counter
 from uuid import UUID
 
 from fastapi import HTTPException
+from pydantic import StrictBool
 from fastapi.responses import JSONResponse
 
-from app.improvement import PROMPT_VERSION, ImprovementState, eligibility, coach
+from app.improvement import PROMPT_VERSION, ImprovementState, eligibility, coach, rejection_layer
+from app.models import StrictModel
+from app.telemetry import aggregator
 from app.storage import improvement as store
 from app.storage.repository import learner_tag, utcnow
 
 LOG = logging.getLogger('uvicorn.error')
 BUSY = 'Audli is preparing other suggestions right now. Try again in a moment.'
 FAILED = "Audli couldn't improve this answer right now. Try again in a moment."
+
+
+class ImproveRequest(StrictModel):
+    retry: StrictBool = False
+
+
+def _error(status: int, code: str, detail: str):
+    return JSONResponse(status_code=status, content={'detail': detail, 'improvement': {'code': code}})
 
 
 def _limited(code: str, detail: str, retry_after: int):
@@ -44,7 +60,7 @@ def register_improvement_routes(app, repo, ai, settings):
         return JSONResponse(status_code=status, content={'improvement': state.model_dump(mode='json')})
 
     @app.post('/api/exercises/{exercise_id}/review/improvement')
-    async def improve(exercise_id: UUID):
+    async def improve(exercise_id: UUID, body: ImproveRequest | None = None):
         exercise_id = str(exercise_id)
         if not repo.exercise(exercise_id):
             raise HTTPException(404, 'Exercise not found.')
@@ -61,10 +77,11 @@ def register_improvement_routes(app, repo, ai, settings):
                 return respond(state)
             return respond(ImprovementState(state='unavailable', reason=reason))
 
+        retry = bool(body and body.retry)
         claim = store.claim(repo, exercise_id, answer['attempt_id'], text, PROMPT_VERSION,
-                            settings.review_improvement_daily_limit, at)
-        if claim.kind == 'existing':
-            state = store.state_from_row(claim.row, text, at)
+                            settings.review_improvement_daily_limit, at, retry=retry)
+        if claim.kind in ('existing', 'final'):
+            state = store.state_from_row(claim.row, text, at, retry_available=claim.retry_available)
             if state is None:
                 raise HTTPException(409, 'This answer changed. Reload your review.')
             return respond(state)
@@ -80,12 +97,13 @@ def register_improvement_routes(app, repo, ai, settings):
         # A claim is held: from here to the completion below there is no open transaction and no lock.
         if slots.locked():
             store.finish(repo, claim.id, app.state.review_clock(), 'abandoned')
-            raise HTTPException(503, BUSY)
-        status, outcome = 'failed', {}
+            return _error(503, 'improvement_busy', BUSY)
+        status, outcome, started, repaired = 'failed', {}, perf_counter(), False
         await slots.acquire()
         try:
             async with asyncio.timeout(settings.review_improvement_timeout_seconds):
                 decision = await coach(ai(), text)
+            repaired = decision.repaired
             if decision.status == 'ready':
                 status, outcome = 'ready', dict(improved_text=decision.improved_text, notes=decision.notes)
             else:
@@ -98,10 +116,19 @@ def register_improvement_routes(app, repo, ai, settings):
             LOG.warning('review_improvement failed error=%s learner=%s', type(error).__name__, learner_tag(repo.learner_id))
         finally:
             slots.release()
-        stored = store.finish(repo, claim.id, app.state.review_clock(), status, model=settings.llm_model, **outcome)
-        LOG.info('review_improvement outcome=%s rejection=%s stored=%s learner=%s', status, outcome.get('rejection'), stored, learner_tag(repo.learner_id))
+        stored = store.finish(repo, claim.id, app.state.review_clock(), status, model=settings.llm_model, repaired=repaired, **outcome)
+        elapsed = (perf_counter() - started) * 1000
+        LOG.info('review_improvement outcome=%s rejection=%s layer=%s repaired=%s retry=%s stored=%s elapsed_ms=%.0f learner=%s', status,
+                 outcome.get('rejection'), rejection_layer(outcome.get('rejection')), repaired, retry, stored, elapsed, learner_tag(repo.learner_id))
+        if settings.latency_aggregates:  # Numeric-only: a handful of fixed names, never text, IDs or codes from the learner.
+            aggregator.record(f'review_improvement.{status}', elapsed, status != 'failed')
+            if status == 'rejected':
+                aggregator.record(f"review_improvement.rejected.layer{rejection_layer(outcome.get('rejection')) or 'x'}", elapsed)
+            if repaired:
+                aggregator.record('review_improvement.repaired', elapsed)
         if status == 'failed':
-            raise HTTPException(503, FAILED)
+            return _error(503, 'improvement_failed', FAILED)
         live = store.live_row(repo, exercise_id)
-        state = store.state_from_row(live, text, app.state.review_clock()) if live else None
+        again = live is not None and live['status'] == 'rejected' and store.can_retry(repo, exercise_id, PROMPT_VERSION)
+        state = store.state_from_row(live, text, app.state.review_clock(), retry_available=again) if live else None
         return respond(state or ImprovementState(state='pending'), 200 if state else 202)

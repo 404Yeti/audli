@@ -7,7 +7,7 @@ export type ImprovementNote = { kind: 'grammar' | 'vocabulary'; before: string; 
 export type DiffSegment = { op: 'equal' | 'delete' | 'insert'; text: string };
 /** Advisory language coaching (AUD-77). Absent unless the server feature is on; never affects progress. */
 export type ImprovementState = {
-  state: 'unavailable' | 'available' | 'pending' | 'ready' | 'rejected'; reason: string | null; improved_text: string | null;
+  state: 'unavailable' | 'available' | 'pending' | 'ready' | 'rejected'; reason: string | null; retry_available?: boolean; improved_text: string | null;
   unchanged: boolean; notes: ImprovementNote[]; diff: DiffSegment[];
 };
 export type SavedAnswer = { attempt_id: string; question: string | null; text: string; uncertain: boolean };

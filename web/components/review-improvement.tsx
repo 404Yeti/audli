@@ -8,7 +8,14 @@ const unavailable: Record<string, string> = {
   too_short: 'This answer is too short for language suggestions.',
   too_long: 'This answer is too long for language suggestions.',
 };
-const rejected = "Audli couldn't improve this answer without risking its meaning, so it isn't showing a suggestion.";
+// Rejection codes that mean the suggestion could not be put in the required form (no judgment about meaning).
+const formatting = new Set(['unexplained_changes', 'note_not_grounded', 'inconsistent_notes']);
+const rejectedMeaning = "Audli couldn't improve this answer without risking its meaning, so it isn't showing a suggestion.";
+const rejectedFormat = "Audli couldn't put a suggestion together for this answer this time.";
+const rejectedFinal = "Audli couldn't improve this answer, so it isn't showing a suggestion. You've already tried twice.";
+
+/** Accurate disclosure (see docs/AUD-77-LEARNER-DISCLOSURE.md): shown before the first request. Never claims zero retention. */
+const disclosure = 'To do this, Audli sends the text of your answer (not your voice) to its AI provider, OpenAI. OpenAI may keep it for up to 30 days to check for misuse, and by default does not use it to train its models.';
 
 /** Optional, user-triggered language coaching for the saved answer. Language only: it never changes progress. */
 export function ReviewImprovement({ exerciseId, initial }: { exerciseId: string; initial: ImprovementState | null | undefined }) {
@@ -21,11 +28,12 @@ export function ReviewImprovement({ exerciseId, initial }: { exerciseId: string;
     return () => lifetime.close();
   }, []);
 
-  async function request() {
+  async function request(retry = false) {
     if (!owner.current?.current || busy) return;
     const operation = owner.current.begin(); setBusy(true); setError('');
     try {
-      const data = await operation.api<{ improvement: ImprovementState }>(`/exercises/${encodeURIComponent(exerciseId)}/review/improvement`, { method: 'POST' });
+      const data = await operation.api<{ improvement: ImprovementState }>(`/exercises/${encodeURIComponent(exerciseId)}/review/improvement`,
+        retry ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ retry: true }) } : { method: 'POST' });
       operation.assertCurrent(); setState(data.improvement);
     } catch (e) { if (operation.current) setError((e as Error).message); }
     finally { if (operation.current) setBusy(false); operation.release(); }
@@ -36,11 +44,19 @@ export function ReviewImprovement({ exerciseId, initial }: { exerciseId: string;
   return <div className="review-improvement" aria-label="Improve my answer" role="group">
     {kind === 'unavailable' && <p className="review-caption">{unavailable[state.reason ?? ''] ?? 'Language suggestions are not available for this answer.'}</p>}
     {(kind === 'available' || kind === 'pending') && <>
-      <p className="review-caption">Want a more natural way to say it? Audli can suggest one. This is about English only and never changes your progress. It sends the text of your answer (not your voice) to Audli’s AI provider.</p>
+      <p className="review-caption">Want a more natural way to say it? Audli can suggest one. This is about English only and never changes your progress.</p>
+      <details className="review-disclosure"><summary>How your answer is handled</summary>
+        <p className="review-caption">{disclosure}</p>
+        <p className="review-caption">Audli can&apos;t remove OpenAI&apos;s copy sooner. Only your answer text is sent: never the passage, your voice or your account details. Audli saves the suggestion with your lesson.</p></details>
       <button className="secondary" disabled={busy} onClick={() => void request()}>{kind === 'pending' ? 'Check again' : 'Show an improved version'}</button>
       {kind === 'pending' && !busy && <p role="status">Audli is still preparing this suggestion.</p>}
     </>}
-    {kind === 'rejected' && <p className="review-caption">{rejected}</p>}
+    {kind === 'rejected' && <>
+      <p className="review-caption" role="status">{!state.retry_available ? rejectedFinal : formatting.has(state.reason ?? '') ? rejectedFormat : rejectedMeaning}</p>
+      {state.retry_available && <>
+        <p className="review-caption">You can try once more. That uses one of your daily language suggestions.</p>
+        <button className="secondary" disabled={busy} onClick={() => void request(true)}>Try once more</button></>}
+    </>}
     {kind === 'ready' && (state.unchanged
       ? <p role="status">Your answer already reads naturally. Nothing needs changing.</p>
       : <div className="review-improved">

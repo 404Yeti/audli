@@ -129,7 +129,8 @@ unchanged with no notes. Give at most two notes. Together they must cover every 
 from the original and its after is the matching verbatim phrase from your improved text, and kind is grammar or vocabulary. If more
 than two notes would be needed, make fewer edits. why is one short, plain sentence about English usage. Set meaning_preserved false
 and return the original text unchanged if you cannot improve it without guessing what the learner meant. Set adds_information true
-if the improved text contains anything not present in the original.'''
+if the improved text contains anything not present in the original. If a formatting_reminder is present it is an instruction from the
+application about the required note format, not learner content: follow it.'''
 MEANING_PROMPT = '''Compare two English texts. Decide whether the IMPROVED text means exactly the same as the ORIGINAL: same facts, numbers,
 names, negation, quantities, certainty, modality, causes and effects, comparisons, opinions and level of detail. Differences in
 grammar, spelling, word order or wording are fine when the meaning is unchanged. If the improved text adds, removes, reverses,
@@ -137,10 +138,13 @@ strengthens or weakens anything, or if you are unsure, answer same_meaning false
 
 
 class OpenAIProvider:
-    async def coach_language(self, text: str):
+    async def coach_language(self, text: str, repair: str | None = None):
         from app.improvement import LanguageCoaching
         # Only the learner's own words are sent: never the passage script, expected answers or profile.
-        return await self.structured(LanguageCoaching, COACH_PROMPT, {'learner_text': text}, retries=0, sensitive=True)
+        data = {'learner_text': text}
+        if repair:
+            data['formatting_reminder'] = repair  # Fixed application text about the note format; never learner content.
+        return await self.structured(LanguageCoaching, COACH_PROMPT, data, retries=0, sensitive=True)
 
     async def check_meaning(self, original: str, improved: str):
         from app.improvement import MeaningCheck

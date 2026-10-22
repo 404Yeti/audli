@@ -33,19 +33,25 @@ def good(text):
 class Coach(FakeProvider):
     """Programmable coaching provider that records exactly what it was sent."""
     def __init__(self):
-        self.coached, self.checked = [], []
+        self.coached, self.checked, self.repairs, self.queue = [], [], [], []
         self.coaching = good
         self.same = True
         self.error = None
         self.delay = 0
         self.during = None
 
-    async def coach_language(self, text):
+    async def coach_language(self, text, repair=None):
         self.coached.append(text)
+        self.repairs.append(repair)
         if self.during:
             self.during()
         if self.delay:
             await asyncio.sleep(self.delay)
+        if self.queue:  # A scripted sequence: each item is a LanguageCoaching, a callable(text) or an exception to raise.
+            item = self.queue.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item(text) if callable(item) else item
         if self.error:
             raise self.error
         return self.coaching(text)
@@ -227,14 +233,16 @@ def test_meaning_changing_or_unexplained_results_are_rejected_and_never_shown(en
     provider.coaching = make
     response = post(client, ids[0])
     state = response.json()['improvement']
-    assert response.status_code == 200 and state['state'] == 'rejected' and state['reason'] == code
+    assert response.status_code == 200 and state['state'] == 'rejected' and state['reason'] == code and state['retry_available'] is True
     assert state['improved_text'] is None and state['notes'] == [] and state['diff'] == []
     assert 'didn' not in response.text and IMPROVED not in response.text
     stored = rows(repo)
     assert [r['status'] for r in stored] == ['rejected'] and stored[0]['improved_text'] is None
     assert provider.checked == []  # Rejected by the deterministic layers before the second provider call.
+    calls = len(provider.coached)
+    assert calls == (2 if code == 'unexplained_changes' else 1)  # Only a formatting failure is repaired automatically, once.
     again = post(client, ids[0])
-    assert again.json()['improvement']['state'] == 'rejected' and len(provider.coached) == 1  # Terminal: no retry, no quota.
+    assert again.json()['improvement']['state'] == 'rejected' and len(provider.coached) == calls  # Re-reading is free.
 
 
 def test_independent_meaning_check_rejects_what_the_lexical_layers_cannot_see(env, exercise):

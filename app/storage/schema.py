@@ -1,6 +1,6 @@
 """Shared relational schema; JSON documents preserve versioned domain snapshots."""
 from sqlalchemy import (MetaData, Table, Column, String, Text, Integer, Float,
-                        DateTime, JSON, LargeBinary, ForeignKey, Index, CheckConstraint,
+                        DateTime, JSON, LargeBinary, ForeignKey, Index, CheckConstraint, Boolean, false,
                         ForeignKeyConstraint, UniqueConstraint)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
@@ -220,8 +220,9 @@ LIMIT_TABLES = (lesson_entitlements,)
 
 # Migration 007 (AUD-77): advisory language coaching for a saved, evaluated answer. Derived and disposable:
 # nothing here is read by scoring, adaptation or the daily lesson allowance. The source answer is referenced
-# by hash, never copied. One row per claim, so failed or abandoned claims stay visible without owning the
-# exercise, while the partial unique index allows at most one live (pending, ready or rejected) row each.
+# by hash, never copied. One row per claim, so failed, abandoned and rejected claims stay visible as history while
+# the partial unique index allows at most one ACTIVE (pending or ready) row per exercise. A rejected result may be
+# retried once per prompt version (the application counts rejected rows); the retry is a new, quota-counted claim.
 review_improvements = Table('review_improvements', metadata,
     Column('id', identifier, primary_key=True),
     Column('user_id', identifier, ForeignKey('users.id'), nullable=False),
@@ -233,13 +234,14 @@ review_improvements = Table('review_improvements', metadata,
     Column('notes', document),
     Column('rejection', String(40)),
     Column('model', String(60)),
+    Column('repaired', Boolean, nullable=False, default=False, server_default=false()),
     Column('prompt_version', String(20), nullable=False),
     Column('claimed_at', timestamp, nullable=False),
     Column('finished_at', timestamp),
     CheckConstraint("status IN ('pending','ready','rejected','failed','abandoned')", name='improvement_status_valid'),
     CheckConstraint("status <> 'ready' OR (improved_text IS NOT NULL AND notes IS NOT NULL)", name='improvement_ready_complete'))
-Index('one_live_improvement_per_exercise', review_improvements.c.exercise_id, unique=True,
-    sqlite_where=review_improvements.c.status.in_(('pending', 'ready', 'rejected')),
-    postgresql_where=review_improvements.c.status.in_(('pending', 'ready', 'rejected')))
+Index('one_active_improvement_per_exercise', review_improvements.c.exercise_id, unique=True,
+    sqlite_where=review_improvements.c.status.in_(('pending', 'ready')),
+    postgresql_where=review_improvements.c.status.in_(('pending', 'ready')))
 Index('improvements_by_learner_claim', review_improvements.c.user_id, review_improvements.c.claimed_at)
 REVIEW_TABLES = (review_improvements,)

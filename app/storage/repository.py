@@ -503,6 +503,19 @@ class SQLProgressRepository:
             raise RuntimeError('AUDLI_LESSON_LIMIT_MODE requires migration 006 (lesson_entitlements); '
                                'apply it as the database owner or set the mode to off.')
 
+    def require_review_improvement_schema(self):
+        """Fail closed at startup when the feature is switched on before migration 007 is applied."""
+        from sqlalchemy import inspect
+        with self.engine.connect() as db:
+            inspector = inspect(db)
+            ready = inspector.has_table('review_improvements') and set(s.review_improvements.columns.keys()).issubset(
+                {column['name'] for column in inspector.get_columns('review_improvements')})
+            if ready:
+                ready = db.execute(select(s.versions.c.version).where(s.versions.c.version == 7)).first() is not None
+        if not ready:
+            raise RuntimeError('AUDLI_REVIEW_IMPROVEMENT_ENABLED requires migration 007 (review_improvements); '
+                               'apply it as the database owner or leave the feature off.')
+
     def _entitlement(self, db):
         """Effective 24-hour window. The ledger is authoritative; a lesson row started later than the ledger
         (written by a release that predates it) is honored until the next claim re-syncs the ledger."""

@@ -75,15 +75,21 @@ def report_failure(settings: Settings, operation: str, exc: Exception):
 
 
 @contextmanager
-def operation(settings: Settings, name: str):
-    """Log at the precise failure boundary and preserve the original exception."""
+def operation(settings: Settings, name: str, sensitive: bool = False):
+    """Log at the precise failure boundary and preserve the original exception.
+
+    `sensitive` operations carry the learner's own words to a provider, whose error bodies can echo them: only the
+    exception types are logged, never messages, causes or arguments."""
     started = perf_counter()
     ok = True
     try:
         yield
     except Exception as exc:
         ok = False
-        report_failure(settings, name, exc)
+        if sensitive:
+            logging.getLogger('uvicorn.error').error('Operation failed: %s (%s)', name, type(exc).__qualname__)
+        else:
+            report_failure(settings, name, exc)
         raise
     finally:
         elapsed_ms = (perf_counter() - started) * 1000

@@ -54,9 +54,8 @@ class AccountClient(ASGIClient):
         return super().request(method, path, headers=headers, **kwargs)
 
 
-@pytest.fixture
-def accounts(tmp_path, repository_factory):
-    provider = FakeProvider()
+def accounts_with(tmp_path, repository_factory, provider_class=FakeProvider, **settings):
+    provider = provider_class()
     async def speak(text, speech_rate=.9):
         return await provider.speech(None)
     provider.speak = speak
@@ -66,10 +65,15 @@ def accounts(tmp_path, repository_factory):
         return assessment(content, turns, {'inference': 'insufficient_evidence'} if len(turns) == 1 else {})
     provider.assess = assess
     client = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path), provider, repository=repository_factory(None), auth_client=client)
+    app = create_app(settings_for(tmp_path, **settings), provider, repository=repository_factory(None), auth_client=client)
     yield AccountClient(app, provider, 'valid-a'), AccountClient(app, provider, 'valid-b'), calls
     app.state.repository.close()
     asyncio.run(client.aclose())
+
+
+@pytest.fixture
+def accounts(tmp_path, repository_factory):
+    yield from accounts_with(tmp_path, repository_factory)
 
 
 @pytest.mark.parametrize('path', ['/api/profile', '/api/exercises/current', '/api/history',

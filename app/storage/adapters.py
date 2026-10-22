@@ -15,11 +15,11 @@ from app.storage.repository import SQLProgressRepository, profile_values, utcnow
 from app.models import Evaluation, EvidenceEvaluation, Adaptation
 
 
-SCHEMA_VERSION = 6
-# Schema 6 (AUD-47) is optional for Postgres until AUDLI_LESSON_LIMIT_MODE is not off, so mode=off
+SCHEMA_VERSION = 7
+# Schema 7 (AUD-77) is optional for Postgres until AUDLI_REVIEW_IMPROVEMENT_ENABLED is on; schema 6 (AUD-47) is optional for Postgres until AUDLI_LESSON_LIMIT_MODE is not off, so mode=off
 # starts against an unmigrated database exactly as before.
-ACCEPTED_SQLITE_VERSIONS = ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6])
-ACCEPTED_POSTGRES_VERSIONS = ([1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6])
+ACCEPTED_SQLITE_VERSIONS = ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7])
+ACCEPTED_POSTGRES_VERSIONS = ([1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7])
 
 
 def initialize_accent_control(db):
@@ -209,7 +209,7 @@ class PostgresRepository(SQLProgressRepository):
                 stage = 'required table and column validation'
                 inspector = inspect(db)
                 for table in s.metadata.sorted_tables:
-                    if table in s.HOMEWORK_TABLES or table in s.LIMIT_TABLES:
+                    if table in s.HOMEWORK_TABLES or table in s.LIMIT_TABLES or table in s.REVIEW_TABLES:
                         continue  # Optional features validate these only when enabled (mode=off starts on schema 5).
                     names = {column['name'] for column in inspector.get_columns(table.name)}
                     if not set(table.columns.keys()).issubset(names):

@@ -47,6 +47,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     if settings.lesson_limit_mode != 'off':
         database.require_lesson_limit_schema()
     database.limit_mode = settings.lesson_limit_mode
+    if settings.review_improvement_enabled:
+        database.require_review_improvement_schema()
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
     repo = RequestRepository(database if identity is None else None)
     audio_dir = settings.data_dir / 'exercise_audio'
@@ -392,7 +394,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     register_telemetry_routes(app, settings)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
-    register_review_routes(app, repo)
+    register_review_routes(app, repo, settings)
+    from app.improvement_api import register_improvement_routes
+    register_improvement_routes(app, repo, ai, settings)
     register_onboarding_routes(app, repo, ai, lock, settings)
     register_onboarding_reset_routes(app, repo, lock)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio, new_lock)

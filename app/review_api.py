@@ -7,9 +7,11 @@ from app.storage import schema as s
 from app.review import (ReviewDashboard, ReviewSummary, LessonReport, display_zone, lesson_card,
                         passage_report, listening_patterns, insight)
 from app.storage.review import inventory, hydrate
+from app.storage.improvement import live_rows, report_state
+from app.storage.repository import utcnow
 
 
-def register_review_routes(app, repo):
+def register_review_routes(app, repo, settings=None):
     @app.get('/api/review', response_model=ReviewDashboard)
     async def dashboard(timezone: Annotated[str | None, Query(max_length=100)] = None,
                         cursor: Annotated[str | None, Query(max_length=100)] = None,
@@ -52,4 +54,11 @@ def register_review_routes(app, repo):
             hydrate(repo, db, [entry], answers=True)
             if not entry.completed and not entry.passages:
                 raise HTTPException(404, 'Lesson report not found.')
-        return LessonReport(lesson=lesson_card(entry), passages=[passage_report(row) for row in entry.passages])
+            enabled = bool(settings and settings.review_improvement_enabled)
+            if enabled:  # One owner-filtered batched read; never a provider call and never a write.
+                stored = live_rows(repo, db, [row['exercise_id'] for row in entry.passages])
+                for row in entry.passages:
+                    row['improvement_row'] = stored.get(row['exercise_id'])
+        at = getattr(app.state, 'review_clock', utcnow)()
+        return LessonReport(lesson=lesson_card(entry), passages=[passage_report(row,
+            report_state(row, settings.min_transcription_confidence, at) if enabled else None) for row in entry.passages])

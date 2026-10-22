@@ -1,6 +1,7 @@
 from typing import Protocol
 from app.onboarding import ProfileExtraction
 from app.lesson import CheckinReply
+from app.improvement import LanguageCoaching, MeaningCheck
 from app.models import ExerciseContent, EvaluationJudgments, LearnerProfile, Transcription, EvidenceAssessment, ConversationTurn
 
 class AIProvider(Protocol):
@@ -14,3 +15,6 @@ class AIProvider(Protocol):
 
     async def extract_profile(self, stage: str, text: str) -> ProfileExtraction: ...
     async def respond_checkin(self, text: str) -> CheckinReply: ...
+
+    async def coach_language(self, text: str) -> LanguageCoaching: ...
+    async def check_meaning(self, original: str, improved: str) -> MeaningCheck: ...

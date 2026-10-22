@@ -75,7 +75,7 @@ def attach_answers(repo, db, passages: list[dict]):
     by_exercise: dict[str, list[dict]] = {exercise_id: [] for exercise_id in ids}
     if ids:
         turns = db.execute(select(s.turns.c.exercise_id, s.turns.c.attempt_id, s.turns.c.confirmed_text,
-            s.followups.c.question, s.attempts.c.transcription)
+            s.followups.c.question, s.attempts.c.transcription, s.attempts.c.confirmed_text.label('attempt_confirmed'))
             .select_from(s.turns.join(s.exercises, s.exercises.c.id == s.turns.c.exercise_id)
                 .join(s.attempts, s.attempts.c.id == s.turns.c.attempt_id)
                 .outerjoin(s.followups, s.followups.c.id == s.turns.c.followup_id))
@@ -83,10 +83,11 @@ def attach_answers(repo, db, passages: list[dict]):
             .order_by(s.turns.c.exercise_id, s.turns.c.position)).mappings()
         for turn in turns:
             by_exercise[turn['exercise_id']].append({'attempt_id': turn['attempt_id'], 'question': turn['question'],
-                'text': turn['confirmed_text'], 'uncertain': uncertain(turn['transcription'])})
+                'text': turn['confirmed_text'], 'uncertain': uncertain(turn['transcription']),
+                'transcription': turn['transcription']})
     for row in passages:
         saved = by_exercise[row['exercise_id']]
         if not saved and row.get('root_text'):
             saved = [{'attempt_id': row['root_attempt'], 'question': None, 'text': row['root_text'],
-                      'uncertain': uncertain(row.get('root_transcription'))}]
+                      'uncertain': uncertain(row.get('root_transcription')), 'transcription': row.get('root_transcription')}]
         row['answers'] = saved

@@ -295,6 +295,14 @@ dd .text-button { display: block; padding-left: 0; }
 .review-hub .review-evidence-group li { margin-top: 12px; }
 .review-hub blockquote { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid var(--line); font-size: 13px; }
 .review-hub .review-answer + .review-answer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.review-hub .review-improvement { margin-top: 12px; display: grid; gap: 8px; }
+.review-hub .review-improved { display: grid; gap: 8px; padding: 14px; border-radius: 14px; background: var(--soft-blue); min-width: 0; }
+.review-hub .review-improved h4 { margin: 8px 0 0; font-size: 14px; color: var(--navy); }
+.review-hub .review-improved h4:first-child { margin-top: 0; }
+.review-hub .review-diff { overflow-wrap: anywhere; line-height: 1.7; color: var(--navy); }
+.review-hub .review-diff del { text-decoration: line-through; text-decoration-thickness: 2px; color: #9b1c1c; background: #fde8e8; }
+.review-hub .review-diff ins { text-decoration: underline; text-decoration-thickness: 2px; font-weight: 650; color: #065f46; background: #def7ec; }
+.review-hub .review-why { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .review-hub .review-script { white-space: pre-wrap; color: var(--navy); }
 .review-hub .review-error { background: var(--soft-coral); }
 .review-hub .text-button { max-width: 100%; text-align: left; }

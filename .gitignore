@@ -11,3 +11,8 @@ web/*.tsbuildinfo
 
 web/test-results/
 web/playwright-report/
+
+# AUD-47 migration tooling: never commit credentials, backups or run manifests
+*.dump
+migration006.env
+.config/audli/

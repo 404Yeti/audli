@@ -13,6 +13,7 @@ CREATE TABLE review_improvements (
 	notes JSONB,
 	rejection VARCHAR(40),
 	model VARCHAR(60),
+	repaired BOOLEAN DEFAULT false NOT NULL,
 	prompt_version VARCHAR(20) NOT NULL,
 	claimed_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	finished_at TIMESTAMP WITH TIME ZONE,
@@ -26,7 +27,7 @@ CREATE TABLE review_improvements (
 
 CREATE INDEX improvements_by_learner_claim ON review_improvements (user_id, claimed_at);
 
-CREATE UNIQUE INDEX one_live_improvement_per_exercise ON review_improvements (exercise_id) WHERE status IN ('pending', 'ready', 'rejected');
+CREATE UNIQUE INDEX one_active_improvement_per_exercise ON review_improvements (exercise_id) WHERE status IN ('pending', 'ready');
 
 ALTER TABLE review_improvements ENABLE ROW LEVEL SECURITY;
 

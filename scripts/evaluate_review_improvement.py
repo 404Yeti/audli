@@ -50,14 +50,18 @@ class ScriptedProvider:
     def __init__(self, case, lenient):
         self.case, self.lenient, self.sent, self.coach_calls, self.check_calls = case, lenient, [], 0, 0
 
-    async def coach_language(self, text):
+    async def coach_language(self, text, repair=None):
         self.coach_calls += 1
         self.sent.append(text)
+        if repair is not None:
+            self.sent.append(repair)
         error = self.case.get('error')
         if error == 'timeout':
             raise TimeoutError()
         if error == 'malformed':
             raise ValueError('Provider returned incomplete structured output')
+        if repair is not None and self.case.get('repair_candidate'):
+            return LanguageCoaching.model_validate(self.case['repair_candidate'])
         return LanguageCoaching.model_validate(self.case['candidate'])
 
     async def check_meaning(self, original, improved):

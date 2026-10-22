@@ -19,10 +19,32 @@ from pydantic import Field
 
 from app.models import StrictModel
 
-PROMPT_VERSION = 'v1'
+PROMPT_VERSION = 'v2'  # v2: adds the optional application formatting reminder used by the single automatic repair
 MIN_SOURCE_WORDS = 4
 MAX_SOURCE_CHARS = 1200
 MAX_NOTES = 2
+RETRY_CAP = 2  # Rejected results per exercise per prompt version: the first attempt plus ONE learner-initiated retry.
+
+# Narrowly defined formatting failures: the model's edits were not covered by its notes. Nothing here says the MEANING is
+# wrong, so one automatic repair is safe. Every meaning-protective rejection (negation, modality, quantity, comparison,
+# certainty, causality, entities, added/removed content, the independent comparison) is never retried automatically:
+# retrying until the comparison agrees would compound its false-accept probability.
+FORMAT_FAILURES = frozenset({'unexplained_changes', 'note_not_grounded', 'inconsistent_notes'})
+REPAIR_REMINDER = ('Your previous suggestion could not be shown because an edit was not covered by a note. Return a corrected '
+                   'suggestion: every edit must be covered by one of at most two notes whose before and after are verbatim phrases '
+                   'from the original and from your improved text. If that is not possible, make fewer edits or return the '
+                   'original unchanged.')
+LAYERS = {
+    'meaning_not_preserved': '1', 'information_added': '1',
+    'length_changed': '2', 'too_many_notes': '2', 'inconsistent_notes': '2', 'unexplained_changes': '2', 'note_not_grounded': '2',
+    'too_many_changes': '2', 'content_added': '2', 'content_removed': '2',
+    'negation_changed': '3', 'modality_changed': '3', 'quantity_changed': '3', 'comparison_changed': '3', 'certainty_changed': '3',
+    'causality_changed': '3', 'entity_changed': '3', 'meaning_check_failed': '4',
+}
+
+
+def rejection_layer(code: str | None) -> str | None:
+    return LAYERS.get(code) if code else None
 
 
 class Note(StrictModel):
@@ -53,6 +75,7 @@ class ImprovementState(StrictModel):
     """What Review shows. `improved_text` exists only when every layer accepted it."""
     state: Literal['unavailable', 'available', 'pending', 'ready', 'rejected']
     reason: str | None = None
+    retry_available: bool = False  # A rejected result may be tried once more (it uses one of the daily suggestions).
     improved_text: str | None = None
     unchanged: bool = False
     notes: list[Note] = Field(default_factory=list)
@@ -425,19 +448,27 @@ class Outcome:
     notes: list[dict] = field(default_factory=list)
     rejection: str | None = None
     verified: bool = False  # True when layer 4 (the independent comparison) was consulted and agreed.
+    repaired: bool = False  # True when the single automatic formatting repair was used.
 
 
 async def coach(provider, text: str) -> Outcome:
-    """The one decision path shared by the API and the evaluation harness. Provider errors propagate to the caller."""
+    """The one decision path shared by the API and the evaluation harness. Provider errors propagate to the caller.
+
+    At most ONE automatic repair, only for FORMAT_FAILURES. Worst case per attempt: two coach calls and one comparison."""
+    repaired = False
     coaching = await provider.coach_language(text)
     rejection = reject_reason(text, coaching)
+    if rejection in FORMAT_FAILURES:
+        repaired = True
+        coaching = await provider.coach_language(text, repair=REPAIR_REMINDER)
+        rejection = reject_reason(text, coaching)
     if rejection is not None:
-        return Outcome('rejected', rejection=rejection)
+        return Outcome('rejected', rejection=rejection, repaired=repaired)
     improved = coaching.improved_text.strip()
     verified = False
     if not is_unchanged(text, improved):
         # Layer 4: an independent comparison of the two texts. Both texts only, never the passage.
         if not (await provider.check_meaning(text, improved)).same_meaning:
-            return Outcome('rejected', rejection='meaning_check_failed')
+            return Outcome('rejected', rejection='meaning_check_failed', repaired=repaired)
         verified = True
-    return Outcome('ready', improved_text=improved, notes=[n.model_dump(mode='json') for n in coaching.notes], verified=verified)
+    return Outcome('ready', improved_text=improved, notes=[n.model_dump(mode='json') for n in coaching.notes], verified=verified, repaired=repaired)

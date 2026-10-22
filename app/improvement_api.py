@@ -19,6 +19,7 @@ from time import perf_counter
 from uuid import UUID
 
 from fastapi import HTTPException
+from pydantic import StrictBool
 from fastapi.responses import JSONResponse
 
 from app.improvement import PROMPT_VERSION, ImprovementState, eligibility, coach, rejection_layer
@@ -33,7 +34,7 @@ FAILED = "Audli couldn't improve this answer right now. Try again in a moment."
 
 
 class ImproveRequest(StrictModel):
-    retry: bool = False
+    retry: StrictBool = False
 
 
 def _error(status: int, code: str, detail: str):

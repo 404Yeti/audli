@@ -33,7 +33,7 @@ def good(text):
 class Coach(FakeProvider):
     """Programmable coaching provider that records exactly what it was sent."""
     def __init__(self):
-        self.coached, self.checked, self.repairs = [], [], []
+        self.coached, self.checked, self.repairs, self.queue = [], [], [], []
         self.coaching = good
         self.same = True
         self.error = None
@@ -47,6 +47,11 @@ class Coach(FakeProvider):
             self.during()
         if self.delay:
             await asyncio.sleep(self.delay)
+        if self.queue:  # A scripted sequence: each item is a LanguageCoaching, a callable(text) or an exception to raise.
+            item = self.queue.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item(text) if callable(item) else item
         if self.error:
             raise self.error
         return self.coaching(text)

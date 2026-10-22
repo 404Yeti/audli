@@ -9,7 +9,7 @@ import pytest
 from app.improvement import LanguageCoaching
 from scripts import evaluate_review_improvement as harness
 
-REQUIRED = {'grammar', 'natural', 'vocabulary', 'comprehension', 'uncertain', 'negation', 'modality', 'quantity', 'comparison',
+REQUIRED = {'repair', 'grammar', 'natural', 'vocabulary', 'comprehension', 'uncertain', 'negation', 'modality', 'quantity', 'comparison',
             'certainty', 'causality', 'entity', 'added_fact', 'removed_fact', 'synonym_swap', 'too_short', 'too_long', 'provider_error'}
 
 
@@ -48,11 +48,22 @@ def test_no_candidate_that_changes_meaning_is_ever_accepted_and_ineligible_input
 
 def test_known_strictness_is_pinned_so_changes_in_either_direction_are_noticed(report):
     s = report['scripted_verifier']
-    assert s['legitimate_corrections']['acceptance_rate'] >= .85
-    assert {r['id'] for r in s['legitimate_corrections']['false_rejections']} <= {'v04', 'u06'}
+    assert s['legitimate_corrections']['acceptance_rate'] >= .8
+    assert {r['id'] for r in s['legitimate_corrections']['false_rejections']} <= {'v04', 'u06', 'r02'}
     # What only the independent comparison can catch: removal, noun swaps and a fact fixed through vocabulary.
     assert report['caught_only_by_layer_4'] == ['c05', 'm22', 'm23', 'm24']
     assert set(report['lenient_verifier_worst_case']['meaning_changing_candidates']['accepted_FALSE_ACCEPTS']) == set(report['caught_only_by_layer_4'])
+
+
+def test_the_automatic_repair_is_bounded_and_never_hides_a_meaning_change(report):
+    s = report['scripted_verifier']
+    assert s['automatic_repair'] == {'used': 3, 'recovered': 1, 'max_coach_calls_per_case': 2}   # never a third call
+    by_id = {r['id']: r for r in report['per_case']}
+    assert by_id['r01']['outcome'] == 'accepted' and by_id['r01']['coach_calls'] == 2
+    assert by_id['r02']['outcome'] == 'rejected' and by_id['r02']['code'] == 'unexplained_changes' and by_id['r02']['coach_calls'] == 2
+    assert by_id['r03']['outcome'] == 'rejected' and by_id['r03']['code'] == 'certainty_changed' and by_id['r03']['check_calls'] == 0
+    assert all(r['coach_calls'] <= 2 and r['check_calls'] <= 1 for r in report['per_case'])
+    assert by_id['r01']['usd'] > by_id['g01']['usd']          # the repair call is paid for in the estimate
 
 
 def test_results_are_deterministic_apart_from_timing(cases, report):

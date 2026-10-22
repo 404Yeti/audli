@@ -4,7 +4,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update, and_, func
+from sqlalchemy import select, update, and_, case, func
 from sqlalchemy.exc import IntegrityError
 
 from app.improvement import ImprovementState, Note, view, source_hash, eligibility, available_state, RETRY_CAP
@@ -29,6 +29,13 @@ class Claim:
     retry_available: bool = False   # For a stored rejected result: another attempt is permitted.
 
 
+def recency(table):
+    """Ordering for 'the latest result': by claim time, and at the same instant a suggestion or an attempt in progress
+    outranks a rejection, so the answer never depends on a random identifier."""
+    rank = case((table.c.status == 'ready', 2), (table.c.status == 'pending', 1), else_=0)
+    return (table.c.claimed_at, rank, table.c.id)
+
+
 def rejected_count(db, owner, exercise_id, prompt_version):
     table = s.review_improvements
     return db.execute(select(func.count()).select_from(table).where(and_(table.c.user_id == owner, table.c.exercise_id == exercise_id,
@@ -39,7 +46,7 @@ def current_row(db, owner, exercise_id):
     """The latest pending, ready or rejected row: an exercise may hold older rejected attempts and a later result."""
     table = s.review_improvements
     row = db.execute(select(table).where(and_(table.c.exercise_id == exercise_id, table.c.user_id == owner, table.c.status.in_(LIVE)))
-        .order_by(table.c.claimed_at.desc(), table.c.id.desc()).limit(1)).mappings().first()
+        .order_by(*[column.desc() for column in recency(table)]).limit(1)).mappings().first()
     return dict(row) if row else None
 
 
@@ -146,7 +153,7 @@ def live_rows(repo, db, exercise_ids: list[str], prompt_version: str) -> dict[st
         return {}
     table = s.review_improvements
     rows = db.execute(select(table).where(and_(table.c.user_id == repo.learner_id, table.c.exercise_id.in_(exercise_ids),
-        table.c.status.in_(LIVE))).order_by(table.c.claimed_at, table.c.id)).mappings().all()
+        table.c.status.in_(LIVE))).order_by(*recency(table))).mappings().all()
     current = {row['exercise_id']: dict(row) for row in rows}      # The latest claim per exercise wins (ordered ascending).
     rejected = Counter(row['exercise_id'] for row in rows if row['status'] == 'rejected' and row['prompt_version'] == prompt_version)
     for exercise_id, row in current.items():

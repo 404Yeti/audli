@@ -354,3 +354,89 @@ def test_malformed_cross_owner_link_cannot_expose_or_hide_another_learners_histo
     assert b.get('/api/review').json()['summary']['earlier_practice'] == 1
     assert b.get(f'/api/review/earlier_practice/{other_session}').json()['passages'][0]['exercise_id'] == other_ids[0]
     assert a.get(f'/api/review/earlier_practice/{other_session}').status_code == 404
+
+
+def add_turns(repo, exercise_id, answers):
+    """Accepted conversation turns: the summary, then follow-up answers with their asked question."""
+    with repo.transaction() as db:
+        root = db.execute(select(s.attempts.c.id).where(s.attempts.c.exercise_id == exercise_id)).scalar_one()
+        for position, (text, question, uncertainty) in enumerate(answers):
+            attempt_id = root if position == 0 else str(uuid4())
+            if position:
+                db.execute(s.attempts.insert().values(id=attempt_id, exercise_id=exercise_id, transcription={'text': text},
+                    recognized_text=text, transcription_source='openai', status='transcribed', created_at=dt('2026-10-01T00:00:01Z')))
+            db.execute(update(s.attempts).where(s.attempts.c.id == attempt_id).values(
+                transcription={'text': text, 'uncertainty': uncertainty}, confirmed_text=text))
+            followup_id = None
+            if question:
+                followup_id = str(uuid4())
+                db.execute(s.followups.insert().values(id=followup_id, exercise_id=exercise_id, position=position - 1,
+                    dimension='details', unit_index=0, question=question, created_at=dt('2026-10-01T00:00:01Z')))
+            db.execute(s.turns.insert().values(attempt_id=attempt_id, exercise_id=exercise_id, followup_id=followup_id,
+                position=position, confirmed_text=text, created_at=dt('2026-10-01T00:00:02Z')))
+        return root
+
+
+def test_saved_answers_are_ordered_labeled_and_only_in_the_owned_report(review_client, exercise):
+    client, repo = review_client
+    entry_id, ids = seed(repo, exercise)
+    root = add_turns(repo, ids[0], [('She change meeting to Monday', None, []),
+        ('It start at ten', 'When does it start?', ['Speech recognition was uncertain; please verify or record again.'])])
+    report = client.get(f'/api/review/lesson/{entry_id}')
+    answers = report.json()['passages'][0]['answers']
+    assert [a['text'] for a in answers] == ['She change meeting to Monday', 'It start at ten']
+    assert [a['question'] for a in answers] == [None, 'When does it start?']
+    assert [a['uncertain'] for a in answers] == [False, True]
+    assert answers[0]['attempt_id'] == root
+    # Original wording and grammar are preserved; no correction is applied or generated.
+    assert set(answers[0]) == {'attempt_id', 'question', 'text', 'uncertain'}
+    assert exercise.script not in report.text
+    assert 'She change meeting to Monday' not in client.get('/api/review').text
+
+
+def test_older_records_fall_back_to_the_evaluated_response_or_show_nothing(review_client, exercise):
+    client, repo = review_client
+    entry_id, ids = seed(repo, exercise)
+    answers = client.get(f'/api/review/lesson/{entry_id}').json()['passages'][0]['answers']
+    assert [a['text'] for a in answers] == ['She change meeting Monday'] and answers[0]['question'] is None
+    with repo.transaction() as db:
+        db.execute(update(s.attempts).where(s.attempts.c.exercise_id == ids[0]).values(confirmed_text=None))
+    assert client.get(f'/api/review/lesson/{entry_id}').json()['passages'][0]['answers'] == []
+
+
+def test_saved_answers_are_isolated_between_learners_and_never_unevaluated(accounts, exercise):
+    a, b, calls = accounts
+    a.get('/api/profile'); b.get('/api/profile')
+    owner = a.app.state.repository.for_learner(USER_A)
+    entry_id, ids = seed(owner, exercise)
+    add_turns(owner, ids[0], [('Private answer about a doctor visit', None, [])])
+    assert 'Private answer' in a.get(f'/api/review/lesson/{entry_id}').text
+    for path in ('/api/review', f'/api/review/lesson/{entry_id}'):
+        assert 'Private answer' not in b.get(path).text
+    assert b.get(f'/api/review/lesson/{entry_id}').status_code == 404
+    with owner.transaction() as db:
+        db.execute(update(s.attempts).where(s.attempts.c.exercise_id == ids[0]).values(status='transcribed'))
+    assert 'Private answer' not in a.get(f'/api/review/lesson/{entry_id}').text
+    assert calls == []
+
+
+def test_answers_do_not_change_state_or_add_per_passage_queries(review_client, exercise):
+    client, repo = review_client
+    entry_id, _ = seed(repo, exercise, count=5)
+    before = repo.profile()
+    queries = []
+    def record(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+    event.listen(repo.engine, 'before_cursor_execute', record)
+    try:
+        assert client.get(f'/api/review/lesson/{entry_id}').status_code == 200
+        five = len(queries)
+        queries.clear()
+        single, _ = seed(repo, exercise, count=1)
+        queries.clear()
+        assert client.get(f'/api/review/lesson/{single}').status_code == 200
+        assert five == len(queries)
+        assert all('audio_assets.data' not in query for query in queries)
+    finally:
+        event.remove(repo.engine, 'before_cursor_execute', record)
+    assert repo.profile() == before

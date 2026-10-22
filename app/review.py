@@ -28,6 +28,14 @@ class ReviewUnit(StrictModel):
     evidence: str | None
 
 
+class SavedAnswer(StrictModel):
+    """One saved spoken response, shown only for an evaluated passage. Never the script or expected answers."""
+    attempt_id: str
+    question: str | None
+    text: str
+    uncertain: bool
+
+
 class PassageReport(StrictModel):
     exercise_id: str
     title: str
@@ -36,6 +44,7 @@ class PassageReport(StrictModel):
     accent: str | None
     accent_fallback: bool
     units: list[ReviewUnit]
+    answers: list[SavedAnswer]
     assessment_available: bool
     saved_feedback: str | None
     next_focus: str
@@ -199,6 +208,17 @@ def lesson_card(entry: Entry) -> ReviewLesson:
         assessed_passages=len(entry.passages))
 
 
+def saved_answers(row: dict) -> list[SavedAnswer]:
+    """Learner responses in order. Missing or blank history yields nothing, never reconstructed text."""
+    answers = []
+    for item in row.get('answers') or []:
+        body = text(item.get('text'))
+        if body:
+            answers.append(SavedAnswer(attempt_id=item['attempt_id'], question=text(item.get('question')),
+                text=body, uncertain=bool(item.get('uncertain'))))
+    return answers
+
+
 def passage_report(row: dict) -> PassageReport:
     content, evaluation = row['content'] or {}, row.get('evaluation') or {}
     units, complete = interpreted_units(row)
@@ -207,7 +227,7 @@ def passage_report(row: dict) -> PassageReport:
     return PassageReport(exercise_id=row['exercise_id'], title=text(content.get('title')) or 'Listening passage',
         topic=text(content.get('topic')), level=content.get('vocabulary_level') if content.get('vocabulary_level') in ('A2', 'B1', 'B2', 'C1') else None,
         accent=accent if accent != 'default' else None, accent_fallback=bool(voice.get('fallback')),
-        units=units, assessment_available=complete, saved_feedback=text(evaluation.get('feedback')),
+        units=units, answers=saved_answers(row), assessment_available=complete, saved_feedback=text(evaluation.get('feedback')),
         next_focus=recommendation(units), adaptation_reason=text((row.get('adaptation') or {}).get('reason')),
         transcript_url=f"/api/exercises/{row['exercise_id']}/transcript",
         audio_url=f"/api/exercises/{row['exercise_id']}/audio" if row['audio_available'] else None)

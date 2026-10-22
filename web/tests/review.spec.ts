@@ -14,6 +14,8 @@ const report: LessonReport = { lesson: first, passages: [{ exercise_id: 'exercis
     { dimension: 'details', index: 0, status: 'partial', meaning: 'The meeting moved to Monday morning.', evidence: 'Monday' },
     { dimension: 'details', index: 1, status: 'misunderstood', meaning: 'It starts at nine.', evidence: 'It starts ten.' },
     { dimension: 'inference', index: 0, status: 'not_demonstrated', meaning: 'The room needed repairs.', evidence: null }],
+  answers: [{ attempt_id: 'attempt-one', question: null, text: 'They change meeting to Monday.', uncertain: false },
+    { attempt_id: 'attempt-two', question: 'When does it start?', text: 'It starts ten.', uncertain: true }],
   assessment_available: true, saved_feedback: 'Saved feedback from this assessment.', next_focus: 'Replay to check the supporting details.', adaptation_reason: 'Evidence remains incomplete; keep difficulty stable.',
   transcript_url: '/api/exercises/exercise-one/transcript', audio_url: '/api/exercises/exercise-one/audio' }] };
 
@@ -41,7 +43,7 @@ async function setup(page: Page, options: Options = {}) {
       return route.fulfill({ json: data });
     }
     if (path === '/api/review/lesson/lesson-one') return route.fulfill({ json: report });
-    if (path === '/api/review/lesson/lesson-old') return route.fulfill({ json: { lesson: older, passages: [{ ...report.passages[0], exercise_id: 'exercise-old', title: 'Earlier passage', units: [], assessment_available: false, saved_feedback: null, audio_url: null, transcript_url: '/api/exercises/exercise-old/transcript' }] } });
+    if (path === '/api/review/lesson/lesson-old') return route.fulfill({ json: { lesson: older, passages: [{ ...report.passages[0], exercise_id: 'exercise-old', title: 'Earlier passage', units: [], answers: [], assessment_available: false, saved_feedback: null, audio_url: null, transcript_url: '/api/exercises/exercise-old/transcript' }] } });
     if (path.endsWith('/transcript')) { transcripts++; return route.fulfill({ json: { title: 'Original passage', script: 'The team changed the meeting to Monday at nine.' } }); }
     if (path.endsWith('/audio')) { replays++; return options.staleAudio ? route.fulfill({ status: 404, json: { detail: 'Audio missing.' } }) : route.fulfill({ contentType: 'audio/wav', body: promptWav() }); }
     return route.fulfill({ status: 404, json: { detail: 'Unexpected request' } });
@@ -75,6 +77,39 @@ test('overview, detail, independent transcript toggle, replay and back navigatio
   await expect(page.getByRole('button', { name: /A change to the Monday meeting/ })).toBeFocused();
   await expect(page.getByText('The team changed the meeting to Monday at nine.')).toHaveCount(0);
   expect(fixture.writes).toEqual([]);
+});
+
+test('shows the saved response as what Audli heard, verbatim and without corrections', async ({ page }) => {
+  const fixture = await setup(page);
+  await page.getByRole('button', { name: /A change to the Monday meeting/ }).click();
+  const heard = page.getByRole('region', { name: 'What Audli heard' });
+  await expect(heard.getByRole('heading', { name: 'What Audli heard' })).toBeVisible();
+  await expect(heard).toContainText('They change meeting to Monday.');
+  await expect(heard).toContainText('In reply to: When does it start?');
+  await expect(heard).toContainText('It starts ten.');
+  await expect(heard).toContainText('may differ from what you said');
+  await expect(heard.getByText(/Speech recognition was unsure/)).toHaveCount(1);
+  await expect(heard.getByRole('button')).toHaveCount(0);
+  await expect(page.getByText(/improved|corrected|better way to say/i)).toHaveCount(0);
+  expect(fixture.writes).toEqual([]);
+});
+
+test('a report from an API without saved answers still renders and shows no heard section', async ({ page }) => {
+  await setup(page);
+  await page.route('**/api/review/lesson/lesson-one', async route => {
+    const legacy = structuredClone(report); delete (legacy.passages[0] as { answers?: unknown }).answers;
+    return route.fulfill({ json: legacy });
+  });
+  await page.getByRole('button', { name: /A change to the Monday meeting/ }).click();
+  await expect(page.getByRole('heading', { name: 'What you understood well' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'What Audli heard' })).toHaveCount(0);
+});
+
+test('older lessons without a saved response say so and never invent one', async ({ page }) => {
+  await setup(page);
+  await page.getByRole('button', { name: 'Show older lessons' }).click();
+  await page.getByRole('button', { name: /Earlier listening lesson/ }).click();
+  await expect(page.getByRole('region', { name: 'What Audli heard' })).toContainText("Your saved response isn't available for this older lesson.");
 });
 
 test('patterns are qualitative and insufficient evidence is explicit', async ({ page }) => {

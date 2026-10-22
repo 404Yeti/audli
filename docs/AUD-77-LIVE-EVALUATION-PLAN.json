@@ -24,7 +24,7 @@
   "coach": 700,
   "comparison": 60
  },
- "worst_case_reservation_usd": 0.2099,
+ "worst_case_reservation_usd": 0.3547,
  "hard_cap_usd": 1.0,
  "categories": {
   "causality": 3,
@@ -1128,6 +1128,6 @@
   "max_usd": "<= 1.0 (cannot exceed the in-code cap)",
   "max_requests": ">= 153 and <= 400",
   "repeats": 1,
-  "worst_case_reservation_usd": 0.2099
+  "worst_case_reservation_usd": 0.3547
  }
 }

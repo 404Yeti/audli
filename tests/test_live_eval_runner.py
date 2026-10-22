@@ -324,3 +324,41 @@ def test_the_live_runner_uses_the_production_prompts_and_decision_path():
     assert runner.COACH_PROMPT is COACH_PROMPT and runner.MEANING_PROMPT is MEANING_PROMPT
     assert runner.coach.__module__ == 'app.improvement' and runner.OpenAIProvider.__module__ == 'app.services.openai_provider'
     assert issubclass(runner.GuardedProvider, runner.OpenAIProvider)
+
+
+# ------------------------------------------------------------------------------------------------ the ceiling is a bound, not an average
+def test_every_reservation_covers_one_token_per_utf8_byte_at_the_full_output_cap():
+    """Byte-level BPE cannot emit more tokens than bytes, so this is a ceiling for any text, including non-ASCII."""
+    from app.improvement import MAX_SOURCE_CHARS
+    texts = [c['source'] for c in runner.load_cases()] + ['é' * MAX_SOURCE_CHARS, '日本語' * (MAX_SOURCE_CHARS // 3), '😀' * (MAX_SOURCE_CHARS // 2), '1234567890 ' * (MAX_SOURCE_CHARS // 11)]
+    for text in texts:
+        for call, system, cap in (('coach', runner.COACH_PROMPT, runner.COACH_MAX_OUTPUT_TOKENS), ('repair', runner.COACH_PROMPT, runner.COACH_MAX_OUTPUT_TOKENS), ('check', runner.MEANING_PROMPT, runner.CHECK_MAX_OUTPUT_TOKENS)):
+            payload = json.dumps({'learner_text': text, 'original': text, 'improved': text})
+            absolute_worst = runner.usd(len((system + payload).encode()), cap)               # one token per byte, no framing, full output
+            assert runner.request_reservation(payload, call) >= absolute_worst
+
+
+def test_a_provider_billing_the_absolute_maximum_on_every_request_still_cannot_pass_the_cap(tmp_path):
+    """Usage at exactly each request's reserved worst case, every time: the run must end at or under $1 without an overrun."""
+    class Maximum(Server):
+        def envelope(self, payload):
+            self._last = payload
+            return super().envelope(payload)
+
+        async def handle(self, request):
+            body = json.loads(request.content)
+            call = 'check' if 'original' in json.loads(body['input'][1]['content']) else 'coach'
+            worst = runner.request_reservation(body['input'][1]['content'], call)
+            ceiling = runner.COACH_MAX_OUTPUT_TOKENS if call == 'coach' else runner.CHECK_MAX_OUTPUT_TOKENS
+            self.usage = (max(1, int((worst - runner.usd(0, ceiling)) * 1e6 / runner.PRICE_IN)), ceiling)   # exactly the reservation, rounded down
+            return await super().handle(request)
+    server = Maximum()
+    report, out = run(tmp_path, server)
+    assert report['cap_overrun'] is False and report['summary']['cost_usd']['charged_total'] <= runner.HARD_CAP_USD
+    assert report['summary']['cost_usd']['charged_total'] <= runner.plan(repeats=1)['worst_case_reservation_usd'] + 1e-6
+
+
+def test_the_whole_plan_at_its_worst_case_including_every_repair_fits_under_the_cap():
+    plan = runner.plan(repeats=1)
+    assert plan['worst_case_reservation_usd'] < runner.HARD_CAP_USD and plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3
+    assert runner.plan(repeats=2)['worst_case_reservation_usd'] == pytest.approx(2 * plan['worst_case_reservation_usd'], abs=1e-3)

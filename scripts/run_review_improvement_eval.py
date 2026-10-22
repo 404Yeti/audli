@@ -68,8 +68,13 @@ def fixtures_hash(path: Path = FIXTURES) -> str:
     return sha256(path.read_bytes()).hexdigest()
 
 
-def tokens(characters: float) -> float:
-    return characters / 3 + 300  # Deliberately pessimistic for reservations (chars/3 plus framing); real usage replaces it.
+FRAMING_TOKENS = 300  # request envelope, schema and role framing beyond the system prompt and data
+
+
+def tokens(utf8_bytes: float) -> float:
+    """Upper bound on input tokens: a byte-level BPE tokenizer never emits more tokens than UTF-8 bytes (1 token per byte),
+    plus a framing allowance. This is a ceiling, not an average; real usage replaces it once reported."""
+    return utf8_bytes + FRAMING_TOKENS
 
 
 def usd(inputs: float, outputs: float) -> float:
@@ -80,7 +85,7 @@ def request_reservation(text: str, call: str) -> float:
     """Worst-case cost of one request: pessimistic input estimate plus the full output ceiling."""
     system = COACH_PROMPT if call in ('coach', 'repair') else MEANING_PROMPT
     ceiling = COACH_MAX_OUTPUT_TOKENS if call in ('coach', 'repair') else CHECK_MAX_OUTPUT_TOKENS
-    return usd(tokens(len(system) + len(text) + 2400), ceiling)  # 2,400 chars of strict-schema allowance
+    return usd(tokens(len(system.encode()) + len(text.encode()) + 2400), ceiling)  # 2,400 bytes of strict-schema allowance; output is the hard max_output_tokens cap
 
 
 def plan(cases: list[dict] | None = None, repeats: int = 1) -> dict:

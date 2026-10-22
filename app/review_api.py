@@ -49,7 +49,7 @@ def register_review_routes(app, repo):
             entry = next((entry for entry in inventory(repo, db, kind=kind, entry_id=identifier) if entry.kind == kind and entry.id == identifier), None)
             if entry is None:
                 raise HTTPException(404, 'Lesson report not found.')
-            hydrate(repo, db, [entry])
+            hydrate(repo, db, [entry], answers=True)
             if not entry.completed and not entry.passages:
                 raise HTTPException(404, 'Lesson report not found.')
         return LessonReport(lesson=lesson_card(entry), passages=[passage_report(row) for row in entry.passages])

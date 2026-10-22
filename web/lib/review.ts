@@ -3,9 +3,10 @@ export type ReviewLesson = {
   title: string; topics: string[]; levels: string[]; takeaway: string; assessed_passages: number;
 };
 export type ReviewUnit = { dimension: string; index: number; status: 'demonstrated' | 'partial' | 'misunderstood' | 'not_demonstrated'; meaning: string; evidence: string | null };
+export type SavedAnswer = { attempt_id: string; question: string | null; text: string; uncertain: boolean };
 export type PassageReport = {
   exercise_id: string; title: string; topic: string | null; level: string | null; accent: string | null;
-  accent_fallback: boolean; units: ReviewUnit[]; assessment_available: boolean; saved_feedback: string | null;
+  accent_fallback: boolean; units: ReviewUnit[]; answers: SavedAnswer[]; assessment_available: boolean; saved_feedback: string | null;
   next_focus: string; adaptation_reason: string | null; transcript_url: string; audio_url: string | null;
 };
 export type LessonReport = { lesson: ReviewLesson; passages: PassageReport[] };

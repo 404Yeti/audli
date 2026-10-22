@@ -294,6 +294,7 @@ dd .text-button { display: block; padding-left: 0; }
 .review-hub .review-evidence-group ul { padding-left: 20px; margin: 0; }
 .review-hub .review-evidence-group li { margin-top: 12px; }
 .review-hub blockquote { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid var(--line); font-size: 13px; }
+.review-hub .review-answer + .review-answer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .review-hub .review-script { white-space: pre-wrap; color: var(--navy); }
 .review-hub .review-error { background: var(--soft-coral); }
 .review-hub .text-button { max-width: 100%; text-align: left; }

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { LessonLifetime, type LessonOperation } from '../lib/api';
-import { browserTimezone, reviewDate, type ReviewDashboard, type ReviewLesson, type LessonReport, type PassageReport, type ReviewUnit } from '../lib/review';
+import { browserTimezone, reviewDate, type ReviewDashboard, type ReviewLesson, type LessonReport, type PassageReport, type ReviewUnit, type SavedAnswer } from '../lib/review';
 
 const groups: { status: ReviewUnit['status']; title: string; explanation: string }[] = [
   { status: 'demonstrated', title: 'What you understood well', explanation: 'Meaning demonstrated in your responses.' },
@@ -156,6 +156,7 @@ function Passage({ passage }: { passage: PassageReport }) {
   return <article className="review-passage" aria-labelledby={`passage-${passage.exercise_id}`}>
     <h2 id={`passage-${passage.exercise_id}`}>{passage.title}</h2>
     {(passage.level || passage.accent || passage.accent_fallback) && <p>{passage.level && `${passage.level} material`}{passage.accent && ` · Recorded accent: ${passage.accent}`}{passage.accent_fallback && ' · The requested accent was unavailable; the passage used a fallback voice.'}</p>}
+    <HeardAnswers answers={passage.answers}/>
     <div className="review-card">
       {!passage.assessment_available && <p>Detailed assessment unavailable for this passage. Any available saved evidence appears below.</p>}
       {groups.map(group => {
@@ -172,6 +173,20 @@ function Passage({ passage }: { passage: PassageReport }) {
     </div>
     <div className="review-card"><h3>Original recording</h3>{passage.audio_url ? <><button className="text-button" disabled={audioLoading} onClick={() => void replay()}>Replay original passage</button>{audioLoading && <p role="status">Loading original recording…</p>}<OriginalPlayer audio={audio} title={passage.title}/></> : <p>The original recording is no longer available. Your transcript and saved assessment remain accessible.</p>}{audioError && <p role="alert">{audioError}</p>}</div>
   </article>;
+}
+
+/** The saved spoken response, verbatim. Wording and grammar are shown as heard, never corrected here. */
+function HeardAnswers({ answers }: { answers: SavedAnswer[] }) {
+  return <section className="review-card review-heard" aria-label="What Audli heard"><h3>What Audli heard</h3>
+    {answers.length ? <>
+      {answers.map(answer => <div className="review-answer" key={answer.attempt_id}>
+        {answer.question && <p className="review-caption">In reply to: {answer.question}</p>}
+        <p className="review-script">{answer.text}</p>
+        {answer.uncertain && <p className="review-caption">Speech recognition was unsure about this response, so it may differ from what you said.</p>}
+      </div>)}
+      <p className="review-caption">A transcript of your spoken response. It can differ slightly from your exact words.</p>
+    </> : <p>Your saved response isn&apos;t available for this older lesson.</p>}
+  </section>;
 }
 
 function OriginalPlayer({ audio, title }: { audio: RefObject<HTMLAudioElement | null>; title: string }) {

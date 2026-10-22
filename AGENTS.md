@@ -42,6 +42,12 @@ docker compose up --build
 - Version terminal-audio caches so previous evaluator-report audio cannot replay.
 
 
+## Review v2 language coaching (AUD-77)
+- Language coaching (grammar, naturalness, vocabulary) is advisory and may be generated only after a passage is successfully evaluated. It never changes scores, difficulty, adaptation, evidence or learner state.
+- Keep comprehension accuracy and language coaching in separate lanes. Coaching input is the learner's own words only: never pass the script or expected answers, and preserve the learner's intended meaning, including factual mistakes.
+- Saved responses are labeled "What Audli heard" and shown verbatim. Learner recordings stay browser-session-only; no server-side recording retention without an approved retention, privacy and deletion policy.
+- Any corrected-answer synthesis stays behind a disabled flag with its own per-learner daily cap, independent of the daily lesson limit, and holds no account-wide lock across a provider call.
+
 ## Linear project management
 
 Linear is the source of truth for project work.

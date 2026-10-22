@@ -17,7 +17,7 @@
 | Held-out cases | 55 synthetic ESL answers, 20 categories, disjoint from the development set |
 | Sent to a provider | 51 (4 are blocked before any call: too short, too long, two low-confidence recognitions) |
 | Maximum requests | 153 (51 cases × coach + one repair + one comparison); ceiling 400 |
-| Worst-case reservation | $0.35 for the whole plan (every case, repair and comparison) against a $1.00 hard cap |
+| Worst-case reservation | $0.40 for the whole plan (every case, repair and comparison) against a $1.00 hard cap |
 | Expected typical spend | about $0.02 (mock harness estimate ≈ $0.0004 per attempt) |
 | Retries | none; SDK `max_retries=0`; concurrency 1; 30 s timeout |
 
@@ -25,7 +25,7 @@ Categories and every case's reference rewrites and invariants are listed in the 
 
 ## Guarantees enforced in code
 - Synthetic fixtures only. The module imports no storage code and refuses to run if a database or production variable is in the environment.
-- The $1.00 cap is a constant an approval cannot raise. Each request's reservation is a ceiling, not an average: input is counted at one token per UTF-8 byte (a byte-level tokenizer cannot exceed that) plus a framing allowance, and output at the hard `max_output_tokens` cap (700 coach, 60 comparison). It is reserved first; the run stops rather than cross the cap. Usage that exceeds a reservation ends the run and is reported as `cap_overrun`.
+- The $1.00 cap is a constant an approval cannot raise. Each request's reservation is a ceiling, not an average: input is counted at one token per UTF-8 byte (a byte-level tokenizer cannot exceed that) plus a framing allowance, and output at the hard `max_output_tokens` cap (1,000 coach, 60 comparison; applied only by this runner, production coaching sets no cap). It is reserved first; the run stops rather than cross the cap. Usage that exceeds a reservation ends the run and is reported as `cap_overrun`.
 - An fsync'd ledger line is written before every request. An existing ledger blocks a rerun; nothing resumes.
 - A failed or ambiguous request is never resent; its reservation stays charged.
 - The credential is read only after the approval validates. The approval is bound to model, prompt version, fixtures hash, prices, `max_usd ≤ 1`, `max_requests`, and an expiry.

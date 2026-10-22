@@ -362,3 +362,38 @@ def test_the_whole_plan_at_its_worst_case_including_every_repair_fits_under_the_
     plan = runner.plan(repeats=1)
     assert plan['worst_case_reservation_usd'] < runner.HARD_CAP_USD and plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3
     assert runner.plan(repeats=2)['worst_case_reservation_usd'] == pytest.approx(2 * plan['worst_case_reservation_usd'], abs=1e-3)
+
+
+# ------------------------------------------------------------------------------------------------ production behaviour is unchanged
+def test_production_coaching_calls_send_no_output_cap_and_no_usage_sink():
+    """The runner's caps are its own spend bounds: the production provider must not start truncating real learners' coaching."""
+    from types import SimpleNamespace
+
+    from app.config import Settings
+    from app.improvement import LanguageCoaching, MeaningCheck
+    from app.services.openai_provider import OpenAIProvider
+    sent = []
+
+    class Responses:
+        async def parse(self, **kwargs):
+            sent.append(kwargs)
+            parsed = LanguageCoaching(improved_text='x', notes=[], meaning_preserved=True, adds_information=False) if kwargs['text_format'] is LanguageCoaching else MeaningCheck(same_meaning=True)
+            return SimpleNamespace(output_parsed=parsed, usage=SimpleNamespace(input_tokens=1, output_tokens=1), model='m')
+
+    class Client:
+        responses = Responses()
+
+        def with_options(self, **kwargs):
+            return self
+    provider = OpenAIProvider(Settings(_env_file=None, openai_api_key='sk-test'))
+    provider.client = Client()
+    asyncio.run(provider.coach_language('I goed to the shop yesterday'))
+    asyncio.run(provider.check_meaning('I goed to the shop yesterday', 'I went to the shop yesterday'))
+    assert len(sent) == 2 and all('max_output_tokens' not in call for call in sent) and all(call['store'] is False for call in sent)
+
+
+def test_the_guarded_provider_always_applies_the_reserved_output_ceiling(tmp_path):
+    server = Server()
+    run(tmp_path, server)
+    assert server.requests                                     # the handler itself asserts every body carried a max_output_tokens
+    assert runner.COACH_MAX_OUTPUT_TOKENS >= 1000 and runner.CHECK_MAX_OUTPUT_TOKENS == 60

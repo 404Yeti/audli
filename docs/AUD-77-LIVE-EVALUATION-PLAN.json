@@ -21,10 +21,10 @@
  "sdk_max_retries": 0,
  "timeout_seconds": 30,
  "max_output_tokens": {
-  "coach": 700,
+  "coach": 1000,
   "comparison": 60
  },
- "worst_case_reservation_usd": 0.3547,
+ "worst_case_reservation_usd": 0.4036,
  "hard_cap_usd": 1.0,
  "categories": {
   "causality": 3,
@@ -1128,6 +1128,6 @@
   "max_usd": "<= 1.0 (cannot exceed the in-code cap)",
   "max_requests": ">= 153 and <= 400",
   "repeats": 1,
-  "worst_case_reservation_usd": 0.3547
+  "worst_case_reservation_usd": 0.4036
  }
 }

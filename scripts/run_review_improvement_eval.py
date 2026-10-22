@@ -35,7 +35,7 @@ from pathlib import Path
 
 from app.config import Settings
 from app.improvement import PROMPT_VERSION, coach, eligibility, rejection_layer
-from app.services.openai_provider import CHECK_MAX_OUTPUT_TOKENS, COACH_MAX_OUTPUT_TOKENS, COACH_PROMPT, MEANING_PROMPT, OpenAIProvider
+from app.services.openai_provider import COACH_PROMPT, MEANING_PROMPT, OpenAIProvider
 
 FIXTURES = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'review_improvement_heldout.json'
 DEV_FIXTURES = FIXTURES.with_name('review_improvement_cases.json')
@@ -68,6 +68,10 @@ def fixtures_hash(path: Path = FIXTURES) -> str:
     return sha256(path.read_bytes()).hexdigest()
 
 
+# Spend bounds that apply to this runner only; production coaching sets no output cap. 1,000 covers a 1,200-character source's
+# rewrite plus two maximum-length notes with margin, so the cap bounds cost without truncating a legitimate answer.
+COACH_MAX_OUTPUT_TOKENS = 1000
+CHECK_MAX_OUTPUT_TOKENS = 60
 FRAMING_TOKENS = 300  # request envelope, schema and role framing beyond the system prompt and data
 
 
@@ -214,6 +218,7 @@ class GuardedProvider(OpenAIProvider):
     async def structured(self, schema, system: str, data: dict, retries=None, sensitive=False, max_output_tokens=None, usage=None):
         call = 'check' if schema.__name__ == 'MeaningCheck' else 'repair' if 'formatting_reminder' in data else 'coach'
         worst = request_reservation(json.dumps(data), call)
+        max_output_tokens = CHECK_MAX_OUTPUT_TOKENS if call == 'check' else COACH_MAX_OUTPUT_TOKENS   # always the reserved ceiling
         seq = self.ledger.reserve(self.case, call, worst)
         started, usage_list = time.perf_counter(), []
         try:

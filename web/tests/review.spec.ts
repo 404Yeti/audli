@@ -94,6 +94,17 @@ test('shows the saved response as what Audli heard, verbatim and without correct
   expect(fixture.writes).toEqual([]);
 });
 
+test('a report from an API without saved answers still renders and shows no heard section', async ({ page }) => {
+  await setup(page);
+  await page.route('**/api/review/lesson/lesson-one', async route => {
+    const legacy = structuredClone(report); delete (legacy.passages[0] as { answers?: unknown }).answers;
+    return route.fulfill({ json: legacy });
+  });
+  await page.getByRole('button', { name: /A change to the Monday meeting/ }).click();
+  await expect(page.getByRole('heading', { name: 'What you understood well' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'What Audli heard' })).toHaveCount(0);
+});
+
 test('older lessons without a saved response say so and never invent one', async ({ page }) => {
   await setup(page);
   await page.getByRole('button', { name: 'Show older lessons' }).click();

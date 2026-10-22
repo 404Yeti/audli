@@ -156,7 +156,7 @@ function Passage({ passage }: { passage: PassageReport }) {
   return <article className="review-passage" aria-labelledby={`passage-${passage.exercise_id}`}>
     <h2 id={`passage-${passage.exercise_id}`}>{passage.title}</h2>
     {(passage.level || passage.accent || passage.accent_fallback) && <p>{passage.level && `${passage.level} material`}{passage.accent && ` · Recorded accent: ${passage.accent}`}{passage.accent_fallback && ' · The requested accent was unavailable; the passage used a fallback voice.'}</p>}
-    <HeardAnswers answers={passage.answers}/>
+    {passage.answers && <HeardAnswers answers={passage.answers}/>}
     <div className="review-card">
       {!passage.assessment_available && <p>Detailed assessment unavailable for this passage. Any available saved evidence appears below.</p>}
       {groups.map(group => {

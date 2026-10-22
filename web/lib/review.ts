@@ -6,7 +6,7 @@ export type ReviewUnit = { dimension: string; index: number; status: 'demonstrat
 export type SavedAnswer = { attempt_id: string; question: string | null; text: string; uncertain: boolean };
 export type PassageReport = {
   exercise_id: string; title: string; topic: string | null; level: string | null; accent: string | null;
-  accent_fallback: boolean; units: ReviewUnit[]; answers: SavedAnswer[]; assessment_available: boolean; saved_feedback: string | null;
+  accent_fallback: boolean; units: ReviewUnit[]; answers?: SavedAnswer[]; /* absent from an API that predates AUD-77 */ assessment_available: boolean; saved_feedback: string | null;
   next_focus: string; adaptation_reason: string | null; transcript_url: string; audio_url: string | null;
 };
 export type LessonReport = { lesson: ReviewLesson; passages: PassageReport[] };

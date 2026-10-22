@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { LessonLifetime, type LessonOperation } from '../lib/api';
+import { ReviewImprovement } from './review-improvement';
 import { browserTimezone, reviewDate, type ReviewDashboard, type ReviewLesson, type LessonReport, type PassageReport, type ReviewUnit, type SavedAnswer } from '../lib/review';
 
 const groups: { status: ReviewUnit['status']; title: string; explanation: string }[] = [
@@ -156,7 +157,7 @@ function Passage({ passage }: { passage: PassageReport }) {
   return <article className="review-passage" aria-labelledby={`passage-${passage.exercise_id}`}>
     <h2 id={`passage-${passage.exercise_id}`}>{passage.title}</h2>
     {(passage.level || passage.accent || passage.accent_fallback) && <p>{passage.level && `${passage.level} material`}{passage.accent && ` · Recorded accent: ${passage.accent}`}{passage.accent_fallback && ' · The requested accent was unavailable; the passage used a fallback voice.'}</p>}
-    {passage.answers && <HeardAnswers answers={passage.answers}/>}
+    {passage.answers && <HeardAnswers answers={passage.answers}>{passage.improvement && <ReviewImprovement exerciseId={passage.exercise_id} initial={passage.improvement}/>}</HeardAnswers>}
     <div className="review-card">
       {!passage.assessment_available && <p>Detailed assessment unavailable for this passage. Any available saved evidence appears below.</p>}
       {groups.map(group => {
@@ -176,13 +177,14 @@ function Passage({ passage }: { passage: PassageReport }) {
 }
 
 /** The saved spoken response, verbatim. Wording and grammar are shown as heard, never corrected here. */
-function HeardAnswers({ answers }: { answers: SavedAnswer[] }) {
+function HeardAnswers({ answers, children }: { answers: SavedAnswer[]; children?: React.ReactNode }) {
   return <section className="review-card review-heard" aria-label="What Audli heard"><h3>What Audli heard</h3>
     {answers.length ? <>
-      {answers.map(answer => <div className="review-answer" key={answer.attempt_id}>
+      {answers.map((answer, index) => <div className="review-answer" key={answer.attempt_id}>
         {answer.question && <p className="review-caption">In reply to: {answer.question}</p>}
         <p className="review-script">{answer.text}</p>
         {answer.uncertain && <p className="review-caption">Speech recognition was unsure about this response, so it may differ from what you said.</p>}
+        {index === 0 && children}
       </div>)}
       <p className="review-caption">A transcript of your spoken response. It can differ slightly from your exact words.</p>
     </> : <p>Your saved response isn&apos;t available for this older lesson.</p>}

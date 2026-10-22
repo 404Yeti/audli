@@ -74,7 +74,7 @@ def test_real_startup_preserves_all_rows_and_has_no_planner(repository_factory, 
         restarted.close()
 
 
-@pytest.mark.parametrize('versions', [[1], [1, 2], [1, 3], [1, 2, 4], [1, 2, 3, 5], [1, 2, 3, 4, 5, 7], [1, 2, 3, 4, 5, 6, 7]])
+@pytest.mark.parametrize('versions', [[1], [1, 2], [1, 3], [1, 2, 4], [1, 2, 3, 5], [1, 2, 3, 4, 5, 7], [1, 2, 3, 4, 5, 6, 8], [1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 9]])
 def test_incomplete_or_future_ledgers_still_fail_closed(repository_factory, versions):
     repo = repository_factory()
     if repo.engine.dialect.name != 'postgresql':

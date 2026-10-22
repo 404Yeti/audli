@@ -23,6 +23,7 @@ Every repository operation scopes ownership to a verified account UUID in Supaba
 | `turn_assessments`, `assessment_evidence` | Accepted per-turn assessments and queryable unit status/evidence, preserving unknown separately from misunderstanding |
 | `evaluation_results`, `adaptation_events` | Final assessment/coverage/coaching, decision, changed variable, previous score, old/new values, reason, policy, difficulty snapshots and timestamps |
 | `coach_audio`, `audio_assets` | Versioned coaching references and generated lesson/coaching bytes |
+| `review_improvements` (migration 007, AUD-77) | Optional advisory language coaching per evaluated answer: status, improved text, at most two notes, model/prompt version, claim time. The source answer is referenced by hash, never copied. Derived and disposable; see `docs/AUD-77-REVIEW-IMPROVEMENT.md` |
 
 Current state has relational columns. JSONB retains versioned domain snapshots, variable-length interests/situations arrays and string-or-number adaptation values for compatibility and historical context. Snapshots/projections are written together. Final completion atomically saves assessment, adaptation, profile, conversation and session completion. A partial unique index permits one evaluated attempt per exercise; stale adaptation cannot overwrite newer difficulty.
 

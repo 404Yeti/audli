@@ -311,6 +311,7 @@ def test_ledger_is_per_account(repository_factory):
 def downgrade_to_schema5(repo):
     """The production shape before migration 006, produced by the SHIPPED rollback file (docs/postgres-006-rollback.sql)."""
     with repo.engine.begin() as db:
+        db.exec_driver_sql(Path('docs/postgres-007-rollback.sql').read_text())  # AUD-77: schema 7 sits on top of 6
         db.exec_driver_sql(Path('docs/postgres-006-rollback.sql').read_text())
 
 

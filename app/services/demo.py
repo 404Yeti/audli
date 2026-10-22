@@ -10,6 +10,15 @@ SCRIPT = ('On Monday, Maya and her team launched an update to their office sched
           'database. The problem was fixed quickly, but Maya wants better checks to prevent it from happening again.')
 
 class DemoProvider:
+    async def coach_language(self, text):
+        # Synthetic development plumbing only: reports the answer as already natural, never rewrites it.
+        from app.improvement import LanguageCoaching
+        return LanguageCoaching(improved_text=text, notes=[], meaning_preserved=True, adds_information=False)
+
+    async def check_meaning(self, original, improved):
+        from app.improvement import MeaningCheck
+        return MeaningCheck(same_meaning=original.strip() == improved.strip())
+
     async def respond_checkin(self, text):
         from app.lesson import CheckinReply, social_response
         return CheckinReply(text=social_response(text).strip())

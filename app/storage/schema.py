@@ -216,3 +216,30 @@ lesson_entitlements = Table('lesson_entitlements', metadata,
     # Absolute ceiling behind the application cap (12): no code path can exceed it.
     CheckConstraint('grace_actions BETWEEN 0 AND 25', name='entitlement_grace_bounded'))
 LIMIT_TABLES = (lesson_entitlements,)
+
+
+# Migration 007 (AUD-77): advisory language coaching for a saved, evaluated answer. Derived and disposable:
+# nothing here is read by scoring, adaptation or the daily lesson allowance. The source answer is referenced
+# by hash, never copied. One row per claim, so failed or abandoned claims stay visible without owning the
+# exercise, while the partial unique index allows at most one live (pending, ready or rejected) row each.
+review_improvements = Table('review_improvements', metadata,
+    Column('id', identifier, primary_key=True),
+    Column('user_id', identifier, ForeignKey('users.id'), nullable=False),
+    Column('exercise_id', identifier, ForeignKey('exercises.id'), nullable=False),
+    Column('attempt_id', identifier, ForeignKey('attempts.id'), nullable=False),
+    Column('status', String(12), nullable=False),
+    Column('source_hash', String(64), nullable=False),
+    Column('improved_text', Text),
+    Column('notes', document),
+    Column('rejection', String(40)),
+    Column('model', String(60)),
+    Column('prompt_version', String(20), nullable=False),
+    Column('claimed_at', timestamp, nullable=False),
+    Column('finished_at', timestamp),
+    CheckConstraint("status IN ('pending','ready','rejected','failed','abandoned')", name='improvement_status_valid'),
+    CheckConstraint("status <> 'ready' OR (improved_text IS NOT NULL AND notes IS NOT NULL)", name='improvement_ready_complete'))
+Index('one_live_improvement_per_exercise', review_improvements.c.exercise_id, unique=True,
+    sqlite_where=review_improvements.c.status.in_(('pending', 'ready', 'rejected')),
+    postgresql_where=review_improvements.c.status.in_(('pending', 'ready', 'rejected')))
+Index('improvements_by_learner_claim', review_improvements.c.user_id, review_improvements.c.claimed_at)
+REVIEW_TABLES = (review_improvements,)

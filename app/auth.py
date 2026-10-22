@@ -1,6 +1,7 @@
 """Supabase Auth verification and isolated request-scoped repository identities."""
 from contextvars import ContextVar
 import asyncio
+import re
 from hashlib import sha256
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
@@ -63,6 +64,14 @@ class SupabaseIdentity:
 # Authenticated, but never reads or writes learner state, so it must not queue for (or churn
 # connections polling) the per-account save lease while a real step is in flight (AUD-68).
 LEASE_EXEMPT_PATHS = frozenset({'/api/telemetry/turn'})
+# AUD-77: advisory Review coaching calls a provider for seconds. Its handler takes only short, atomic, owner-scoped
+# transactions of its own (claim, completion), so it must not hold the account-wide lease across that call.
+# Exactly one method and one path shape, lowercase canonical UUID; authentication has already succeeded when this applies.
+LEASE_EXEMPT_ROUTES = (('POST', re.compile(r'/api/exercises/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/review/improvement')),)
+
+
+def lease_exempt(method: str, path: str) -> bool:
+    return path in LEASE_EXEMPT_PATHS or any(method == verb and pattern.fullmatch(path) for verb, pattern in LEASE_EXEMPT_ROUTES)
 
 
 class LearnerAuthentication:
@@ -88,7 +97,7 @@ class LearnerAuthentication:
         token = None
         try:
             if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
-                    and scope['path'] not in LEASE_EXEMPT_PATHS):
+                    and not lease_exempt(scope['method'], scope['path'])):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
                 for _ in range(100):
                     candidate = self.lease_engine.connect()

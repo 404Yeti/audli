@@ -1,12 +1,12 @@
 """Versioned baseline SQL. Later changes must be new numbered migrations."""
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable, CreateIndex
-from app.storage.schema import metadata, lessons, lesson_exercises, accent_control, accent_reservations, roadmaps, HOMEWORK_TABLES, LIMIT_TABLES
+from app.storage.schema import metadata, lessons, lesson_exercises, accent_control, accent_reservations, roadmaps, HOMEWORK_TABLES, LIMIT_TABLES, REVIEW_TABLES
 
 
 def postgres_baseline():
     dialect = postgresql.dialect()
-    tables = [table for table in metadata.sorted_tables if table not in (lessons, lesson_exercises, accent_control, accent_reservations, roadmaps, *HOMEWORK_TABLES, *LIMIT_TABLES)]
+    tables = [table for table in metadata.sorted_tables if table not in (lessons, lesson_exercises, accent_control, accent_reservations, roadmaps, *HOMEWORK_TABLES, *LIMIT_TABLES, *REVIEW_TABLES)]
     statements = [
         '-- Migration 001: durable learner state. Run once as the backend database owner.',
         '-- Generated from app/storage/schema.py; append later numbered migrations, never edit an applied baseline.',
@@ -165,3 +165,33 @@ DROP INDEX one_open_lesson_per_learner;
 CREATE UNIQUE INDEX one_open_lesson_per_learner ON lesson_lifecycles (user_id) WHERE status IN ('active','paused');""")
     statements.extend(['INSERT INTO schema_migrations(version, applied_at) VALUES (6, now());', 'COMMIT;'])
     return '\n'.join(line.rstrip() for line in '\n\n'.join(statements).splitlines()) + '\n'
+
+
+def postgres_review_migration():
+    dialect = postgresql.dialect()
+    statements = ['-- Migration 007: advisory Review language coaching (AUD-77); backend-only access, additive, no existing table changes.', 'BEGIN;']
+    for table in REVIEW_TABLES:
+        statements.append(str(CreateTable(table).compile(dialect=dialect)).strip() + ';')
+        for index in sorted(table.indexes, key=lambda item: item.name):
+            statements.append(str(CreateIndex(index).compile(dialect=dialect)) + ';')
+        statements.extend([f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;',
+            f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;'])
+    names = ', '.join(table.name for table in REVIEW_TABLES)
+    statements.append(f"DO $audli$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN REVOKE ALL ON {names} FROM anon; END IF; IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN REVOKE ALL ON {names} FROM authenticated; END IF; END $audli$;")
+    statements.extend(['INSERT INTO schema_migrations(version, applied_at) VALUES (7, now());', 'COMMIT;'])
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(statements).splitlines()) + '\n'
+
+
+def postgres_review_rollback():
+    return """-- Rollback for migration 007 (AUD-77). MANUAL USE ONLY, never run by automation.
+-- Drops only advisory language-coaching rows (derived text; the saved answers, scores and history are untouched).
+-- Run it only after the application is on a release that no longer needs schema 7 (the flag is off, or the bridge release
+-- that accepts schema versions 6 and 7 is running). A release that predates the bridge rejects schema 7.
+BEGIN;
+
+DROP TABLE review_improvements;
+
+DELETE FROM schema_migrations WHERE version = 7;
+
+COMMIT;
+"""

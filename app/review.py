@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.models import StrictModel, Dimension, Difficulty, ExerciseContent
 from app.evaluation import expected_units
+from app.improvement import ImprovementState
 
 DIMENSIONS = ('main_idea', 'details', 'vocabulary', 'inference')
 LABELS = {'main_idea': 'Main ideas', 'details': 'Supporting details',
@@ -51,6 +52,7 @@ class PassageReport(StrictModel):
     adaptation_reason: str | None
     transcript_url: str
     audio_url: str | None
+    improvement: ImprovementState | None = None  # Advisory language coaching; absent unless the feature is on.
 
 
 class ReviewLesson(StrictModel):
@@ -219,7 +221,7 @@ def saved_answers(row: dict) -> list[SavedAnswer]:
     return answers
 
 
-def passage_report(row: dict) -> PassageReport:
+def passage_report(row: dict, improvement: ImprovementState | None = None) -> PassageReport:
     content, evaluation = row['content'] or {}, row.get('evaluation') or {}
     units, complete = interpreted_units(row)
     voice = content.get('passage_voice') or {}
@@ -230,7 +232,8 @@ def passage_report(row: dict) -> PassageReport:
         units=units, answers=saved_answers(row), assessment_available=complete, saved_feedback=text(evaluation.get('feedback')),
         next_focus=recommendation(units), adaptation_reason=text((row.get('adaptation') or {}).get('reason')),
         transcript_url=f"/api/exercises/{row['exercise_id']}/transcript",
-        audio_url=f"/api/exercises/{row['exercise_id']}/audio" if row['audio_available'] else None)
+        audio_url=f"/api/exercises/{row['exercise_id']}/audio" if row['audio_available'] else None,
+        improvement=improvement)
 
 
 def context_key(row: dict) -> tuple | None:

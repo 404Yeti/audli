@@ -297,7 +297,7 @@ def test_explicit_002_to_003_upgrade_preserves_learner_state(repository_factory)
     before=root.profile().model_dump();snapshot=root.lesson().model_dump()
     with root.engine.begin() as db:
         for table in reversed(s.HOMEWORK_TABLES): table.drop(db)
-        s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db);s.lesson_entitlements.drop(db)
+        s.review_improvements.drop(db);s.roadmaps.drop(db);s.accent_reservations.drop(db);s.accent_control.drop(db);s.lesson_entitlements.drop(db)
         db.execute(s.versions.delete().where(s.versions.c.version>=3))
     if root.engine.dialect.name=='postgresql':
         from scripts.migrate_postgres import migrate

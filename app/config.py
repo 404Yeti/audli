@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     homework_daily_search_limit: int = Field(default=0, ge=0, le=100)
     homework_region: str | None = Field(default=None, pattern=r'^[A-Z]{2}$')
     planner_enabled: bool = True
+    # AUD-77: advisory Review language coaching. OFF = no route, no report field, no provider call.
+    review_improvement_enabled: bool = False
+    review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h
+    review_improvement_max_concurrent: int = Field(default=2, ge=1, le=8)
+    review_improvement_timeout_seconds: float = Field(default=30, gt=0, le=60)
     model_config = SettingsConfigDict(env_prefix='AUDLI_', env_file='.env', extra='ignore', hide_input_in_errors=True)
     openai_api_key: SecretStr | None = Field(default=None, validation_alias='OPENAI_API_KEY')
     environment: Literal['development', 'production'] = 'development'

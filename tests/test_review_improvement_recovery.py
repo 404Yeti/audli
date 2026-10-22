@@ -54,6 +54,7 @@ def test_only_the_three_formatting_failures_are_repairable():
 def test_a_formatting_failure_is_repaired_once_and_costs_no_extra_allowance(tmp_path, repository_factory, exercise):
     app, client, provider, repo = build(tmp_path, repository_factory, review_improvement_daily_limit=1)
     entry, ids = seeded(repo, exercise, count=2)
+    before = tables(repo)
     provider.queue = [bad_format, good]
     state = post(client, ids[0]).json()['improvement']
     assert state['state'] == 'ready' and state['improved_text'] == IMPROVED
@@ -61,6 +62,7 @@ def test_a_formatting_failure_is_repaired_once_and_costs_no_extra_allowance(tmp_
     assert len(provider.checked) == 1 and statuses(repo) == [('ready', None, True, PROMPT_VERSION)]
     assert post(client, ids[1]).status_code == 429          # the repair did not use a second allowance slot: one slot, one result
     assert REPAIR_REMINDER not in ANSWER and 'formatting' not in ' '.join(provider.coached)
+    assert tables(repo) == before                            # the repair left transcript, evaluation, adaptation and evidence untouched
 
 
 def test_a_failed_repair_is_never_repeated(tmp_path, repository_factory, exercise):
@@ -126,6 +128,7 @@ def test_one_learner_retry_per_exercise_then_final(tmp_path, repository_factory,
 def test_a_retry_can_recover_and_the_later_result_wins(tmp_path, repository_factory, exercise):
     app, client, provider, repo = build(tmp_path, repository_factory)
     entry, ids = seeded(repo, exercise)
+    before = tables(repo)
     provider.queue = [flipped]
     assert post(client, ids[0]).json()['improvement']['state'] == 'rejected'
     provider.coaching = good
@@ -135,6 +138,7 @@ def test_a_retry_can_recover_and_the_later_result_wins(tmp_path, repository_fact
     assert client.get(f'/api/review/lesson/{entry}').json()['passages'][0]['improvement']['state'] == 'ready'
     calls = len(provider.coached)
     assert retry(client, ids[0]).json()['improvement']['state'] == 'ready' and len(provider.coached) == calls   # a stored suggestion is never regenerated
+    assert tables(repo) == before                            # a recovered retry also leaves the original answer and evaluation untouched
 
 
 def test_a_retry_before_any_rejection_is_just_the_first_request(tmp_path, repository_factory, exercise):

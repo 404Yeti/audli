@@ -404,6 +404,13 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     register_onboarding_reset_routes(app, repo, lock)
     register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exercise_or_404, restore_audio, new_lock)
     register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits, new_lock)
+    if settings.cors_enabled:
+        from starlette.middleware.cors import CORSMiddleware
+        # Added last, so outermost: preflights are answered before authentication (they carry no Authorization header)
+        # and 401/403/413 responses stay readable by the allowed origin. Exact origins only; credentials are never allowed.
+        app.add_middleware(CORSMiddleware, allow_origins=list(settings.browser_origins), allow_credentials=False,
+            allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], allow_headers=['Authorization', 'Content-Type'],
+            expose_headers=['Retry-After', 'X-Audli-Tutor-Fallback'], max_age=600)
     return app
 
 app = create_app()

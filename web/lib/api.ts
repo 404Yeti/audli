@@ -69,6 +69,17 @@ export class LessonOperation {
   }
 }
 
+/** AUD-82, build-time opt-in: call the API origin directly instead of through the Vercel `/api` rewrite.
+ * Only an exact https origin is honoured (no path, credentials or wildcard); anything else keeps same-origin paths. */
+export function resolveApiUrl(url: string, origin: string | undefined = process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN): string {
+  if (!origin) return url;
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== 'https:' || parsed.origin !== origin || !/^[a-z0-9.-]+(:\d+)?$/i.test(parsed.host)) return url;
+    return parsed.origin + url;
+  } catch { return url; }
+}
+
 /** `telemetry: false` keeps background requests (e.g. eligibility revalidation) out of the per-turn latency logs. */
 export async function authenticatedFetch(url: string, init?: RequestInit, operation?: LessonOperation, telemetry = true): Promise<Response> {
   operation?.assertCurrent();
@@ -87,7 +98,7 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   const submittedAt = performance.now();
   const logTurn = telemetry && (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1');
   if (logTurn) console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
-  const response = await fetch(url, { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
+  const response = await fetch(resolveApiUrl(url), { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
   if (logTurn) console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
   operation?.assertCurrent();
   if (typeof window !== 'undefined' && response.ok && revision === authRevision && response.headers.get('X-Audli-Tutor-Fallback') === 'true') window.dispatchEvent(new Event('audli-backup-voice'));

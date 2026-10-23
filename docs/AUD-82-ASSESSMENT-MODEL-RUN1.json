@@ -1,0 +1,125 @@
+{
+  "exercise": "demo passage (synthetic)",
+  "fixtures": 12,
+  "reps_requested": 3,
+  "estimated_spend_usd": 0.2142,
+  "budget_usd": 1.5,
+  "stopped_on_budget": false,
+  "unsupported_models": {},
+  "price_sources": {
+    "gpt-4.1-mini": "published",
+    "gpt-4.1-nano": "published",
+    "gpt-4o-mini": "published",
+    "gpt-5-nano": "third-party",
+    "gpt-5-mini": "third-party",
+    "gpt-5.4-nano": "assumed",
+    "gpt-5.4-mini": "assumed"
+  },
+  "models": {
+    "gpt-4.1-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 2.788,
+        "p90": 3.381,
+        "mean": 2.862
+      },
+      "mean_output_tokens": 298,
+      "unit_agreement_with_gold": 0.825,
+      "false_misunderstood_units": 0,
+      "false_demonstrated_units": 11
+    },
+    "gpt-4.1-nano": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 1.989,
+        "p90": 2.717,
+        "mean": 2.102
+      },
+      "mean_output_tokens": 296,
+      "unit_agreement_with_gold": 0.647,
+      "false_misunderstood_units": 0,
+      "false_demonstrated_units": 23
+    },
+    "gpt-4o-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 3.366,
+        "p90": 4.956,
+        "mean": 3.61
+      },
+      "mean_output_tokens": 275,
+      "unit_agreement_with_gold": 0.726,
+      "false_misunderstood_units": 1,
+      "false_demonstrated_units": 34
+    },
+    "gpt-5-nano": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 3.696,
+        "p90": 5.597,
+        "mean": 4.039
+      },
+      "mean_output_tokens": 367,
+      "unit_agreement_with_gold": 0.746,
+      "false_misunderstood_units": 0,
+      "false_demonstrated_units": 42
+    },
+    "gpt-5-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 3.433,
+        "p90": 4.695,
+        "mean": 3.611
+      },
+      "mean_output_tokens": 396,
+      "unit_agreement_with_gold": 0.833,
+      "false_misunderstood_units": 1,
+      "false_demonstrated_units": 24
+    },
+    "gpt-5.4-nano": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 2.825,
+        "p90": 3.484,
+        "mean": 2.852
+      },
+      "mean_output_tokens": 313,
+      "unit_agreement_with_gold": 0.786,
+      "false_misunderstood_units": 0,
+      "false_demonstrated_units": 14
+    },
+    "gpt-5.4-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 1.897,
+        "p90": 2.498,
+        "mean": 1.991
+      },
+      "mean_output_tokens": 280,
+      "unit_agreement_with_gold": 0.853,
+      "false_misunderstood_units": 3,
+      "false_demonstrated_units": 17
+    }
+  }
+}

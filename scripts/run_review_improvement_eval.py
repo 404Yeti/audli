@@ -4,6 +4,7 @@ EXECUTION IS NOT AUTHORIZED BY THIS FILE. `plan` (the default) makes no network 
 unless it is given an owner approval file that matches this exact plan; until then no provider is ever contacted.
 
   python -m scripts.run_review_improvement_eval plan [--repeats N] [--out FILE]
+  python -m scripts.run_review_improvement_eval validate --approval FILE             # checks a completed file; reads no credential, runs nothing
   python -m scripts.run_review_improvement_eval run --approval FILE --out DIR      # only after separate owner approval
 
 Guarantees enforced in code (and tested with a mock transport, never a real provider):
@@ -48,6 +49,17 @@ MAX_REQUESTS = 400
 REQUEST_TIMEOUT_SECONDS = 30
 MIN_CONFIDENCE = .65
 FORBIDDEN_ENVIRONMENT = ('AUDLI_DATABASE_URL', 'DATABASE_URL', 'AUDLI_TEST_POSTGRES_URL', 'SUPABASE_ACCESS_TOKEN', 'AUDLI_SUPABASE_URL')
+# Whole families, not a list that can fall behind: any application (AUDLI_*) or Supabase setting, anything naming a database URL, Postgres,
+# a service-role key or the other provider, and the libpq connection variables. The one credential this run may use is OPENAI_API_KEY.
+FORBIDDEN_PREFIXES = ('AUDLI_', 'SUPABASE', 'PG')
+FORBIDDEN_FRAGMENTS = ('DATABASE_URL', 'POSTGRES', 'SERVICE_ROLE', 'ELEVENLABS')
+
+
+def forbidden_environment(env) -> list[str]:
+    """Names (never values) of set variables that could point this run at production data or another credential."""
+    # Match on the NAME first: a variable that is not in a forbidden family (OPENAI_API_KEY included) is never even looked up.
+    return sorted(name for name in list(env) if (name in FORBIDDEN_ENVIRONMENT or name.startswith(FORBIDDEN_PREFIXES)
+                                                  or any(fragment in name.upper() for fragment in FORBIDDEN_FRAGMENTS)) and env.get(name))
 NEGATION_WORDS = re.compile(r"\b(?:not|no|never|nobody|nothing|none|cannot|without|neither|nor)\b|n't", re.I)
 
 
@@ -362,9 +374,9 @@ async def run_live(approval: dict, out_dir: Path, env=None, http_client=None, no
     problems = validate_approval(approval, expected, now)
     if problems:
         raise RefusedToRun('approval refused: ' + '; '.join(problems))
-    present = [name for name in FORBIDDEN_ENVIRONMENT if env.get(name)]
+    present = forbidden_environment(env)
     if present:
-        raise RefusedToRun('refusing to start with database or production variables in the environment: ' + ', '.join(present))
+        raise RefusedToRun('refusing to start with database, production or other-provider variables in the environment (names only): ' + ', '.join(present))
     if {c['source'].strip().lower() for c in cases} & {c['source'].strip().lower() for c in load_cases(DEV_FIXTURES)}:
         raise RefusedToRun('the held-out set overlaps the development set')
     ledger = Ledger(out_dir, approval['run_id'], float(approval['max_usd']), int(approval['max_requests']))
@@ -409,11 +421,34 @@ def render(report: dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
+def validate_command(approval_path: Path, env=None, now: datetime | None = None) -> tuple[int, str]:
+    """Check a completed approval file against the exact plan, the clock and the environment. Reads no credential, makes no network
+    call and creates nothing. Exit 0 only when `run` would pass its own approval and environment checks."""
+    env = os.environ if env is None else env
+    now = now or datetime.now(timezone.utc)
+    try:
+        approval = json.loads(Path(approval_path).read_text())
+    except (OSError, ValueError) as error:
+        return 2, f'NOT VALID: cannot read the approval file as JSON ({type(error).__name__})'
+    expected = plan(repeats=approval.get('repeats', 1) if isinstance(approval, dict) else 1)
+    problems = validate_approval(approval, expected, now)
+    present = forbidden_environment(env)
+    if present:
+        problems.append('this shell has database, production or other-provider variables set (names only): ' + ', '.join(present))
+    summary = (f"model {expected['model']}, prompt {expected['prompt_version']}, {expected['cases_sent_to_a_provider']} cases to the provider, at most "
+               f"{approval.get('max_requests') if isinstance(approval, dict) else '?'} requests, cap ${approval.get('max_usd') if isinstance(approval, dict) else '?'} "
+               f"(worst-case reservation ${expected['worst_case_reservation_usd']})")
+    if problems:
+        return 2, 'NOT VALID (nothing was run, no credential was read):\n  - ' + '\n  - '.join(problems) + '\nPlan: ' + summary
+    return 0, f"VALID: this approval matches the exact plan and the environment. Nothing has been run and no credential was read.\nPlan: {summary}\nApproved by {approval['approved_by']}, expires {approval['expires_at']}."
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command')
     planner = sub.add_parser('plan'); planner.add_argument('--repeats', type=int, default=1); planner.add_argument('--out')
     runner = sub.add_parser('run'); runner.add_argument('--approval', required=True); runner.add_argument('--out', required=True)
+    checker = sub.add_parser('validate'); checker.add_argument('--approval', required=True)
     args = parser.parse_args(argv)
     if args.command in (None, 'plan'):
         report = plan(repeats=getattr(args, 'repeats', 1))
@@ -422,6 +457,10 @@ def main(argv=None) -> int:
             Path(args.out).write_text(text + '\n')
         print(text)
         return 0
+    if args.command == 'validate':
+        code, message = validate_command(Path(args.approval))
+        print(message, file=sys.stderr if code else sys.stdout)
+        return code
     try:
         approval = json.loads(Path(args.approval).read_text())
         report = asyncio.run(run_live(approval, Path(args.out)))

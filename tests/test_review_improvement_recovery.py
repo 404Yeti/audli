@@ -48,7 +48,7 @@ def statuses(repo):
 def test_only_the_three_formatting_failures_are_repairable():
     assert FORMAT_FAILURES == {'unexplained_changes', 'note_not_grounded', 'inconsistent_notes'}
     assert all(rejection_layer(code) == '2' for code in FORMAT_FAILURES)           # structure, never meaning evidence
-    assert RETRY_CAP == 2 and PROMPT_VERSION == 'v2'
+    assert RETRY_CAP == 2 and PROMPT_VERSION == 'v3'
 
 
 def test_a_formatting_failure_is_repaired_once_and_costs_no_extra_allowance(tmp_path, repository_factory, exercise):

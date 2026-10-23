@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     homework_region: str | None = Field(default=None, pattern=r'^[A-Z]{2}$')
     planner_enabled: bool = True
     # AUD-77: advisory Review language coaching. OFF = no route, no report field, no provider call.
+    # AUD-34: permanent account deletion. OFF = no delete route, no UI. ON requires Supabase Auth and PostgreSQL.
+    account_deletion_enabled: bool = False
     review_improvement_enabled: bool = False
     review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h
     review_improvement_max_concurrent: int = Field(default=2, ge=1, le=8)
@@ -130,6 +132,8 @@ class Settings(BaseSettings):
             if not self.passage_voices or any(approved.get(accent, {}).get('voice_id') != voice.voice_id
                     for accent, voice in self.passage_voices.items()):
                 raise ValueError('Configured passage voices have not passed human approval/hash validation')
+        if self.account_deletion_enabled and (self.auth_mode != 'supabase' or self.persistence != 'postgres'):
+            raise ValueError('Account deletion requires AUDLI_AUTH_MODE=supabase and AUDLI_PERSISTENCE=postgres')
         if self.default_passage_elevenlabs_enabled:
             if self.provider == 'demo':
                 raise ValueError('ElevenLabs default passages require AUDLI_PROVIDER=openai')

@@ -11,6 +11,8 @@ import httpx
 from fastapi import HTTPException
 from starlette.responses import JSONResponse
 
+from app.storage.repository import AccountUnavailable
+
 
 class RequestRepository:
     """Existing route closures delegate to this request's verified learner scope."""
@@ -118,6 +120,9 @@ class LearnerAuthentication:
             scoped = self.repository.for_learner(learner_id)
             token = self.request_repository.current.set(scoped)
             await self.app(scope, receive, send)
+        except AccountUnavailable:
+            await JSONResponse({'detail': 'Your account is no longer available. Please sign in again.'}, status_code=401,
+                               headers={'WWW-Authenticate': 'Bearer'})(scope, receive, send)
         except HTTPException as error:
             await JSONResponse({'detail': error.detail}, status_code=error.status_code)(scope, receive, send)
         finally:

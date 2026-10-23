@@ -14,6 +14,7 @@ LEARNER_OWNED = {
     'lesson_entitlements', 'review_improvements',
 }
 # Aggregate, shared or operational rows: no learner key, deliberately retained (budgets, shared catalog, migration ledger).
+# The expected set is pinned here on purpose: changing the schema's own classification must be a reviewed edit in two places.
 NOT_LEARNER_OWNED = {'schema_migrations', 'accent_control', 'accent_reservations', 'homework_discovery_budget', 'listening_content'}
 # Child tables with no user_id column: erased through their parent chain (child first), so they need explicit statements.
 OWNED_VIA_PARENT = {'attempts', 'evaluation_results', 'adaptation_events', 'conversations', 'turn_assessments', 'conversation_followups',
@@ -51,3 +52,13 @@ def test_review_improvements_blocks_deletion_of_its_parents_until_it_is_erased_f
     parents = {fk.column.table.name for fk in s.review_improvements.foreign_keys}
     assert parents == {'users', 'exercises', 'attempts'}
     assert all(fk.ondelete is None for fk in s.review_improvements.foreign_keys)  # no cascade: deletion order is the caller's job
+
+
+def test_the_schema_classification_used_by_account_deletion_matches_the_pinned_one():
+    assert set(s.NOT_LEARNER_OWNED) == NOT_LEARNER_OWNED
+
+
+def test_account_deletion_derives_its_plan_from_this_inventory():
+    from app.account import erase_plan
+    planned = [table.name for table, _ in erase_plan('owner')]
+    assert set(planned) == LEARNER_OWNED and planned[-1] == 'users'

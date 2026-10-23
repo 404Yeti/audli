@@ -130,16 +130,19 @@ def test_reset_and_account_erasure_routes_cannot_be_confused(tmp_path):
     try:
         routes = {route.path for route in app.routes}
         assert '/api/onboarding/restart' in routes
-        assert '/api/account/delete' not in routes and '/api/account/controls' not in routes
+        assert '/api/account/delete' not in routes             # deletion is registered only when AUDLI_ACCOUNT_DELETION_ENABLED is on
+        assert '/api/account/controls' in routes               # the read-only availability report is always present
         assert not any('delete' in path for path in routes)
         body = {'confirmation': 'RESTART ONBOARDING', 'revision': 0}
         assert client.post('/api/onboarding/restart', json=body).status_code == 401
         for payload in ({'confirmation': 'yes', 'revision': 0}, {**body, 'user_id': str(uuid4())},
                         {**body, 'password': 'irrelevant'}, {**body, 'revision': -1}):
             assert client.post('/api/onboarding/restart', json=payload, headers={'Authorization': 'Bearer valid'}).status_code == 422
-        for path in ('/api/account/delete', '/api/account/controls'):
-            assert client.post(path, json={'confirmation': 'DELETE MY ACCOUNT', 'password': 'unused'},
-                               headers={'Authorization': 'Bearer valid'}).status_code == 404
+        assert client.post('/api/account/delete', json={'confirmation': 'DELETE MY ACCOUNT', 'password': 'unused'},
+                           headers={'Authorization': 'Bearer valid'}).status_code == 404
+        controls = client.get('/api/account/controls', headers={'Authorization': 'Bearer valid'})
+        assert controls.status_code == 200 and controls.json().get('delete_available') is False
+        assert client.post('/api/account/controls', json={}, headers={'Authorization': 'Bearer valid'}).status_code == 405
         assert app.state.repository.for_learner(owner).profile().onboarding.revision == 0
     finally:
         app.state.repository.close(); asyncio.run(auth.aclose())

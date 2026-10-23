@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
 
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, and_, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
@@ -64,6 +64,10 @@ def api_row(row):
     return result
 
 
+class AccountUnavailable(Exception):
+    """The Auth account no longer exists, so no application rows may be created for it."""
+
+
 class SQLProgressRepository:
     """Application repository contract; adapters supply an engine and learner scope.
 
@@ -71,6 +75,7 @@ class SQLProgressRepository:
     written in the same transaction and support history, ownership and future policy.
     """
     limit_mode = 'off'  # AUD-47; set from settings by create_app and inherited by every request scope.
+    require_auth_user = False  # AUD-34: initialization must find the live Auth user (set by create_app when deletion is enabled).
 
     def __init__(self, engine, learner_id: str | None):
         self.engine = engine
@@ -84,6 +89,7 @@ class SQLProgressRepository:
         """A new request scope; never mutate the pool owner's identity or dispose it."""
         scoped = SQLProgressRepository(self.engine, learner_id)
         scoped.limit_mode = self.limit_mode
+        scoped.require_auth_user = self.require_auth_user
         # Auth has already verified this identity. Existing accounts need a read,
         # not two no-op upserts and a commit on every protected request.
         with self.engine.connect() as db:
@@ -133,6 +139,11 @@ class SQLProgressRepository:
     def initialize_learner(self):
         insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
         with self.transaction() as db:
+            if self.require_auth_user:
+                # A share lock on the Auth row serializes with account deletion (which locks it FOR UPDATE first): a request that
+                # verified its token just before deletion cannot recreate the learner after the erase committed.
+                if not db.execute(text('SELECT id FROM auth.users WHERE id = :owner FOR SHARE'), {'owner': self.learner_id}).first():
+                    raise AccountUnavailable()
             db.execute(insert(s.users).values(id=self.learner_id, created_at=utcnow()).on_conflict_do_nothing())
             db.execute(insert(s.profiles).values(user_id=self.learner_id,
                 **profile_values(LearnerProfile())).on_conflict_do_nothing())

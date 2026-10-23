@@ -261,3 +261,7 @@ server secret), `AUDLI_HOMEWORK_DAILY_SEARCH_LIMIT=0` (explicit positive ceiling
 admit discovery), optional `AUDLI_HOMEWORK_REGION` (ISO country code). Without a
 region, restricted videos are excluded. Do not add these secrets to NEXT_PUBLIC
 variables. API enablement and production changes require owner approval.
+
+## Account deletion (AUD-34)
+
+See [AUD-34-ACCOUNT-DELETION.md](AUD-34-ACCOUNT-DELETION.md). The erase plan is derived from `app.storage.schema.metadata` (every table except `NOT_LEARNER_OWNED`, children first, NOT NULL foreign-key ownership paths, absent tables skipped), so migrations 004–007 and later tables are covered without a hand-kept list. Off by default (`AUDLI_ACCOUNT_DELETION_ENABLED`).

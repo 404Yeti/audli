@@ -245,3 +245,9 @@ Index('one_active_improvement_per_exercise', review_improvements.c.exercise_id, 
     postgresql_where=review_improvements.c.status.in_(('pending', 'ready')))
 Index('improvements_by_learner_claim', review_improvements.c.user_id, review_improvements.c.claimed_at)
 REVIEW_TABLES = (review_improvements,)
+
+
+# Account deletion (AUD-34): rows with no learner key that deliberately survive an account's deletion. Every other table
+# must reach `users` through a foreign-key path and is erased with the account (app/account.py derives the order from
+# this metadata; tests/test_schema_ownership_inventory.py pins the expected classification so a new table forces a decision).
+NOT_LEARNER_OWNED = frozenset({'schema_migrations', 'accent_control', 'accent_reservations', 'homework_discovery_budget', 'listening_content'})

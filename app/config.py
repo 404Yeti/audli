@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     elevenlabs_similarity_boost: float = Field(default=.75, ge=0, le=1)
     elevenlabs_style: float = Field(default=0, ge=0, le=1)
     elevenlabs_speaker_boost: bool = True
+    # AUD-82: stream-copy tag stripping for tutor speech instead of a full re-encode (default off).
+    tutor_audio_fast_sanitize: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)
     tutor_tts_fallback_timeout_seconds: float = Field(default=20, gt=0, le=60)
     data_dir: Path = Path('data')

@@ -10,7 +10,7 @@ from time import perf_counter
 
 import httpx
 
-from app.audio import sanitize_generated_audio, signature_matches
+from app.audio import sanitize_generated_audio, signature_matches, strip_generated_mp3
 from app.config import Settings
 from app.services.provider import AIProvider
 from app.telemetry import aggregator
@@ -192,6 +192,16 @@ class TutorTTSProvider:
                     raise ValueError('Tutor audio exceeds size limit')
             return bytes(audio)
 
+    async def sanitize_mp3(self, data: bytes, metrics: dict) -> bytes:
+        if self.settings.tutor_audio_fast_sanitize:
+            try:
+                metrics['sanitization'] = 'strip'
+                return await strip_generated_mp3(data)
+            except ValueError:
+                pass  # Anything unexpected takes the full decode/re-encode path.
+        metrics['sanitization'] = 'reencode'
+        return await sanitize_generated_audio(data, 'mp3')
+
     async def attempt(self, provider: str, text: str, rate: float, fallback: bool) -> bytes:
         started = perf_counter()
         metrics = {'provider': provider, 'act': self.act, 'fallback': fallback, 'input_characters': len(text),
@@ -211,7 +221,9 @@ class TutorTTSProvider:
                 metrics['synthesis_ms'] = (perf_counter() - started) * 1000
                 if not data or len(data) > MAX_TUTOR_BYTES or not signature_matches(data, 'mp3'):
                     raise ValueError('Tutor audio is invalid')
-                data = await sanitize_generated_audio(data, 'mp3')
+                sanitize_started = perf_counter()
+                data = await self.sanitize_mp3(data, metrics)
+                metrics['sanitize_ms'] = (perf_counter() - sanitize_started) * 1000
             metrics['outcome'] = 'success'
             return data
         except asyncio.CancelledError:

@@ -84,3 +84,56 @@ async def sanitize_generated_audio(data: bytes, kind: str, *, max_seconds: int =
         if process.returncode != 0 or not destination.exists():
             raise ValueError('Generated speech is not decodable audio')
         return destination.read_bytes()
+
+
+_BITRATES = {3: (0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320),
+             2: (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160)}
+_RATES = {3: (44100, 48000, 32000), 2: (22050, 24000, 16000), 0: (11025, 12000, 8000)}
+
+
+def mpeg_layer3_frames_cover(data: bytes) -> bool:
+    """True only if the whole buffer is back-to-back MPEG Layer III frames: no tags, gaps or trailing bytes."""
+    position, size = 0, len(data)
+    while position < size:
+        if size - position < 4:
+            return False
+        first, second, third = data[position], data[position + 1], data[position + 2]
+        version, layer = (second >> 3) & 3, (second >> 1) & 3
+        bitrate_index, rate_index = third >> 4, (third >> 2) & 3
+        if first != 255 or second & 224 != 224 or version == 1 or layer != 1 or bitrate_index in (0, 15) or rate_index == 3:
+            return False
+        bitrate = _BITRATES[3 if version == 3 else 2][bitrate_index] * 1000
+        rate = _RATES[version][rate_index]
+        position += (144 if version == 3 else 72) * bitrate // rate + ((third >> 1) & 1)
+    return size > 0 and position == size
+
+
+async def strip_generated_mp3(data: bytes, *, max_seconds: int = 150) -> bytes:
+    """Cheap sanitization for trusted-provider tutor speech: drop every tag and container extra without re-encoding.
+
+    Frames are copied bit-for-bit, then the result must be an unbroken chain of Layer III frames. Anything
+    else raises so the caller can use the full decode/re-encode path. Ancillary bits inside a frame survive
+    (a re-encode would discard them), so never use this for exercise passages, whose script must stay hidden.
+    """
+    with tempfile.TemporaryDirectory(prefix='audli-speech-') as directory:
+        source, destination = Path(directory) / 'source', Path(directory) / 'clip.mp3'
+        source.write_bytes(data)
+        process = await asyncio.create_subprocess_exec(get_ffmpeg_exe(), '-v', 'error', '-nostdin', '-i', str(source),
+            '-vn', '-map_metadata', '-1', '-t', str(max_seconds), '-c:a', 'copy', '-id3v2_version', '0',
+            '-write_id3v1', '0', '-write_xing', '0', str(destination),
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        try:
+            await asyncio.wait_for(process.wait(), timeout=30)
+        except asyncio.CancelledError:
+            if process.returncode is None:
+                process.kill()
+            await process.wait()
+            raise
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            raise ValueError('Speech sanitization timed out')
+        stripped = destination.read_bytes() if process.returncode == 0 and destination.exists() else b''
+        if not stripped or not mpeg_layer3_frames_cover(stripped):
+            raise ValueError('Generated speech is not a clean MPEG audio stream')
+        return stripped

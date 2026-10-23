@@ -64,7 +64,7 @@ def replay_record(case: dict, saved: dict) -> dict:
 
 
 def replay(responses_path: Path = RESPONSES) -> list[dict]:
-    cases = {c['id']: c for c in runner.load_cases()}
+    cases = {c['id']: c for c in runner.load_cases(runner.PRIOR_FIXTURES)}
     saved = json.loads(responses_path.read_text())['records']
     return [replay_record(cases[s['id']], s) for s in saved]
 

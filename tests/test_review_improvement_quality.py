@@ -99,7 +99,7 @@ def test_the_h47_optional_pronoun_edit_is_not_a_meaning_defect_but_is_an_unneede
 
 @pytest.mark.parametrize('case_id', ['h16', 'h18', 'h20'])
 def test_cosmetic_only_suggestions_become_the_learners_own_text(case_id):
-    source = next(c['source'] for c in replay_tool.runner.load_cases() if c['id'] == case_id)
+    source = next(c['source'] for c in replay_tool.runner.load_cases(replay_tool.runner.PRIOR_FIXTURES) if c["id"] == case_id)
     coaching = saved_coaching(case_id)
     assert natural_already(source, coaching)
     provider = Fake(coaching)

@@ -10,12 +10,29 @@
   "input": 0.4,
   "output": 1.6
  },
- "fixtures": 55,
- "fixtures_sha256": "da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7",
+ "fixtures": 104,
+ "fixtures_sha256": "91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd",
+ "calibration_pairs": 39,
+ "calibration_sha256": "00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f",
  "repeats": 1,
- "cases_sent_to_a_provider": 51,
+ "stages": {
+  "calibration": {
+   "pairs": 39,
+   "seeded_unsafe": 27,
+   "seeded_same_meaning": 12,
+   "max_requests": 39,
+   "worst_case_reservation_usd": 0.0686
+  },
+  "heldout": {
+   "cases": 104,
+   "max_requests": 300,
+   "worst_case_reservation_usd": 0.8801
+  }
+ },
+ "stage_gate": "the held-out stage is skipped if the calibration stage accepts any seeded unsafe pair, or stops on the budget",
+ "cases_sent_to_a_provider": 100,
  "cases_blocked_before_any_provider_call": 4,
- "max_requests": 153,
+ "max_requests": 339,
  "request_ceiling": 400,
  "concurrency": 1,
  "sdk_max_retries": 0,
@@ -24,68 +41,131 @@
   "coach": 1000,
   "comparison": 60
  },
- "worst_case_reservation_usd": 0.449,
+ "worst_case_reservation_usd": 0.9488,
  "hard_cap_usd": 1.0,
  "categories": {
-  "causality": 3,
-  "certainty": 4,
+  "ambiguous_intent": 4,
+  "causality": 2,
+  "certainty": 2,
+  "collocation": 4,
   "comparison": 3,
+  "countable": 3,
   "disfluency": 2,
-  "grammar_agreement": 3,
-  "grammar_articles": 1,
-  "grammar_prepositions": 2,
-  "grammar_tense": 3,
-  "learner_corrected": 1,
+  "false_fact": 6,
+  "fluent_false_fact": 5,
+  "grammar_agreement": 6,
+  "grammar_articles": 4,
+  "grammar_prepositions": 4,
+  "grammar_tense": 6,
+  "informal": 3,
   "modality": 3,
-  "named_entity": 3,
-  "natural": 5,
-  "negation": 4,
-  "plausible_wrong_fact": 5,
+  "named_entity": 2,
+  "natural_causality": 1,
+  "natural_certainty": 1,
+  "natural_comparison": 1,
+  "natural_negation": 1,
+  "natural_quantity": 1,
+  "negation": 3,
+  "number": 2,
+  "optional_subject": 3,
+  "plain": 6,
   "quantity": 3,
+  "regional_uk": 6,
+  "regional_us": 4,
   "too_long": 1,
   "too_short": 1,
   "uncertain": 2,
-  "vocabulary": 4,
-  "word_order": 2
+  "word_form": 6,
+  "word_order": 3
+ },
+ "proposed_release_thresholds": {
+  "heldout_false_accepts": {
+   "max": 0,
+   "gate": true
+  },
+  "seeded_unsafe_leaks": {
+   "max": 0,
+   "gate": true,
+   "note": "0 leaks in n seeded unsafe pairs only bounds the leak rate below about 3/n at 95%"
+  },
+  "false_rejection_rate": {
+   "max_point": 0.1,
+   "max_upper95_exact": 0.2,
+   "gate": true,
+   "denominator": "fix cases whose raw candidate was good"
+  },
+  "unnecessary_edit_rate": {
+   "max_point": 0.1,
+   "upper95_exact_informational": true,
+   "gate": true,
+   "denominator": "already-natural answers, ambiguous-intent excluded"
+  },
+  "correction_yield": {
+   "min": 0.8,
+   "gate": true,
+   "denominator": "fix cases sent to the provider"
+  },
+  "mean_best_f1_of_accepted": {
+   "min": 0.95,
+   "gate": true
+  },
+  "provider_failure_rate": {
+   "max": 0.02,
+   "gate": true
+  },
+  "latency_p95_per_improvement_ms": {
+   "max": 5000,
+   "gate": true
+  },
+  "mean_cost_per_attempt_usd": {
+   "max": 0.001,
+   "gate": true
+  }
  },
  "evaluates": [
   "correction quality (best token-F1 to a reference rewrite; required fixes present)",
   "meaning preservation (fixture invariants on the model raw output, independent of the validator)",
-  "pipeline agreement: false accepts, false rejections, which layer caught each violation",
+  "seeded meaning-changing and meaning-preserving pairs on the independent comparison, alone and through the pipeline",
+  "pipeline agreement: false accepts, false rejections, unneeded edits, which layer caught each violation",
+  "confidence bounds on every rate, then the proposed thresholds",
   "cost (actual usage), latency (p50/p95 per call and per improvement), provider errors"
  ],
  "expected_outputs": [
   {
-   "id": "h01",
+   "id": "f01",
    "category": "grammar_tense",
-   "source": "Last week my manager send me a long email about the budget",
+   "source": "Yesterday I go to the dentist and he finds two cavities",
    "expect": "accept",
    "references": [
-    "Last week my manager sent me a long email about the budget"
+    "Yesterday I went to the dentist and he found two cavities"
    ],
    "must_preserve": [
-    "budget",
-    "manager"
+    "dentist",
+    "two"
    ],
    "must_fix": [
     {
-     "remove": "send",
-     "add": "sent"
+     "remove": "go",
+     "add": "went"
+    },
+    {
+     "remove": "finds",
+     "add": "found"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h02",
+   "id": "f02",
    "category": "grammar_tense",
-   "source": "We was waiting for the bus when it start to rain",
+   "source": "My parents was watching television when the power go out",
    "expect": "accept",
    "references": [
-    "We were waiting for the bus when it started to rain"
+    "My parents were watching television when the power went out"
    ],
    "must_preserve": [
-    "bus",
-    "rain"
+    "television",
+    "power"
    ],
    "must_fix": [
     {
@@ -93,84 +173,318 @@
      "add": "were"
     },
     {
-     "remove": "start",
-     "add": "started"
+     "remove": "go",
+     "add": "went"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h03",
+   "id": "f03",
    "category": "grammar_tense",
-   "source": "She have finish her homework before dinner",
+   "source": "She has live in Madrid since two thousand nineteen",
    "expect": "accept",
    "references": [
-    "She had finished her homework before dinner",
-    "She has finished her homework before dinner"
+    "She has lived in Madrid since two thousand nineteen"
    ],
    "must_preserve": [
-    "homework",
-    "dinner"
+    "Madrid",
+    "nineteen"
    ],
    "must_fix": [
     {
-     "remove": "finish",
-     "add": "finished"
+     "remove": "live",
+     "add": "lived"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h04",
-   "category": "grammar_agreement",
-   "source": "They goes to the market every Saturday morning",
+   "id": "f04",
+   "category": "grammar_tense",
+   "source": "Next week the engineers will finished the repair",
    "expect": "accept",
    "references": [
-    "They go to the market every Saturday morning"
+    "Next week the engineers will finish the repair"
    ],
    "must_preserve": [
-    "Saturday",
-    "market"
+    "engineers",
+    "repair",
+    "next week"
    ],
    "must_fix": [
     {
-     "remove": "goes",
+     "remove": "finished",
+     "add": "finish"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f05",
+   "category": "grammar_tense",
+   "source": "When I was a child I am afraid of dogs",
+   "expect": "accept",
+   "references": [
+    "When I was a child I was afraid of dogs"
+   ],
+   "must_preserve": [
+    "afraid",
+    "dogs",
+    "child"
+   ],
+   "must_fix": [
+    {
+     "remove": "am",
+     "add": "was"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f06",
+   "category": "grammar_tense",
+   "source": "They didn't went to the meeting because the train was late",
+   "expect": "accept",
+   "references": [
+    "They didn't go to the meeting because the train was late"
+   ],
+   "must_preserve": [
+    "@NEGATION",
+    "because",
+    "late"
+   ],
+   "must_fix": [
+    {
+     "remove": "went",
      "add": "go"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h05",
-   "category": "grammar_articles",
-   "source": "I need a advice about my new job",
+   "id": "f07",
+   "category": "grammar_agreement",
+   "source": "The children is playing in the garden",
    "expect": "accept",
    "references": [
-    "I need some advice about my new job",
-    "I need advice about my new job"
+    "The children are playing in the garden"
    ],
    "must_preserve": [
-    "job"
+    "children",
+    "garden"
    ],
    "must_fix": [
     {
-     "remove": "a",
-     "add": ""
+     "remove": "is",
+     "add": "are"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h06",
-   "category": "grammar_prepositions",
-   "source": "He is interested on learning English for the travel",
+   "id": "f08",
+   "category": "grammar_agreement",
+   "source": "My brother work at a hospital and he love it",
    "expect": "accept",
    "references": [
-    "He is interested in learning English for travel",
-    "He is interested in learning English for traveling"
+    "My brother works at a hospital and he loves it"
    ],
    "must_preserve": [
-    "English"
+    "brother",
+    "hospital"
+   ],
+   "must_fix": [
+    {
+     "remove": "work",
+     "add": "works"
+    },
+    {
+     "remove": "love",
+     "add": "loves"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f09",
+   "category": "grammar_agreement",
+   "source": "There is three apples on the table",
+   "expect": "accept",
+   "references": [
+    "There are three apples on the table"
+   ],
+   "must_preserve": [
+    "three",
+    "apples",
+    "table"
+   ],
+   "must_fix": [
+    {
+     "remove": "is",
+     "add": "are"
+    }
+   ],
+   "must_not_add": [
+    "two",
+    "four",
+    "some"
+   ]
+  },
+  {
+   "id": "f10",
+   "category": "grammar_agreement",
+   "source": "Everybody in the office know about the change",
+   "expect": "accept",
+   "references": [
+    "Everybody in the office knows about the change"
+   ],
+   "must_preserve": [
+    "office",
+    "change",
+    "everybody"
+   ],
+   "must_fix": [
+    {
+     "remove": "know",
+     "add": "knows"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f11",
+   "category": "grammar_agreement",
+   "source": "The price of the tickets are very high this year",
+   "expect": "accept",
+   "references": [
+    "The price of the tickets is very high this year"
+   ],
+   "must_preserve": [
+    "price",
+    "tickets",
+    "high",
+    "year"
+   ],
+   "must_fix": [
+    {
+     "remove": "are",
+     "add": "is"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f12",
+   "category": "grammar_agreement",
+   "source": "She don't like spicy food",
+   "expect": "accept",
+   "references": [
+    "She doesn't like spicy food"
+   ],
+   "must_preserve": [
+    "@NEGATION",
+    "spicy"
+   ],
+   "must_fix": [
+    {
+     "remove": "don't",
+     "add": "doesn't"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f13",
+   "category": "grammar_articles",
+   "source": "I bought umbrella because it was raining",
+   "expect": "accept",
+   "references": [
+    "I bought an umbrella because it was raining"
+   ],
+   "must_preserve": [
+    "because",
+    "raining"
+   ],
+   "must_fix": [
+    {
+     "remove": "",
+     "add": "an umbrella"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f14",
+   "category": "grammar_articles",
+   "source": "She wants to be the doctor when she grows up",
+   "expect": "accept",
+   "references": [
+    "She wants to be a doctor when she grows up"
+   ],
+   "must_preserve": [
+    "doctor",
+    "grows up"
+   ],
+   "must_fix": [
+    {
+     "remove": "the",
+     "add": "a doctor"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f15",
+   "category": "grammar_articles",
+   "source": "We saw a elephant at the zoo",
+   "expect": "accept",
+   "references": [
+    "We saw an elephant at the zoo"
+   ],
+   "must_preserve": [
+    "elephant",
+    "zoo"
+   ],
+   "must_fix": [
+    {
+     "remove": "a elephant",
+     "add": "an elephant"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f16",
+   "category": "grammar_articles",
+   "source": "Please close door when you leave",
+   "expect": "accept",
+   "references": [
+    "Please close the door when you leave"
+   ],
+   "must_preserve": [
+    "door",
+    "leave"
+   ],
+   "must_fix": [
+    {
+     "remove": "",
+     "add": "the door"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f17",
+   "category": "grammar_prepositions",
+   "source": "I am interested on learning Portuguese",
+   "expect": "accept",
+   "references": [
+    "I am interested in learning Portuguese"
+   ],
+   "must_preserve": [
+    "Portuguese",
+    "interested"
    ],
    "must_fix": [
     {
@@ -181,107 +495,199 @@
    "must_not_add": []
   },
   {
-   "id": "h07",
-   "category": "grammar_agreement",
-   "source": "There is three chairs in the small room",
-   "expect": "accept",
-   "references": [
-    "There are three chairs in the small room"
-   ],
-   "must_preserve": [
-    "three",
-    "chairs"
-   ],
-   "must_fix": [
-    {
-     "remove": "is",
-     "add": "are"
-    }
-   ],
-   "must_not_add": []
-  },
-  {
-   "id": "h08",
+   "id": "f18",
    "category": "grammar_prepositions",
-   "source": "She suggested me to take the earlier train",
+   "source": "She arrived to the airport at six o'clock",
    "expect": "accept",
    "references": [
-    "She suggested that I take the earlier train",
-    "She suggested I take the earlier train"
+    "She arrived at the airport at six o'clock"
    ],
    "must_preserve": [
-    "earlier",
-    "train"
-   ],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h09",
-   "category": "grammar_agreement",
-   "source": "The informations on the website was old",
-   "expect": "accept",
-   "references": [
-    "The information on the website was old"
-   ],
-   "must_preserve": [
-    "old",
-    "website"
+    "airport",
+    "six"
    ],
    "must_fix": [
     {
-     "remove": "informations",
-     "add": "information"
+     "remove": "arrived to",
+     "add": "arrived at"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h10",
-   "category": "word_order",
-   "source": "Always I drink coffee in the morning before work",
+   "id": "f19",
+   "category": "grammar_prepositions",
+   "source": "We depend of the weather for our plans",
    "expect": "accept",
    "references": [
-    "I always drink coffee in the morning before work"
+    "We depend on the weather for our plans"
    ],
    "must_preserve": [
-    "coffee",
-    "always"
-   ],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h11",
-   "category": "word_order",
-   "source": "I don't know where did he put the keys",
-   "expect": "accept",
-   "references": [
-    "I don't know where he put the keys"
-   ],
-   "must_preserve": [
-    "don't",
-    "keys"
+    "weather",
+    "plans"
    ],
    "must_fix": [
     {
-     "remove": "did",
-     "add": ""
+     "remove": "depend of",
+     "add": "depend on"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h12",
-   "category": "vocabulary",
-   "source": "He did a big mistake at the meeting",
+   "id": "f20",
+   "category": "grammar_prepositions",
+   "source": "He is good in cooking but bad at cleaning",
    "expect": "accept",
    "references": [
-    "He made a big mistake at the meeting"
+    "He is good at cooking but bad at cleaning"
    ],
    "must_preserve": [
+    "cooking",
+    "cleaning",
+    "bad"
+   ],
+   "must_fix": [
+    {
+     "remove": "good in",
+     "add": "good at"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f21",
+   "category": "word_form",
+   "source": "I feel very tiring after the long flight",
+   "expect": "accept",
+   "references": [
+    "I feel very tired after the long flight"
+   ],
+   "must_preserve": [
+    "flight",
+    "long"
+   ],
+   "must_fix": [
+    {
+     "remove": "tiring",
+     "add": "tired"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f22",
+   "category": "word_form",
+   "source": "The film was really disappointed",
+   "expect": "accept",
+   "references": [
+    "The film was really disappointing"
+   ],
+   "must_preserve": [
+    "film",
+    "really"
+   ],
+   "must_fix": [
+    {
+     "remove": "disappointed",
+     "add": "disappointing"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f23",
+   "category": "word_form",
+   "source": "He speaks English very good",
+   "expect": "accept",
+   "references": [
+    "He speaks English very well"
+   ],
+   "must_preserve": [
+    "English",
+    "very"
+   ],
+   "must_fix": [
+    {
+     "remove": "good",
+     "add": "well"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f24",
+   "category": "word_form",
+   "source": "It is a danger road at night",
+   "expect": "accept",
+   "references": [
+    "It is a dangerous road at night"
+   ],
+   "must_preserve": [
+    "road",
+    "night"
+   ],
+   "must_fix": [
+    {
+     "remove": "danger",
+     "add": "dangerous"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f25",
+   "category": "word_form",
+   "source": "I am exciting about the trip to Japan",
+   "expect": "accept",
+   "references": [
+    "I am excited about the trip to Japan"
+   ],
+   "must_preserve": [
+    "Japan",
+    "trip"
+   ],
+   "must_fix": [
+    {
+     "remove": "exciting",
+     "add": "excited"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f26",
+   "category": "word_form",
+   "source": "Her decision was a real surprised for everyone",
+   "expect": "accept",
+   "references": [
+    "Her decision was a real surprise for everyone"
+   ],
+   "must_preserve": [
+    "decision",
+    "everyone",
+    "real"
+   ],
+   "must_fix": [
+    {
+     "remove": "surprised",
+     "add": "surprise"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f27",
+   "category": "collocation",
+   "source": "I did a big mistake in the exam",
+   "expect": "accept",
+   "references": [
+    "I made a big mistake in the exam"
+   ],
+   "must_preserve": [
+    "big",
     "mistake",
-    "meeting"
+    "exam"
    ],
    "must_fix": [
     {
@@ -292,180 +698,255 @@
    "must_not_add": []
   },
   {
-   "id": "h13",
-   "category": "vocabulary",
-   "source": "We discussed about to hire two new engineers",
+   "id": "f28",
+   "category": "collocation",
+   "source": "Can you say me the time of the train",
    "expect": "accept",
    "references": [
-    "We discussed hiring two new engineers"
+    "Can you tell me the time of the train"
    ],
    "must_preserve": [
-    "two",
-    "engineers"
-   ],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h14",
-   "category": "vocabulary",
-   "source": "The weather is very hot so I will open the air conditioner",
-   "expect": "accept",
-   "references": [
-    "The weather is very hot, so I will turn on the air conditioner",
-    "The weather is very hot so I will turn on the air conditioner"
-   ],
-   "must_preserve": [
-    "hot",
-    "will"
+    "time",
+    "train"
    ],
    "must_fix": [
     {
-     "remove": "open",
-     "add": "turn on"
+     "remove": "say me",
+     "add": "tell me"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h15",
-   "category": "vocabulary",
-   "source": "I am very boring in this class because the lesson is slow",
+   "id": "f29",
+   "category": "collocation",
+   "source": "We have to make homework before dinner",
    "expect": "accept",
    "references": [
-    "I am very bored in this class because the lesson is slow"
+    "We have to do homework before dinner"
    ],
    "must_preserve": [
-    "because",
-    "slow"
+    "homework",
+    "dinner",
+    "before"
    ],
    "must_fix": [
     {
-     "remove": "boring",
-     "add": "bored"
+     "remove": "make homework",
+     "add": "do homework"
     }
    ],
    "must_not_add": []
   },
   {
-   "id": "h16",
-   "category": "natural",
-   "source": "Our team shipped the new feature on Thursday and customers liked it",
-   "expect": "accept_unchanged",
-   "references": [
-    "Our team shipped the new feature on Thursday and customers liked it"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h17",
-   "category": "natural",
-   "source": "I'm not sure the shop is open, but we can check on the way",
-   "expect": "accept_unchanged",
-   "references": [
-    "I'm not sure the shop is open, but we can check on the way"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h18",
-   "category": "natural",
-   "source": "They moved the call to the afternoon because two people were travelling",
-   "expect": "accept_unchanged",
-   "references": [
-    "They moved the call to the afternoon because two people were travelling"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h19",
-   "category": "natural",
-   "source": "The report was shorter than last year, and nobody complained about it",
-   "expect": "accept_unchanged",
-   "references": [
-    "The report was shorter than last year, and nobody complained about it"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h20",
-   "category": "natural",
-   "source": "If the tests pass tonight, we will release the update tomorrow morning",
-   "expect": "accept_unchanged",
-   "references": [
-    "If the tests pass tonight, we will release the update tomorrow morning"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "h21",
-   "category": "negation",
-   "source": "He no like the new office because it is too noisy",
+   "id": "f30",
+   "category": "collocation",
+   "source": "She did a photo of the sunset",
    "expect": "accept",
    "references": [
-    "He doesn't like the new office because it is too noisy",
-    "He does not like the new office because it is too noisy"
+    "She took a photo of the sunset"
    ],
    "must_preserve": [
-    "noisy",
-    "@NEGATION"
+    "photo",
+    "sunset"
+   ],
+   "must_fix": [
+    {
+     "remove": "did a photo",
+     "add": "took a photo"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f31",
+   "category": "word_order",
+   "source": "Always I drink coffee in the morning",
+   "expect": "accept",
+   "references": [
+    "I always drink coffee in the morning"
+   ],
+   "must_preserve": [
+    "always",
+    "coffee",
+    "morning"
    ],
    "must_fix": [],
    "must_not_add": []
   },
   {
-   "id": "h22",
-   "category": "negation",
-   "source": "I didn't never see that movie before",
+   "id": "f32",
+   "category": "word_order",
+   "source": "I don't know where is the station",
    "expect": "accept",
    "references": [
-    "I have never seen that movie before",
-    "I never saw that movie before",
-    "I didn't ever see that movie before"
+    "I don't know where the station is"
    ],
    "must_preserve": [
     "@NEGATION",
-    "movie"
+    "station"
+   ],
+   "must_fix": [
+    {
+     "remove": "where is the station",
+     "add": "where the station is"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f33",
+   "category": "word_order",
+   "source": "She asked me what time was it",
+   "expect": "accept",
+   "references": [
+    "She asked me what time it was"
+   ],
+   "must_preserve": [
+    "asked",
+    "time"
+   ],
+   "must_fix": [
+    {
+     "remove": "what time was it",
+     "add": "what time it was"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f34",
+   "category": "countable",
+   "source": "I have many informations about the project",
+   "expect": "accept",
+   "references": [
+    "I have a lot of information about the project",
+    "I have lots of information about the project",
+    "I have much information about the project"
+   ],
+   "must_preserve": [
+    "project"
+   ],
+   "must_fix": [
+    {
+     "remove": "informations",
+     "add": "information"
+    }
+   ],
+   "must_not_add": [
+    "none",
+    "little",
+    "few"
+   ]
+  },
+  {
+   "id": "f35",
+   "category": "countable",
+   "source": "We need more chair for the guests",
+   "expect": "accept",
+   "references": [
+    "We need more chairs for the guests"
+   ],
+   "must_preserve": [
+    "more",
+    "guests"
+   ],
+   "must_fix": [
+    {
+     "remove": "chair",
+     "add": "chairs"
+    }
+   ],
+   "must_not_add": [
+    "fewer",
+    "less"
+   ]
+  },
+  {
+   "id": "f36",
+   "category": "countable",
+   "source": "He gave me an advice about the interview",
+   "expect": "accept",
+   "references": [
+    "He gave me some advice about the interview",
+    "He gave me a piece of advice about the interview",
+    "He gave me advice about the interview"
+   ],
+   "must_preserve": [
+    "advice",
+    "interview"
+   ],
+   "must_fix": [
+    {
+     "remove": "an advice",
+     "add": "advice"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f37",
+   "category": "disfluency",
+   "source": "I I think we should should start earlier",
+   "expect": "accept",
+   "references": [
+    "I think we should start earlier"
+   ],
+   "must_preserve": [
+    "think",
+    "earlier"
    ],
    "must_fix": [],
    "must_not_add": []
   },
   {
-   "id": "h23",
-   "category": "negation",
-   "source": "She said she can't come because she have a meeting",
+   "id": "f38",
+   "category": "disfluency",
+   "source": "The the meeting is at is at nine",
    "expect": "accept",
    "references": [
-    "She said she can't come because she has a meeting"
+    "The meeting is at nine"
    ],
    "must_preserve": [
-    "can't",
-    "meeting"
+    "meeting",
+    "nine"
    ],
    "must_fix": [],
    "must_not_add": []
   },
   {
-   "id": "h24",
-   "category": "negation",
-   "source": "Nobody are in the office today",
+   "id": "f39",
+   "category": "false_fact",
+   "source": "The sun rise in the west every morning",
    "expect": "accept",
    "references": [
-    "Nobody is in the office today"
+    "The sun rises in the west every morning"
    ],
    "must_preserve": [
-    "nobody",
-    "office"
+    "west",
+    "every morning"
+   ],
+   "must_fix": [
+    {
+     "remove": "rise",
+     "add": "rises"
+    }
+   ],
+   "must_not_add": [
+    "east"
+   ]
+  },
+  {
+   "id": "f40",
+   "category": "false_fact",
+   "source": "Mount Everest are the smallest mountain in the world",
+   "expect": "accept",
+   "references": [
+    "Mount Everest is the smallest mountain in the world"
+   ],
+   "must_preserve": [
+    "Everest",
+    "smallest"
    ],
    "must_fix": [
     {
@@ -473,88 +954,493 @@
      "add": "is"
     }
    ],
-   "must_not_add": []
+   "must_not_add": [
+    "highest",
+    "tallest",
+    "biggest",
+    "largest"
+   ]
   },
   {
-   "id": "h25",
-   "category": "modality",
-   "source": "You must to send the form before Friday",
+   "id": "f41",
+   "category": "false_fact",
+   "source": "Dogs has six legs and they can fly",
    "expect": "accept",
    "references": [
-    "You must send the form before Friday"
+    "Dogs have six legs and they can fly"
    ],
    "must_preserve": [
-    "must",
-    "Friday"
+    "six",
+    "fly",
+    "can"
    ],
    "must_fix": [
     {
-     "remove": "to",
+     "remove": "has",
+     "add": "have"
+    }
+   ],
+   "must_not_add": [
+    "four",
+    "cannot"
+   ]
+  },
+  {
+   "id": "f42",
+   "category": "false_fact",
+   "source": "Tokyo are the capital of Italy",
+   "expect": "accept",
+   "references": [
+    "Tokyo is the capital of Italy"
+   ],
+   "must_preserve": [
+    "Tokyo",
+    "Italy",
+    "capital"
+   ],
+   "must_fix": [
+    {
+     "remove": "are",
+     "add": "is"
+    }
+   ],
+   "must_not_add": [
+    "Rome",
+    "Japan"
+   ]
+  },
+  {
+   "id": "f43",
+   "category": "false_fact",
+   "source": "He born in nineteen ninety so he is forty now",
+   "expect": "accept",
+   "references": [
+    "He was born in nineteen ninety so he is forty now"
+   ],
+   "must_preserve": [
+    "ninety",
+    "forty"
+   ],
+   "must_fix": [
+    {
+     "remove": "",
+     "add": "was born"
+    }
+   ],
+   "must_not_add": [
+    "thirty six",
+    "thirty-six",
+    "thirty"
+   ]
+  },
+  {
+   "id": "f44",
+   "category": "false_fact",
+   "source": "Cats is bigger than elephants",
+   "expect": "accept",
+   "references": [
+    "Cats are bigger than elephants"
+   ],
+   "must_preserve": [
+    "bigger",
+    "than",
+    "elephants"
+   ],
+   "must_fix": [
+    {
+     "remove": "is",
+     "add": "are"
+    }
+   ],
+   "must_not_add": [
+    "smaller",
+    "smallest"
+   ]
+  },
+  {
+   "id": "f45",
+   "category": "negation",
+   "source": "I am not agree with the new rule",
+   "expect": "accept",
+   "references": [
+    "I do not agree with the new rule",
+    "I don't agree with the new rule"
+   ],
+   "must_preserve": [
+    "@NEGATION",
+    "rule"
+   ],
+   "must_fix": [
+    {
+     "remove": "am not agree",
      "add": ""
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f46",
+   "category": "negation",
+   "source": "We haven't see any problem with the plan",
+   "expect": "accept",
+   "references": [
+    "We haven't seen any problem with the plan"
+   ],
+   "must_preserve": [
+    "@NEGATION",
+    "problem",
+    "plan"
+   ],
+   "must_fix": [
+    {
+     "remove": "see",
+     "add": "seen"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f47",
+   "category": "negation",
+   "source": "They can't finishes the work without help",
+   "expect": "accept",
+   "references": [
+    "They can't finish the work without help"
+   ],
+   "must_preserve": [
+    "@NEGATION",
+    "without",
+    "help"
+   ],
+   "must_fix": [
+    {
+     "remove": "finishes",
+     "add": "finish"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f48",
+   "category": "modality",
+   "source": "You must to wear a helmet on the bike",
+   "expect": "accept",
+   "references": [
+    "You must wear a helmet on the bike"
+   ],
+   "must_preserve": [
+    "must",
+    "helmet"
+   ],
+   "must_fix": [
+    {
+     "remove": "must to",
+     "add": "must"
     }
    ],
    "must_not_add": [
     "should",
     "can",
-    "could",
     "may"
    ]
   },
   {
-   "id": "h26",
+   "id": "f49",
    "category": "modality",
-   "source": "He could finished the work if he had more time",
+   "source": "She can speaks three languages",
    "expect": "accept",
    "references": [
-    "He could finish the work if he had more time"
+    "She can speak three languages"
    ],
    "must_preserve": [
-    "could",
-    "time"
+    "can",
+    "three",
+    "languages"
    ],
    "must_fix": [
     {
-     "remove": "finished",
-     "add": "finish"
+     "remove": "speaks",
+     "add": "speak"
+    }
+   ],
+   "must_not_add": [
+    "must",
+    "should",
+    "will"
+   ]
+  },
+  {
+   "id": "f50",
+   "category": "modality",
+   "source": "He might to arrive late tonight",
+   "expect": "accept",
+   "references": [
+    "He might arrive late tonight"
+   ],
+   "must_preserve": [
+    "might",
+    "late",
+    "tonight"
+   ],
+   "must_fix": [
+    {
+     "remove": "might to",
+     "add": "might"
     }
    ],
    "must_not_add": [
     "will",
-    "would",
-    "can"
+    "must",
+    "definitely"
    ]
   },
   {
-   "id": "h27",
-   "category": "modality",
-   "source": "We should to leave early to avoid the traffic",
+   "id": "f51",
+   "category": "quantity",
+   "source": "Few students was absent on Monday",
    "expect": "accept",
    "references": [
-    "We should leave early to avoid the traffic"
+    "Few students were absent on Monday"
    ],
    "must_preserve": [
-    "should",
-    "traffic"
+    "few",
+    "absent",
+    "Monday"
+   ],
+   "must_fix": [
+    {
+     "remove": "was",
+     "add": "were"
+    }
+   ],
+   "must_not_add": [
+    "many",
+    "all",
+    "no"
+   ]
+  },
+  {
+   "id": "f52",
+   "category": "quantity",
+   "source": "I drank too much coffees this morning",
+   "expect": "accept",
+   "references": [
+    "I drank too much coffee this morning",
+    "I drank too many coffees this morning"
+   ],
+   "must_preserve": [
+    "too",
+    "morning"
    ],
    "must_fix": [],
    "must_not_add": [
-    "must",
-    "can",
-    "could"
+    "little",
+    "few",
+    "enough"
    ]
   },
   {
-   "id": "h28",
+   "id": "f53",
    "category": "quantity",
-   "source": "Only two students was late for the exam",
+   "source": "Both of the teams was ready to play",
    "expect": "accept",
    "references": [
-    "Only two students were late for the exam"
+    "Both of the teams were ready to play"
    ],
    "must_preserve": [
-    "two",
-    "only",
-    "exam"
+    "both",
+    "ready",
+    "teams"
+   ],
+   "must_fix": [
+    {
+     "remove": "was",
+     "add": "were"
+    }
+   ],
+   "must_not_add": [
+    "all",
+    "one",
+    "neither"
+   ]
+  },
+  {
+   "id": "f54",
+   "category": "comparison",
+   "source": "This road is more safe than the old one",
+   "expect": "accept",
+   "references": [
+    "This road is safer than the old one"
+   ],
+   "must_preserve": [
+    "than",
+    "old"
+   ],
+   "must_fix": [
+    {
+     "remove": "more safe",
+     "add": "safer"
+    }
+   ],
+   "must_not_add": [
+    "less",
+    "dangerous",
+    "safest"
+   ]
+  },
+  {
+   "id": "f55",
+   "category": "comparison",
+   "source": "Her car is the more expensive in the street",
+   "expect": "accept",
+   "references": [
+    "Her car is the most expensive in the street"
+   ],
+   "must_preserve": [
+    "expensive",
+    "street"
+   ],
+   "must_fix": [
+    {
+     "remove": "more",
+     "add": "most"
+    }
+   ],
+   "must_not_add": [
+    "cheapest",
+    "least",
+    "cheaper"
+   ]
+  },
+  {
+   "id": "f56",
+   "category": "comparison",
+   "source": "He runs more fast than his brother",
+   "expect": "accept",
+   "references": [
+    "He runs faster than his brother"
+   ],
+   "must_preserve": [
+    "than",
+    "brother"
+   ],
+   "must_fix": [
+    {
+     "remove": "more fast",
+     "add": "faster"
+    }
+   ],
+   "must_not_add": [
+    "slower",
+    "slowest"
+   ]
+  },
+  {
+   "id": "f57",
+   "category": "certainty",
+   "source": "I am quite certain the package arrive on Friday",
+   "expect": "accept",
+   "references": [
+    "I am quite certain the package will arrive on Friday",
+    "I am quite certain the package arrives on Friday"
+   ],
+   "must_preserve": [
+    "certain",
+    "Friday",
+    "package"
+   ],
+   "must_fix": [],
+   "must_not_add": [
+    "maybe",
+    "might",
+    "perhaps",
+    "probably"
+   ]
+  },
+  {
+   "id": "f58",
+   "category": "certainty",
+   "source": "Maybe he don't know the answer",
+   "expect": "accept",
+   "references": [
+    "Maybe he doesn't know the answer"
+   ],
+   "must_preserve": [
+    "maybe",
+    "@NEGATION",
+    "answer"
+   ],
+   "must_fix": [
+    {
+     "remove": "don't",
+     "add": "doesn't"
+    }
+   ],
+   "must_not_add": [
+    "definitely",
+    "certainly",
+    "surely"
+   ]
+  },
+  {
+   "id": "f59",
+   "category": "causality",
+   "source": "The flight was cancelled because of the storm so we stay at a hotel",
+   "expect": "accept",
+   "references": [
+    "The flight was cancelled because of the storm so we stayed at a hotel"
+   ],
+   "must_preserve": [
+    "because",
+    "so",
+    "storm",
+    "hotel"
+   ],
+   "must_fix": [
+    {
+     "remove": "stay",
+     "add": "stayed"
+    }
+   ],
+   "must_not_add": []
+  },
+  {
+   "id": "f60",
+   "category": "causality",
+   "source": "He was tired because he work all night",
+   "expect": "accept",
+   "references": [
+    "He was tired because he worked all night"
+   ],
+   "must_preserve": [
+    "because",
+    "tired",
+    "all night"
+   ],
+   "must_fix": [
+    {
+     "remove": "work",
+     "add": "worked"
+    }
+   ],
+   "must_not_add": [
+    "so",
+    "therefore"
+   ]
+  },
+  {
+   "id": "f61",
+   "category": "named_entity",
+   "source": "Maria and Chen was presenting at the conference in Berlin",
+   "expect": "accept",
+   "references": [
+    "Maria and Chen were presenting at the conference in Berlin"
+   ],
+   "must_preserve": [
+    "Maria",
+    "Chen",
+    "Berlin",
+    "conference"
    ],
    "must_fix": [
     {
@@ -565,551 +1451,858 @@
    "must_not_add": []
   },
   {
-   "id": "h29",
-   "category": "quantity",
-   "source": "I have many homeworks and few times today",
+   "id": "f62",
+   "category": "named_entity",
+   "source": "We meets Dr Patel at the Harbor Cafe",
    "expect": "accept",
    "references": [
-    "I have a lot of homework and little time today",
-    "I have lots of homework and little time today",
-    "I have a lot of homework and not much time today"
+    "We meet Dr Patel at the Harbor Cafe",
+    "We met Dr Patel at the Harbor Cafe"
    ],
    "must_preserve": [
-    "today"
-   ],
-   "must_fix": [],
-   "must_not_add": [
-    "all",
-    "every",
-    "none"
-   ]
-  },
-  {
-   "id": "h30",
-   "category": "quantity",
-   "source": "Both of my sisters lives in Canada",
-   "expect": "accept",
-   "references": [
-    "Both of my sisters live in Canada"
-   ],
-   "must_preserve": [
-    "both",
-    "Canada"
+    "Patel",
+    "Harbor Cafe"
    ],
    "must_fix": [
     {
-     "remove": "lives",
-     "add": "live"
-    }
-   ],
-   "must_not_add": [
-    "all",
-    "one"
-   ]
-  },
-  {
-   "id": "h31",
-   "category": "comparison",
-   "source": "This phone is more cheaper than that one",
-   "expect": "accept",
-   "references": [
-    "This phone is cheaper than that one"
-   ],
-   "must_preserve": [
-    "cheaper",
-    "than"
-   ],
-   "must_fix": [
-    {
-     "remove": "more",
+     "remove": "meets",
      "add": ""
     }
    ],
-   "must_not_add": [
-    "expensive",
-    "costlier"
-   ]
-  },
-  {
-   "id": "h32",
-   "category": "comparison",
-   "source": "My brother runs more fast than me",
-   "expect": "accept",
-   "references": [
-    "My brother runs faster than me",
-    "My brother runs faster than I do"
-   ],
-   "must_preserve": [
-    "faster",
-    "brother"
-   ],
-   "must_fix": [],
-   "must_not_add": [
-    "slower",
-    "slowly"
-   ]
-  },
-  {
-   "id": "h33",
-   "category": "comparison",
-   "source": "She is the most tallest girl in our class",
-   "expect": "accept",
-   "references": [
-    "She is the tallest girl in our class"
-   ],
-   "must_preserve": [
-    "tallest",
-    "class"
-   ],
-   "must_fix": [
-    {
-     "remove": "most",
-     "add": ""
-    }
-   ],
-   "must_not_add": [
-    "shortest",
-    "smallest"
-   ]
-  },
-  {
-   "id": "h34",
-   "category": "certainty",
-   "source": "Maybe it will rains tomorrow",
-   "expect": "accept",
-   "references": [
-    "Maybe it will rain tomorrow"
-   ],
-   "must_preserve": [
-    "maybe",
-    "tomorrow"
-   ],
-   "must_fix": [
-    {
-     "remove": "rains",
-     "add": "rain"
-    }
-   ],
-   "must_not_add": [
-    "definitely",
-    "certainly",
-    "surely"
-   ]
-  },
-  {
-   "id": "h35",
-   "category": "certainty",
-   "source": "I am almost sure he comes to the party",
-   "expect": "accept",
-   "references": [
-    "I am almost sure he will come to the party",
-    "I am almost sure he is coming to the party"
-   ],
-   "must_preserve": [
-    "almost sure",
-    "party"
-   ],
-   "must_fix": [],
-   "must_not_add": [
-    "definitely",
-    "certainly",
-    "not sure"
-   ]
-  },
-  {
-   "id": "h36",
-   "category": "certainty",
-   "source": "The doctor said it probably is not serious",
-   "expect": "accept",
-   "references": [
-    "The doctor said it probably isn't serious",
-    "The doctor said it is probably not serious"
-   ],
-   "must_preserve": [
-    "probably",
-    "@NEGATION",
-    "serious"
-   ],
-   "must_fix": [],
-   "must_not_add": [
-    "definitely",
-    "certainly"
-   ]
-  },
-  {
-   "id": "h37",
-   "category": "certainty",
-   "source": "They always is late for the meetings",
-   "expect": "accept",
-   "references": [
-    "They are always late for the meetings"
-   ],
-   "must_preserve": [
-    "always",
-    "late"
-   ],
-   "must_fix": [
-    {
-     "remove": "is",
-     "add": "are"
-    }
-   ],
-   "must_not_add": [
-    "sometimes",
-    "never",
-    "often"
-   ]
-  },
-  {
-   "id": "h38",
-   "category": "causality",
-   "source": "I was late because the train it was cancelled",
-   "expect": "accept",
-   "references": [
-    "I was late because the train was cancelled"
-   ],
-   "must_preserve": [
-    "because",
-    "cancelled"
-   ],
-   "must_fix": [],
-   "must_not_add": [
-    "so",
-    "therefore"
-   ]
-  },
-  {
-   "id": "h39",
-   "category": "causality",
-   "source": "The road was closed, so we take another way",
-   "expect": "accept",
-   "references": [
-    "The road was closed, so we took another way"
-   ],
-   "must_preserve": [
-    "so",
-    "closed"
-   ],
-   "must_fix": [
-    {
-     "remove": "take",
-     "add": "took"
-    }
-   ],
-   "must_not_add": [
-    "because"
-   ]
-  },
-  {
-   "id": "h40",
-   "category": "causality",
-   "source": "He studied hard although he were very tired",
-   "expect": "accept",
-   "references": [
-    "He studied hard although he was very tired"
-   ],
-   "must_preserve": [
-    "although",
-    "tired"
-   ],
-   "must_fix": [
-    {
-     "remove": "were",
-     "add": "was"
-    }
-   ],
-   "must_not_add": [
-    "because",
-    "so"
-   ]
-  },
-  {
-   "id": "h41",
-   "category": "named_entity",
-   "source": "Priya and Daniel is meeting at the Berlin office on Tuesday",
-   "expect": "accept",
-   "references": [
-    "Priya and Daniel are meeting at the Berlin office on Tuesday"
-   ],
-   "must_preserve": [
-    "Priya",
-    "Daniel",
-    "Berlin",
-    "Tuesday"
-   ],
-   "must_fix": [
-    {
-     "remove": "is",
-     "add": "are"
-    }
-   ],
    "must_not_add": []
   },
   {
-   "id": "h42",
-   "category": "named_entity",
-   "source": "We visited Lisbon last summer and we like it much",
+   "id": "f63",
+   "category": "number",
+   "source": "The tickets costs twenty five dollars each",
    "expect": "accept",
    "references": [
-    "We visited Lisbon last summer and we liked it a lot",
-    "We visited Lisbon last summer and we liked it very much"
+    "The tickets cost twenty five dollars each",
+    "The tickets cost twenty-five dollars each"
    ],
    "must_preserve": [
-    "Lisbon",
-    "summer"
+    "five",
+    "dollars",
+    "each"
    ],
    "must_fix": [
     {
-     "remove": "like",
-     "add": "liked"
-    }
-   ],
-   "must_not_add": []
-  },
-  {
-   "id": "h43",
-   "category": "named_entity",
-   "source": "Doctor Okafor tell me to rest for five days",
-   "expect": "accept",
-   "references": [
-    "Doctor Okafor told me to rest for five days"
-   ],
-   "must_preserve": [
-    "Okafor",
-    "five"
-   ],
-   "must_fix": [
-    {
-     "remove": "tell",
-     "add": "told"
-    }
-   ],
-   "must_not_add": []
-  },
-  {
-   "id": "h44",
-   "category": "plausible_wrong_fact",
-   "source": "Paris is the capital of Germany and it have many museums",
-   "expect": "accept",
-   "references": [
-    "Paris is the capital of Germany and it has many museums"
-   ],
-   "must_preserve": [
-    "Paris",
-    "Germany"
-   ],
-   "must_fix": [
-    {
-     "remove": "have",
-     "add": "has"
+     "remove": "costs",
+     "add": "cost"
     }
    ],
    "must_not_add": [
-    "France",
-    "Berlin"
+    "fifty",
+    "fifteen",
+    "thirty"
    ]
   },
   {
-   "id": "h45",
-   "category": "plausible_wrong_fact",
-   "source": "Water boil at fifty degrees so we make tea fast",
+   "id": "f64",
+   "category": "number",
+   "source": "He have two brothers and three sisters",
    "expect": "accept",
    "references": [
-    "Water boils at fifty degrees, so we make tea fast",
-    "Water boils at fifty degrees so we make tea fast"
+    "He has two brothers and three sisters"
    ],
    "must_preserve": [
-    "fifty"
-   ],
-   "must_fix": [
-    {
-     "remove": "boil",
-     "add": "boils"
-    }
-   ],
-   "must_not_add": [
-    "hundred",
-    "100"
-   ]
-  },
-  {
-   "id": "h46",
-   "category": "plausible_wrong_fact",
-   "source": "The meeting is on Sunday but the office are closed on weekends",
-   "expect": "accept",
-   "references": [
-    "The meeting is on Sunday but the office is closed on weekends"
-   ],
-   "must_preserve": [
-    "Sunday",
-    "weekends"
-   ],
-   "must_fix": [
-    {
-     "remove": "are",
-     "add": "is"
-    }
-   ],
-   "must_not_add": [
-    "Monday",
-    "Saturday"
-   ]
-  },
-  {
-   "id": "h47",
-   "category": "plausible_wrong_fact",
-   "source": "He is thirty years old and he was born in two thousand ten",
-   "expect": "accept",
-   "references": [
-    "He is thirty years old and he was born in two thousand ten"
-   ],
-   "must_preserve": [
-    "thirty",
-    "ten"
-   ],
-   "must_fix": [],
-   "must_not_add": [
-    "twenty",
-    "nineteen",
-    "2000"
-   ]
-  },
-  {
-   "id": "h48",
-   "category": "plausible_wrong_fact",
-   "source": "My sister have three children, two boys and one boys",
-   "expect": "accept",
-   "references": [
-    "My sister has three children, two boys and one boy"
-   ],
-   "must_preserve": [
-    "three",
     "two",
-    "one"
+    "three",
+    "brothers",
+    "sisters"
    ],
    "must_fix": [
     {
      "remove": "have",
      "add": "has"
-    },
-    {
-     "remove": "one boys",
-     "add": "one boy"
     }
    ],
    "must_not_add": [
     "four",
-    "daughter",
-    "girl"
+    "five"
    ]
   },
   {
-   "id": "h49",
-   "category": "disfluency",
-   "source": "Um I think that like the project is almost finish",
-   "expect": "accept",
+   "id": "n01",
+   "category": "regional_uk",
+   "source": "I will ring you tomorrow when I get back to the flat",
+   "expect": "accept_unchanged",
    "references": [
-    "I think the project is almost finished",
-    "I think that the project is almost finished"
+    "I will ring you tomorrow when I get back to the flat"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n02",
+   "category": "regional_uk",
+   "source": "She has just bought a new car and we are going to see it at the weekend",
+   "expect": "accept_unchanged",
+   "references": [
+    "She has just bought a new car and we are going to see it at the weekend"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n03",
+   "category": "regional_uk",
+   "source": "Whilst we were queueing the driver said the programme had changed",
+   "expect": "accept_unchanged",
+   "references": [
+    "Whilst we were queueing the driver said the programme had changed"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n04",
+   "category": "regional_uk",
+   "source": "He has got a lot of homework so he will not go to the cinema tonight",
+   "expect": "accept_unchanged",
+   "references": [
+    "He has got a lot of homework so he will not go to the cinema tonight"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n05",
+   "category": "regional_uk",
+   "source": "Our neighbours organised a street party for the whole neighbourhood",
+   "expect": "accept_unchanged",
+   "references": [
+    "Our neighbours organised a street party for the whole neighbourhood"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n06",
+   "category": "regional_uk",
+   "source": "I have already done the washing up and I am going to collect the post",
+   "expect": "accept_unchanged",
+   "references": [
+    "I have already done the washing up and I am going to collect the post"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n07",
+   "category": "regional_us",
+   "source": "I just got the mail and I am going to take the elevator to the fifth floor",
+   "expect": "accept_unchanged",
+   "references": [
+    "I just got the mail and I am going to take the elevator to the fifth floor"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n08",
+   "category": "regional_us",
+   "source": "They have gotten the apartment keys already",
+   "expect": "accept_unchanged",
+   "references": [
+    "They have gotten the apartment keys already"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n09",
+   "category": "regional_us",
+   "source": "She is going to the movies on the weekend with her roommate",
+   "expect": "accept_unchanged",
+   "references": [
+    "She is going to the movies on the weekend with her roommate"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n10",
+   "category": "regional_us",
+   "source": "He organized the garage and threw away the old color samples",
+   "expect": "accept_unchanged",
+   "references": [
+    "He organized the garage and threw away the old color samples"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n11",
+   "category": "plain",
+   "source": "Honestly I think the new schedule works well for everyone on the team",
+   "expect": "accept_unchanged",
+   "references": [
+    "Honestly I think the new schedule works well for everyone on the team"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n12",
+   "category": "plain",
+   "source": "After the meeting we walked back to the office and had lunch together",
+   "expect": "accept_unchanged",
+   "references": [
+    "After the meeting we walked back to the office and had lunch together"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n13",
+   "category": "optional_subject",
+   "source": "Went to the market this morning and bought fresh bread",
+   "expect": "accept_unchanged",
+   "references": [
+    "Went to the market this morning and bought fresh bread"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n14",
+   "category": "optional_subject",
+   "source": "She is a teacher and works at a primary school",
+   "expect": "accept_unchanged",
+   "references": [
+    "She is a teacher and works at a primary school"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n15",
+   "category": "optional_subject",
+   "source": "Hope you have a great trip and see you soon",
+   "expect": "accept_unchanged",
+   "references": [
+    "Hope you have a great trip and see you soon"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n16",
+   "category": "informal",
+   "source": "I'm gonna call her later because I can't find my keys",
+   "expect": "accept_unchanged",
+   "references": [
+    "I'm gonna call her later because I can't find my keys"
    ],
    "must_preserve": [
-    "almost",
-    "project"
+    "@NEGATION"
    ],
-   "must_fix": [
-    {
-     "remove": "finish",
-     "add": "finished"
-    }
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n17",
+   "category": "informal",
+   "source": "They've already left so we'll have to wait",
+   "expect": "accept_unchanged",
+   "references": [
+    "They've already left so we'll have to wait"
    ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n18",
+   "category": "informal",
+   "source": "Yeah I guess it's fine but I wouldn't change anything",
+   "expect": "accept_unchanged",
+   "references": [
+    "Yeah I guess it's fine but I wouldn't change anything"
+   ],
+   "must_preserve": [
+    "@NEGATION"
+   ],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n19",
+   "category": "fluent_false_fact",
+   "source": "The moon is made of cheese and the Earth is flat",
+   "expect": "accept_unchanged",
+   "references": [
+    "The moon is made of cheese and the Earth is flat"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n20",
+   "category": "fluent_false_fact",
+   "source": "Paris is the largest country in Europe and it has a long coastline",
+   "expect": "accept_unchanged",
+   "references": [
+    "Paris is the largest country in Europe and it has a long coastline"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n21",
+   "category": "fluent_false_fact",
+   "source": "Water freezes at fifty degrees in my kitchen",
+   "expect": "accept_unchanged",
+   "references": [
+    "Water freezes at fifty degrees in my kitchen"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n22",
+   "category": "fluent_false_fact",
+   "source": "My grandfather was born in nineteen sixty and he is ninety years old",
+   "expect": "accept_unchanged",
+   "references": [
+    "My grandfather was born in nineteen sixty and he is ninety years old"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n23",
+   "category": "fluent_false_fact",
+   "source": "A week has ten days and a year has twelve months",
+   "expect": "accept_unchanged",
+   "references": [
+    "A week has ten days and a year has twelve months"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n24",
+   "category": "natural_negation",
+   "source": "I did not say that we should cancel the contract",
+   "expect": "accept_unchanged",
+   "references": [
+    "I did not say that we should cancel the contract"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n25",
+   "category": "natural_certainty",
+   "source": "She might come to the party but she is not certain yet",
+   "expect": "accept_unchanged",
+   "references": [
+    "She might come to the party but she is not certain yet"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n26",
+   "category": "natural_comparison",
+   "source": "This laptop is cheaper than the old one but slower",
+   "expect": "accept_unchanged",
+   "references": [
+    "This laptop is cheaper than the old one but slower"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n27",
+   "category": "natural_quantity",
+   "source": "Most of the staff agreed but a few people disagreed",
+   "expect": "accept_unchanged",
+   "references": [
+    "Most of the staff agreed but a few people disagreed"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n28",
+   "category": "natural_causality",
+   "source": "The road was closed so we took the longer route home",
+   "expect": "accept_unchanged",
+   "references": [
+    "The road was closed so we took the longer route home"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n29",
+   "category": "plain",
+   "source": "Could you send me the final report before Friday afternoon",
+   "expect": "accept_unchanged",
+   "references": [
+    "Could you send me the final report before Friday afternoon"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n30",
+   "category": "plain",
+   "source": "We are meeting Anna and Tomás in Lisbon next month",
+   "expect": "accept_unchanged",
+   "references": [
+    "We are meeting Anna and Tomás in Lisbon next month"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n31",
+   "category": "plain",
+   "source": "If it rains tomorrow we will move the picnic to Sunday",
+   "expect": "accept_unchanged",
+   "references": [
+    "If it rains tomorrow we will move the picnic to Sunday"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "n32",
+   "category": "plain",
+   "source": "It took us about two hours to drive there because of the traffic",
+   "expect": "accept_unchanged",
+   "references": [
+    "It took us about two hours to drive there because of the traffic"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "a01",
+   "category": "ambiguous_intent",
+   "source": "My friend told me that she go to the station",
+   "expect": "accept_unchanged",
+   "references": [
+    "My friend told me that she go to the station"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
    "must_not_add": [
-    "definitely",
-    "completely"
+    "went",
+    "will",
+    "yesterday",
+    "tomorrow"
    ]
   },
   {
-   "id": "h50",
-   "category": "disfluency",
-   "source": "We uh need to talk about the the schedule",
-   "expect": "accept",
+   "id": "a02",
+   "category": "ambiguous_intent",
+   "source": "I will see him last week",
+   "expect": "accept_unchanged",
    "references": [
-    "We need to talk about the schedule"
+    "I will see him last week"
    ],
    "must_preserve": [
-    "schedule"
+    "will"
    ],
    "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "hu01",
-   "category": "uncertain",
-   "source": "we meet the new client at the oh fice tomorrow after the lunch",
-   "expect": "unavailable",
-   "references": [
-    "we meet the new client at the oh fice tomorrow after the lunch"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "hu02",
-   "category": "uncertain",
-   "source": "They finished the report before lunch on Monday",
-   "expect": "unavailable",
-   "references": [
-    "They finished the report before lunch on Monday"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "hu03",
-   "category": "too_short",
-   "source": "I agree today",
-   "expect": "unavailable",
-   "references": [
-    "I agree today"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "hu04",
-   "category": "too_long",
-   "source": "The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finish...",
-   "expect": "unavailable",
-   "references": [
-    "The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. The team finished the update and then tested it again. "
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": []
-  },
-  {
-   "id": "hu05",
-   "category": "learner_corrected",
-   "source": "I think the team have finish the report yesterday",
-   "expect": "accept",
-   "references": [
-    "I think the team finished the report yesterday",
-    "I think the team had finished the report yesterday"
-   ],
-   "must_preserve": [
-    "team",
-    "report",
+   "must_not_add": [
+    "saw",
+    "next",
     "yesterday"
+   ]
+  },
+  {
+   "id": "a03",
+   "category": "ambiguous_intent",
+   "source": "She said he not come to the meeting",
+   "expect": "accept_unchanged",
+   "references": [
+    "She said he not come to the meeting"
    ],
-   "must_fix": [
-    {
-     "remove": "finish",
-     "add": "finished"
-    }
+   "must_preserve": [
+    "@NEGATION"
    ],
+   "must_fix": [],
+   "must_not_add": [
+    "will",
+    "did",
+    "does"
+   ]
+  },
+  {
+   "id": "a04",
+   "category": "ambiguous_intent",
+   "source": "My sister and her friend she bought it yesterday",
+   "expect": "accept_unchanged",
+   "references": [
+    "My sister and her friend she bought it yesterday"
+   ],
+   "must_preserve": [
+    "sister",
+    "friend"
+   ],
+   "must_fix": [],
+   "must_not_add": [
+    "both",
+    "together"
+   ]
+  },
+  {
+   "id": "u01",
+   "category": "too_short",
+   "source": "Maybe next week",
+   "expect": "unavailable",
+   "references": [
+    "Maybe next week"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
    "must_not_add": []
+  },
+  {
+   "id": "u02",
+   "category": "too_long",
+   "source": "The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apol...",
+   "expect": "unavailable",
+   "references": [
+    "The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. The delivery arrived late on Monday and the driver apologised twice. "
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "u03",
+   "category": "uncertain",
+   "source": "we booked the room at the grand hotle for friday night",
+   "expect": "unavailable",
+   "references": [
+    "we booked the room at the grand hotle for friday night"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  },
+  {
+   "id": "u04",
+   "category": "uncertain",
+   "source": "she will send the contract to the lawyer on wednesday",
+   "expect": "unavailable",
+   "references": [
+    "she will send the contract to the lawyer on wednesday"
+   ],
+   "must_preserve": [],
+   "must_fix": [],
+   "must_not_add": []
+  }
+ ],
+ "expected_calibration": [
+  {
+   "id": "c01",
+   "category": "negation_added",
+   "expect": "different",
+   "original": "She like tea in the morning",
+   "improved": "She does not like tea in the morning"
+  },
+  {
+   "id": "c02",
+   "category": "negation_added",
+   "expect": "different",
+   "original": "We can finishing the report today",
+   "improved": "We cannot finish the report today"
+  },
+  {
+   "id": "c03",
+   "category": "negation_removed",
+   "expect": "different",
+   "original": "He didn't went to the party",
+   "improved": "He went to the party"
+  },
+  {
+   "id": "c04",
+   "category": "negation_removed",
+   "expect": "different",
+   "original": "They don't have no time",
+   "improved": "They have time"
+  },
+  {
+   "id": "c05",
+   "category": "number_changed",
+   "expect": "different",
+   "original": "The class start at nine and finish at ten",
+   "improved": "The class starts at eight and finishes at ten"
+  },
+  {
+   "id": "c06",
+   "category": "number_changed",
+   "expect": "different",
+   "original": "I buyed three tickets for the concert",
+   "improved": "I bought two tickets for the concert"
+  },
+  {
+   "id": "c07",
+   "category": "number_changed",
+   "expect": "different",
+   "original": "She is twenty years old and live in Rome",
+   "improved": "She is twenty-two years old and lives in Rome"
+  },
+  {
+   "id": "c08",
+   "category": "name_changed",
+   "expect": "different",
+   "original": "Anna and Ben visits Paris every year",
+   "improved": "Anna and Tom visit Paris every year"
+  },
+  {
+   "id": "c09",
+   "category": "name_changed",
+   "expect": "different",
+   "original": "We works with Dr Silva at the Central Hospital",
+   "improved": "We work with Dr Silva at the City Hospital"
+  },
+  {
+   "id": "c10",
+   "category": "quantity_changed",
+   "expect": "different",
+   "original": "Many people was at the station",
+   "improved": "Few people were at the station"
+  },
+  {
+   "id": "c11",
+   "category": "quantity_changed",
+   "expect": "different",
+   "original": "All the students passes the exam",
+   "improved": "Most of the students pass the exam"
+  },
+  {
+   "id": "c12",
+   "category": "quantity_changed",
+   "expect": "different",
+   "original": "I have few time today",
+   "improved": "I have no time today"
+  },
+  {
+   "id": "c13",
+   "category": "modality_changed",
+   "expect": "different",
+   "original": "You can to leave early today",
+   "improved": "You must leave early today"
+  },
+  {
+   "id": "c14",
+   "category": "modality_changed",
+   "expect": "different",
+   "original": "He might comes to the meeting",
+   "improved": "He will come to the meeting"
+  },
+  {
+   "id": "c15",
+   "category": "modality_changed",
+   "expect": "different",
+   "original": "We must finishing it today",
+   "improved": "We could finish it today"
+  },
+  {
+   "id": "c16",
+   "category": "certainty_changed",
+   "expect": "different",
+   "original": "Maybe it rain tomorrow",
+   "improved": "It will definitely rain tomorrow"
+  },
+  {
+   "id": "c17",
+   "category": "certainty_changed",
+   "expect": "different",
+   "original": "I am sure she are at home",
+   "improved": "I think she is at home"
+  },
+  {
+   "id": "c18",
+   "category": "cause_changed",
+   "expect": "different",
+   "original": "He was late because the train was cancel",
+   "improved": "He was late so the train was cancelled"
+  },
+  {
+   "id": "c19",
+   "category": "cause_changed",
+   "expect": "different",
+   "original": "She stay home because she was sick",
+   "improved": "She stayed home because it rained"
+  },
+  {
+   "id": "c20",
+   "category": "comparison_changed",
+   "expect": "different",
+   "original": "This phone is more cheap than that one",
+   "improved": "This phone is more expensive than that one"
+  },
+  {
+   "id": "c21",
+   "category": "comparison_changed",
+   "expect": "different",
+   "original": "My brother is the more tall in the family",
+   "improved": "My brother is the shortest in the family"
+  },
+  {
+   "id": "c22",
+   "category": "fact_corrected",
+   "expect": "different",
+   "original": "Paris are the capital of Germany",
+   "improved": "Berlin is the capital of Germany"
+  },
+  {
+   "id": "c23",
+   "category": "fact_corrected",
+   "expect": "different",
+   "original": "Water boil at fifty degrees",
+   "improved": "Water boils at one hundred degrees"
+  },
+  {
+   "id": "c24",
+   "category": "fact_corrected",
+   "expect": "different",
+   "original": "Mount Everest are in Africa",
+   "improved": "Mount Everest is in Asia"
+  },
+  {
+   "id": "c25",
+   "category": "detail_added",
+   "expect": "different",
+   "original": "We saw a film and eat dinner",
+   "improved": "We saw a film and ate dinner with her parents"
+  },
+  {
+   "id": "c26",
+   "category": "detail_dropped",
+   "expect": "different",
+   "original": "The manager and the engineer was late",
+   "improved": "The manager was late"
+  },
+  {
+   "id": "c27",
+   "category": "who_changed",
+   "expect": "different",
+   "original": "Anna called Ben and he answer quickly",
+   "improved": "Ben called Anna and she answered quickly"
+  },
+  {
+   "id": "s01",
+   "category": "tense_fix",
+   "expect": "same",
+   "original": "The road was closed so we take another way",
+   "improved": "The road was closed so we took another way"
+  },
+  {
+   "id": "s02",
+   "category": "word_form",
+   "expect": "same",
+   "original": "I am really tiring after the long exam",
+   "improved": "I am really tired after the long exam"
+  },
+  {
+   "id": "s03",
+   "category": "false_fact_kept",
+   "expect": "same",
+   "original": "Rome is the capital of Spain and it have many parks",
+   "improved": "Rome is the capital of Spain and it has many parks"
+  },
+  {
+   "id": "s04",
+   "category": "false_fact_kept",
+   "expect": "same",
+   "original": "Ice are hot and we put it in the oven",
+   "improved": "Ice is hot and we put it in the oven"
+  },
+  {
+   "id": "s05",
+   "category": "optional_pronoun",
+   "expect": "same",
+   "original": "He is forty years old and he was born in two thousand twenty",
+   "improved": "He is forty years old and was born in two thousand twenty"
+  },
+  {
+   "id": "s06",
+   "category": "future_repair",
+   "expect": "same",
+   "original": "I am almost sure she comes tonight",
+   "improved": "I am almost sure she will come tonight"
+  },
+  {
+   "id": "s07",
+   "category": "article",
+   "expect": "same",
+   "original": "She bought umbrella at the market",
+   "improved": "She bought an umbrella at the market"
+  },
+  {
+   "id": "s08",
+   "category": "preposition",
+   "expect": "same",
+   "original": "I am afraid on spiders",
+   "improved": "I am afraid of spiders"
+  },
+  {
+   "id": "s09",
+   "category": "countable",
+   "expect": "same",
+   "original": "He has many informations",
+   "improved": "He has a lot of information"
+  },
+  {
+   "id": "s10",
+   "category": "word_order",
+   "expect": "same",
+   "original": "Always she arrives early",
+   "improved": "She always arrives early"
+  },
+  {
+   "id": "s11",
+   "category": "word_order",
+   "expect": "same",
+   "original": "I don't know where is the bank",
+   "improved": "I don't know where the bank is"
+  },
+  {
+   "id": "s12",
+   "category": "grammar_and_spelling",
+   "expect": "same",
+   "original": "They was travelling to the centre",
+   "improved": "They were traveling to the center"
   }
  ],
  "approval_requirements": {
@@ -1120,14 +2313,19 @@
   "run_id": "<unique id>",
   "model": "gpt-4.1-mini-2025-04-14",
   "prompt_version": "v3",
-  "fixtures_sha256": "da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7",
+  "fixtures_sha256": "91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd",
+  "calibration_sha256": "00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f",
+  "stages": [
+   "calibration",
+   "heldout"
+  ],
   "prices_usd_per_million": {
    "input": 0.4,
    "output": 1.6
   },
   "max_usd": "<= 1.0 (cannot exceed the in-code cap)",
-  "max_requests": ">= 153 and <= 400",
+  "max_requests": ">= the selected stages and <= 400 (both stages: 339)",
   "repeats": 1,
-  "worst_case_reservation_usd": 0.449
+  "worst_case_reservation_usd": 0.9488
  }
 }

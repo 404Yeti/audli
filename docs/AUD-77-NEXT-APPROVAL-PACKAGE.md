@@ -1,4 +1,4 @@
-# AUD-77 / AUD-34: next approval package (refreshed 2026-10-23)
+# AUD-77 / AUD-34: next approval package (refreshed 2026-10-23, after the production-copy rehearsal)
 
 Three proposals. **Nothing here is approved or executed.** Each part ends with the exact approval it needs.
 
@@ -6,6 +6,17 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 
 | Item | State |
 |---|---|
+| Production | API revision `2a2053c`; both Vercel apps serve Next.js 16.4.1; schema version 6; **migration 007 unapplied**; Review improvement flag **off** and account-deletion flag **off** (both inferred: the Render service exposes no environment values, and the app fails closed if the Review flag is on without 007); AUD-47 report OK; no paid provider call has ever run |
+| PR #66, #67, #69 | merged and deployed (saved answer; flag-off coaching bridge; rejection recovery) |
+| PR #72 (AUD-80) | merged `2d4a1e3`: Next.js 16.4.1, `npm audit` clean, Browser CI in a digest-pinned Playwright container |
+| PR #70 | merged `aee7693`: live evaluation runner; **never executed** |
+| PR #68 (AUD-34) | merged flag-off `5f5a3e6`; AUD-34 stays In Review; operational dependencies unresolved (part 2) |
+| PR #74 | merged `cf218ee`: the 007 rollback refuses a populated table without an exact authorization phrase, plus the isolated rehearsal |
+| PR #75 | merged `2a2053c`: read-only production backup, restore, rehearsal, verification and guarded-cleanup tooling; the prepared, **unapproved** live-evaluation approval file |
+| PR #71 | closed, superseded by #72 |
+| PR #73 | this document (draft) |
+
+---|---|
 | Production | API revision `aee7693`; both Vercel apps serve Next.js 16.4.1; schema version 6; **migration 007 unapplied**; Review improvement flag **off** (inferred from startup, which fails closed without 007; the Render service exposes no environment values); AUD-47 report OK; no paid provider call has ever run |
 | PR #66, #67, #69 | merged and deployed (saved answer; flag-off coaching bridge; rejection recovery) |
 | PR #72 (AUD-80) | merged `2d4a1e3`: Next.js 16.4.1, `npm audit` clean in `web/` and `site/`, Browser CI now runs in a digest-pinned Playwright container |
@@ -70,13 +81,26 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 
 ---
 
-## 3. Migration 007 backup and rehearsal
+## 3. Migration 007 backup and rehearsal: DONE on a restored copy of production
 
-**Rehearsal done (isolated; production untouched).** `scripts/migration007/rehearse.py` on a disposable loopback PostgreSQL 17.10 with a production-shaped dataset built by the real application code: **30 of 30 steps passed**. Verified backup and exact restore; 007 applies in 0.04 s; every existing table identical by md5 (incl. lesson_lifecycles and lesson_entitlements); table columns, RLS and privileges; constraints; atomic re-apply; authorized rollback; discarded rows recovered from a table backup; post-007 and pre-007 backups restore exactly; application schema gates (flag on fails closed at schema 6). **Finding:** the old rollback dropped a populated table unconditionally; PR #74 fixes it (exact authorization phrase required) and a mutation test proves the rehearsal catches the old behaviour. Limits (not Supabase, small data, no pooler): `docs/AUD-77-MIGRATION-007-REHEARSAL.md` in PR #74.
+**Result (2026-10-23): production backup and complete rehearsal PASSED; the temporary copy has been deleted; production was only read.** Sanitized report (counts, checksums and pass/fail only): `~/.config/audli/migration007/reports/20261023T043435Z-sanitized-report.json` on the operator machine.
 
-**Still required before any production apply** (each a separate approval): merge #74; the owner's own production backup and a restore of *that* backup through the rehearsal; the owner-run apply gates below.
+| Check | Result |
+|---|---|
+| Target | production fingerprint `6828eddfe138` = the target of the earlier approved 006 runs; port 5432; PostgreSQL 17.11; session reported `default_transaction_read_only = on` |
+| Preflight | PASS: schema exactly 1-6, `review_improvements` absent, no long transactions |
+| Backup | one exported REPEATABLE READ READ ONLY snapshot used by `pg_dump` and by the counts and checksums; 35,561,197 bytes, sha256 `11e2d2c0...fe63b`, 157 TOC entries, 25 tables |
+| Restore | into a new database on an isolated loopback server: all 25 table counts, lesson statuses, lesson checksum (`96fd2917...`), entitlement checksum (`86a95ecc...`) and schema versions identical to the snapshot |
+| Isolation | server listens on 127.0.0.1 only; its environment held no production variable; the dump has 0 objects that could link outward; only `plpgsql` installed; 0 foreign servers, user mappings, foreign tables, subscriptions |
+| Production counts (snapshot) | users 9, lesson_lifecycles 25 (active 1, paused 1, completed 23), lesson_entitlements 7, exercises 49, attempts 143, evaluation_results 47, learner_roadmaps 5, homework_assignments 13, homework_reflections 6 |
+| Rehearsal on clones of the restored copy | **31 of 31 passed**: 007 applies in 0.04 s; every existing table identical by md5 (incl. lesson_lifecycles and lesson_entitlements) with only the version-7 row added; columns, RLS and privileges; constraints; atomic re-apply; **ownership isolation** (another learner cannot read or claim an exercise they do not own); rollback refuses a populated table three ways, succeeds with the exact phrase, discarded rows recoverable from a table backup, empty table needs no phrase; pre- and post-007 backups restore exactly; the app fails closed with the flag on at schema 6; the source copy proven unmodified |
+| Cleanup | guarded script ran only after the report was saved and posted: restored database, dump, run folder, the isolated server's data and log (140 identifier-shaped strings from the deliberate constraint tests) and the rehearsal scratch removed; the existing backups folder, the 006 run folder and old rehearsals are byte-for-byte unchanged (6,415 files compared) |
 
-### Original plan (still the production procedure)
+**Limits.** Rehearsal ran on PostgreSQL 17.10 (production 17.11), not Supabase's pooler; production data is small (9 users); lock behaviour under live traffic is not exercised, but 007 only creates a new table and takes no lock on existing tables. The older 006 run folder still holds a production dump from 2026-10-22; its retention is the owner's call.
+
+**Before applying 007 to production (separate approval):** a fresh backup immediately before applying (this one is deleted and production keeps changing); the 006-style apply gates (fingerprint, file hash, exact confirmation phrase, backup/restore/rehearsal manifests younger than 24 h); and the decisions below. The application at `2a2053c` already accepts schema ledgers [1..6] and [1..7], so applying 007 needs no deploy and does not enable anything.
+
+### Procedure (unchanged)
 
 **What 007 is.** One additive table `review_improvements` with RLS on, access revoked from PUBLIC/anon/authenticated, one index and one partial unique index, plus the `schema_migrations` row for version 7. No existing table changes. File: `docs/postgres-007.sql` (sha256 begins `79a5291130179…`), rollback `docs/postgres-007-rollback.sql`. The application at `cf9de1c` already accepts schema ledgers [1..6] and [1..7], so applying 007 needs **no deploy**. The feature itself fails closed if its flag is on without the table.
 
@@ -93,7 +117,7 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 
 **Not part of this approval:** applying 007 and enabling the flag are separate. Enabling additionally requires the retention decision below.
 
-**Approval needed:** (a) merge PR #74 (rollback guard + rehearsal tooling); (b) a production backup and a restore-rehearsal against that backup (read-only against production); (c) separately, apply 007 with the exact confirmation phrase; (d) separately, enable `AUDLI_REVIEW_IMPROVEMENT_ENABLED`.
+**Approval needed:** (a) applying 007 to production, separately, with a fresh backup and the exact confirmation phrase; (b) separately, enabling `AUDLI_REVIEW_IMPROVEMENT_ENABLED`.
 
 ---
 
@@ -105,8 +129,7 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 
 ## Order I recommend (remaining)
 
-1. Merge #68 flag-off (approved) once its CI is green on the final head; keep AUD-34 In Review.
-2. Review and merge #74 (rollback guard and rehearsal).
-3. Owner takes a production backup; restore it into a scratch database and run the rehearsal against that restore.
-4. Run the live evaluation (separate approval file; pass criterion: zero false accepts).
-5. Decide provider retention terms; only then apply 007, and separately decide on enabling the flag.
+1. Live evaluation: fill in and approve `docs/AUD-77-LIVE-EVALUATION-APPROVAL.json` yourself (it ships with `approved: false` and your four fields blank), run it from a shell with no database variables and an API key with an organization spend limit. Pass criterion proposed: zero false accepts.
+2. Decide provider retention terms; do not claim zero retention without verified organization-level controls.
+3. Apply 007 to production only after steps 1 and 2, with a fresh backup immediately before.
+4. Separately decide on enabling the Review improvement flag (and, much later, account deletion after the AUD-34 dependencies).

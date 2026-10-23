@@ -189,3 +189,114 @@ def test_summary_is_split_into_small_consistent_lines(caplog):
     caplog.clear()
     emit_summary()                                                          # empty window: no log noise
     assert not [r for r in caplog.records if r.getMessage().startswith('Latency summary ')]
+
+
+# AUD-82: request-overhead timing (authentication, pool, queries, lease).
+def _timed_accounts(tmp_path, repository_factory, **extra):
+    from test_auth import accounts_with
+    return accounts_with(tmp_path, repository_factory, latency_aggregates=True, **extra)
+
+
+def test_request_overhead_stages_are_recorded_for_a_read(tmp_path, repository_factory):
+    aggregator.reset()
+    gen = _timed_accounts(tmp_path, repository_factory)
+    a, _, _ = next(gen)
+    try:
+        assert a.get('/api/profile').status_code == 200
+        snap = aggregator.snapshot()
+    finally:
+        gen.close()
+    stages = snap['stages']
+    for name in ('auth.verify', 'auth.scope', 'db.query', 'db.checkout', 'req.read.database', 'req.read.auth_verify', 'req.read.unattributed'):
+        assert name in stages and stages[name]['count'] >= 1, name
+    assert snap['gauges']['req.read.db_queries'] and snap['gauges']['req.read.db_checkouts']
+    assert 'req.write.database' not in stages
+    # Reads take no account lease, so no lease stages exist.
+    assert not any(name.startswith('auth.lease') for name in stages)
+
+
+def test_timing_is_inert_when_aggregation_is_off(tmp_path, repository_factory):
+    from test_auth import accounts_with
+    aggregator.reset()
+    gen = accounts_with(tmp_path, repository_factory)
+    a, _, _ = next(gen)
+    try:
+        assert a.get('/api/profile').status_code == 200
+    finally:
+        gen.close()
+    assert aggregator.snapshot()['stages'] == {}
+
+
+def test_write_requests_are_grouped_separately_and_stay_private(tmp_path, repository_factory, caplog):
+    aggregator.reset()
+    gen = _timed_accounts(tmp_path, repository_factory)
+    a, _, _ = next(gen)
+    try:
+        a.post('/api/lessons/start', json={})
+        caplog.set_level(logging.INFO, logger='uvicorn.error')
+        emit_summary()
+        snap_text = caplog.text
+    finally:
+        gen.close()
+    assert 'req.write.database' in snap_text
+    for forbidden in ('valid-a', 'Bearer', 'SELECT', 'INSERT', 'sb_publishable', 'project.supabase.co', '@'):
+        assert forbidden not in snap_text, forbidden
+    import re
+    assert not re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-', snap_text)
+
+
+def test_lease_stages_with_a_stubbed_engine_including_contention():
+    """The lease branch needs Postgres; a stub proves the stage names, retry counting and unchanged control flow."""
+    import asyncio
+    from types import SimpleNamespace
+    from app.auth import LearnerAuthentication, RequestRepository
+
+    class Result:
+        def __init__(self, value): self.value = value
+        def scalar_one(self): return self.value
+
+    class Connection:
+        def __init__(self, engine): self.engine, self.closed = engine, False
+        def execute(self, statement, params=None):
+            if 'pg_try_advisory_xact_lock' in str(statement):
+                self.engine.attempts += 1
+                return Result(self.engine.attempts > 2)   # busy twice, then acquired
+            return Result(None)
+        def close(self): self.closed = True
+
+    class Engine:
+        attempts = 0
+        def connect(self): return Connection(self)
+
+    async def identity_verify(headers): return '00000000-0000-4000-8000-000000000001'
+    repository = SimpleNamespace(engine=SimpleNamespace(dialect=SimpleNamespace(name='sqlite')),
+        for_learner=lambda learner: SimpleNamespace(learner=learner))
+    request_repository = RequestRepository()
+    seen = []
+    async def app(scope, receive, send): seen.append(request_repository.current.get())
+    middleware = LearnerAuthentication(app, SimpleNamespace(verify=identity_verify), repository, request_repository, timing=True)
+    middleware.lease_engine = Engine()
+    aggregator.reset()
+    asyncio.run(middleware({'type': 'http', 'method': 'POST', 'path': '/api/lessons/start', 'headers': []}, None, None))
+    snap = aggregator.snapshot()
+    assert seen and snap['stages']['auth.lease']['count'] == 1
+    assert snap['stages']['auth.lease_connect']['count'] == 3 and snap['stages']['auth.lease_wait_sleep']['count'] == 2
+    assert snap['stages']['auth.verify']['count'] == 1 and snap['stages']['auth.scope']['count'] == 1
+    assert snap['gauges']['auth.lease_attempts'] == {'3': 1}
+
+
+def test_postgres_connection_and_lease_stages(tmp_path, repository_factory):
+    aggregator.reset()
+    gen = _timed_accounts(tmp_path, repository_factory)
+    a, _, _ = next(gen)
+    try:
+        if a.app.state.repository.engine.dialect.name != 'postgresql':
+            pytest.skip('Postgres-only: physical connections, pool ping and the account lease')
+        assert a.post('/api/lessons/start', json={}).status_code < 500
+        assert a.get('/api/profile').status_code == 200 and a.get('/api/profile').status_code == 200  # reused pooled connection is pinged
+        stages = aggregator.snapshot()['stages']
+    finally:
+        gen.close()
+    for name in ('auth.lease', 'auth.lease_connect', 'auth.lease_lock_query', 'lease.connect_physical', 'lease.query',
+                 'db.connect_physical', 'db.pool_ping'):
+        assert name in stages, name

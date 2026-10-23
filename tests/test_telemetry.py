@@ -297,6 +297,25 @@ def test_postgres_connection_and_lease_stages(tmp_path, repository_factory):
         stages = aggregator.snapshot()['stages']
     finally:
         gen.close()
+    # The shared pool opened its connections at startup, before timing was installed, so only the per-request
+    # lease engine shows physical connects here; reused pooled connections are pinged on checkout.
     for name in ('auth.lease', 'auth.lease_connect', 'auth.lease_lock_query', 'lease.connect_physical', 'lease.query',
-                 'db.connect_physical', 'db.pool_ping'):
+                 'db.pool_ping', 'db.checkout'):
         assert name in stages, name
+
+
+def test_engine_instrumentation_sees_connects_pings_checkouts_and_queries(tmp_path):
+    """A fresh pre-ping engine (SQLite stands in for Postgres): one physical connect, then pings on reuse."""
+    from sqlalchemy import create_engine, text
+    from app.dbtiming import instrument_engine
+    engine = create_engine('sqlite:///' + str(tmp_path / 'timing.sqlite3'), pool_pre_ping=True)
+    instrument_engine(engine, 'db')
+    aggregator.reset()
+    for _ in range(3):
+        with engine.connect() as db:
+            db.execute(text('SELECT 1'))
+    stages = aggregator.snapshot()['stages']
+    assert stages['db.connect_physical']['count'] == 1
+    assert stages['db.checkout']['count'] == 3 and stages['db.query']['count'] == 3
+    assert stages['db.pool_ping']['count'] == 2        # the two reused checkouts
+    engine.dispose()

@@ -81,6 +81,18 @@ class LatencyAggregator:
             levels = self._gauges.setdefault(key, [0] * (MAX_GAUGE_VALUE + 1))
             levels[max(0, min(MAX_GAUGE_VALUE, int(value)))] += 1
 
+    # Pause measurements are distributions of a level, not latencies: the longest silent gap inside a spoken answer in
+    # 100 ms steps (a 1.2 s pause lands in level 12) and the first-to-last-voice span in whole seconds. Both cap at 32.
+    CLIENT_LEVEL_STAGES = {'longest_pause': ('client.longest_pause_100ms', 100), 'speech_span': ('client.speech_span_s', 1000)}
+
+    def record_client(self, stage: str, value_ms: int) -> None:
+        """Browser-reported fixed-enum stage: a latency histogram, or a bounded level distribution for pause measurements."""
+        level = self.CLIENT_LEVEL_STAGES.get(stage)
+        if level:
+            self.record_gauge(level[0], int(value_ms) // level[1])
+        else:
+            self.record('client.' + stage, value_ms)
+
     def record_queue_depth(self, depth: int) -> None:
         """Requests ahead (current holder plus waiters) on the shared lock when a new one arrives."""
         with self._lock:

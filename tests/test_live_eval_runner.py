@@ -16,12 +16,15 @@ from scripts import run_review_improvement_eval as runner
 
 NOW = datetime(2026, 10, 22, 12, 0, tzinfo=timezone.utc)
 MODEL = runner.PINNED_MODEL
+# A comparison model that is right about every seeded pair; tests that need it to be wrong pass `check=` explicitly.
+SEEDED_TRUTH = {(p['original'], p['improved']): p['expect'] == 'same' for p in runner.load_calibration()}
 
 
 def approval(**overrides):
     plan = runner.plan(repeats=1)
     base = {'approved': True, 'approved_by': 'owner', 'approved_at': '2026-10-22T10:00:00Z', 'expires_at': '2026-10-23T10:00:00Z', 'run_id': 'run-1',
-            'model': MODEL, 'prompt_version': runner.PROMPT_VERSION, 'fixtures_sha256': plan['fixtures_sha256'],
+            'model': MODEL, 'prompt_version': runner.PROMPT_VERSION, 'fixtures_sha256': plan['fixtures_sha256'], 'calibration_sha256': plan['calibration_sha256'],
+            'stages': ['calibration', 'heldout'],
             'prices_usd_per_million': {'input': runner.PRICE_IN, 'output': runner.PRICE_OUT}, 'max_usd': 1.0,
             'max_requests': plan['max_requests'], 'repeats': 1}
     return {**base, **overrides}
@@ -63,7 +66,7 @@ class Server:
                     self.failed.add(text)
                     return httpx.Response(500, json={'error': {'message': 'boom', 'type': 'server_error'}})
                 return self.envelope(self.coach_for.get(text, {'improved_text': text, 'notes': [], 'meaning_preserved': True, 'adds_information': False}))
-            return self.envelope(self.check_for.get((user['original'], user['improved']), {'same_meaning': True}))
+            return self.envelope(self.check_for.get((user['original'], user['improved']), {'same_meaning': SEEDED_TRUTH.get((user['original'], user['improved']), True)}))
         finally:
             self.in_flight -= 1
 
@@ -81,10 +84,16 @@ def run(tmp_path, server, **overrides):
 def test_held_out_fixtures_are_well_formed_fresh_and_self_consistent():
     cases = runner.load_cases()
     dev = {c['source'].strip().lower() for c in runner.load_cases(runner.DEV_FIXTURES)}
-    assert 50 <= len(cases) <= 70 and len({c['id'] for c in cases}) == len(cases)
-    assert not {c['source'].strip().lower() for c in cases} & dev          # disjoint from the development set
-    assert {'grammar_tense', 'natural', 'negation', 'modality', 'quantity', 'comparison', 'certainty', 'causality', 'named_entity',
-            'plausible_wrong_fact', 'vocabulary', 'uncertain', 'too_short', 'too_long', 'learner_corrected'} <= {c['category'] for c in cases}
+    prior = {c['source'].strip().lower() for c in runner.load_cases(runner.PRIOR_FIXTURES)}
+    sources = {c['source'].strip().lower() for c in cases}
+    assert 100 <= len(cases) <= 110 and len({c['id'] for c in cases}) == len(cases)
+    assert not sources & dev and not sources & prior                      # disjoint from the development set AND from the set the rules were tuned on
+    assert not sources & {p['original'].strip().lower() for p in runner.load_calibration()}
+    natural = [c for c in cases if c['expect'] == 'accept_unchanged' and c['category'] != 'ambiguous_intent']
+    assert len(natural) >= 30 and sum(c['expect'] == 'accept' for c in cases) >= 60
+    assert {'grammar_tense', 'grammar_agreement', 'grammar_articles', 'grammar_prepositions', 'word_form', 'collocation', 'word_order', 'countable', 'regional_uk', 'regional_us',
+            'false_fact', 'fluent_false_fact', 'ambiguous_intent', 'negation', 'modality', 'quantity', 'comparison', 'certainty', 'causality', 'named_entity', 'number',
+            'uncertain', 'too_short', 'too_long'} <= {c['category'] for c in cases}
     for case in cases:
         assert case['expect'] in ('accept', 'accept_unchanged', 'unavailable')
         if case['expect'] == 'unavailable':
@@ -94,15 +103,41 @@ def test_held_out_fixtures_are_well_formed_fresh_and_self_consistent():
         # The oracle must accept its own reference answers: a fixture that fails its own checks cannot measure anything.
         for reference in case['references']:
             verdict = runner.score(case, reference)
-            assert verdict['invariants_ok'], (case['id'], reference, verdict)
+            assert verdict['invariants_ok'] and verdict['quality_good'], (case['id'], reference, verdict)
             assert verdict['fixes_ok'] or not case['must_fix'], (case['id'], reference)
         # ...and must notice the original error when fixes are required.
         if case['must_fix']:
             assert not runner.score(case, case['source'])['fixes_ok'], case['id']
+        # An answer returned unchanged must never look like an unsafe acceptance: the source satisfies its own invariants.
+        assert runner.score(case, case['source'])['invariants_ok'], case['id']
+        if case['expect'] == 'accept_unchanged':
+            assert case['references'] == [case['source']] and runner.score(case, case['source'])['invariants_ok']
+
+
+def test_the_datasets_are_frozen_by_hash():
+    """Changing a label after the fact would invalidate every comparison. An intentional change must update these hashes in review,
+    and the next approval file (which binds both hashes) must be regenerated."""
+    assert runner.fixtures_hash() == '91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd'
+    assert runner.calibration_hash() == '00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f'
+    assert runner.fixtures_hash(runner.PRIOR_FIXTURES) == 'da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7'      # evaluation 1's set, unchanged
+
+
+def test_calibration_pairs_are_well_formed_labelled_and_grounded():
+    from app.improvement import LanguageCoaching, Note
+    pairs = runner.load_calibration()
+    assert len({p['id'] for p in pairs}) == len(pairs) and 36 <= len(pairs) <= 45
+    unsafe = [p for p in pairs if p['expect'] == 'different']
+    assert len(unsafe) >= 24 and len([p for p in pairs if p['expect'] == 'same']) >= 10
+    assert {'negation_added', 'negation_removed', 'number_changed', 'name_changed', 'quantity_changed', 'modality_changed', 'certainty_changed', 'cause_changed',
+            'comparison_changed', 'fact_corrected', 'detail_added', 'detail_dropped', 'who_changed'} <= {p['category'] for p in unsafe}
+    for pair in pairs:
+        assert pair['expect'] in ('same', 'different') and pair['original'].strip() != pair['improved'].strip()
+        Note(kind=pair['kind'], before=pair['before'], after=pair['after'], why='x')                       # schema-valid
+        assert pair['before'].lower() in pair['original'].lower() and pair['after'].lower() in pair['improved'].lower(), pair['id']   # the note is verbatim from both texts
 
 
 def test_scoring_is_independent_of_the_validator_and_catches_silent_fact_fixes():
-    cases = {c['id']: c for c in runner.load_cases()}
+    cases = {c['id']: c for c in runner.load_cases(runner.PRIOR_FIXTURES)}
     wrong_fact = cases['h44']
     assert runner.score(wrong_fact, 'Paris is the capital of Germany and it has many museums')['invariants_ok'] is True
     fixed = runner.score(wrong_fact, 'Paris is the capital of France and it has many museums')
@@ -135,7 +170,10 @@ def test_plan_reports_model_counts_cost_categories_and_expected_outputs_without_
     assert plan['model'] == MODEL and plan['prompt_version'] == runner.PROMPT_VERSION and plan['executes_nothing'] is True
     assert plan['credentials_loaded'] is False and plan['network_calls'] == 0 and 'PROPOSAL ONLY' in plan['status']
     assert plan['fixtures'] == len(runner.load_cases()) and plan['cases_sent_to_a_provider'] + plan['cases_blocked_before_any_provider_call'] == plan['fixtures']
-    assert plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3 <= runner.MAX_REQUESTS
+    assert plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3 + plan['calibration_pairs'] <= runner.MAX_REQUESTS
+    assert plan['stages']['heldout']['max_requests'] + plan['stages']['calibration']['max_requests'] == plan['max_requests']
+    assert plan['stages']['calibration']['seeded_unsafe'] >= 24 and len(plan['expected_calibration']) == plan['calibration_pairs']
+    assert plan['proposed_release_thresholds']['heldout_false_accepts']['max'] == 0
     assert 0 < plan['worst_case_reservation_usd'] <= runner.HARD_CAP_USD and plan['hard_cap_usd'] == 1.0
     assert plan['sdk_max_retries'] == 0 and plan['concurrency'] == 1 and sum(plan['categories'].values()) == plan['fixtures']
     assert len(plan['expected_outputs']) == plan['fixtures'] and all('references' in e and 'must_preserve' in e for e in plan['expected_outputs'])
@@ -152,7 +190,10 @@ def test_plan_reports_model_counts_cost_categories_and_expected_outputs_without_
     ({'prompt_version': 'v1'}, 'prompt_version differs'), ({'fixtures_sha256': '0' * 64}, 'fixtures_sha256'),
     ({'prices_usd_per_million': {'input': .5, 'output': 2.0}}, 'prices differ'), ({'max_usd': 1.01}, 'max_usd'), ({'max_usd': 0}, 'max_usd'),
     ({'max_usd': True}, 'max_usd'), ({'max_usd': '1'}, 'max_usd'), ({'max_requests': 5}, 'max_requests'), ({'max_requests': 401}, 'max_requests'),
-    ({'repeats': 2}, 'repeats differs'),
+    ({'max_requests': 338}, 'max_requests'),
+    ({'repeats': 2}, 'repeats differs'), ({'calibration_sha256': '0' * 64}, 'calibration_sha256'), ({'stages': []}, 'stages must be'),
+    ({'stages': ['heldout', 'heldout']}, 'stages must be'), ({'stages': ['everything']}, 'stages must be'), ({'stages': 'heldout'}, 'stages must be'),
+    ({'stages': None}, 'stages must be'),
 ])
 def test_every_approval_defect_is_refused_before_anything_runs(tmp_path, change, fragment):
     problems = runner.validate_approval(approval(**change), runner.plan(repeats=1), NOW)
@@ -211,14 +252,15 @@ def test_a_complete_run_reports_exact_model_requests_cost_latency_and_quality(tm
     summary = report['summary']
     plan = runner.plan(repeats=1)
     assert report['completed'] is True and report['cap_overrun'] is False and (out / 'results.json').exists() and (out / 'report.md').exists()
-    assert summary['provider']['models_returned'] == [MODEL] and summary['provider']['requests'] == len(server.requests) <= plan['max_requests']
+    calibration = report['calibration']['summary']
+    assert summary['provider']['models_returned'] == [MODEL] and summary['provider']['requests'] + calibration['provider']['requests'] == len(server.requests) <= plan['max_requests']
     # Cost is the sum of the reported usage at the stated prices, recomputed independently.
     ledger = [json.loads(line) for line in (out / 'ledger.jsonl').read_text().splitlines()]
     results = [e for e in ledger if e['event'] == 'result']
     assert len(results) == len(server.requests) and all(e['model'] == MODEL for e in results)
     expected = sum(e['input_tokens'] * runner.PRICE_IN / 1e6 + e['output_tokens'] * runner.PRICE_OUT / 1e6 for e in results)
     assert summary['cost_usd']['charged_total'] == pytest.approx(expected, rel=1e-6) and expected < runner.HARD_CAP_USD
-    assert summary['provider']['input_tokens'] == 1500 * len(results) and summary['latency_ms']['per_call']['p50'] is not None
+    assert summary['provider']['input_tokens'] + 1500 * calibration['provider']['requests'] == 1500 * len(results) and summary['latency_ms']['per_call']['p50'] is not None
     # Ineligible answers never reach the provider.
     assert summary['classifications']['blocked_ok'] == plan['cases_blocked_before_any_provider_call']
     assert sum(summary['classifications'].values()) == len(report['records']) == len(runner.load_cases())
@@ -232,6 +274,9 @@ def test_the_provider_only_ever_sees_the_learners_text_and_fixed_instructions(tm
         assert set(user) <= {'learner_text', 'formatting_reminder', 'original', 'improved'}
     sources = {c['source'] for c in runner.load_cases()}
     assert all(user.get('learner_text') in sources for user in server.requests if 'learner_text' in user)
+    seeded = {(p['original'], p['improved']) for p in runner.load_calibration()}
+    assert {(u['original'], u['improved']) for u in server.requests if 'original' in u} == seeded      # every seeded pair asked once, and nothing else
+    assert not [u for u in server.requests if 'original' in u and 'learner_text' in u]
     blob = json.dumps(server.requests)
     for case in runner.load_cases():
         assert not any(reference in blob for reference in case['references'] if reference != case['source'] and len(reference) > 20)   # expected outputs never leak to the model
@@ -244,7 +289,7 @@ def test_a_meaning_change_the_validator_cannot_see_is_reported_as_a_false_accept
     monkeypatch.setattr(runner, 'load_cases', lambda path=runner.FIXTURES: [case] if path == runner.FIXTURES else runner.json.loads(path.read_text()))
     server = Server(coach={source: {'improved_text': swapped, 'notes': [{'kind': 'vocabulary', 'before': 'database', 'after': 'network', 'why': 'A more precise word.'}],
                                     'meaning_preserved': True, 'adds_information': False}})        # and the comparison model agrees (the failure mode)
-    report, _ = run(tmp_path, server, max_requests=3)
+    report, _ = run(tmp_path, server, max_requests=3, stages=['heldout'])
     assert report['summary']['classifications'] == {'FALSE_ACCEPT': 1}
     assert report['summary']['meaning_preservation']['FALSE_ACCEPTS'] == ['x1']
     assert report['summary']['meaning_preservation']['caught_by_layer'] == {'accepted': 1}
@@ -285,7 +330,7 @@ def test_an_existing_ledger_blocks_a_second_run(tmp_path):
 # ------------------------------------------------------------------------------------------------ the spending cap
 def test_the_run_stops_before_it_would_cross_the_cap_and_reports_a_partial_result(tmp_path):
     server = Server(usage=(1500, 700))
-    report, out = run(tmp_path, server, max_usd=.01)
+    report, out = run(tmp_path, server, max_usd=.01, stages=['heldout'])
     ledger = [json.loads(line) for line in (out / 'ledger.jsonl').read_text().splitlines()]
     assert ledger[-1]['event'] == 'budget_stop' and report['completed'] is False
     assert report['summary']['cost_usd']['charged_total'] <= .01 and report['summary']['cost_usd']['budget_stopped'] is True
@@ -294,7 +339,7 @@ def test_the_run_stops_before_it_would_cross_the_cap_and_reports_a_partial_resul
 
 
 def test_usage_that_beats_the_reservation_ends_the_run_and_is_reported_as_an_overrun(tmp_path):
-    report, out = run(tmp_path, Server(usage=(400_000, 700)), max_usd=.2)                    # absurd usage: ~$0.16 per request
+    report, out = run(tmp_path, Server(usage=(400_000, 700)), max_usd=.2, stages=['heldout'])                    # absurd usage: ~$0.16 per request
     ledger = [json.loads(line) for line in (out / 'ledger.jsonl').read_text().splitlines()]
     assert report['cap_overrun'] is True and any(e['event'] == 'cap_overrun' for e in ledger) and report['completed'] is False
     assert len([e for e in ledger if e['event'] == 'intent']) <= 3                           # no further requests after the overrun
@@ -309,7 +354,7 @@ def test_the_cap_can_never_exceed_one_dollar_even_if_an_approval_says_so(tmp_pat
 
 def test_the_worst_case_reservation_for_the_whole_plan_fits_the_cap():
     plan = runner.plan(repeats=1)
-    assert plan['worst_case_reservation_usd'] < runner.HARD_CAP_USD / 2
+    assert plan['worst_case_reservation_usd'] < runner.HARD_CAP_USD      # every request of both stages at its ceiling, repairs included
 
 
 # ------------------------------------------------------------------------------------------------ isolation from production
@@ -363,8 +408,9 @@ def test_a_provider_billing_the_absolute_maximum_on_every_request_still_cannot_p
 
 def test_the_whole_plan_at_its_worst_case_including_every_repair_fits_under_the_cap():
     plan = runner.plan(repeats=1)
-    assert plan['worst_case_reservation_usd'] < runner.HARD_CAP_USD and plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3
-    assert runner.plan(repeats=2)['worst_case_reservation_usd'] == pytest.approx(2 * plan['worst_case_reservation_usd'], abs=1e-3)
+    assert plan['worst_case_reservation_usd'] < runner.HARD_CAP_USD and plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3 + plan['calibration_pairs']
+    held = plan['stages']['heldout']['worst_case_reservation_usd']
+    assert runner.plan(repeats=2)['stages']['heldout']['worst_case_reservation_usd'] == pytest.approx(2 * held, abs=1e-3)
 
 
 # ------------------------------------------------------------------------------------------------ production behaviour is unchanged
@@ -409,9 +455,10 @@ def test_the_prepared_approval_file_is_complete_but_authorizes_nothing(tmp_path,
     plan = runner.plan(repeats=1)
     assert prepared['approved'] is False and not prepared['approved_by'] and not prepared['approved_at'] and not prepared['expires_at']
     assert prepared['max_usd'] == 1.0 <= runner.HARD_CAP_USD and prepared['repeats'] == 1 and prepared['max_requests'] == plan['max_requests']
+    assert prepared['stages'] == ['calibration', 'heldout'] and prepared['calibration_sha256'] == plan['calibration_sha256']
     problems = runner.validate_approval(prepared, plan, NOW)
     assert 'approved must be true' in problems and 'approved_by is required' in problems     # as committed it is refused
-    assert not any('model' in p or 'prompt_version' in p or 'fixtures_sha256' in p or 'prices' in p or 'max_usd' in p or 'max_requests' in p or 'repeats' in p for p in problems), problems
+    assert not any('model' in p or 'prompt_version' in p or 'fixtures_sha256' in p or 'calibration_sha256' in p or 'stages' in p or 'prices' in p or 'max_usd' in p or 'max_requests' in p or 'repeats' in p for p in problems), problems
     # Filling in only the owner's fields makes it valid: nothing else can have drifted from the plan, the fixtures or the prices.
     owner = {**prepared, 'approved': True, 'approved_by': 'owner', 'approved_at': '2026-10-22T10:00:00Z', 'expires_at': '2026-10-23T10:00:00Z'}
     assert runner.validate_approval(owner, plan, NOW) == []

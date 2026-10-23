@@ -7,8 +7,12 @@ unless it is given an owner approval file that matches this exact plan; until th
   python -m scripts.run_review_improvement_eval validate --approval FILE             # checks a completed file; reads no credential, runs nothing
   python -m scripts.run_review_improvement_eval run --approval FILE --out DIR      # only after separate owner approval
 
+Two stages, always in this order: `calibration` (seeded meaning pairs on the comparison step) then `held-out`. The approval's `stages` says
+which are authorized; the held-out stage is skipped if calibration lets any seeded unsafe pair through or is stopped by the budget.
+
 Guarantees enforced in code (and tested with a mock transport, never a real provider):
-  * synthetic fixtures only (tests/fixtures/review_improvement_heldout.json, disjoint from the development set); no database,
+  * synthetic fixtures only (tests/fixtures/review_improvement_heldout_v2.json and review_improvement_calibration.json, frozen by hash and
+    disjoint from the development set and from the set the rules were tuned on); no database,
     no learner data: the module imports no storage code and refuses to start if a database URL is in the environment;
   * a hard spending cap of $1.00 that an approval cannot raise; each request's worst case is reserved before it is sent and
     the run stops (never exceeds) when the next reservation would cross the cap;
@@ -35,11 +39,32 @@ from hashlib import sha256
 from pathlib import Path
 
 from app.config import Settings
-from app.improvement import PROMPT_VERSION, coach, eligibility, rejection_layer
+from app.improvement import PROMPT_VERSION, LanguageCoaching, MeaningCheck, Note, coach, eligibility, rejection_layer
 from app.services.openai_provider import COACH_PROMPT, MEANING_PROMPT, OpenAIProvider
 
-FIXTURES = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'review_improvement_heldout.json'
+try:   # run as `python scripts/run_review_improvement_eval.py` or `python -m scripts.run_review_improvement_eval`
+    from scripts import eval_statistics as stats
+except ImportError:   # pragma: no cover
+    import eval_statistics as stats
+
+FIXTURES = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'review_improvement_heldout_v2.json'   # frozen; never tuned against
+PRIOR_FIXTURES = FIXTURES.with_name('review_improvement_heldout.json')   # evaluation 1's set: the validator and prompts were tuned on it, so it is regression data only
+CALIBRATION = FIXTURES.with_name('review_improvement_calibration.json')   # seeded meaning-preservation pairs, scored on the comparison step
 DEV_FIXTURES = FIXTURES.with_name('review_improvement_cases.json')
+STAGES = ('calibration', 'heldout')   # always run in this order
+# PROPOSED release-quality thresholds (docs/AUD-77-EVALUATION-V2.md). They are not ratified by the owner, and a report that meets them is evidence for
+# a decision, never the decision. `gate` thresholds decide pass/fail for the criterion; bounds marked informational are reported but do not gate.
+PROPOSED_THRESHOLDS = {
+    'heldout_false_accepts': {'max': 0, 'gate': True},
+    'seeded_unsafe_leaks': {'max': 0, 'gate': True, 'note': '0 leaks in n seeded unsafe pairs only bounds the leak rate below about 3/n at 95%'},
+    'false_rejection_rate': {'max_point': .10, 'max_upper95_exact': .20, 'gate': True, 'denominator': 'fix cases whose raw candidate was good'},
+    'unnecessary_edit_rate': {'max_point': .10, 'upper95_exact_informational': True, 'gate': True, 'denominator': 'already-natural answers, ambiguous-intent excluded'},
+    'correction_yield': {'min': .80, 'gate': True, 'denominator': 'fix cases sent to the provider'},
+    'mean_best_f1_of_accepted': {'min': .95, 'gate': True},
+    'provider_failure_rate': {'max': .02, 'gate': True},
+    'latency_p95_per_improvement_ms': {'max': 5000, 'gate': True},
+    'mean_cost_per_attempt_usd': {'max': .001, 'gate': True},
+}
 PINNED_MODEL = 'gpt-4.1-mini-2025-04-14'
 # Standard-tier USD per 1M tokens for gpt-4.1-mini, read from OpenAI's pricing page on 2026-10-22. An approval must restate them;
 # a mismatch (a price change) stops the run before any request.
@@ -80,6 +105,14 @@ def fixtures_hash(path: Path = FIXTURES) -> str:
     return sha256(path.read_bytes()).hexdigest()
 
 
+def load_calibration(path: Path = CALIBRATION) -> list[dict]:
+    return json.loads(path.read_text())
+
+
+def calibration_hash(path: Path = CALIBRATION) -> str:
+    return sha256(path.read_bytes()).hexdigest()
+
+
 # Spend bounds that apply to this runner only; production coaching sets no output cap. 1,000 covers a 1,200-character source's
 # rewrite plus two maximum-length notes with margin, so the cap bounds cost without truncating a legitimate answer.
 COACH_MAX_OUTPUT_TOKENS = 1000
@@ -104,37 +137,55 @@ def request_reservation(text: str, call: str) -> float:
     return usd(tokens(len(system.encode()) + len(text.encode()) + 2400), ceiling)  # 2,400 bytes of strict-schema allowance; output is the hard max_output_tokens cap
 
 
-def plan(cases: list[dict] | None = None, repeats: int = 1) -> dict:
-    """Reservation arithmetic and expected outputs for a FUTURE approved run. Loads no credentials; makes no network call."""
+def pair_reservation(pair: dict) -> float:
+    return request_reservation(json.dumps({'original': pair['original'], 'improved': pair['improved']}), 'check')
+
+
+def plan(cases: list[dict] | None = None, repeats: int = 1, pairs: list[dict] | None = None) -> dict:
+    """Reservation arithmetic and expected outputs for a FUTURE approved run. Loads no credentials; makes no network call.
+
+    Two stages, always in this order: `calibration` (one comparison request per seeded pair) then `heldout` (coach, at most one repair,
+    at most one comparison per case). `max_requests` at the top level is the total for both stages."""
     cases = cases if cases is not None else load_cases()
+    pairs = pairs if pairs is not None else load_calibration()
     sent = [c for c in cases if eligibility_of(c)[0] is not None]
-    requests = len(sent) * repeats * 3  # coach + at most one repair + at most one comparison
-    reserved = sum(request_reservation(c['source'], 'coach') * 2 + request_reservation(c['source'] + ' ' + c['source'], 'check') for c in sent) * repeats
+    held_requests = len(sent) * repeats * 3  # coach + at most one repair + at most one comparison
+    held_reserved = sum(request_reservation(c['source'], 'coach') * 2 + request_reservation(c['source'] + ' ' + c['source'], 'check') for c in sent) * repeats
+    cal_requests, cal_reserved = len(pairs), sum(pair_reservation(p) for p in pairs)
+    requests, reserved = held_requests + cal_requests, held_reserved + cal_reserved
     return {'harness': 'live-plan', 'executes_nothing': True, 'credentials_loaded': False, 'network_calls': 0,
             'status': 'PROPOSAL ONLY. A run needs a separate owner approval file matching this plan; none exists.',
             'model': PINNED_MODEL, 'prompt_version': PROMPT_VERSION, 'prices_usd_per_million': {'input': PRICE_IN, 'output': PRICE_OUT},
-            'fixtures': len(cases), 'fixtures_sha256': fixtures_hash(), 'repeats': repeats,
+            'fixtures': len(cases), 'fixtures_sha256': fixtures_hash(), 'calibration_pairs': len(pairs), 'calibration_sha256': calibration_hash(), 'repeats': repeats,
+            'stages': {'calibration': {'pairs': len(pairs), 'seeded_unsafe': sum(p['expect'] == 'different' for p in pairs), 'seeded_same_meaning': sum(p['expect'] == 'same' for p in pairs),
+                                       'max_requests': cal_requests, 'worst_case_reservation_usd': round(cal_reserved, 4)},
+                       'heldout': {'cases': len(cases), 'max_requests': held_requests, 'worst_case_reservation_usd': round(held_reserved, 4)}},
+            'stage_gate': 'the held-out stage is skipped if the calibration stage accepts any seeded unsafe pair, or stops on the budget',
             'cases_sent_to_a_provider': len(sent), 'cases_blocked_before_any_provider_call': len(cases) - len(sent),
             'max_requests': requests, 'request_ceiling': MAX_REQUESTS, 'concurrency': 1, 'sdk_max_retries': 0, 'timeout_seconds': REQUEST_TIMEOUT_SECONDS,
             'max_output_tokens': {'coach': COACH_MAX_OUTPUT_TOKENS, 'comparison': CHECK_MAX_OUTPUT_TOKENS},
             'worst_case_reservation_usd': round(reserved, 4), 'hard_cap_usd': HARD_CAP_USD,
             'categories': dict(sorted(Counter(c['category'] for c in cases).items())),
+            'proposed_release_thresholds': PROPOSED_THRESHOLDS,
             'evaluates': ['correction quality (best token-F1 to a reference rewrite; required fixes present)',
                           'meaning preservation (fixture invariants on the model raw output, independent of the validator)',
-                          'pipeline agreement: false accepts, false rejections, which layer caught each violation',
+                          'seeded meaning-changing and meaning-preserving pairs on the independent comparison, alone and through the pipeline',
+                          'pipeline agreement: false accepts, false rejections, unneeded edits, which layer caught each violation',
+                          'confidence bounds on every rate, then the proposed thresholds',
                           'cost (actual usage), latency (p50/p95 per call and per improvement), provider errors'],
             'expected_outputs': [{'id': c['id'], 'category': c['category'], 'source': c['source'] if len(c['source']) < 400 else c['source'][:400] + '...',
                                   'expect': c['expect'], 'references': c['references'][:3], 'must_preserve': c['must_preserve'],
                                   'must_fix': c['must_fix'], 'must_not_add': c['must_not_add']} for c in cases],
+            'expected_calibration': [{'id': p['id'], 'category': p['category'], 'expect': p['expect'], 'original': p['original'], 'improved': p['improved']} for p in pairs],
             'approval_requirements': approval_template(requests, reserved)}
 
 
 def approval_template(requests: int, reserved: float) -> dict:
     """What an approval file must contain. This is a TEMPLATE, not an approval: `approved` is false."""
     return {'approved': False, 'approved_by': '<owner>', 'approved_at': '<ISO-8601 time>', 'expires_at': '<ISO-8601 time>', 'run_id': '<unique id>',
-            'model': PINNED_MODEL, 'prompt_version': PROMPT_VERSION, 'fixtures_sha256': fixtures_hash(),
-            'prices_usd_per_million': {'input': PRICE_IN, 'output': PRICE_OUT}, 'max_usd': f'<= {HARD_CAP_USD} (cannot exceed the in-code cap)',
-            'max_requests': f'>= {requests} and <= {MAX_REQUESTS}', 'repeats': 1, 'worst_case_reservation_usd': round(reserved, 4)}
+            'model': PINNED_MODEL, 'prompt_version': PROMPT_VERSION, 'fixtures_sha256': fixtures_hash(), 'calibration_sha256': calibration_hash(),
+            'stages': list(STAGES), 'prices_usd_per_million': {'input': PRICE_IN, 'output': PRICE_OUT}, 'max_usd': f'<= {HARD_CAP_USD} (cannot exceed the in-code cap)',
+            'max_requests': f'>= the selected stages and <= {MAX_REQUESTS} (both stages: {requests})', 'repeats': 1, 'worst_case_reservation_usd': round(reserved, 4)}
 
 
 def eligibility_of(case: dict):
@@ -165,14 +216,21 @@ def validate_approval(approval, expected_plan: dict, now: datetime) -> list[str]
         problems.append('prompt_version differs from this runner')
     if approval.get('fixtures_sha256') != expected_plan['fixtures_sha256']:
         problems.append('fixtures_sha256 does not match the held-out fixtures')
+    if approval.get('calibration_sha256') != expected_plan['calibration_sha256']:
+        problems.append('calibration_sha256 does not match the calibration pairs')
+    stages = approval.get('stages')
+    stages_ok = isinstance(stages, list) and bool(stages) and all(isinstance(x, str) for x in stages) and len(set(stages)) == len(stages) and set(stages) <= set(STAGES)
+    if not stages_ok:
+        problems.append(f'stages must be a non-empty list drawn from {list(STAGES)}')
     if approval.get('prices_usd_per_million') != {'input': PRICE_IN, 'output': PRICE_OUT}:
         problems.append('prices differ from the runner: re-verify and update both')
     cap = approval.get('max_usd')
     if not isinstance(cap, (int, float)) or isinstance(cap, bool) or not 0 < cap <= HARD_CAP_USD:
         problems.append(f'max_usd must be a number in (0, {HARD_CAP_USD}]')
     limit = approval.get('max_requests')
-    if not isinstance(limit, int) or isinstance(limit, bool) or not expected_plan['max_requests'] <= limit <= MAX_REQUESTS:
-        problems.append(f"max_requests must be an integer in [{expected_plan['max_requests']}, {MAX_REQUESTS}]")
+    needed = sum(expected_plan['stages'][name]['max_requests'] for name in (stages if stages_ok else STAGES))
+    if not isinstance(limit, int) or isinstance(limit, bool) or not needed <= limit <= MAX_REQUESTS:
+        problems.append(f"max_requests must be an integer in [{needed}, {MAX_REQUESTS}]")
     if approval.get('repeats') != expected_plan['repeats']:
         problems.append('repeats differs from the plan')
     return problems
@@ -365,43 +423,190 @@ async def run_case(case: dict, provider: GuardedProvider, repetition: int) -> di
     return record
 
 
+class L4Unavailable(Exception):
+    """The comparison request for a seeded pair failed, so the pipeline cannot reach a verdict that needs it."""
+
+
+class SeededProvider:
+    """Stands in for the coaching provider in the calibration stage. It proposes the seeded pair exactly as a provider that wrongly
+    claimed `meaning_preserved` would, so the real production decision path (`coach`) judges it. The comparison verdict is the one
+    already obtained live for that pair; no second request is ever made."""
+    def __init__(self, coaching: LanguageCoaching, verdict: bool | None):
+        self.coaching, self.verdict = coaching, verdict
+
+    async def coach_language(self, text, repair=None):
+        return self.coaching
+
+    async def check_meaning(self, original, improved):
+        if self.verdict is None:
+            raise L4Unavailable()
+        return MeaningCheck(same_meaning=self.verdict)
+
+
+async def run_pair(pair: dict, provider: 'GuardedProvider') -> dict:
+    """One seeded pair: ask the independent comparison alone (one live request), then run the production decision path on the same pair."""
+    record = {'id': pair['id'], 'category': pair['category'], 'expect': pair['expect'], 'original': pair['original'], 'improved': pair['improved'],
+              'calls': [], 'comparison_alone': None, 'comparison_error': None, 'layer': None, 'code': None, 'outcome': None, 'classification': None}
+    provider.begin(pair['id'])
+    try:
+        verdict = (await asyncio.wait_for(provider.check_meaning(pair['original'], pair['improved']), REQUEST_TIMEOUT_SECONDS * 2)).same_meaning
+    except BudgetStop as stop:
+        record.update(outcome='budget_stop', calls=list(provider.calls), classification='not_run')
+        stop.record = record
+        raise
+    except Exception as error:   # recorded, never retried
+        verdict = None
+        record['comparison_error'] = type(error).__name__
+    record.update(calls=list(provider.calls), comparison_alone=verdict)
+    coaching = LanguageCoaching(improved_text=pair['improved'], meaning_preserved=True, adds_information=False,
+                                notes=[Note(kind=pair['kind'], before=pair['before'], after=pair['after'], why='Seeded calibration pair.')])
+    try:
+        decision = await coach(SeededProvider(coaching, verdict), pair['original'])
+    except L4Unavailable:
+        record.update(outcome='failed', classification='provider_error')
+        return record
+    accepted = decision.status == 'ready'
+    record.update(outcome='accepted' if accepted else 'rejected', layer=rejection_layer(decision.rejection), code=decision.rejection)
+    if pair['expect'] == 'different':
+        record['classification'] = 'FALSE_ACCEPT' if accepted else 'correctly_rejected'
+    else:
+        record['classification'] = 'accepted_ok' if accepted else 'false_rejection'
+    return record
+
+
+def summarize_calibration(records: list[dict], ledger: Ledger | None = None) -> dict:
+    unsafe, same = [r for r in records if r['expect'] == 'different'], [r for r in records if r['expect'] == 'same']
+    leaks = [r['id'] for r in unsafe if r['classification'] == 'FALSE_ACCEPT']
+    calls = [c for r in records for c in r['calls']]
+    ok_calls = [c for c in calls if c['ok']]
+    return {'pairs_recorded': len(records), 'classifications': dict(sorted(Counter(r['classification'] for r in records).items())),
+            'seeded_unsafe': {'n': len(unsafe), 'leaks': leaks, 'leak_rate': stats.rate(len(leaks), len(unsafe)) if unsafe else None,
+                              'rejected_by_layer': dict(sorted(Counter(r['layer'] or '-' for r in unsafe if r['outcome'] == 'rejected').items())),
+                              'not_caught_before_the_comparison': [r['id'] for r in unsafe if r['outcome'] != 'rejected' or r['layer'] == '4'],
+                              'comparison_alone': {'caught': sum(r['comparison_alone'] is False for r in unsafe), 'missed': [r['id'] for r in unsafe if r['comparison_alone'] is True],
+                                                   'unknown': sum(r['comparison_alone'] is None for r in unsafe)}},
+            'seeded_same_meaning': {'n': len(same), 'pipeline_accepted': sum(r['classification'] == 'accepted_ok' for r in same),
+                                    'false_rejections': [{'id': r['id'], 'layer': r['layer'], 'code': r['code']} for r in same if r['classification'] == 'false_rejection'],
+                                    'comparison_alone_wrongly_rejected': [r['id'] for r in same if r['comparison_alone'] is False],
+                                    'unknown': sum(r['comparison_alone'] is None for r in same)},
+            'by_category': {k: dict(sorted(v.items())) for k, v in sorted(_by(records).items())},
+            'provider': {'requests': len(calls), 'failed_or_unknown': len(calls) - len(ok_calls), 'models_returned': sorted({c['model'] for c in ok_calls if c.get('model')})},
+            'latency_ms': {'per_call': quantiles([c['latency_ms'] for c in ok_calls])},
+            'cost_usd': {'calibration_total': round(sum(c['usd'] for c in calls), 6)}}
+
+
+def _by(records: list[dict]) -> dict:
+    grouped = defaultdict(Counter)
+    for r in records:
+        grouped[r['category']][r['classification']] += 1
+    return grouped
+
+
+def release_criteria(summary: dict, records: list[dict], calibration: dict | None) -> dict:
+    """The PROPOSED thresholds applied to a finished run, each with its sample size and confidence bound. `all_gates_pass` is evidence for
+    the owner's decision, never the decision, and is False whenever a gated criterion could not be evaluated."""
+    T = PROPOSED_THRESHOLDS
+    fix = [r for r in records if r['expect'] == 'accept' and r['calls']]
+    good = [r for r in fix if r['score']['quality_good'] and r['score']['invariants_ok']]
+    natural = [r for r in records if r['expect'] == 'accept_unchanged' and r['category'] != 'ambiguous_intent' and r['calls']]
+    ambiguous = [r for r in records if r['category'] == 'ambiguous_intent' and r['calls']]
+    items = []
+
+    def add(name, value, passed, **extra):
+        items.append({'name': name, 'value': value, 'threshold': T[name], 'pass': passed, **extra})
+    ran = bool(records)
+    held_false_accepts = summary['meaning_preservation']['FALSE_ACCEPTS']
+    add('heldout_false_accepts', held_false_accepts, (len(held_false_accepts) <= T['heldout_false_accepts']['max']) if ran else None, n=len(fix))
+    if calibration is not None and calibration['seeded_unsafe']['n']:
+        leaks = calibration['seeded_unsafe']['leaks']
+        add('seeded_unsafe_leaks', leaks, len(leaks) <= T['seeded_unsafe_leaks']['max'], n=calibration['seeded_unsafe']['n'], bound=calibration['seeded_unsafe']['leak_rate'])
+    else:
+        add('seeded_unsafe_leaks', None, None, n=0)
+    fr = [r for r in good if r['classification'] == 'false_rejection']
+    fr_rate = stats.rate(len(fr), len(good)) if good else None
+    add('false_rejection_rate', fr_rate, (fr_rate['point'] <= T['false_rejection_rate']['max_point'] and fr_rate['upper95_exact'] <= T['false_rejection_rate']['max_upper95_exact']) if fr_rate else None,
+        ids=[r['id'] for r in fr])
+    edits = [r for r in natural if r['classification'] == 'unneeded_edit_accepted']
+    ue_rate = stats.rate(len(edits), len(natural)) if natural else None
+    add('unnecessary_edit_rate', ue_rate, (ue_rate['point'] <= T['unnecessary_edit_rate']['max_point']) if ue_rate else None, ids=[r['id'] for r in edits])
+    accepted = [r for r in fix if r['classification'] == 'accepted_ok']
+    add('correction_yield', round(len(accepted) / len(fix), 4) if fix else None, (len(accepted) / len(fix) >= T['correction_yield']['min']) if fix else None, n=len(fix))
+    f1s = [r['score']['best_f1'] for r in accepted if r['score']['best_f1'] is not None]
+    add('mean_best_f1_of_accepted', round(statistics.mean(f1s), 4) if f1s else None, (statistics.mean(f1s) >= T['mean_best_f1_of_accepted']['min']) if f1s else None, n=len(f1s))
+    requests = summary['provider']['requests'] + (calibration['provider']['requests'] if calibration else 0)
+    failed = summary['provider']['failed_or_unknown'] + (calibration['provider']['failed_or_unknown'] if calibration else 0)
+    add('provider_failure_rate', round(failed / requests, 4) if requests else None, (failed / requests <= T['provider_failure_rate']['max']) if requests else None, n=requests)
+    p95 = summary['latency_ms']['per_improvement']['p95']
+    add('latency_p95_per_improvement_ms', p95, (p95 <= T['latency_p95_per_improvement_ms']['max']) if p95 is not None else None)
+    mean_cost = summary['cost_usd']['mean_per_attempt']
+    add('mean_cost_per_attempt_usd', mean_cost, (mean_cost <= T['mean_cost_per_attempt_usd']['max']) if ran else None)
+    gated = [i for i in items if i['threshold'].get('gate')]
+    return {'status': 'PROPOSED thresholds, not ratified by the owner; evidence for a decision, not the decision', 'criteria': items,
+            'all_gates_pass': all(i['pass'] is True for i in gated), 'gates_not_evaluated': [i['name'] for i in gated if i['pass'] is None],
+            'informational': {'ambiguous_intent_edits_accepted': [r['id'] for r in ambiguous if r['classification'] == 'unneeded_edit_accepted'], 'ambiguous_intent_n': len(ambiguous),
+                              'seeded_same_meaning': calibration['seeded_same_meaning'] if calibration else None}}
+
+
 async def run_live(approval: dict, out_dir: Path, env=None, http_client=None, now: datetime | None = None) -> dict:
     """Execute the approved evaluation. Every refusal happens BEFORE a credential is read or a client is built."""
     env = os.environ if env is None else env
     now = now or datetime.now(timezone.utc)
-    cases = load_cases()
-    expected = plan(cases, repeats=approval.get('repeats', 1) if isinstance(approval, dict) else 1)
+    cases, pairs = load_cases(), load_calibration()
+    expected = plan(cases, repeats=approval.get('repeats', 1) if isinstance(approval, dict) else 1, pairs=pairs)
     problems = validate_approval(approval, expected, now)
     if problems:
         raise RefusedToRun('approval refused: ' + '; '.join(problems))
     present = forbidden_environment(env)
     if present:
         raise RefusedToRun('refusing to start with database, production or other-provider variables in the environment (names only): ' + ', '.join(present))
-    if {c['source'].strip().lower() for c in cases} & {c['source'].strip().lower() for c in load_cases(DEV_FIXTURES)}:
+    held_sources = {c['source'].strip().lower() for c in cases}
+    if held_sources & {c['source'].strip().lower() for c in load_cases(DEV_FIXTURES)}:
         raise RefusedToRun('the held-out set overlaps the development set')
+    if held_sources & {c['source'].strip().lower() for c in load_cases(PRIOR_FIXTURES)}:
+        raise RefusedToRun('the held-out set overlaps the set the validator and prompts were tuned on')
+    if held_sources & {p['original'].strip().lower() for p in pairs}:
+        raise RefusedToRun('the calibration pairs overlap the held-out set')
     ledger = Ledger(out_dir, approval['run_id'], float(approval['max_usd']), int(approval['max_requests']))
     key = env.get('OPENAI_API_KEY')       # Read only now, after every check passed.
     if not key and http_client is None:
         raise RefusedToRun('OPENAI_API_KEY is not set')
     settings = Settings(llm_model=approval['model'], OPENAI_API_KEY=key or 'sk-evaluation-mock', _env_file=None)
     provider = GuardedProvider(settings, ledger, http_client)
-    records, stopped = [], False
+    stages = [name for name in STAGES if name in approval['stages']]
+    records, cal_records, stopped, skipped = [], [], False, None
     try:
-        for repetition in range(approval['repeats']):
-            for case in cases:
+        if 'calibration' in stages:
+            for pair in pairs:
                 try:
-                    records.append(await run_case(case, provider, repetition))
+                    cal_records.append(await run_pair(pair, provider))
                 except BudgetStop as stop:
-                    records.append(stop.record)
+                    cal_records.append(stop.record)
                     stopped = True
                     break
-            if stopped or ledger.stopped:
-                stopped = True
-                break
+            leaks = [r['id'] for r in cal_records if r['classification'] == 'FALSE_ACCEPT']
+            if 'heldout' in stages and (leaks or stopped):
+                skipped = ('the calibration stage accepted seeded unsafe pair(s) ' + ', '.join(leaks)) if leaks else 'the budget stopped the calibration stage'
+        if 'heldout' in stages and skipped is None:
+            for repetition in range(approval['repeats']):
+                for case in cases:
+                    try:
+                        records.append(await run_case(case, provider, repetition))
+                    except BudgetStop as stop:
+                        records.append(stop.record)
+                        stopped = True
+                        break
+                if stopped or ledger.stopped:
+                    stopped = True
+                    break
     finally:
         await provider.client.close()
+    summary = summarize(records, ledger)
+    calibration = summarize_calibration(cal_records, ledger) if 'calibration' in stages else None
     report = {'run_id': approval['run_id'], 'model_requested': approval['model'], 'prompt_version': PROMPT_VERSION, 'fixtures_sha256': expected['fixtures_sha256'],
-              'approved_by': approval['approved_by'], 'completed': not stopped, 'cap_overrun': ledger.overrun, 'summary': summarize(records, ledger), 'records': records}
+              'calibration_sha256': expected['calibration_sha256'], 'approved_by': approval['approved_by'], 'stages_approved': stages, 'heldout_skipped': skipped,
+              'completed': not stopped and skipped is None, 'cap_overrun': ledger.overrun, 'summary': summary, 'records': records,
+              'calibration': {'summary': calibration, 'records': cal_records} if calibration is not None else None,
+              'release_criteria': release_criteria(summary, records, calibration)}
     (out_dir / 'results.json').write_text(json.dumps(report, indent=1, ensure_ascii=False) + '\n')
     (out_dir / 'report.md').write_text(render(report))
     return report
@@ -410,14 +615,28 @@ async def run_live(approval: dict, out_dir: Path, env=None, http_client=None, no
 def render(report: dict) -> str:
     s = report['summary']
     m, q, p, c, l = s['meaning_preservation'], s['correction_quality'], s['provider'], s['cost_usd'], s['latency_ms']
-    lines = [f"# Live evaluation {report['run_id']}", '', f"Model requested `{report['model_requested']}`; returned {p['models_returned']}; prompt {report['prompt_version']}; fixtures {report['fixtures_sha256'][:12]}; approved by {report['approved_by']}.",
-             f"Completed: {report['completed']}. Requests {p['requests']} (failed/unknown {p['failed_or_unknown']}); repairs used {p['repairs_used']}; tokens in/out {p['input_tokens']}/{p['output_tokens']}.",
+    lines = [f"# Live evaluation {report['run_id']}", '', f"Model requested `{report['model_requested']}`; returned {p['models_returned']}; prompt {report['prompt_version']}; held-out {report['fixtures_sha256'][:12]}; calibration {report.get('calibration_sha256', '')[:12]}; approved by {report['approved_by']}; stages {report.get('stages_approved')}.",
+             f"Completed: {report['completed']}" + (f" (held-out stage skipped: {report['heldout_skipped']})" if report.get('heldout_skipped') else '') + f". Requests {p['requests']} held-out (failed/unknown {p['failed_or_unknown']}); repairs used {p['repairs_used']}; tokens in/out {p['input_tokens']}/{p['output_tokens']}.",
              f"Cost charged ${c['charged_total']} of cap ${c['cap']} (mean ${c['mean_per_attempt']} per attempt, p95 ${c['p95_per_attempt']}); budget stop: {c['budget_stopped']}.",
-             f"Latency ms per call {l['per_call']}; per improvement {l['per_improvement']}.", '',
-             f"## Meaning preservation\nRaw candidates violating a fixture invariant: {m['raw_candidates_violating_invariants']}/{m['raw_candidates_checked']}; caught by layer {m['caught_by_layer']}.\n**False accepts: {m['FALSE_ACCEPTS'] or 'none'}**", '',
-             f"## Correction quality\nGood candidates {q['good_candidates']}/{q['fix_cases_scored']} (mean best F1 {q['mean_best_f1']}); accepted and correct {q['pipeline_accepted_ok']}; false rejections {q['false_rejections'] or 'none'}; natural answers left unchanged {q['unchanged_ok']}; unneeded edits {q['unneeded_edits'] or 'none'}.", '',
-             '## Classifications\n' + '\n'.join(f'- {k}: {v}' for k, v in s['classifications'].items()), '', '## By category']
-    lines += [f'- {k}: {v}' for k, v in s['by_category'].items()]
+             f"Latency ms per call {l['per_call']}; per improvement {l['per_improvement']}.", '']
+    cal = (report.get('calibration') or {}).get('summary')
+    if cal:
+        u, same = cal['seeded_unsafe'], cal['seeded_same_meaning']
+        lines += ['## Seeded calibration', f"Unsafe pairs {u['n']}: leaks through the pipeline **{u['leaks'] or 'none'}** (leak-rate bound {u['leak_rate']}); rejected by layer {u['rejected_by_layer']}; comparison alone caught {u['comparison_alone']['caught']}, missed {u['comparison_alone']['missed'] or 'none'}, unknown {u['comparison_alone']['unknown']}; not caught before the comparison {u['not_caught_before_the_comparison']}.",
+                  f"Same-meaning pairs {same['n']}: accepted by the pipeline {same['pipeline_accepted']}; false rejections {same['false_rejections'] or 'none'}; comparison alone wrongly rejected {same['comparison_alone_wrongly_rejected'] or 'none'}.", '']
+    if report.get('heldout_skipped') or not report['records']:
+        lines += ['## Held-out stage', f"Not run: {report.get('heldout_skipped') or 'not approved'}.", '']
+    else:
+        lines += [f"## Meaning preservation\nRaw candidates violating a fixture invariant: {m['raw_candidates_violating_invariants']}/{m['raw_candidates_checked']}; caught by layer {m['caught_by_layer']}.\n**False accepts: {m['FALSE_ACCEPTS'] or 'none'}**", '',
+                  f"## Correction quality\nGood candidates {q['good_candidates']}/{q['fix_cases_scored']} (mean best F1 {q['mean_best_f1']}); accepted and correct {q['pipeline_accepted_ok']}; false rejections {q['false_rejections'] or 'none'}; natural answers left unchanged {q['unchanged_ok']}; unneeded edits {q['unneeded_edits'] or 'none'}.", '',
+                  '## Classifications\n' + '\n'.join(f'- {k}: {v}' for k, v in s['classifications'].items()), '', '## By category']
+        lines += [f'- {k}: {v}' for k, v in s['by_category'].items()]
+    rc = report.get('release_criteria')
+    if rc:
+        lines += ['', f"## Proposed release thresholds ({rc['status']})"]
+        for item in rc['criteria']:
+            lines.append(f"- {item['name']}: {item['value']} -> {'PASS' if item['pass'] else 'NOT EVALUATED' if item['pass'] is None else 'FAIL'} (threshold {item['threshold']})")
+        lines.append(f"All gated criteria pass: {rc['all_gates_pass']}" + (f"; not evaluated: {rc['gates_not_evaluated']}" if rc['gates_not_evaluated'] else ''))
     return '\n'.join(lines) + '\n'
 
 
@@ -435,7 +654,7 @@ def validate_command(approval_path: Path, env=None, now: datetime | None = None)
     present = forbidden_environment(env)
     if present:
         problems.append('this shell has database, production or other-provider variables set (names only): ' + ', '.join(present))
-    summary = (f"model {expected['model']}, prompt {expected['prompt_version']}, {expected['cases_sent_to_a_provider']} cases to the provider, at most "
+    summary = (f"model {expected['model']}, prompt {expected['prompt_version']}, stages {approval.get('stages') if isinstance(approval, dict) else '?'}, {expected['calibration_pairs']} seeded pairs, {expected['cases_sent_to_a_provider']} cases to the provider, at most "
                f"{approval.get('max_requests') if isinstance(approval, dict) else '?'} requests, cap ${approval.get('max_usd') if isinstance(approval, dict) else '?'} "
                f"(worst-case reservation ${expected['worst_case_reservation_usd']})")
     if problems:

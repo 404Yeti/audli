@@ -189,9 +189,12 @@ def test_the_cli_refuses_without_a_valid_approval_and_exits_nonzero(tmp_path, ca
     assert runner.main(['run', '--approval', str(tmp_path / 'missing.json'), '--out', str(tmp_path / 'out')]) == 2
 
 
-@pytest.mark.parametrize('variable', ['AUDLI_DATABASE_URL', 'DATABASE_URL', 'AUDLI_TEST_POSTGRES_URL', 'SUPABASE_ACCESS_TOKEN', 'AUDLI_SUPABASE_URL'])
+@pytest.mark.parametrize('variable', ['AUDLI_DATABASE_URL', 'DATABASE_URL', 'AUDLI_TEST_POSTGRES_URL', 'SUPABASE_ACCESS_TOKEN', 'AUDLI_SUPABASE_URL',
+                                      'AUDLI_PROD_DATABASE_URL', 'AUDLI_REHEARSAL_DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_DB_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+                                      'AUDLI_SUPABASE_SERVICE_ROLE_KEY', 'AUDLI_ELEVENLABS_API_KEY', 'ELEVENLABS_API_KEY', 'POSTGRES_PASSWORD', 'PGPASSWORD', 'PGHOST',
+                                      'AUDLI_CI_OFFLINE', 'AUDLI_ENVIRONMENT'])
 def test_a_database_or_production_variable_in_the_environment_blocks_the_run(tmp_path, variable):
-    with pytest.raises(runner.RefusedToRun, match='database or production variables'):
+    with pytest.raises(runner.RefusedToRun, match='database, production or other-provider variables'):
         asyncio.run(runner.run_live(approval(), tmp_path / 'run', env={variable: 'postgresql://example/production'}, http_client=Server().client(), now=NOW))
     assert not (tmp_path / 'run').exists()
 
@@ -417,3 +420,74 @@ def test_the_prepared_approval_file_is_complete_but_authorizes_nothing(tmp_path,
     assert not (tmp_path / 'run').exists()
     assert runner.main(['run', '--approval', str(path), '--out', str(tmp_path / 'out')]) == 2
     assert not (tmp_path / 'out').exists()
+
+
+# ------------------------------------------------------------------------------------------------ environment families and the validate command
+def test_the_environment_check_matches_families_reports_names_only_and_allows_the_one_credential():
+    env = {'OPENAI_API_KEY': 'sk-secret-value', 'PATH': '/usr/bin', 'HOME': '/home/x', 'LANG': 'C', 'AUDLI_NEW_SETTING': 'v', 'MY_DATABASE_URL': 'postgresql://u:pw@h/db',
+           'PGUSER': 'u', 'supabase_note': 'x', 'EMPTY_SUPABASE': ''}
+    assert runner.forbidden_environment(env) == ['AUDLI_NEW_SETTING', 'MY_DATABASE_URL', 'PGUSER']          # a variable invented tomorrow is still caught
+    assert runner.forbidden_environment({'OPENAI_API_KEY': 'sk-x', 'PATH': '/usr/bin', 'HOME': '/h', 'TERM': 'xterm', 'LC_ALL': 'C.UTF-8'}) == []
+    with pytest.raises(runner.RefusedToRun) as caught:
+        asyncio.run(runner.run_live(approval(), Path('/nonexistent-never-created'), env={'AUDLI_PROD_DATABASE_URL': 'postgresql://user:hunter2@host/db'}, now=NOW))
+    assert 'AUDLI_PROD_DATABASE_URL' in str(caught.value) and 'hunter2' not in str(caught.value) and 'postgresql://' not in str(caught.value)
+
+
+def completed_approval(tmp_path, **overrides):
+    path = tmp_path / 'approval.json'
+    path.write_text(json.dumps({**approval(), **overrides}))
+    return path
+
+
+class WatchedEnv(dict):
+    """An environment that records every variable looked up by name or by value."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.looked_up = []
+
+    def get(self, key, default=None):
+        self.looked_up.append(key)
+        return super().get(key, default)
+
+    def __getitem__(self, key):
+        self.looked_up.append(key)
+        return super().__getitem__(key)
+
+
+def test_validate_accepts_only_a_complete_matching_file_without_credentials_network_or_side_effects(tmp_path, monkeypatch):
+    def forbidden(*a, **k):
+        raise AssertionError('validate must not use the network')
+    monkeypatch.setattr(socket.socket, 'connect', forbidden)
+    monkeypatch.setattr(socket, 'getaddrinfo', forbidden)
+    env = WatchedEnv(PATH='/usr/bin', HOME='/home/x', OPENAI_API_KEY='sk-must-never-be-read')
+    code, message = runner.validate_command(completed_approval(tmp_path), env=env, now=NOW)
+    assert code == 0 and message.startswith('VALID') and 'Nothing has been run' in message and 'sk-must-never-be-read' not in message
+    assert 'OPENAI_API_KEY' not in env.looked_up and 'PATH' not in env.looked_up        # the credential, and every allowed variable, is never even looked up
+    assert sorted(p.name for p in tmp_path.iterdir()) == ['approval.json']                 # creates nothing: no output folder, no ledger
+
+
+@pytest.mark.parametrize('change,fragment', [({'approved': False}, 'approved must be true'), ({'approved_by': ''}, 'approved_by is required'),
+                                             ({'expires_at': '2026-10-22T11:00:00Z'}, 'expired'), ({'max_usd': 1.5}, 'max_usd'),
+                                             ({'fixtures_sha256': '0' * 64}, 'fixtures_sha256'), ({'model': 'gpt-4.1-mini'}, 'model must be exactly')])
+def test_validate_names_every_defect_and_exits_nonzero(tmp_path, change, fragment):
+    code, message = runner.validate_command(completed_approval(tmp_path, **change), env={'PATH': '/usr/bin'}, now=NOW)
+    assert code == 2 and message.startswith('NOT VALID') and fragment in message and 'no credential was read' in message
+
+
+def test_validate_flags_a_shell_with_production_variables_and_unreadable_files(tmp_path):
+    code, message = runner.validate_command(completed_approval(tmp_path), env={'AUDLI_PROD_DATABASE_URL': 'postgresql://u:pw@h/db', 'PATH': '/usr/bin'}, now=NOW)
+    assert code == 2 and 'AUDLI_PROD_DATABASE_URL' in message and 'pw@h' not in message
+    assert runner.validate_command(tmp_path / 'missing.json', env={}, now=NOW)[0] == 2
+    (tmp_path / 'bad.json').write_text('{not json')
+    assert runner.validate_command(tmp_path / 'bad.json', env={}, now=NOW)[0] == 2
+
+
+def test_the_prepared_file_fails_validate_as_committed_and_the_cli_command_works(tmp_path, capsys, monkeypatch):
+    path = Path(runner.__file__).resolve().parents[1] / 'docs' / 'AUD-77-LIVE-EVALUATION-APPROVAL.json'
+    monkeypatch.setattr(runner.os, 'environ', {'PATH': '/usr/bin'})
+    assert runner.main(['validate', '--approval', str(path)]) == 2
+    err = capsys.readouterr().err
+    assert 'NOT VALID' in err and 'approved must be true' in err
+    good = completed_approval(tmp_path, expires_at='2099-01-01T00:00:00Z')
+    assert runner.main(['validate', '--approval', str(good)]) == 0
+    assert 'VALID' in capsys.readouterr().out

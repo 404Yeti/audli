@@ -42,11 +42,28 @@ The template in the plan is deliberately not an approval and is refused as writt
 ## The prepared approval file (not an approval)
 `docs/AUD-77-LIVE-EVALUATION-APPROVAL.json` is the approval file, filled in and bound to this exact plan: model `gpt-4.1-mini-2025-04-14`, prompt `v2`, the fixtures hash, the verified prices, `max_usd` 1.0, `max_requests` 153, `repeats` 1. It is committed with `approved: false` and the owner's four fields blank, so **it authorizes nothing and the runner refuses it as written**. A test pins that, and also that filling in only `approved`, `approved_by`, `approved_at` and `expires_at` makes it valid, so nothing else can drift unnoticed (change a fixture or a price and the test fails until the file is regenerated).
 
-To authorize the run, the owner copies the file outside the repository, sets `approved` to `true`, fills the three other fields (`expires_at` with a time zone, in the future), and then runs, from a shell with no database or Supabase variables set and an API key that has an organization-level spend limit:
+To authorize the run, the owner completes a COPY of the file outside the repository (the committed file stays unapproved):
 ```
-OPENAI_API_KEY=... python -m scripts.run_review_improvement_eval run --approval /path/to/approval.json --out runs/aud77-live-eval-1
+mkdir -p ~/audli-eval && chmod 700 ~/audli-eval
+cp docs/AUD-77-LIVE-EVALUATION-APPROVAL.json ~/audli-eval/approval.json && chmod 600 ~/audli-eval/approval.json
 ```
-Safeguards that apply regardless of the file: synthetic fixtures only; no database import; refuses to start if a database or production variable is set; a hard $1 cap against a worst-case token ceiling (whole plan $0.40); no retries; one request at a time; every request is written to disk before it is sent. Nothing has been run.
+Edit only these four fields in `~/audli-eval/approval.json` and leave every other field exactly as it is:
+- `"approved": true`
+- `"approved_by"`: your name
+- `"approved_at"`: the current time, ISO-8601 with a zone, for example `2026-10-23T09:00:00Z`
+- `"expires_at"`: a later time with a zone, for example `2026-10-23T21:00:00Z` (a run after this time is refused)
+
+Check the completed file. This reads no credential, makes no network call and creates nothing; it exits 0 and prints `VALID` only if the file matches the exact plan (model, prompt, fixtures hash, prices, `max_usd` 1.0, 153 requests) and your shell has no database, Supabase, `AUDLI_*` or other-provider variable set:
+```
+.venv/bin/python -m scripts.run_review_improvement_eval validate --approval ~/audli-eval/approval.json
+```
+Only after it prints `VALID`, run it in a clean environment, using a dedicated OpenAI key (variable name `OPENAI_API_KEY`, not `AUDLI_OPENAI_API_KEY`) whose organization has a spend limit of a few dollars. Do not paste the key into chat; type it into your own shell:
+```
+env -i HOME="$HOME" PATH="$PATH" OPENAI_API_KEY="..." .venv/bin/python -m scripts.run_review_improvement_eval run --approval ~/audli-eval/approval.json --out ~/audli-eval/run-1
+```
+`run` repeats every check itself before it reads the key or builds a client, and refuses an output folder that already holds a ledger.
+
+Safeguards that apply regardless of the file: synthetic fixtures only; no database import; refuses to start if any database, Supabase, application (AUDLI_*) or other-provider variable is set; a hard $1 cap against a worst-case token ceiling (whole plan $0.40); no retries; one request at a time; every request is written to disk before it is sent. Nothing has been run.
 
 ## Interpreting results
 Mock tests establish plumbing only. Acceptance of meaning-changing corrections must be **0** (any `FALSE_ACCEPT` blocks release); false rejections are a quality cost, not a safety failure. A 55-case set cannot prove a low rate: report it with its sample size.

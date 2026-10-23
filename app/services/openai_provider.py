@@ -165,7 +165,8 @@ Vary your acknowledgment to fit what was said. The application handles lesson tr
         self.settings = settings
         self.client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value() if settings.openai_api_key else None, timeout=90, max_retries=2)
 
-    async def structured(self, schema, system: str, data: dict, retries: int | None = None, sensitive: bool = False):
+    async def structured(self, schema, system: str, data: dict, retries: int | None = None, sensitive: bool = False,
+                         max_output_tokens: int | None = None, usage: list | None = None):
         # `retries` overrides the client's automatic retry count. A hidden retry resends the learner's text, so calls
         # that must be strictly bounded (language coaching) pass 0 and let the application decide what to do on failure.
         client = self.client if retries is None else self.client.with_options(max_retries=retries)
@@ -173,9 +174,13 @@ Vary your acknowledgment to fit what was said. The application handles lesson tr
             result = await client.responses.parse(
                 model=self.settings.llm_model, store=False,
                 input=[{'role': 'system', 'content': system}, {'role': 'user', 'content': json.dumps(data)}],
-                text_format=schema)
+                text_format=schema, **({'max_output_tokens': max_output_tokens} if max_output_tokens else {}))
             if result.output_parsed is None:
                 raise ValueError('Provider refused or returned incomplete structured output')
+            if usage is not None:  # Opt-in: only the live evaluation runner asks for exact usage and the model the API served.
+                reported = getattr(result, 'usage', None)
+                usage.append({'input_tokens': getattr(reported, 'input_tokens', None), 'output_tokens': getattr(reported, 'output_tokens', None),
+                              'model': getattr(result, 'model', None)})
         return result.output_parsed
 
     async def generate(self, profile: LearnerProfile) -> ExerciseContent:

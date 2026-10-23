@@ -51,6 +51,24 @@ def test_a_leak_in_calibration_skips_the_held_out_stage_and_spends_nothing_on_it
     assert report['release_criteria']['all_gates_pass'] is False and 'heldout_false_accepts' in report['release_criteria']['gates_not_evaluated']
 
 
+@pytest.mark.parametrize('leaky', sorted(NOT_CAUGHT_BEFORE_THE_COMPARISON))
+def test_a_single_accepted_unsafe_pair_stops_the_evaluation_before_any_held_out_request(tmp_path, leaky):
+    pair = PAIRS[leaky]
+    server = Server(check={(pair['original'], pair['improved']): {'same_meaning': True}})        # every other pair is judged correctly
+    report, out = run(tmp_path, server)
+    assert report['calibration']['summary']['seeded_unsafe']['leaks'] == [leaky] and leaky in report['heldout_skipped']
+    assert all('original' in r for r in server.requests) and len(server.requests) == len(PAIRS)      # not one coaching request after the leak
+    ledger = [json.loads(line) for line in (out / 'ledger.jsonl').read_text().splitlines()]
+    assert {e['call'] for e in ledger if e['event'] == 'intent'} == {'check'} and report['completed'] is False
+
+
+def test_the_label_review_changes_are_exactly_the_documented_ones():
+    cases = {c['id']: c for c in runner.load_cases()}
+    assert 'a01' not in cases and cases['f54']['source'] == 'This box is more heavier than that one'
+    assert cases['a05']['source'] == 'Tomorrow I saw the doctor about my knee' and cases['a05']['category'] == 'ambiguous_intent'
+    assert sorted(c for c in cases if cases[c]['category'] == 'ambiguous_intent') == ['a02', 'a03', 'a04', 'a05']
+
+
 def test_calibration_always_runs_before_the_held_out_stage(tmp_path):
     server = Server()
     run(tmp_path, server)
@@ -177,7 +195,7 @@ def test_the_confidence_bounds_match_known_values():
     assert stats.rate(2, 40) == {'failures': 2, 'n': 40, 'point': .05, 'upper95_exact': stats.rate(2, 40)['upper95_exact'], 'upper95_wilson': stats.rate(2, 40)['upper95_wilson']}
 
 
-# ------------------------------------------------------------------ the proposed thresholds
+# ------------------------------------------------------------------ the ratified provisional release gates
 def record(id_, expect, classification, good=True, f1=1.0, category='x', calls=1):
     return {'id': id_, 'expect': expect, 'category': category, 'classification': classification, 'calls': [{'ok': True, 'latency_ms': 1000, 'usd': .0004}] * calls,
             'score': {'quality_good': good, 'invariants_ok': True, 'best_f1': f1}}
@@ -204,15 +222,29 @@ def verdicts(criteria):
     return {c['name']: c['pass'] for c in criteria['criteria']}
 
 
-def test_the_proposed_thresholds_pass_at_their_exact_boundary_and_fail_one_step_past_it():
+def test_the_ratified_gates_are_exactly_the_owners_and_match_the_dataset_sizes():
+    gates = runner.RELEASE_GATES
+    assert gates['heldout_false_accepts']['max'] == 0 and gates['seeded_unsafe_leaks']['max'] == 0
+    assert gates['false_rejections'] == {'max': 6, 'of': 64, 'gate': True, 'denominator': 'fix cases sent to the provider'}
+    assert gates['unnecessary_edits']['max'] == 3 and gates['unnecessary_edits']['of'] == 32
+    assert gates['correction_yield']['min'] == .80 and gates['mean_best_f1_of_accepted']['min'] == .95
+    assert gates['provider_failure_rate']['max'] == .02 and gates['latency_p95_per_improvement_ms']['max'] == 5000
+    assert not gates['mean_cost_per_attempt_usd'].get('gate')                 # cost is controlled by the $1.00 hard cap, not a ratified gate
+    cases = runner.load_cases()
+    assert sum(c['expect'] == 'accept' for c in cases) == runner.GATE_FIX_CASES == 64
+    assert sum(c['expect'] == 'accept_unchanged' and c['category'] != 'ambiguous_intent' for c in cases) == runner.GATE_NATURAL_ANSWERS == 32
+
+
+def test_the_gates_pass_at_their_exact_boundary_and_fail_one_step_past_it():
     ok = runner.release_criteria(empty_summary(), passing_records(6, 3), calibration())
-    assert verdicts(ok)['false_rejection_rate'] is True and verdicts(ok)['unnecessary_edit_rate'] is True
-    # 6 of 64 false rejections is 9.4% with an exact upper bound of 17.7%; the yield is (64-6)/64
-    assert ok['criteria'][2]['value']['failures'] == 6 and ok['criteria'][2]['value']['upper95_exact'] < .20
-    bad_fr = runner.release_criteria(empty_summary(), passing_records(7, 3), calibration())
-    assert verdicts(bad_fr)['false_rejection_rate'] is False and bad_fr['all_gates_pass'] is False            # 10.9% point estimate
-    bad_edit = runner.release_criteria(empty_summary(), passing_records(6, 4), calibration())
-    assert verdicts(bad_edit)['unnecessary_edit_rate'] is False                                                  # 12.5%
+    assert verdicts(ok)['false_rejections'] is True and verdicts(ok)['unnecessary_edits'] is True
+    fr = next(c for c in ok['criteria'] if c['name'] == 'false_rejections')['value']
+    assert (fr['failures'], fr['n']) == (6, 64) and fr['upper95_exact'] == pytest.approx(.177, abs=.003)      # reported, not gating
+    ue = next(c for c in ok['criteria'] if c['name'] == 'unnecessary_edits')['value']
+    assert (ue['failures'], ue['n']) == (3, 32) and ue['upper95_exact'] == pytest.approx(.225, abs=.003)
+    assert verdicts(runner.release_criteria(empty_summary(), passing_records(7, 3), calibration()))['false_rejections'] is False
+    assert verdicts(runner.release_criteria(empty_summary(), passing_records(6, 4), calibration()))['unnecessary_edits'] is False
+    assert runner.release_criteria(empty_summary(), passing_records(7, 3), calibration())['all_gates_pass'] is False
 
 
 def test_one_unsafe_acceptance_anywhere_fails_the_gate():
@@ -224,11 +256,15 @@ def test_one_unsafe_acceptance_anywhere_fails_the_gate():
 @pytest.mark.parametrize('summary,name', [
     (empty_summary(provider={'requests': 100, 'failed_or_unknown': 3}), 'provider_failure_rate'),
     (empty_summary(latency_ms={'per_improvement': {'p95': 5001}}), 'latency_p95_per_improvement_ms'),
-    (empty_summary(cost_usd={'mean_per_attempt': .0011}), 'mean_cost_per_attempt_usd'),
 ])
-def test_reliability_latency_and_cost_gates(summary, name):
+def test_reliability_and_latency_gates(summary, name):
     result = runner.release_criteria(summary, passing_records(0, 0), calibration())
     assert verdicts(result)[name] is False and result['all_gates_pass'] is False
+
+
+def test_cost_is_reported_but_never_fails_the_gates():
+    result = runner.release_criteria(empty_summary(cost_usd={'mean_per_attempt': .01}), passing_records(0, 0), calibration())
+    assert verdicts(result)['mean_cost_per_attempt_usd'] is None and result['all_gates_pass'] is True
 
 
 def test_yield_quality_and_the_ambiguous_category_are_handled_separately():
@@ -238,18 +274,18 @@ def test_yield_quality_and_the_ambiguous_category_are_handled_separately():
     assert verdicts(runner.release_criteria(empty_summary(), low_f1, calibration()))['mean_best_f1_of_accepted'] is False
     ambiguous = passing_records(0, 0) + [record('a1', 'accept_unchanged', 'unneeded_edit_accepted', category='ambiguous_intent')]
     result = runner.release_criteria(empty_summary(), ambiguous, calibration())
-    assert verdicts(result)['unnecessary_edit_rate'] is True and result['informational']['ambiguous_intent_edits_accepted'] == ['a1']      # reported, not gated
+    assert verdicts(result)['unnecessary_edits'] is True and result['informational']['ambiguous_intent_edits_accepted'] == ['a1']      # reported, not gated
 
 
 def test_a_gate_that_could_not_be_evaluated_is_never_a_pass():
     result = runner.release_criteria(empty_summary(), [], None)
-    assert result['all_gates_pass'] is False and result['gates_not_evaluated'] and 'not ratified' in result['status']
+    assert result['all_gates_pass'] is False and result['gates_not_evaluated'] and 'not proof of universal safety' in result['status']
 
 
 def test_a_complete_mock_run_reports_the_criteria_with_bounds_and_renders_them(tmp_path):
     report, out = run(tmp_path, Server())
     rc = report['release_criteria']
     text = (out / 'report.md').read_text()
-    assert report['completed'] is True and rc['status'].startswith('PROPOSED') and not rc['gates_not_evaluated']
-    assert 'Seeded calibration' in text and 'Proposed release thresholds' in text and 'seeded_unsafe_leaks' in text
+    assert report['completed'] is True and rc['status'].startswith('Release gates RATIFIED') and not rc['gates_not_evaluated']
+    assert 'Seeded calibration' in text and 'Release gates' in text and 'seeded_unsafe_leaks' in text
     assert verdicts(rc)['seeded_unsafe_leaks'] is True and verdicts(rc)['heldout_false_accepts'] is True

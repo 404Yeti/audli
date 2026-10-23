@@ -3,6 +3,7 @@ from contextvars import ContextVar
 import asyncio
 import re
 from hashlib import sha256
+from contextlib import nullcontext
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from uuid import UUID
@@ -12,6 +13,8 @@ from fastapi import HTTPException
 from starlette.responses import JSONResponse
 
 from app.storage.repository import AccountUnavailable
+from app.dbtiming import span, instrument_engine
+from app.telemetry import aggregator
 
 
 class RequestRepository:
@@ -77,21 +80,28 @@ def lease_exempt(method: str, path: str) -> bool:
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository):
+    def __init__(self, app, identity, repository, request_repository, timing=False):
         self.app, self.identity = app, identity
         self.repository, self.request_repository = repository, request_repository
+        self.timing = timing  # AUD-82: numeric-only stage timings (AUDLI_LATENCY_AGGREGATES); no behaviour change.
         # Mutations share an owner-specific lease across API workers, including
         # provider awaits. Reset cannot run while another worker saves a lesson.
         self.lease_engine = (create_engine(repository.engine.url, poolclass=NullPool,
             connect_args={'connect_timeout': 5, 'prepare_threshold': None})
             if repository.engine.dialect.name == 'postgresql' else None)
+        if timing and self.lease_engine is not None:
+            instrument_engine(self.lease_engine, 'lease')
+
+    def _span(self, name, accumulate=None):
+        return span(name, accumulate) if self.timing else nullcontext()
 
     async def __call__(self, scope, receive, send):
         public = scope.get('path') in ('/api/health', '/api/auth/config')
         if scope['type'] != 'http' or public or not scope.get('path', '').startswith('/api'):
             return await self.app(scope, receive, send)
         try:
-            learner_id = await self.identity.verify(scope['headers'])
+            with self._span('auth.verify', 'auth_ms'):
+                learner_id = await self.identity.verify(scope['headers'])
         except HTTPException as error:
             headers = {'WWW-Authenticate': 'Bearer'} if error.status_code == 401 else {}
             return await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=headers)(scope, receive, send)
@@ -101,23 +111,32 @@ class LearnerAuthentication:
             if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
                     and not lease_exempt(scope['method'], scope['path'])):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
-                for _ in range(100):
-                    candidate = self.lease_engine.connect()
-                    try:
-                        candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
-                        acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
-                    except BaseException:
+                attempts = 0
+                with self._span('auth.lease', 'lease_ms'):
+                    for _ in range(100):
+                        attempts += 1
+                        with self._span('auth.lease_connect'):
+                            candidate = self.lease_engine.connect()
+                        try:
+                            with self._span('auth.lease_lock_query'):
+                                candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
+                                acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
+                        except BaseException:
+                            candidate.close()
+                            raise
+                        if acquired:
+                            lease = candidate
+                            break
                         candidate.close()
-                        raise
-                    if acquired:
-                        lease = candidate
-                        break
-                    candidate.close()
-                    await asyncio.sleep(.05)
+                        with self._span('auth.lease_wait_sleep'):
+                            await asyncio.sleep(.05)
+                if self.timing:
+                    aggregator.record_gauge('auth.lease_attempts', attempts)
                 if lease is None:
                     raise HTTPException(409, 'Your account is saving another step. Wait and retry.')
             # Identity still comes only from the Auth-verified bearer.
-            scoped = self.repository.for_learner(learner_id)
+            with self._span('auth.scope'):
+                scoped = self.repository.for_learner(learner_id)
             token = self.request_repository.current.set(scoped)
             await self.app(scope, receive, send)
         except AccountUnavailable:

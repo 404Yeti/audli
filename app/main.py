@@ -30,6 +30,7 @@ from app.security import LocalRequestGuard
 from app.limits import LessonLimits
 from app.lesson_limit import LimitRefused
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
+from app.dbtiming import instrument_engine, request_db, new_request_accumulator, finish_request
 
 class Onboarding(StrictModel):
     name: str = Field(min_length=1, max_length=80)
@@ -44,6 +45,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                repository: SQLProgressRepository | None = None, auth_client=None):
     settings = settings or Settings()
     database = repository or create_repository(settings)
+    if settings.latency_aggregates and not getattr(database.engine, '_audli_timed', False):
+        instrument_engine(database.engine, 'db')  # AUD-82: numeric-only pool/query timing; no behaviour change.
+        database.engine._audli_timed = True
     if settings.lesson_limit_mode != 'off':
         database.require_lesson_limit_schema()
     database.limit_mode = settings.lesson_limit_mode
@@ -88,7 +92,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     if identity is not None:
-        app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo)
+        app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo,
+            timing=settings.latency_aggregates)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database
@@ -115,6 +120,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     async def privacy_headers(request: Request, call_next):
         timings = [] if settings.latency_telemetry or settings.environment == 'development' else None
         token = request_timings.set(timings)
+        db_token = request_db.set(new_request_accumulator()) if settings.latency_aggregates else None
         started = perf_counter()
         try:
             with operation(settings, 'request_total'):
@@ -123,6 +129,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             report_failure(settings, f'{request.method} {request.url.path}', exc)
             response = JSONResponse(status_code=503, content={'detail': 'Audli could not finish that step. Check server configuration and try again; your progress is safe.'})
         finally:
+            if db_token is not None:
+                finish_request(request.method, (perf_counter() - started) * 1000)
+                request_db.reset(db_token)
             request_timings.reset(token)
             if settings.latency_aggregates:
                 # Route template only (e.g. /api/lessons/{lesson_id}/heard), never the concrete path.

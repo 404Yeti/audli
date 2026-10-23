@@ -234,6 +234,9 @@ dd .text-button { display: block; padding-left: 0; }
 @keyframes completion-arrive { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-5px) scale(1.025,.985); } 100% { transform: translateY(0) scale(1); } }
 .session-topic { color: #475569; background: #f8fafc; border-color: var(--line); margin: 8px auto 12px; }
 @media (max-width: 420px) { .lesson-completion .completion-results { grid-template-columns: 1fr; } }
+.account-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.account-dialog input { box-sizing: border-box; width: 100%; min-height: 44px; }
+.account-dialog button { min-height: 44px; }
 .dialog-backdrop { position: fixed; inset: 0; background: #0f172a33; display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 10; }
 .exit-dialog { width: min(100%, 360px); background: white; padding: 28px; border-radius: 28px; box-shadow: 0 16px 60px #0f172a1a; }
 .exit-dialog h2 { font-size: 23px; }

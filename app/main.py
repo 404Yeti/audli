@@ -47,6 +47,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     if settings.lesson_limit_mode != 'off':
         database.require_lesson_limit_schema()
     database.limit_mode = settings.lesson_limit_mode
+    database.require_auth_user = settings.account_deletion_enabled
     if settings.review_improvement_enabled:
         database.require_review_improvement_schema()
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
@@ -394,6 +395,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     register_telemetry_routes(app, settings)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
+    from app.account import register_account_routes
+    register_account_routes(app, repo, settings, identity, lock, audio_dir)
     register_review_routes(app, repo, settings)
     from app.improvement_api import register_improvement_routes
     register_improvement_routes(app, repo, ai, settings)

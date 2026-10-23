@@ -10,7 +10,7 @@ import httpx
 import pytest
 from openai import AsyncOpenAI
 from sqlalchemy import select, text, inspect
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.config import Settings
 from app.main import create_app
@@ -156,6 +156,48 @@ def test_postgres_007_is_private_and_enforces_its_invariants(repository_factory,
         with repo.transaction() as db:
             db.execute(s.review_improvements.insert().values(id=str(uuid4()), user_id=repo.learner_id, exercise_id=ids[1], attempt_id=attempt,
                 status='bogus', source_hash='h', prompt_version='v1', claimed_at=T0))
+
+
+def test_rollback_file_guards_a_populated_table():
+    sql = postgres_review_rollback()
+    assert 'RAISE EXCEPTION' in sql and "'DROP POPULATED review_improvements'" in sql
+    assert sql.index('RAISE EXCEPTION') < sql.index('DROP TABLE review_improvements')    # the check runs before anything is dropped
+    assert re.findall(r'DROP TABLE (\w+)', sql) == ['review_improvements']
+
+
+def test_postgres_rollback_refuses_a_populated_table_without_explicit_authorization(repository_factory, exercise):
+    repo = repository_factory(); pg(repo)
+    entry, ids = seeded(repo, exercise)
+    with repo.engine.connect() as db:
+        attempt = db.execute(select(s.attempts.c.id).where(s.attempts.c.exercise_id == ids[0])).scalar_one()
+    with repo.transaction() as db:
+        db.execute(s.review_improvements.insert().values(id=str(uuid4()), user_id=repo.learner_id, exercise_id=ids[0], attempt_id=attempt,
+            status='ready', source_hash='h', prompt_version='v2', claimed_at=T0, improved_text='x', notes=[]))
+    rollback = Path('docs/postgres-007-rollback.sql').read_text()
+
+    def run(authorization):
+        with repo.engine.begin() as db:   # transaction-local, so the authorization cannot leak to another connection
+            if authorization is not None:
+                db.execute(text("SELECT set_config('audli.allow_destructive_rollback', :value, true)"), {'value': authorization})
+            db.exec_driver_sql(rollback)
+
+    def untouched():
+        with repo.engine.connect() as db:
+            return (db.execute(text('SELECT count(*) FROM review_improvements')).scalar_one(),
+                    db.execute(text('SELECT count(*) FROM schema_migrations WHERE version = 7')).scalar_one())
+    for attempt_phrase in (None, '', 'yes', 'drop populated review_improvements', 'DROP POPULATED review_improvements ', 'DROP review_improvements'):
+        with pytest.raises(DBAPIError, match='refusing to drop it without explicit destructive authorization'):
+            run(attempt_phrase)
+        assert has_table(repo) and untouched() == (1, 1), attempt_phrase       # nothing dropped, row and version intact
+    run('DROP POPULATED review_improvements')
+    assert not has_table(repo) and versions(repo) == [1, 2, 3, 4, 5, 6]
+    with repo.engine.begin() as db:                                              # and the schema re-applies cleanly afterwards
+        db.exec_driver_sql(Path('docs/postgres-007.sql').read_text())
+    assert has_table(repo) and versions(repo) == [1, 2, 3, 4, 5, 6, 7] and untouched() == (0, 1)
+    run(None)                                                                     # an empty table needs no authorization
+    assert not has_table(repo)
+    with repo.engine.begin() as db:
+        db.exec_driver_sql(Path('docs/postgres-007.sql').read_text())             # leave the shared test database at schema 7
 
 
 @pytest.mark.parametrize('limit,threads,expected', [(3, 8, 3), (1, 5, 1)])

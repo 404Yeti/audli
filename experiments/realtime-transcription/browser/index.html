@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Realtime transcription test (AUD-82)</title>
+<style>
+ body{font:16px/1.4 system-ui,sans-serif;margin:16px;max-width:42rem}
+ button{font:inherit;padding:.7rem 1rem;margin:.25rem .25rem .25rem 0}
+ pre{background:#f3f3f3;padding:.75rem;overflow:auto;white-space:pre-wrap}
+ label{display:block;margin:.4rem 0}
+ .ok{color:#0a6b2d}.bad{color:#b00020}
+</style></head><body>
+<h1>Realtime transcription test</h1>
+<p><strong>Experiment page, not part of Audli.</strong> Uses a short-lived key from the local helper. Audio is streamed to OpenAI for
+transcription and is never stored here. Use only your own voice or consented test speakers.</p>
+<label>Endpoint window <select id="window"><option value="1800">1800 ms (production)</option><option value="1200">1200 ms</option><option value="adaptive">adaptive</option></select></label>
+<label>Delay <select id="delay"><option>low</option><option>minimal</option><option>medium</option><option>high</option></select></label>
+<label><input type="checkbox" id="showText" checked> Show transcript text on screen (never saved)</label>
+<button id="start">Start (tap to allow the microphone)</button>
+<button id="beep" disabled>Beep while mic is open</button>
+<button id="stop" disabled>Stop</button>
+<button id="download" disabled>Download numbers</button>
+<h2>Capabilities</h2><pre id="caps">not run yet</pre>
+<h2>Turns</h2><pre id="log"></pre>
+<script type="module">
+import { Resampler, floatToPcm16, pcm16ToBase64, rms, createTurnDetector } from './audio-utils.js';
+const $ = id => document.getElementById(id), numbers = { caps: {}, turns: [] };
+const caps = numbers.caps;
+const show = () => { $('caps').textContent = JSON.stringify(caps, null, 1); };
+let socket, context, stream, node, running = false, turn;
+const log = line => { $('log').textContent += line + '\n'; };
+
+caps.userAgent = navigator.userAgent;
+caps.secureContext = isSecureContext;
+caps.audioWorklet = typeof AudioWorkletNode !== 'undefined';
+caps.getUserMedia = !!navigator.mediaDevices?.getUserMedia;
+caps.webSocket = typeof WebSocket !== 'undefined';
+show();
+
+async function openSocket() {
+  const { value } = await (await fetch('secret', { method: 'POST', headers: { 'X-Token': location.hash.slice(1) } })).json();
+  // Browsers cannot set headers on a WebSocket; the ephemeral secret travels in a subprotocol.
+  socket = new WebSocket('wss://api.openai.com/v1/realtime?intent=transcription', ['realtime', 'openai-insecure-api-key.' + value]);
+  await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = () => reject(new Error('websocket failed')); });
+  caps.webSocketWithSubprotocolAuth = true;
+  socket.send(JSON.stringify({ type: 'session.update', session: { type: 'transcription', audio: { input: {
+    format: { type: 'audio/pcm', rate: 24000 }, turn_detection: null,
+    transcription: { model: 'gpt-live-transcribe', languages: ['en'], delay: $('delay').value } } } } }));
+  socket.onmessage = event => onServer(JSON.parse(event.data));
+  socket.onclose = event => { caps.socketClosedCode = event.code; show(); };
+}
+
+function onServer(event) {
+  if (!turn) return;
+  const now = performance.now();
+  if (event.type === 'conversation.item.input_audio_transcription.delta') {
+    if (turn.firstPartial == null) turn.firstPartial = now;
+    turn.partials++; turn.text += event.delta;
+    if ($('showText').checked) turn.preview = turn.text;
+  } else if (event.type === 'conversation.item.input_audio_transcription.completed') {
+    turn.final = now; turn.finalText = event.transcript;
+    finishTurn();
+  } else if (event.type === 'error') { turn.error = event.error?.code || 'error'; finishTurn(); }
+}
+
+function newTurn() {
+  const mode = $('window').value;
+  turn = { index: numbers.turns.length + 1, detector: createTurnDetector({ windowMs: mode === 'adaptive' ? 1200 : Number(mode), adaptive: mode === 'adaptive' }),
+           samples: 0, pending: [], resampler: new Resampler(context.sampleRate, 24000), acc: [], text: '', partials: 0, firstPartial: null, committed: null };
+}
+
+function finishTurn() {
+  if (!turn || turn.done) return;
+  turn.done = true;
+  const t = turn, record = { turn: t.index, commitToFinalMs: t.final && t.committed ? Math.round(t.final - t.committed) : null,
+    firstPartialAfterSpeechStartMs: t.firstPartial && t.firstVoiceWall ? Math.round(t.firstPartial - t.firstVoiceWall) : null,
+    partials: t.partials, streamedSeconds: +(t.samples / 24000).toFixed(2), error: t.error || null, audioContextState: context.state };
+  numbers.turns.push(record);
+  log(`turn ${record.turn}: commit→final ${record.commitToFinalMs} ms, first partial ${record.firstPartialAfterSpeechStartMs} ms, partials ${record.partials}, ctx ${record.audioContextState}` +
+      (record.error ? ' ERROR ' + record.error : '') + ($('showText').checked && t.finalText ? `\n   "${t.finalText}"` : ''));
+  $('download').disabled = false;
+  if (running) setTimeout(() => { if (running) newTurn(); }, 800);
+}
+
+function onAudio(chunk) {
+  if (!turn || turn.done || turn.committed) return;
+  const out = turn.resampler.process(chunk);
+  turn.acc.push(...out);
+  while (turn.acc.length >= 1200) {                       // 50 ms at 24 kHz: detector tick
+    const frame = Float32Array.from(turn.acc.splice(0, 1200));
+    turn.samples += frame.length;
+    turn.pending.push(...frame);
+    const status = turn.detector(turn.samples / 24, rms(frame));
+    if (status.active && turn.firstVoiceWall == null) turn.firstVoiceWall = performance.now();
+    while (turn.pending.length >= 2400 && socket.readyState === 1) {   // send 100 ms chunks
+      socket.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: pcm16ToBase64(floatToPcm16(Float32Array.from(turn.pending.splice(0, 2400)))) }));
+    }
+    if (status.end) {
+      if (turn.pending.length) socket.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: pcm16ToBase64(floatToPcm16(Float32Array.from(turn.pending.splice(0)))) }));
+      turn.committed = performance.now();
+      socket.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+      setTimeout(() => { if (turn && !turn.done) { turn.error = 'final_timeout'; finishTurn(); } }, 20000);
+      break;
+    }
+  }
+}
+
+$('start').onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    caps.trackSettings = stream.getAudioTracks()[0].getSettings();
+    context = new AudioContext();                        // created inside the tap: Safari requires a user gesture
+    await context.resume();
+    caps.audioContextSampleRate = context.sampleRate; caps.audioContextState = context.state;
+    await context.audioWorklet.addModule('capture-worklet.js');
+    node = new AudioWorkletNode(context, 'capture');
+    node.port.onmessage = event => onAudio(event.data);
+    context.createMediaStreamSource(stream).connect(node);
+    context.onstatechange = () => { caps.lastContextState = context.state; log('audio context: ' + context.state); show(); };
+    document.addEventListener('visibilitychange', () => log('page ' + document.visibilityState));
+    await openSocket();
+    running = true; newTurn();
+    $('start').disabled = true; $('stop').disabled = false; $('beep').disabled = false;
+    log('listening: speak, then stay quiet; each turn auto-restarts');
+  } catch (error) { caps.startFailure = String(error.name || error); log('FAILED: ' + caps.startFailure); }
+  show();
+};
+$('beep').onclick = () => {                              // playback while the microphone stays open (route / echo behaviour)
+  const osc = context.createOscillator(), gain = context.createGain();
+  gain.gain.value = 0.2; osc.frequency.value = 880; osc.connect(gain).connect(context.destination);
+  osc.start(); osc.stop(context.currentTime + 0.6); log('beep played; ctx ' + context.state);
+};
+$('stop').onclick = () => {
+  running = false; stream?.getTracks().forEach(t => t.stop()); context?.close(); socket?.close();
+  $('start').disabled = false; $('stop').disabled = true; log('stopped');
+};
+$('download').onclick = () => {
+  const blob = new Blob([JSON.stringify(numbers, null, 1)], { type: 'application/json' });
+  Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'safari-numbers.json' }).click();
+};
+</script></body></html>

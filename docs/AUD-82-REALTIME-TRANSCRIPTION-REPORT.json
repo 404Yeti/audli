@@ -1,0 +1,1262 @@
+{
+ "clips": {
+  "speech": 46,
+  "nonspeech": 4
+ },
+ "arms": {
+  "A0@production-1800": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.583,
+    "mean": 0.132,
+    "max": 1.0
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.0,
+     "p90": 0.182,
+     "mean": 0.045,
+     "max": 0.182
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.306,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.308,
+     "p90": 0.333,
+     "mean": 0.256,
+     "max": 0.333
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 1.0,
+     "mean": 0.1,
+     "max": 1.0
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2768.4,
+    "p90": 3927.8,
+    "mean": 2297.848,
+    "max": 5770.6
+   },
+   "final_latency_ms_after_commit": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "rest_request_ms": {
+    "n": 46,
+    "p50": 968.5,
+    "p90": 2351.2,
+    "mean": 1239.152,
+    "max": 3970.6
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "partials_before_commit": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   }
+  },
+  "A0@short-1200": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.583,
+    "mean": 0.141,
+    "max": 1.0
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.077,
+     "p90": 0.25,
+     "mean": 0.076,
+     "max": 0.25
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.33,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.25,
+     "p90": 0.308,
+     "mean": 0.235,
+     "max": 0.308
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 1.0,
+     "mean": 0.1,
+     "max": 1.0
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2130.1,
+    "p90": 4433.0,
+    "mean": 2354.533,
+    "max": 17856.5
+   },
+   "final_latency_ms_after_commit": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "rest_request_ms": {
+    "n": 46,
+    "p50": 970.4,
+    "p90": 3806.6,
+    "mean": 1895.837,
+    "max": 16656.5
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "partials_before_commit": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   }
+  },
+  "A0@adaptive-1200": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.583,
+    "mean": 0.141,
+    "max": 1.0
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.077,
+     "p90": 0.25,
+     "mean": 0.076,
+     "max": 0.25
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.33,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.25,
+     "p90": 0.308,
+     "mean": 0.235,
+     "max": 0.308
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 1.0,
+     "mean": 0.1,
+     "max": 1.0
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2130.1,
+    "p90": 4004.4,
+    "mean": 2255.065,
+    "max": 17856.5
+   },
+   "final_latency_ms_after_commit": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "rest_request_ms": {
+    "n": 46,
+    "p50": 957.3,
+    "p90": 3636.1,
+    "mean": 1785.5,
+    "max": 16656.5
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "partials_before_commit": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   }
+  },
+  "A1-low-1800": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.571,
+    "mean": 0.107,
+    "max": 0.75
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.0,
+     "p90": 0.154,
+     "mean": 0.029,
+     "max": 0.154
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.306,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 0.5,
+     "mean": 0.1,
+     "max": 0.5
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2408.9,
+    "p90": 2670.2,
+    "mean": 1746.737,
+    "max": 2969.7
+   },
+   "final_latency_ms_after_commit": {
+    "n": 46,
+    "p50": 620.8,
+    "p90": 870.2,
+    "mean": 688.041,
+    "max": 1169.7
+   },
+   "rest_request_ms": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 46,
+    "p50": 953.9,
+    "p90": 1078.8,
+    "mean": 928.063,
+    "max": 1426.6
+   },
+   "partials_before_commit": {
+    "n": 46,
+    "p50": 10,
+    "p90": 14,
+    "mean": 8.761,
+    "max": 18
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   },
+   "streamed_seconds": 282.8,
+   "timeouts": 0,
+   "event_types_seen": [
+    "conversation.item.added",
+    "conversation.item.done",
+    "conversation.item.input_audio_transcription.completed",
+    "conversation.item.input_audio_transcription.delta",
+    "input_audio_buffer.committed",
+    "session.created",
+    "session.updated"
+   ]
+  },
+  "A1-minimal-1800": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.583,
+    "mean": 0.135,
+    "max": 0.75
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.077,
+     "p90": 0.154,
+     "mean": 0.059,
+     "max": 0.154
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.714,
+     "mean": 0.38,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.0,
+     "p90": 0.083,
+     "mean": 0.021,
+     "max": 0.083
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.007,
+     "max": 0.083
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 0.5,
+     "mean": 0.1,
+     "max": 0.5
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2489.7,
+    "p90": 2598.8,
+    "mean": 1746.48,
+    "max": 2713.8
+   },
+   "final_latency_ms_after_commit": {
+    "n": 46,
+    "p50": 700.4,
+    "p90": 802.2,
+    "mean": 687.785,
+    "max": 913.8
+   },
+   "rest_request_ms": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 46,
+    "p50": 538.3,
+    "p90": 639.7,
+    "mean": 517.015,
+    "max": 1043.4
+   },
+   "partials_before_commit": {
+    "n": 46,
+    "p50": 10,
+    "p90": 15,
+    "mean": 9.391,
+    "max": 19
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   },
+   "streamed_seconds": 282.8,
+   "timeouts": 0,
+   "event_types_seen": [
+    "conversation.item.added",
+    "conversation.item.done",
+    "conversation.item.input_audio_transcription.completed",
+    "conversation.item.input_audio_transcription.delta",
+    "input_audio_buffer.committed",
+    "session.created",
+    "session.updated"
+   ]
+  },
+  "A1-high-1800": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.571,
+    "mean": 0.102,
+    "max": 0.75
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.0,
+     "p90": 0.1,
+     "mean": 0.022,
+     "max": 0.1
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.306,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 0.5,
+     "mean": 0.083,
+     "max": 0.5
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2506.6,
+    "p90": 2625.9,
+    "mean": 1769.922,
+    "max": 2738.4
+   },
+   "final_latency_ms_after_commit": {
+    "n": 46,
+    "p50": 733.6,
+    "p90": 825.9,
+    "mean": 711.226,
+    "max": 938.4
+   },
+   "rest_request_ms": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 46,
+    "p50": 1765.2,
+    "p90": 1897.3,
+    "mean": 1750.867,
+    "max": 1990.8
+   },
+   "partials_before_commit": {
+    "n": 46,
+    "p50": 10,
+    "p90": 15,
+    "mean": 8.935,
+    "max": 18
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   },
+   "streamed_seconds": 282.8,
+   "timeouts": 0,
+   "event_types_seen": [
+    "conversation.item.added",
+    "conversation.item.done",
+    "conversation.item.input_audio_transcription.completed",
+    "conversation.item.input_audio_transcription.delta",
+    "input_audio_buffer.committed",
+    "session.created",
+    "session.updated"
+   ]
+  },
+  "A1-low-1200": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.571,
+    "mean": 0.095,
+    "max": 0.75
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.0,
+     "p90": 0.1,
+     "mean": 0.022,
+     "max": 0.1
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.306,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 0.5,
+     "mean": 0.05,
+     "max": 0.5
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 1810.8,
+    "p90": 2040.1,
+    "mean": 1129.026,
+    "max": 2110.3
+   },
+   "final_latency_ms_after_commit": {
+    "n": 46,
+    "p50": 620.5,
+    "p90": 840.1,
+    "mean": 670.33,
+    "max": 910.3
+   },
+   "rest_request_ms": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 46,
+    "p50": 895.4,
+    "p90": 1052.4,
+    "mean": 906.076,
+    "max": 1104.6
+   },
+   "partials_before_commit": {
+    "n": 46,
+    "p50": 10,
+    "p90": 15,
+    "mean": 8.674,
+    "max": 18
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   },
+   "streamed_seconds": 254.0,
+   "timeouts": 0,
+   "event_types_seen": [
+    "conversation.item.added",
+    "conversation.item.done",
+    "conversation.item.input_audio_transcription.completed",
+    "conversation.item.input_audio_transcription.delta",
+    "input_audio_buffer.committed",
+    "session.created",
+    "session.updated"
+   ]
+  },
+  "A1-low-adaptive": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.571,
+    "mean": 0.105,
+    "max": 0.75
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.0,
+     "p90": 0.077,
+     "mean": 0.017,
+     "max": 0.077
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.348,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 0.5,
+     "mean": 0.05,
+     "max": 0.5
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 1831.4,
+    "p90": 2007.7,
+    "mean": 1159.948,
+    "max": 2297.2
+   },
+   "final_latency_ms_after_commit": {
+    "n": 46,
+    "p50": 686.3,
+    "p90": 807.7,
+    "mean": 690.383,
+    "max": 1097.2
+   },
+   "rest_request_ms": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 46,
+    "p50": 899.9,
+    "p90": 1083.6,
+    "mean": 922.802,
+    "max": 1327.3
+   },
+   "partials_before_commit": {
+    "n": 46,
+    "p50": 10,
+    "p90": 14,
+    "mean": 8.739,
+    "max": 18
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   },
+   "streamed_seconds": 254.5,
+   "timeouts": 0,
+   "event_types_seen": [
+    "conversation.item.added",
+    "conversation.item.done",
+    "conversation.item.input_audio_transcription.completed",
+    "conversation.item.input_audio_transcription.delta",
+    "input_audio_buffer.committed",
+    "session.created",
+    "session.updated"
+   ]
+  },
+  "A2-gpt-transcribe-1800": {
+   "clips": 46,
+   "wer": {
+    "n": 46,
+    "p50": 0.0,
+    "p90": 0.571,
+    "mean": 0.101,
+    "max": 0.75
+   },
+   "wer_by_category": {
+    "G": {
+     "n": 8,
+     "p50": 0.0,
+     "p90": 0.1,
+     "mean": 0.033,
+     "max": 0.1
+    },
+    "H": {
+     "n": 12,
+     "p50": 0.545,
+     "p90": 0.625,
+     "mean": 0.306,
+     "max": 0.75
+    },
+    "N": {
+     "n": 4,
+     "p50": 0.214,
+     "p90": 0.308,
+     "mean": 0.172,
+     "max": 0.308
+    },
+    "R": {
+     "n": 12,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    },
+    "S": {
+     "n": 10,
+     "p50": 0.0,
+     "p90": 0.0,
+     "mean": 0.0,
+     "max": 0.0
+    }
+   },
+   "self_correction_kept_rate": 0.6667,
+   "cut_off_clips": 6,
+   "speech_end_to_final_ms": {
+    "n": 46,
+    "p50": 2534.3,
+    "p90": 2724.9,
+    "mean": 1832.989,
+    "max": 3414.2
+   },
+   "final_latency_ms_after_commit": {
+    "n": 46,
+    "p50": 734.3,
+    "p90": 924.9,
+    "mean": 774.293,
+    "max": 1614.2
+   },
+   "rest_request_ms": {
+    "n": 0,
+    "p50": null,
+    "p90": null,
+    "mean": null,
+    "max": null
+   },
+   "first_partial_ms_after_speech_start": {
+    "n": 46,
+    "p50": 5658.6,
+    "p90": 7741.3,
+    "mean": 5503.867,
+    "max": 9271.0
+   },
+   "partials_before_commit": {
+    "n": 46,
+    "p50": 0,
+    "p90": 0,
+    "mean": 0.0,
+    "max": 0
+   },
+   "nonspeech": {
+    "clips": 4,
+    "with_text": 0,
+    "max_words": 0
+   },
+   "streamed_seconds": 282.8,
+   "timeouts": 0,
+   "event_types_seen": [
+    "conversation.item.added",
+    "conversation.item.done",
+    "conversation.item.input_audio_transcription.completed",
+    "conversation.item.input_audio_transcription.delta",
+    "input_audio_buffer.committed",
+    "session.created",
+    "session.updated"
+   ]
+  }
+ },
+ "endpointing": {
+  "production-1800": {
+   "cut_off_rate": 0.1304,
+   "cut_off": 6,
+   "clips": 46,
+   "cut_off_by_category": {
+    "G": 0,
+    "H": 6,
+    "N": 0,
+    "R": 0,
+    "S": 0
+   },
+   "wait_after_last_voice_ms": {
+    "n": 40,
+    "p50": 1800,
+    "p90": 1800,
+    "mean": 1800.0,
+    "max": 1800
+   }
+  },
+  "short-1200": {
+   "cut_off_rate": 0.1304,
+   "cut_off": 6,
+   "clips": 46,
+   "cut_off_by_category": {
+    "G": 0,
+    "H": 6,
+    "N": 0,
+    "R": 0,
+    "S": 0
+   },
+   "wait_after_last_voice_ms": {
+    "n": 40,
+    "p50": 1200,
+    "p90": 1200,
+    "mean": 1200.0,
+    "max": 1200
+   }
+  },
+  "adaptive-1200": {
+   "cut_off_rate": 0.1304,
+   "cut_off": 6,
+   "clips": 46,
+   "cut_off_by_category": {
+    "G": 0,
+    "H": 6,
+    "N": 0,
+    "R": 0,
+    "S": 0
+   },
+   "wait_after_last_voice_ms": {
+    "n": 40,
+    "p50": 1200,
+    "p90": 1200,
+    "mean": 1212.5,
+    "max": 1500
+   }
+  }
+ },
+ "safeguards": {
+  "A0@production-1800:production_confidence_gate": {
+   "n": 46,
+   "accepted": 38,
+   "pass_rate": 0.8261,
+   "false_reliable": 7,
+   "false_reliable_rate": 0.1842,
+   "false_unreliable": 6,
+   "false_unreliable_rate": 0.75
+  },
+  "A0@short-1200:production_confidence_gate": {
+   "n": 46,
+   "accepted": 38,
+   "pass_rate": 0.8261,
+   "false_reliable": 7,
+   "false_reliable_rate": 0.1842,
+   "false_unreliable": 6,
+   "false_unreliable_rate": 0.75
+  },
+  "A0@adaptive-1200:production_confidence_gate": {
+   "n": 46,
+   "accepted": 38,
+   "pass_rate": 0.8261,
+   "false_reliable": 7,
+   "false_reliable_rate": 0.1842,
+   "false_unreliable": 6,
+   "false_unreliable_rate": 0.75
+  },
+  "A1-low-1800:S1_agreement_le_0.05": {
+   "n": 46,
+   "accepted": 31,
+   "pass_rate": 0.6739,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1613,
+   "false_unreliable": 11,
+   "false_unreliable_rate": 0.7333
+  },
+  "A1-low-1800:S1_agreement_le_0.1": {
+   "n": 46,
+   "accepted": 32,
+   "pass_rate": 0.6957,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1562,
+   "false_unreliable": 10,
+   "false_unreliable_rate": 0.7143
+  },
+  "A1-low-1800:S1_agreement_le_0.15": {
+   "n": 46,
+   "accepted": 32,
+   "pass_rate": 0.6957,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1562,
+   "false_unreliable": 10,
+   "false_unreliable_rate": 0.7143
+  },
+  "A1-low-1800:S1_agreement_le_0.2": {
+   "n": 46,
+   "accepted": 35,
+   "pass_rate": 0.7609,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1429,
+   "false_unreliable": 8,
+   "false_unreliable_rate": 0.7273
+  },
+  "A1-low-1800:S1_agreement_le_0.3": {
+   "n": 46,
+   "accepted": 36,
+   "pass_rate": 0.7826,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1389,
+   "false_unreliable": 7,
+   "false_unreliable_rate": 0.7
+  },
+  "A1-minimal-1800:S1_agreement_le_0.05": {
+   "n": 46,
+   "accepted": 25,
+   "pass_rate": 0.5435,
+   "false_reliable": 3,
+   "false_reliable_rate": 0.12,
+   "false_unreliable": 13,
+   "false_unreliable_rate": 0.619
+  },
+  "A1-minimal-1800:S1_agreement_le_0.1": {
+   "n": 46,
+   "accepted": 28,
+   "pass_rate": 0.6087,
+   "false_reliable": 3,
+   "false_reliable_rate": 0.1071,
+   "false_unreliable": 10,
+   "false_unreliable_rate": 0.5556
+  },
+  "A1-minimal-1800:S1_agreement_le_0.15": {
+   "n": 46,
+   "accepted": 29,
+   "pass_rate": 0.6304,
+   "false_reliable": 3,
+   "false_reliable_rate": 0.1034,
+   "false_unreliable": 10,
+   "false_unreliable_rate": 0.5882
+  },
+  "A1-minimal-1800:S1_agreement_le_0.2": {
+   "n": 46,
+   "accepted": 32,
+   "pass_rate": 0.6957,
+   "false_reliable": 3,
+   "false_reliable_rate": 0.0938,
+   "false_unreliable": 8,
+   "false_unreliable_rate": 0.5714
+  },
+  "A1-minimal-1800:S1_agreement_le_0.3": {
+   "n": 46,
+   "accepted": 34,
+   "pass_rate": 0.7391,
+   "false_reliable": 4,
+   "false_reliable_rate": 0.1176,
+   "false_unreliable": 7,
+   "false_unreliable_rate": 0.5833
+  },
+  "A1-high-1800:S1_agreement_le_0.05": {
+   "n": 46,
+   "accepted": 29,
+   "pass_rate": 0.6304,
+   "false_reliable": 4,
+   "false_reliable_rate": 0.1379,
+   "false_unreliable": 13,
+   "false_unreliable_rate": 0.7647
+  },
+  "A1-high-1800:S1_agreement_le_0.1": {
+   "n": 46,
+   "accepted": 31,
+   "pass_rate": 0.6739,
+   "false_reliable": 4,
+   "false_reliable_rate": 0.129,
+   "false_unreliable": 11,
+   "false_unreliable_rate": 0.7333
+  },
+  "A1-high-1800:S1_agreement_le_0.15": {
+   "n": 46,
+   "accepted": 31,
+   "pass_rate": 0.6739,
+   "false_reliable": 4,
+   "false_reliable_rate": 0.129,
+   "false_unreliable": 11,
+   "false_unreliable_rate": 0.7333
+  },
+  "A1-high-1800:S1_agreement_le_0.2": {
+   "n": 46,
+   "accepted": 33,
+   "pass_rate": 0.7174,
+   "false_reliable": 4,
+   "false_reliable_rate": 0.1212,
+   "false_unreliable": 9,
+   "false_unreliable_rate": 0.6923
+  },
+  "A1-high-1800:S1_agreement_le_0.3": {
+   "n": 46,
+   "accepted": 34,
+   "pass_rate": 0.7391,
+   "false_reliable": 4,
+   "false_reliable_rate": 0.1176,
+   "false_unreliable": 8,
+   "false_unreliable_rate": 0.6667
+  },
+  "A1-low-1200:S1_agreement_le_0.05": {
+   "n": 46,
+   "accepted": 29,
+   "pass_rate": 0.6304,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1724,
+   "false_unreliable": 15,
+   "false_unreliable_rate": 0.8824
+  },
+  "A1-low-1200:S1_agreement_le_0.1": {
+   "n": 46,
+   "accepted": 31,
+   "pass_rate": 0.6739,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1613,
+   "false_unreliable": 13,
+   "false_unreliable_rate": 0.8667
+  },
+  "A1-low-1200:S1_agreement_le_0.15": {
+   "n": 46,
+   "accepted": 31,
+   "pass_rate": 0.6739,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1613,
+   "false_unreliable": 13,
+   "false_unreliable_rate": 0.8667
+  },
+  "A1-low-1200:S1_agreement_le_0.2": {
+   "n": 46,
+   "accepted": 33,
+   "pass_rate": 0.7174,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1515,
+   "false_unreliable": 11,
+   "false_unreliable_rate": 0.8462
+  },
+  "A1-low-1200:S1_agreement_le_0.3": {
+   "n": 46,
+   "accepted": 36,
+   "pass_rate": 0.7826,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1389,
+   "false_unreliable": 8,
+   "false_unreliable_rate": 0.8
+  },
+  "A1-low-adaptive:S1_agreement_le_0.05": {
+   "n": 46,
+   "accepted": 26,
+   "pass_rate": 0.5652,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1923,
+   "false_unreliable": 17,
+   "false_unreliable_rate": 0.85
+  },
+  "A1-low-adaptive:S1_agreement_le_0.1": {
+   "n": 46,
+   "accepted": 30,
+   "pass_rate": 0.6522,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1667,
+   "false_unreliable": 13,
+   "false_unreliable_rate": 0.8125
+  },
+  "A1-low-adaptive:S1_agreement_le_0.15": {
+   "n": 46,
+   "accepted": 30,
+   "pass_rate": 0.6522,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1667,
+   "false_unreliable": 13,
+   "false_unreliable_rate": 0.8125
+  },
+  "A1-low-adaptive:S1_agreement_le_0.2": {
+   "n": 46,
+   "accepted": 32,
+   "pass_rate": 0.6957,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1562,
+   "false_unreliable": 11,
+   "false_unreliable_rate": 0.7857
+  },
+  "A1-low-adaptive:S1_agreement_le_0.3": {
+   "n": 46,
+   "accepted": 35,
+   "pass_rate": 0.7609,
+   "false_reliable": 5,
+   "false_reliable_rate": 0.1429,
+   "false_unreliable": 8,
+   "false_unreliable_rate": 0.7273
+  },
+  "A2-gpt-transcribe-1800:S2_languages_signal": {
+   "n": 46,
+   "accepted": 46,
+   "pass_rate": 1.0,
+   "false_reliable": 7,
+   "false_reliable_rate": 0.1522,
+   "false_unreliable": 0,
+   "false_unreliable_rate": null,
+   "empty_languages": 0
+  }
+ },
+ "cost": {
+  "A1-low-1800": {
+   "usd_per_minute": 0.017,
+   "basis": "published: model page, 2026-10-23",
+   "estimated_usd_per_lesson_mic_open": 0.068,
+   "estimated_usd_per_lesson_streaming_whole_10_min": 0.17
+  },
+  "A1-minimal-1800": {
+   "usd_per_minute": 0.017,
+   "basis": "published: model page, 2026-10-23",
+   "estimated_usd_per_lesson_mic_open": 0.068,
+   "estimated_usd_per_lesson_streaming_whole_10_min": 0.17
+  },
+  "A1-high-1800": {
+   "usd_per_minute": 0.017,
+   "basis": "published: model page, 2026-10-23",
+   "estimated_usd_per_lesson_mic_open": 0.068,
+   "estimated_usd_per_lesson_streaming_whole_10_min": 0.17
+  },
+  "A1-low-1200": {
+   "usd_per_minute": 0.017,
+   "basis": "published: model page, 2026-10-23",
+   "estimated_usd_per_lesson_mic_open": 0.068,
+   "estimated_usd_per_lesson_streaming_whole_10_min": 0.17
+  },
+  "A1-low-adaptive": {
+   "usd_per_minute": 0.017,
+   "basis": "published: model page, 2026-10-23",
+   "estimated_usd_per_lesson_mic_open": 0.068,
+   "estimated_usd_per_lesson_streaming_whole_10_min": 0.17
+  },
+  "A2-gpt-transcribe-1800": {
+   "usd_per_minute": 0.0045,
+   "basis": "published: model page, 2026-10-23",
+   "estimated_usd_per_lesson_mic_open": 0.018,
+   "estimated_usd_per_lesson_streaming_whole_10_min": 0.045
+  },
+  "A0": {
+   "usd_per_minute": 0.006,
+   "basis": "assumed: 2x the usual ~$0.003/min; model page lists tokens only ($1.25/M audio in)",
+   "estimated_usd_per_lesson_mic_open": 0.024
+  },
+  "assumption": "4.0 min of open microphone per lesson (to be replaced with measured data)"
+ },
+ "spend": {
+  "cap_usd": 5.0,
+  "stop_at_usd": 4.5,
+  "spent_usd": 0.635472,
+  "by_item": {
+   "capability-probe": 0.005,
+   "tts-audio": 0.099475,
+   "A0-rest": 0.086735,
+   "A1-low-1800": 0.087652,
+   "A1-low-1200": 0.078984,
+   "A1-minimal-1800": 0.087652,
+   "A1-high-1800": 0.087652,
+   "A1-low-adaptive": 0.079126,
+   "A2-gpt-transcribe-1800": 0.023196
+  },
+  "remaining_synthetic_usd": 1.364528,
+  "remaining_pilot_usd": 3.864528
+ },
+ "errors": {},
+ "concurrency": 4
+}

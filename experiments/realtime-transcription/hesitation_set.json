@@ -1,0 +1,18 @@
+{
+ "version": 1,
+ "description": "Scripted pauses, hesitations, self-corrections and short answers. Synthetic: built from TTS segments with inserted silence. Fillers are spoken but ignored when scoring; must_contain lists self-corrected words that must survive in the transcript.",
+ "items": [
+  {"id": "H01", "kind": "pause_1.0s", "segments": [{"say": "The team found the problem"}, {"pause_ms": 1000}, {"say": "and went back to the old version."}]},
+  {"id": "H02", "kind": "pause_1.6s", "segments": [{"say": "The update removed a field"}, {"pause_ms": 1600}, {"say": "so customers could not save appointments."}]},
+  {"id": "H03", "kind": "pause_2.4s", "segments": [{"say": "Maya decided to wait"}, {"pause_ms": 2400}, {"say": "until Friday for the next release."}]},
+  {"id": "H04", "kind": "pause_3.0s", "segments": [{"say": "They will test the migration"}, {"pause_ms": 3000}, {"say": "on a copy of the database first."}]},
+  {"id": "H05", "kind": "fillers", "segments": [{"say": "The, um, the update, uh, removed a, um, a field."}]},
+  {"id": "H06", "kind": "hesitation_pause", "segments": [{"say": "Maya wanted to, uh"}, {"pause_ms": 1200}, {"say": "postpone it until Friday."}]},
+  {"id": "H07", "kind": "self_correction", "segments": [{"say": "The release moved to Thursday, no, I mean Friday."}], "must_contain": ["friday"]},
+  {"id": "H08", "kind": "restart", "segments": [{"say": "They rolled, they rolled back the update."}], "must_contain": ["rolled", "back"]},
+  {"id": "H09", "kind": "self_correction_pause", "segments": [{"say": "It was Monday."}, {"pause_ms": 1500}, {"say": "No, wait, it was Tuesday."}], "must_contain": ["tuesday"]},
+  {"id": "H10", "kind": "short_hesitant", "segments": [{"say": "Um, the database."}]},
+  {"id": "H11", "kind": "short", "segments": [{"say": "Friday."}]},
+  {"id": "H12", "kind": "slow_many_pauses", "segments": [{"say": "The app"}, {"pause_ms": 800}, {"say": "was broken"}, {"pause_ms": 800}, {"say": "so they"}, {"pause_ms": 800}, {"say": "fixed it."}]}
+ ]
+}

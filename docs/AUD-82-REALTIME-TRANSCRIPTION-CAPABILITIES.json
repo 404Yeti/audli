@@ -1,0 +1,102 @@
+{
+ "models_listed": {
+  "gpt-live-transcribe": true,
+  "gpt-transcribe": true,
+  "gpt-4o-mini-transcribe": true,
+  "gpt-live-1": true
+ },
+ "live_transcribe_delays": {
+  "minimal": {
+   "connected": true,
+   "events": [
+    "session.created",
+    "session.updated"
+   ],
+   "errors": []
+  },
+  "low": {
+   "connected": true,
+   "events": [
+    "session.created",
+    "session.updated"
+   ],
+   "errors": []
+  },
+  "medium": {
+   "connected": true,
+   "events": [
+    "session.created",
+    "session.updated"
+   ],
+   "errors": []
+  },
+  "high": {
+   "connected": true,
+   "events": [
+    "session.created",
+    "session.updated"
+   ],
+   "errors": []
+  },
+  "xhigh": {
+   "connected": true,
+   "events": [
+    "session.created",
+    "session.updated"
+   ],
+   "errors": []
+  }
+ },
+ "live_transcribe_hints": {
+  "connected": true,
+  "events": [
+   "session.created",
+   "session.updated"
+  ],
+  "errors": []
+ },
+ "gpt_transcribe": {
+  "connected": true,
+  "events": [
+   "session.created",
+   "session.updated"
+  ],
+  "errors": []
+ },
+ "invalid_delay_rejected": {
+  "connected": true,
+  "events": [
+   "error",
+   "session.created"
+  ],
+  "errors": [
+   "invalid_value"
+  ]
+ },
+ "client_secret": {
+  "status": 200,
+  "keys": [
+   "expires_at",
+   "session",
+   "value"
+  ],
+  "has_value": true,
+  "expires_present": true
+ },
+ "browser_style_websocket": {
+  "connected": true,
+  "events": [
+   "session.created",
+   "session.updated"
+  ],
+  "errors": []
+ },
+ "ephemeral_secret_as_bearer": {
+  "connected": true,
+  "events": [
+   "session.created",
+   "session.updated"
+  ],
+  "errors": []
+ }
+}

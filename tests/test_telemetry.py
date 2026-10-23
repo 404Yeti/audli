@@ -319,3 +319,21 @@ def test_engine_instrumentation_sees_connects_pings_checkouts_and_queries(tmp_pa
     assert stages['db.checkout']['count'] == 3 and stages['db.query']['count'] == 3
     assert stages['db.pool_ping']['count'] == 2        # the two reused checkouts
     engine.dispose()
+
+
+def test_pause_measurements_are_recorded_as_bounded_levels(tmp_path, repository_factory):
+    import asyncio
+    aggregator.reset()
+    provider = FakeProvider()
+    http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
+    app = create_app(settings_for(tmp_path, latency_aggregates=True), provider, repository=repository_factory(None), auth_client=http)
+    client = AccountClient(app, provider, 'valid-a')
+    for pause, span in ((0, 3400), (1250, 6200), (1990, 9000), (250000, 120000)):
+        assert client.post('/api/telemetry/turn', json={'stages': {'longest_pause': pause, 'speech_span': span}}).status_code == 204
+    snap = aggregator.snapshot()
+    assert snap['gauges']['client.longest_pause_100ms'] == {'0': 1, '12': 1, '19': 1, '32': 1}      # capped at 3.2 s
+    assert snap['gauges']['client.speech_span_s'] == {'3': 1, '6': 1, '9': 1, '32': 1}
+    assert 'client.longest_pause' not in snap['stages']                                            # not mixed into latency histograms
+    assert client.post('/api/telemetry/turn', json={'stages': {'longest_pause': -1}}).status_code == 422
+    assert client.post('/api/telemetry/turn', json={'stages': {'pause_text': 5}}).status_code == 422
+    app.state.repository.close(); asyncio.run(http.aclose())

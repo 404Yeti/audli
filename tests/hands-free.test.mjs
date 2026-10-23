@@ -127,3 +127,21 @@ test('opt-in turn reporter batches bounded integers and flushes at the end of a 
   const failing = createTurnReporter(() => { throw new Error('network'); });
   assert.doesNotThrow(() => failing.add('retry_playback', 10)); // telemetry cannot break a lesson
 });
+
+test('AUD-82: pause statistics are measurement only and never change the end-of-turn decision', () => {
+  const run = (pattern) => {          // pattern: [durationMs, rms] at 50 ms polls; returns the tick at which the turn ends
+    const detect = turnDetector(0); let now = 0;
+    for (const [ms, rms] of pattern) for (let t = 0; t < ms; t += 50) { now += 50; if (detect(now, rms).end) return { now, detect }; }
+    return { now: null, detect };
+  };
+  // Decisions identical to the original rules: 3 s of voice then silence ends at last voice + 1.8 s.
+  assert.equal(run([[3000, .1], [5000, 0]]).now, 3000 + 1800);
+  // A 1.4 s pause in the middle of speech is recorded; the trailing silence is not a pause.
+  const { detect } = run([[1000, .1], [1400, 0], [1000, .1], [5000, 0]]);
+  assert.deepEqual(detect.stats(), { longestPauseMs: 1450, speechSpanMs: 3400 - 50 });
+  // Leading silence and a brief noise blip before real speech are not pauses; no speech at all reports nothing.
+  assert.equal(run([[2000, 0], [100, .1], [2500, 0], [1000, .1], [5000, 0]]).detect.stats().longestPauseMs, 0);
+  assert.equal(run([[16000, 0]]).detect.stats(), null);
+  // Two pauses: the longest wins; very short gaps (one quiet poll) do not count.
+  assert.equal(run([[800, .1], [100, 0], [800, .1], [900, 0], [800, .1], [5000, 0]]).detect.stats().longestPauseMs, 950);
+});

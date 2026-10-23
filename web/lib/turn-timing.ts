@@ -1,9 +1,9 @@
 /** Fixed-stage timings, local development or explicit opt-in. No learner content. */
-export type TurnStage = 'silence_detection' | 'recording_finalization' | 'upload_transcription' | 'assessment' | 'checkin_response' | 'profile_extraction' | 'tts_readiness' | 'playback_start' | 'turn_to_playback' | 'request_submission' | 'response_headers' | 'first_audio_byte' | 'audio_body_ready' | 'acknowledgment_playback' | 'retry_playback' | 'acknowledgment_duration' | 'coaching_readiness' | 'coaching_wait_after_ack';
+export type TurnStage = 'silence_detection' | 'recording_finalization' | 'upload_transcription' | 'assessment' | 'checkin_response' | 'profile_extraction' | 'tts_readiness' | 'playback_start' | 'turn_to_playback' | 'request_submission' | 'response_headers' | 'first_audio_byte' | 'audio_body_ready' | 'acknowledgment_playback' | 'retry_playback' | 'acknowledgment_duration' | 'coaching_readiness' | 'coaching_wait_after_ack' | 'longest_pause' | 'speech_span';
 /** Opt-in batching of numeric stage timings. Integers only; no content, IDs or timestamps. */
 export type TurnSink = (stages: Partial<Record<TurnStage, number>>) => void;
 const FLUSH_ON: readonly TurnStage[] = ['turn_to_playback', 'retry_playback'];
-export function createTurnReporter(send: TurnSink, maxStages = 18) {
+export function createTurnReporter(send: TurnSink, maxStages = 20) {
   let batch: Partial<Record<TurnStage, number>> = {};
   const flush = () => {
     const stages = batch; batch = {};
@@ -23,6 +23,12 @@ export function installTurnSink(sink: TurnSink | null) { reporter = sink ? creat
 export function turnTiming(stage: TurnStage, startedAt: number) {
   reporter?.add(stage, performance.now() - startedAt);
   if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage, elapsedMs: Math.round(performance.now() - startedAt) });
+}
+
+/** AUD-82: report a measured duration (not elapsed-since) such as the longest pause inside a spoken answer. Numbers only. */
+export function turnValue(stage: 'longest_pause' | 'speech_span', ms: number) {
+  reporter?.add(stage, ms);
+  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1') console.debug('[Audli turn]', { stage, elapsedMs: Math.round(ms) });
 }
 
 /** Last detected voice is an estimate, not an externally measured speech boundary.

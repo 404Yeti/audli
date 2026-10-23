@@ -1,5 +1,5 @@
 {
-  "note": "PREPARED, NOT APPROVED. This file authorizes nothing while approved is false. It binds the FROZEN held-out set (tests/fixtures/review_improvement_heldout_v2.json) and the seeded calibration pairs by hash, prompt v3, the pinned model, the prices, and both stages. To authorize the paid synthetic evaluation, the owner personally sets approved to true and fills approved_by, approved_at and expires_at (a time in the future, with timezone). The owner may also narrow stages to [\"calibration\"] (about 39 requests) to run only the seeded comparison calibration first; max_requests must then be at least the selected stages' requests. Every other field is bound to the exact plan and is refused if it drifts.",
+  "note": "PREPARED, NOT APPROVED. This file authorizes nothing while approved is false. It binds the FROZEN, label-reviewed held-out set (see docs/AUD-77-LABEL-REVIEW.md) (tests/fixtures/review_improvement_heldout_v2.json) and the seeded calibration pairs by hash, prompt v3, the pinned model, the prices, and both stages. To authorize the paid synthetic evaluation, the owner personally sets approved to true and fills approved_by, approved_at and expires_at (a time in the future, with timezone). The owner may also narrow stages to [\"calibration\"] (about 39 requests) to run only the seeded comparison calibration first; max_requests must then be at least the selected stages' requests. Every other field is bound to the exact plan and is refused if it drifts.",
   "approved": false,
   "approved_by": "",
   "approved_at": "",
@@ -7,7 +7,7 @@
   "run_id": "aud77-live-eval-2",
   "model": "gpt-4.1-mini-2025-04-14",
   "prompt_version": "v3",
-  "fixtures_sha256": "91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd",
+  "fixtures_sha256": "30513a0de1533726f6615d3d089753f784ac2e37b4ac680d6aeda04f4bbc24e5",
   "calibration_sha256": "00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f",
   "stages": [
     "calibration",

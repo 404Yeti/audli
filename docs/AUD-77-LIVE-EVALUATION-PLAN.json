@@ -11,7 +11,7 @@
   "output": 1.6
  },
  "fixtures": 104,
- "fixtures_sha256": "91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd",
+ "fixtures_sha256": "30513a0de1533726f6615d3d089753f784ac2e37b4ac680d6aeda04f4bbc24e5",
  "calibration_pairs": 39,
  "calibration_sha256": "00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f",
  "repeats": 1,
@@ -78,7 +78,7 @@
   "word_form": 6,
   "word_order": 3
  },
- "proposed_release_thresholds": {
+ "release_gates": {
   "heldout_false_accepts": {
    "max": 0,
    "gate": true
@@ -88,15 +88,15 @@
    "gate": true,
    "note": "0 leaks in n seeded unsafe pairs only bounds the leak rate below about 3/n at 95%"
   },
-  "false_rejection_rate": {
-   "max_point": 0.1,
-   "max_upper95_exact": 0.2,
+  "false_rejections": {
+   "max": 6,
+   "of": 64,
    "gate": true,
-   "denominator": "fix cases whose raw candidate was good"
+   "denominator": "fix cases sent to the provider"
   },
-  "unnecessary_edit_rate": {
-   "max_point": 0.1,
-   "upper95_exact_informational": true,
+  "unnecessary_edits": {
+   "max": 3,
+   "of": 32,
    "gate": true,
    "denominator": "already-natural answers, ambiguous-intent excluded"
   },
@@ -118,8 +118,7 @@
    "gate": true
   },
   "mean_cost_per_attempt_usd": {
-   "max": 0.001,
-   "gate": true
+   "informational": "the $1.00 hard cap is the cost control; not a ratified gate"
   }
  },
  "evaluates": [
@@ -127,7 +126,7 @@
   "meaning preservation (fixture invariants on the model raw output, independent of the validator)",
   "seeded meaning-changing and meaning-preserving pairs on the independent comparison, alone and through the pipeline",
   "pipeline agreement: false accepts, false rejections, unneeded edits, which layer caught each violation",
-  "confidence bounds on every rate, then the proposed thresholds",
+  "confidence bounds on every rate, then the ratified provisional release gates",
   "cost (actual usage), latency (p50/p95 per call and per improvement), provider errors"
  ],
  "expected_outputs": [
@@ -1267,25 +1266,25 @@
   {
    "id": "f54",
    "category": "comparison",
-   "source": "This road is more safe than the old one",
+   "source": "This box is more heavier than that one",
    "expect": "accept",
    "references": [
-    "This road is safer than the old one"
+    "This box is heavier than that one"
    ],
    "must_preserve": [
     "than",
-    "old"
+    "box"
    ],
    "must_fix": [
     {
-     "remove": "more safe",
-     "add": "safer"
+     "remove": "more heavier",
+     "add": "heavier"
     }
    ],
    "must_not_add": [
-    "less",
-    "dangerous",
-    "safest"
+    "lighter",
+    "lightest",
+    "less"
    ]
   },
   {
@@ -1911,23 +1910,6 @@
    "must_not_add": []
   },
   {
-   "id": "a01",
-   "category": "ambiguous_intent",
-   "source": "My friend told me that she go to the station",
-   "expect": "accept_unchanged",
-   "references": [
-    "My friend told me that she go to the station"
-   ],
-   "must_preserve": [],
-   "must_fix": [],
-   "must_not_add": [
-    "went",
-    "will",
-    "yesterday",
-    "tomorrow"
-   ]
-  },
-  {
    "id": "a02",
    "category": "ambiguous_intent",
    "source": "I will see him last week",
@@ -1961,6 +1943,24 @@
     "will",
     "did",
     "does"
+   ]
+  },
+  {
+   "id": "a05",
+   "category": "ambiguous_intent",
+   "source": "Tomorrow I saw the doctor about my knee",
+   "expect": "accept_unchanged",
+   "references": [
+    "Tomorrow I saw the doctor about my knee"
+   ],
+   "must_preserve": [
+    "tomorrow"
+   ],
+   "must_fix": [],
+   "must_not_add": [
+    "will",
+    "yesterday",
+    "last"
    ]
   },
   {
@@ -2313,7 +2313,7 @@
   "run_id": "<unique id>",
   "model": "gpt-4.1-mini-2025-04-14",
   "prompt_version": "v3",
-  "fixtures_sha256": "91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd",
+  "fixtures_sha256": "30513a0de1533726f6615d3d089753f784ac2e37b4ac680d6aeda04f4bbc24e5",
   "calibration_sha256": "00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f",
   "stages": [
    "calibration",

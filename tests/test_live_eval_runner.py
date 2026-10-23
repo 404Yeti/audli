@@ -117,7 +117,7 @@ def test_held_out_fixtures_are_well_formed_fresh_and_self_consistent():
 def test_the_datasets_are_frozen_by_hash():
     """Changing a label after the fact would invalidate every comparison. An intentional change must update these hashes in review,
     and the next approval file (which binds both hashes) must be regenerated."""
-    assert runner.fixtures_hash() == '91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd'
+    assert runner.fixtures_hash() == '30513a0de1533726f6615d3d089753f784ac2e37b4ac680d6aeda04f4bbc24e5'
     assert runner.calibration_hash() == '00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f'
     assert runner.fixtures_hash(runner.PRIOR_FIXTURES) == 'da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7'      # evaluation 1's set, unchanged
 
@@ -173,7 +173,7 @@ def test_plan_reports_model_counts_cost_categories_and_expected_outputs_without_
     assert plan['max_requests'] == plan['cases_sent_to_a_provider'] * 3 + plan['calibration_pairs'] <= runner.MAX_REQUESTS
     assert plan['stages']['heldout']['max_requests'] + plan['stages']['calibration']['max_requests'] == plan['max_requests']
     assert plan['stages']['calibration']['seeded_unsafe'] >= 24 and len(plan['expected_calibration']) == plan['calibration_pairs']
-    assert plan['proposed_release_thresholds']['heldout_false_accepts']['max'] == 0
+    assert plan['release_gates']['heldout_false_accepts']['max'] == 0 and plan['release_gates']['false_rejections']['max'] == 6
     assert 0 < plan['worst_case_reservation_usd'] <= runner.HARD_CAP_USD and plan['hard_cap_usd'] == 1.0
     assert plan['sdk_max_retries'] == 0 and plan['concurrency'] == 1 and sum(plan['categories'].values()) == plan['fixtures']
     assert len(plan['expected_outputs']) == plan['fixtures'] and all('references' in e and 'must_preserve' in e for e in plan['expected_outputs'])

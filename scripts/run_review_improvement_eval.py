@@ -52,18 +52,20 @@ PRIOR_FIXTURES = FIXTURES.with_name('review_improvement_heldout.json')   # evalu
 CALIBRATION = FIXTURES.with_name('review_improvement_calibration.json')   # seeded meaning-preservation pairs, scored on the comparison step
 DEV_FIXTURES = FIXTURES.with_name('review_improvement_cases.json')
 STAGES = ('calibration', 'heldout')   # always run in this order
-# PROPOSED release-quality thresholds (docs/AUD-77-EVALUATION-V2.md). They are not ratified by the owner, and a report that meets them is evidence for
-# a decision, never the decision. `gate` thresholds decide pass/fail for the criterion; bounds marked informational are reported but do not gate.
-PROPOSED_THRESHOLDS = {
+# Release gates RATIFIED by the owner on 2026-10-23 as PROVISIONAL (docs/AUD-77-EVALUATION-V2.md). Passing them is evidence for the release decision, not the
+# decision: the samples are small, single-pass and synthetic, every rate is reported with its sample size and exact 95% bound, and nothing here proves
+# universal safety. The failure counts are absolute and tied to the dataset sizes (64 fix cases, 32 natural answers); a test fails if the data change.
+GATE_FIX_CASES, GATE_NATURAL_ANSWERS = 64, 32
+RELEASE_GATES = {
     'heldout_false_accepts': {'max': 0, 'gate': True},
     'seeded_unsafe_leaks': {'max': 0, 'gate': True, 'note': '0 leaks in n seeded unsafe pairs only bounds the leak rate below about 3/n at 95%'},
-    'false_rejection_rate': {'max_point': .10, 'max_upper95_exact': .20, 'gate': True, 'denominator': 'fix cases whose raw candidate was good'},
-    'unnecessary_edit_rate': {'max_point': .10, 'upper95_exact_informational': True, 'gate': True, 'denominator': 'already-natural answers, ambiguous-intent excluded'},
+    'false_rejections': {'max': 6, 'of': GATE_FIX_CASES, 'gate': True, 'denominator': 'fix cases sent to the provider'},
+    'unnecessary_edits': {'max': 3, 'of': GATE_NATURAL_ANSWERS, 'gate': True, 'denominator': 'already-natural answers, ambiguous-intent excluded'},
     'correction_yield': {'min': .80, 'gate': True, 'denominator': 'fix cases sent to the provider'},
     'mean_best_f1_of_accepted': {'min': .95, 'gate': True},
     'provider_failure_rate': {'max': .02, 'gate': True},
     'latency_p95_per_improvement_ms': {'max': 5000, 'gate': True},
-    'mean_cost_per_attempt_usd': {'max': .001, 'gate': True},
+    'mean_cost_per_attempt_usd': {'informational': 'the $1.00 hard cap is the cost control; not a ratified gate'},
 }
 PINNED_MODEL = 'gpt-4.1-mini-2025-04-14'
 # Standard-tier USD per 1M tokens for gpt-4.1-mini, read from OpenAI's pricing page on 2026-10-22. An approval must restate them;
@@ -166,12 +168,12 @@ def plan(cases: list[dict] | None = None, repeats: int = 1, pairs: list[dict] | 
             'max_output_tokens': {'coach': COACH_MAX_OUTPUT_TOKENS, 'comparison': CHECK_MAX_OUTPUT_TOKENS},
             'worst_case_reservation_usd': round(reserved, 4), 'hard_cap_usd': HARD_CAP_USD,
             'categories': dict(sorted(Counter(c['category'] for c in cases).items())),
-            'proposed_release_thresholds': PROPOSED_THRESHOLDS,
+            'release_gates': RELEASE_GATES,
             'evaluates': ['correction quality (best token-F1 to a reference rewrite; required fixes present)',
                           'meaning preservation (fixture invariants on the model raw output, independent of the validator)',
                           'seeded meaning-changing and meaning-preserving pairs on the independent comparison, alone and through the pipeline',
                           'pipeline agreement: false accepts, false rejections, unneeded edits, which layer caught each violation',
-                          'confidence bounds on every rate, then the proposed thresholds',
+                          'confidence bounds on every rate, then the ratified provisional release gates',
                           'cost (actual usage), latency (p50/p95 per call and per improvement), provider errors'],
             'expected_outputs': [{'id': c['id'], 'category': c['category'], 'source': c['source'] if len(c['source']) < 400 else c['source'][:400] + '...',
                                   'expect': c['expect'], 'references': c['references'][:3], 'must_preserve': c['must_preserve'],
@@ -503,11 +505,10 @@ def _by(records: list[dict]) -> dict:
 
 
 def release_criteria(summary: dict, records: list[dict], calibration: dict | None) -> dict:
-    """The PROPOSED thresholds applied to a finished run, each with its sample size and confidence bound. `all_gates_pass` is evidence for
-    the owner's decision, never the decision, and is False whenever a gated criterion could not be evaluated."""
-    T = PROPOSED_THRESHOLDS
+    """The ratified (provisional) release gates applied to a finished run, each with its sample size and exact 95% bound. `all_gates_pass`
+    is evidence for the owner's decision, never the decision, and is False whenever a gated criterion could not be evaluated."""
+    T = RELEASE_GATES
     fix = [r for r in records if r['expect'] == 'accept' and r['calls']]
-    good = [r for r in fix if r['score']['quality_good'] and r['score']['invariants_ok']]
     natural = [r for r in records if r['expect'] == 'accept_unchanged' and r['category'] != 'ambiguous_intent' and r['calls']]
     ambiguous = [r for r in records if r['category'] == 'ambiguous_intent' and r['calls']]
     items = []
@@ -522,13 +523,10 @@ def release_criteria(summary: dict, records: list[dict], calibration: dict | Non
         add('seeded_unsafe_leaks', leaks, len(leaks) <= T['seeded_unsafe_leaks']['max'], n=calibration['seeded_unsafe']['n'], bound=calibration['seeded_unsafe']['leak_rate'])
     else:
         add('seeded_unsafe_leaks', None, None, n=0)
-    fr = [r for r in good if r['classification'] == 'false_rejection']
-    fr_rate = stats.rate(len(fr), len(good)) if good else None
-    add('false_rejection_rate', fr_rate, (fr_rate['point'] <= T['false_rejection_rate']['max_point'] and fr_rate['upper95_exact'] <= T['false_rejection_rate']['max_upper95_exact']) if fr_rate else None,
-        ids=[r['id'] for r in fr])
+    fr = [r for r in fix if r['classification'] == 'false_rejection']
+    add('false_rejections', stats.rate(len(fr), len(fix)) if fix else None, (len(fr) <= T['false_rejections']['max']) if fix else None, ids=[r['id'] for r in fr])
     edits = [r for r in natural if r['classification'] == 'unneeded_edit_accepted']
-    ue_rate = stats.rate(len(edits), len(natural)) if natural else None
-    add('unnecessary_edit_rate', ue_rate, (ue_rate['point'] <= T['unnecessary_edit_rate']['max_point']) if ue_rate else None, ids=[r['id'] for r in edits])
+    add('unnecessary_edits', stats.rate(len(edits), len(natural)) if natural else None, (len(edits) <= T['unnecessary_edits']['max']) if natural else None, ids=[r['id'] for r in edits])
     accepted = [r for r in fix if r['classification'] == 'accepted_ok']
     add('correction_yield', round(len(accepted) / len(fix), 4) if fix else None, (len(accepted) / len(fix) >= T['correction_yield']['min']) if fix else None, n=len(fix))
     f1s = [r['score']['best_f1'] for r in accepted if r['score']['best_f1'] is not None]
@@ -538,11 +536,11 @@ def release_criteria(summary: dict, records: list[dict], calibration: dict | Non
     add('provider_failure_rate', round(failed / requests, 4) if requests else None, (failed / requests <= T['provider_failure_rate']['max']) if requests else None, n=requests)
     p95 = summary['latency_ms']['per_improvement']['p95']
     add('latency_p95_per_improvement_ms', p95, (p95 <= T['latency_p95_per_improvement_ms']['max']) if p95 is not None else None)
-    mean_cost = summary['cost_usd']['mean_per_attempt']
-    add('mean_cost_per_attempt_usd', mean_cost, (mean_cost <= T['mean_cost_per_attempt_usd']['max']) if ran else None)
+    add('mean_cost_per_attempt_usd', summary['cost_usd']['mean_per_attempt'], None)
     gated = [i for i in items if i['threshold'].get('gate')]
-    return {'status': 'PROPOSED thresholds, not ratified by the owner; evidence for a decision, not the decision', 'criteria': items,
-            'all_gates_pass': all(i['pass'] is True for i in gated), 'gates_not_evaluated': [i['name'] for i in gated if i['pass'] is None],
+    return {'status': ('Release gates RATIFIED by the owner as provisional. Meeting them is evidence for the release decision, not proof of universal safety: the samples are small, '
+                       'single-pass and synthetic; see each rate\'s sample size and exact 95% upper bound'),
+            'criteria': items, 'all_gates_pass': all(i['pass'] is True for i in gated), 'gates_not_evaluated': [i['name'] for i in gated if i['pass'] is None],
             'informational': {'ambiguous_intent_edits_accepted': [r['id'] for r in ambiguous if r['classification'] == 'unneeded_edit_accepted'], 'ambiguous_intent_n': len(ambiguous),
                               'seeded_same_meaning': calibration['seeded_same_meaning'] if calibration else None}}
 
@@ -633,9 +631,9 @@ def render(report: dict) -> str:
         lines += [f'- {k}: {v}' for k, v in s['by_category'].items()]
     rc = report.get('release_criteria')
     if rc:
-        lines += ['', f"## Proposed release thresholds ({rc['status']})"]
+        lines += ['', f"## Release gates ({rc['status']})"]
         for item in rc['criteria']:
-            lines.append(f"- {item['name']}: {item['value']} -> {'PASS' if item['pass'] else 'NOT EVALUATED' if item['pass'] is None else 'FAIL'} (threshold {item['threshold']})")
+            lines.append(f"- {item['name']}: {item['value']} -> {'PASS' if item['pass'] else 'NOT GATED / NOT EVALUATED' if item['pass'] is None else 'FAIL'} (threshold {item['threshold']})")
         lines.append(f"All gated criteria pass: {rc['all_gates_pass']}" + (f"; not evaluated: {rc['gates_not_evaluated']}" if rc['gates_not_evaluated'] else ''))
     return '\n'.join(lines) + '\n'
 

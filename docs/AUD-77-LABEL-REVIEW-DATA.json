@@ -1,0 +1,2338 @@
+{
+ "about": "Blind label review of the AUD-77 evaluation-2 datasets, 2026-10-23. Two independent reviewers per dataset (AI reviewers, fresh sessions, no access to repo code, labels, references, validator rules or any model output) labelled shuffled items with opaque ids. \"author_label\" is the label that was frozen in PR #78. Reviewers are the same model family as the author: a human second review is still recommended. Synthetic text only.",
+ "held_out": {
+  "f18": {
+   "source": "She arrived to the airport at six o'clock",
+   "category": "grammar_prepositions",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She arrived at the airport at six o'clock",
+    "confidence": "high",
+    "why": "arrive at, not to"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She arrived at the airport at six o'clock",
+    "confidence": "high",
+    "why": "preposition"
+   }
+  },
+  "n27": {
+   "source": "Most of the staff agreed but a few people disagreed",
+   "category": "natural_quantity",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f22": {
+   "source": "The film was really disappointed",
+   "category": "word_form",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The film was really disappointing",
+    "confidence": "high",
+    "why": "-ed/-ing adjective"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The film was really disappointing",
+    "confidence": "high",
+    "why": "word form"
+   }
+  },
+  "n28": {
+   "source": "The road was closed so we took the longer route home",
+   "category": "natural_causality",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f54": {
+   "source": "This road is more safe than the old one",
+   "category": "comparison",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "low",
+    "why": "'more safe' is grammatical though 'safer' is more usual"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "This road is safer than the old one",
+    "confidence": "high",
+    "why": "comparative"
+   }
+  },
+  "f31": {
+   "source": "Always I drink coffee in the morning",
+   "category": "word_order",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I always drink coffee in the morning",
+    "confidence": "high",
+    "why": "adverb position"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I always drink coffee in the morning",
+    "confidence": "high",
+    "why": "adverb position"
+   }
+  },
+  "f09": {
+   "source": "There is three apples on the table",
+   "category": "grammar_agreement",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "There are three apples on the table",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "There are three apples on the table",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "n20": {
+   "source": "Paris is the largest country in Europe and it has a long coastline",
+   "category": "fluent_false_fact",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "English fine; fact false"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Grammatical; false fact"
+   }
+  },
+  "f59": {
+   "source": "The flight was cancelled because of the storm so we stay at a hotel",
+   "category": "causality",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The flight was cancelled because of the storm so we stayed at a hotel",
+    "confidence": "high",
+    "why": "tense consistency"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The flight was cancelled because of the storm so we stayed at a hotel",
+    "confidence": "high",
+    "why": "tense: stay -> stayed"
+   }
+  },
+  "f04": {
+   "source": "Next week the engineers will finished the repair",
+   "category": "grammar_tense",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Next week the engineers will finish the repair",
+    "confidence": "high",
+    "why": "will + base form"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Next week the engineers will finish the repair",
+    "confidence": "high",
+    "why": "bare verb after will"
+   }
+  },
+  "f32": {
+   "source": "I don't know where is the station",
+   "category": "word_order",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I don't know where the station is",
+    "confidence": "high",
+    "why": "indirect question word order"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I don't know where the station is",
+    "confidence": "high",
+    "why": "indirect question word order"
+   }
+  },
+  "n14": {
+   "source": "She is a teacher and works at a primary school",
+   "category": "optional_subject",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "n24": {
+   "source": "I did not say that we should cancel the contract",
+   "category": "natural_negation",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f50": {
+   "source": "He might to arrive late tonight",
+   "category": "modality",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He might arrive late tonight",
+    "confidence": "high",
+    "why": "modal + base form"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He might arrive late tonight",
+    "confidence": "high",
+    "why": "no 'to' after might"
+   }
+  },
+  "f11": {
+   "source": "The price of the tickets are very high this year",
+   "category": "grammar_agreement",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The price of the tickets is very high this year",
+    "confidence": "high",
+    "why": "agreement with 'price'"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The price of the tickets is very high this year",
+    "confidence": "high",
+    "why": "agreement with head noun price"
+   }
+  },
+  "f53": {
+   "source": "Both of the teams was ready to play",
+   "category": "quantity",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Both of the teams were ready to play",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Both of the teams were ready to play",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "f45": {
+   "source": "I am not agree with the new rule",
+   "category": "negation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I do not agree with the new rule",
+    "alternatives": [
+     "I don't agree with the new rule"
+    ],
+    "confidence": "high",
+    "why": "agree is a verb"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I do not agree with the new rule",
+    "alternatives": [
+     "I don't agree with the new rule"
+    ],
+    "confidence": "high",
+    "why": "agree is a verb, not adjective"
+   }
+  },
+  "f36": {
+   "source": "He gave me an advice about the interview",
+   "category": "countable",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He gave me some advice about the interview",
+    "alternatives": [
+     "He gave me a piece of advice about the interview"
+    ],
+    "confidence": "high",
+    "why": "advice uncountable"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He gave me some advice about the interview",
+    "alternatives": [
+     "He gave me a piece of advice about the interview"
+    ],
+    "confidence": "high",
+    "why": "uncountable noun"
+   }
+  },
+  "f64": {
+   "source": "He have two brothers and three sisters",
+   "category": "number",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He has two brothers and three sisters",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He has two brothers and three sisters",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "f06": {
+   "source": "They didn't went to the meeting because the train was late",
+   "category": "grammar_tense",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "They didn't go to the meeting because the train was late",
+    "confidence": "high",
+    "why": "didn't + base"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "They didn't go to the meeting because the train was late",
+    "confidence": "high",
+    "why": "bare verb after didn't"
+   }
+  },
+  "n04": {
+   "source": "He has got a lot of homework so he will not go to the cinema tonight",
+   "category": "regional_uk",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f40": {
+   "source": "Mount Everest are the smallest mountain in the world",
+   "category": "false_fact",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Mount Everest is the smallest mountain in the world",
+    "confidence": "high",
+    "why": "agreement; fact kept"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Mount Everest is the smallest mountain in the world",
+    "confidence": "high",
+    "why": "agreement (false fact kept)"
+   }
+  },
+  "f56": {
+   "source": "He runs more fast than his brother",
+   "category": "comparison",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He runs faster than his brother",
+    "confidence": "high",
+    "why": "comparative of fast"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He runs faster than his brother",
+    "confidence": "high",
+    "why": "comparative"
+   }
+  },
+  "f26": {
+   "source": "Her decision was a real surprised for everyone",
+   "category": "word_form",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Her decision was a real surprise for everyone",
+    "confidence": "high",
+    "why": "noun needed"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Her decision was a real surprise for everyone",
+    "alternatives": [
+     "Her decision was really surprising for everyone"
+    ],
+    "confidence": "high",
+    "why": "word form"
+   }
+  },
+  "n21": {
+   "source": "Water freezes at fifty degrees in my kitchen",
+   "category": "fluent_false_fact",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "English fine; fact false"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Grammatical; false fact"
+   }
+  },
+  "n26": {
+   "source": "This laptop is cheaper than the old one but slower",
+   "category": "natural_comparison",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f23": {
+   "source": "He speaks English very good",
+   "category": "word_form",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He speaks English very well",
+    "confidence": "high",
+    "why": "adverb"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He speaks English very well",
+    "confidence": "high",
+    "why": "adverb form"
+   }
+  },
+  "f34": {
+   "source": "I have many informations about the project",
+   "category": "countable",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I have a lot of information about the project",
+    "alternatives": [
+     "I have much information about the project"
+    ],
+    "confidence": "high",
+    "why": "information uncountable"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I have a lot of information about the project",
+    "alternatives": [
+     "I have much information about the project"
+    ],
+    "confidence": "high",
+    "why": "uncountable noun"
+   }
+  },
+  "n31": {
+   "source": "If it rains tomorrow we will move the picnic to Sunday",
+   "category": "plain",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f35": {
+   "source": "We need more chair for the guests",
+   "category": "countable",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "We need more chairs for the guests",
+    "confidence": "high",
+    "why": "plural"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "We need more chairs for the guests",
+    "confidence": "high",
+    "why": "plural"
+   }
+  },
+  "f47": {
+   "source": "They can't finishes the work without help",
+   "category": "negation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "They can't finish the work without help",
+    "confidence": "high",
+    "why": "modal + base"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "They can't finish the work without help",
+    "confidence": "high",
+    "why": "bare verb after modal"
+   }
+  },
+  "n12": {
+   "source": "After the meeting we walked back to the office and had lunch together",
+   "category": "plain",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "n13": {
+   "source": "Went to the market this morning and bought fresh bread",
+   "category": "optional_subject",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "informal subject ellipsis"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Elliptical spoken style, acceptable"
+   }
+  },
+  "f24": {
+   "source": "It is a danger road at night",
+   "category": "word_form",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "It is a dangerous road at night",
+    "confidence": "high",
+    "why": "word form"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "It is a dangerous road at night",
+    "confidence": "high",
+    "why": "word form"
+   }
+  },
+  "f61": {
+   "source": "Maria and Chen was presenting at the conference in Berlin",
+   "category": "named_entity",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Maria and Chen were presenting at the conference in Berlin",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Maria and Chen were presenting at the conference in Berlin",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "f01": {
+   "source": "Yesterday I go to the dentist and he finds two cavities",
+   "category": "grammar_tense",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Yesterday I went to the dentist and he found two cavities",
+    "confidence": "high",
+    "why": "past tense"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Yesterday I went to the dentist and he found two cavities",
+    "confidence": "high",
+    "why": "past tense"
+   }
+  },
+  "n07": {
+   "source": "I just got the mail and I am going to take the elevator to the fifth floor",
+   "category": "regional_us",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "American usage"
+   }
+  },
+  "f57": {
+   "source": "I am quite certain the package arrive on Friday",
+   "category": "certainty",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I am quite certain the package will arrive on Friday",
+    "alternatives": [
+     "I am quite certain the package arrives on Friday"
+    ],
+    "confidence": "high",
+    "why": "missing -s/will"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I am quite certain the package will arrive on Friday",
+    "alternatives": [
+     "I am quite certain the package arrives on Friday"
+    ],
+    "confidence": "high",
+    "why": "verb form after certain"
+   }
+  },
+  "f38": {
+   "source": "The the meeting is at is at nine",
+   "category": "disfluency",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The meeting is at nine",
+    "confidence": "high",
+    "why": "repetition/disfluency"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The meeting is at nine",
+    "confidence": "high",
+    "why": "repetition/disfluency"
+   }
+  },
+  "n32": {
+   "source": "It took us about two hours to drive there because of the traffic",
+   "category": "plain",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f52": {
+   "source": "I drank too much coffees this morning",
+   "category": "quantity",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I drank too much coffee this morning",
+    "alternatives": [
+     "I drank too many coffees this morning"
+    ],
+    "confidence": "low",
+    "why": "quantifier/plural mismatch; two repairs"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I drank too much coffee this morning",
+    "alternatives": [
+     "I drank too many coffees this morning"
+    ],
+    "confidence": "high",
+    "why": "uncountable"
+   }
+  },
+  "n22": {
+   "source": "My grandfather was born in nineteen sixty and he is ninety years old",
+   "category": "fluent_false_fact",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "English fine; facts inconsistent"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Grammatical; facts inconsistent but not language"
+   }
+  },
+  "f37": {
+   "source": "I I think we should should start earlier",
+   "category": "disfluency",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I think we should start earlier",
+    "confidence": "high",
+    "why": "repetition"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I think we should start earlier",
+    "confidence": "high",
+    "why": "repetition/disfluency"
+   }
+  },
+  "n23": {
+   "source": "A week has ten days and a year has twelve months",
+   "category": "fluent_false_fact",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "English fine; fact false"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Grammatical; false fact"
+   }
+  },
+  "f62": {
+   "source": "We meets Dr Patel at the Harbor Cafe",
+   "category": "named_entity",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "We meet Dr Patel at the Harbor Cafe",
+    "alternatives": [
+     "We met Dr Patel at the Harbor Cafe"
+    ],
+    "confidence": "low",
+    "why": "agreement error; tense could be past"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "We meet Dr Patel at the Harbor Cafe",
+    "alternatives": [
+     "We met Dr Patel at the Harbor Cafe"
+    ],
+    "confidence": "low",
+    "why": "agreement"
+   }
+  },
+  "f58": {
+   "source": "Maybe he don't know the answer",
+   "category": "certainty",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Maybe he doesn't know the answer",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Maybe he doesn't know the answer",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "f02": {
+   "source": "My parents was watching television when the power go out",
+   "category": "grammar_tense",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "My parents were watching television when the power went out",
+    "confidence": "high",
+    "why": "agreement and tense"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "My parents were watching television when the power went out",
+    "confidence": "high",
+    "why": "agreement and tense"
+   }
+  },
+  "f03": {
+   "source": "She has live in Madrid since two thousand nineteen",
+   "category": "grammar_tense",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She has lived in Madrid since two thousand nineteen",
+    "confidence": "high",
+    "why": "present perfect form"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She has lived in Madrid since two thousand nineteen",
+    "confidence": "high",
+    "why": "past participle"
+   }
+  },
+  "f48": {
+   "source": "You must to wear a helmet on the bike",
+   "category": "modality",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "You must wear a helmet on the bike",
+    "confidence": "high",
+    "why": "modal + base"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "You must wear a helmet on the bike",
+    "confidence": "high",
+    "why": "no 'to' after must"
+   }
+  },
+  "f29": {
+   "source": "We have to make homework before dinner",
+   "category": "collocation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "We have to do homework before dinner",
+    "confidence": "high",
+    "why": "do homework collocation"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "We have to do homework before dinner",
+    "confidence": "high",
+    "why": "collocation do homework"
+   }
+  },
+  "f30": {
+   "source": "She did a photo of the sunset",
+   "category": "collocation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She took a photo of the sunset",
+    "confidence": "high",
+    "why": "take a photo collocation"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She took a photo of the sunset",
+    "confidence": "high",
+    "why": "collocation take a photo"
+   }
+  },
+  "n11": {
+   "source": "Honestly I think the new schedule works well for everyone on the team",
+   "category": "plain",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f15": {
+   "source": "We saw a elephant at the zoo",
+   "category": "grammar_articles",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "We saw an elephant at the zoo",
+    "confidence": "high",
+    "why": "a/an"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "We saw an elephant at the zoo",
+    "confidence": "high",
+    "why": "a/an"
+   }
+  },
+  "f27": {
+   "source": "I did a big mistake in the exam",
+   "category": "collocation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I made a big mistake in the exam",
+    "confidence": "high",
+    "why": "make a mistake collocation"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I made a big mistake in the exam",
+    "confidence": "high",
+    "why": "collocation make a mistake"
+   }
+  },
+  "f19": {
+   "source": "We depend of the weather for our plans",
+   "category": "grammar_prepositions",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "We depend on the weather for our plans",
+    "confidence": "high",
+    "why": "preposition"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "We depend on the weather for our plans",
+    "confidence": "high",
+    "why": "preposition: depend on"
+   }
+  },
+  "n03": {
+   "source": "Whilst we were queueing the driver said the programme had changed",
+   "category": "regional_uk",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "British, fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f10": {
+   "source": "Everybody in the office know about the change",
+   "category": "grammar_agreement",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Everybody in the office knows about the change",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Everybody in the office knows about the change",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "f42": {
+   "source": "Tokyo are the capital of Italy",
+   "category": "false_fact",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Tokyo is the capital of Italy",
+    "confidence": "high",
+    "why": "agreement; fact kept"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Tokyo is the capital of Italy",
+    "confidence": "high",
+    "why": "agreement (false fact kept)"
+   }
+  },
+  "n10": {
+   "source": "He organized the garage and threw away the old color samples",
+   "category": "regional_us",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "US spelling fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "American spelling/usage fine"
+   }
+  },
+  "f39": {
+   "source": "The sun rise in the west every morning",
+   "category": "false_fact",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The sun rises in the west every morning",
+    "confidence": "high",
+    "why": "agreement; fact kept"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The sun rises in the west every morning",
+    "confidence": "high",
+    "why": "3rd person -s (false fact kept)"
+   }
+  },
+  "n15": {
+   "source": "Hope you have a great trip and see you soon",
+   "category": "optional_subject",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "informal ellipsis"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Elliptical, fine"
+   }
+  },
+  "f05": {
+   "source": "When I was a child I am afraid of dogs",
+   "category": "grammar_tense",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "When I was a child I was afraid of dogs",
+    "confidence": "high",
+    "why": "tense"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "When I was a child I was afraid of dogs",
+    "confidence": "high",
+    "why": "tense"
+   }
+  },
+  "f21": {
+   "source": "I feel very tiring after the long flight",
+   "category": "word_form",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I feel very tired after the long flight",
+    "confidence": "high",
+    "why": "-ed/-ing adjective"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I feel very tired after the long flight",
+    "confidence": "high",
+    "why": "word form: tiring -> tired"
+   }
+  },
+  "f28": {
+   "source": "Can you say me the time of the train",
+   "category": "collocation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Can you tell me the time of the train",
+    "confidence": "high",
+    "why": "say vs tell"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Can you tell me the time of the train",
+    "confidence": "high",
+    "why": "say vs tell"
+   }
+  },
+  "n17": {
+   "source": "They've already left so we'll have to wait",
+   "category": "informal",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f12": {
+   "source": "She don't like spicy food",
+   "category": "grammar_agreement",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She doesn't like spicy food",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She doesn't like spicy food",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "n30": {
+   "source": "We are meeting Anna and Tomás in Lisbon next month",
+   "category": "plain",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f41": {
+   "source": "Dogs has six legs and they can fly",
+   "category": "false_fact",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Dogs have six legs and they can fly",
+    "confidence": "high",
+    "why": "agreement; fact kept"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Dogs have six legs and they can fly",
+    "confidence": "high",
+    "why": "agreement (false fact kept)"
+   }
+  },
+  "n16": {
+   "source": "I'm gonna call her later because I can't find my keys",
+   "category": "informal",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "informal gonna fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Informal gonna is acceptable speech"
+   }
+  },
+  "f33": {
+   "source": "She asked me what time was it",
+   "category": "word_order",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She asked me what time it was",
+    "confidence": "high",
+    "why": "reported question word order"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She asked me what time it was",
+    "confidence": "high",
+    "why": "indirect question word order"
+   }
+  },
+  "n08": {
+   "source": "They have gotten the apartment keys already",
+   "category": "regional_us",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "gotten is US standard"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "American gotten"
+   }
+  },
+  "n18": {
+   "source": "Yeah I guess it's fine but I wouldn't change anything",
+   "category": "informal",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f60": {
+   "source": "He was tired because he work all night",
+   "category": "causality",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He was tired because he worked all night",
+    "confidence": "high",
+    "why": "tense"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He was tired because he worked all night",
+    "confidence": "high",
+    "why": "tense"
+   }
+  },
+  "a04": {
+   "source": "My sister and her friend she bought it yesterday",
+   "category": "ambiguous_intent",
+   "author_label": "ambiguous",
+   "reviewer_A": {
+    "label": "ambiguous",
+    "readings": [
+     "My sister and her friend bought it yesterday",
+     "My sister's friend bought it yesterday",
+     "My sister, and her friend she bought it, ... (unclear who bought it)"
+    ],
+    "confidence": "high",
+    "why": "resumptive 'she' makes the buyer unclear"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "My sister and her friend bought it yesterday",
+    "confidence": "low",
+    "why": "redundant pronoun 'she'"
+   }
+  },
+  "f14": {
+   "source": "She wants to be the doctor when she grows up",
+   "category": "grammar_articles",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She wants to be a doctor when she grows up",
+    "confidence": "high",
+    "why": "article"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She wants to be a doctor when she grows up",
+    "confidence": "high",
+    "why": "article"
+   }
+  },
+  "f13": {
+   "source": "I bought umbrella because it was raining",
+   "category": "grammar_articles",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I bought an umbrella because it was raining",
+    "confidence": "high",
+    "why": "missing article"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I bought an umbrella because it was raining",
+    "confidence": "high",
+    "why": "missing article"
+   }
+  },
+  "f44": {
+   "source": "Cats is bigger than elephants",
+   "category": "false_fact",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Cats are bigger than elephants",
+    "confidence": "high",
+    "why": "agreement; fact kept"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Cats are bigger than elephants",
+    "confidence": "high",
+    "why": "agreement (false fact kept)"
+   }
+  },
+  "n06": {
+   "source": "I have already done the washing up and I am going to collect the post",
+   "category": "regional_uk",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "British, fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f25": {
+   "source": "I am exciting about the trip to Japan",
+   "category": "word_form",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I am excited about the trip to Japan",
+    "confidence": "high",
+    "why": "-ed/-ing adjective"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I am excited about the trip to Japan",
+    "confidence": "high",
+    "why": "word form"
+   }
+  },
+  "f43": {
+   "source": "He born in nineteen ninety so he is forty now",
+   "category": "false_fact",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He was born in nineteen ninety so he is forty now",
+    "confidence": "high",
+    "why": "missing was"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He was born in nineteen ninety so he is forty now",
+    "confidence": "high",
+    "why": "passive 'was born'"
+   }
+  },
+  "n05": {
+   "source": "Our neighbours organised a street party for the whole neighbourhood",
+   "category": "regional_uk",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "British spelling fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "British spelling"
+   }
+  },
+  "n01": {
+   "source": "I will ring you tomorrow when I get back to the flat",
+   "category": "regional_uk",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "British usage, fine"
+   }
+  },
+  "n19": {
+   "source": "The moon is made of cheese and the Earth is flat",
+   "category": "fluent_false_fact",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "English fine; facts false"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Grammatical; false facts"
+   }
+  },
+  "n25": {
+   "source": "She might come to the party but she is not certain yet",
+   "category": "natural_certainty",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f20": {
+   "source": "He is good in cooking but bad at cleaning",
+   "category": "grammar_prepositions",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "He is good at cooking but bad at cleaning",
+    "confidence": "high",
+    "why": "preposition"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "He is good at cooking but bad at cleaning",
+    "confidence": "high",
+    "why": "preposition"
+   }
+  },
+  "n29": {
+   "source": "Could you send me the final report before Friday afternoon",
+   "category": "plain",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f49": {
+   "source": "She can speaks three languages",
+   "category": "modality",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "She can speak three languages",
+    "confidence": "high",
+    "why": "modal + base"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "She can speak three languages",
+    "confidence": "high",
+    "why": "bare verb after modal"
+   }
+  },
+  "f07": {
+   "source": "The children is playing in the garden",
+   "category": "grammar_agreement",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The children are playing in the garden",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The children are playing in the garden",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "f63": {
+   "source": "The tickets costs twenty five dollars each",
+   "category": "number",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "The tickets cost twenty five dollars each",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "The tickets cost twenty five dollars each",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  },
+  "a03": {
+   "source": "She said he not come to the meeting",
+   "category": "ambiguous_intent",
+   "author_label": "ambiguous",
+   "reviewer_A": {
+    "label": "ambiguous",
+    "readings": [
+     "She said he didn't come to the meeting",
+     "She said he wouldn't come to the meeting",
+     "She said he is not coming to the meeting"
+    ],
+    "confidence": "high",
+    "why": "tense/auxiliary missing, several meanings"
+   },
+   "reviewer_B": {
+    "label": "ambiguous",
+    "readings": [
+     "She said he didn't come to the meeting",
+     "She said he wasn't coming to the meeting",
+     "She said he won't/wouldn't come to the meeting"
+    ],
+    "confidence": "low",
+    "why": "negation/tense unclear"
+   }
+  },
+  "f51": {
+   "source": "Few students was absent on Monday",
+   "category": "quantity",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Few students were absent on Monday",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Few students were absent on Monday",
+    "confidence": "high",
+    "why": "agreement: was -> were"
+   }
+  },
+  "f55": {
+   "source": "Her car is the more expensive in the street",
+   "category": "comparison",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Her car is the most expensive in the street",
+    "confidence": "high",
+    "why": "superlative"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Her car is the most expensive in the street",
+    "confidence": "high",
+    "why": "superlative"
+   }
+  },
+  "a02": {
+   "source": "I will see him last week",
+   "category": "ambiguous_intent",
+   "author_label": "ambiguous",
+   "reviewer_A": {
+    "label": "ambiguous",
+    "readings": [
+     "I saw him last week",
+     "I will see him next week"
+    ],
+    "confidence": "high",
+    "why": "tense and time word conflict"
+   },
+   "reviewer_B": {
+    "label": "ambiguous",
+    "readings": [
+     "I saw him last week",
+     "I will see him next week"
+    ],
+    "confidence": "high",
+    "why": "tense conflicts with time adverbial"
+   }
+  },
+  "f16": {
+   "source": "Please close door when you leave",
+   "category": "grammar_articles",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "Please close the door when you leave",
+    "confidence": "high",
+    "why": "missing article"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "Please close the door when you leave",
+    "confidence": "high",
+    "why": "missing article"
+   }
+  },
+  "f46": {
+   "source": "We haven't see any problem with the plan",
+   "category": "negation",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "We haven't seen any problem with the plan",
+    "confidence": "high",
+    "why": "past participle"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "We haven't seen any problem with the plan",
+    "confidence": "high",
+    "why": "past participle"
+   }
+  },
+  "a01": {
+   "source": "My friend told me that she go to the station",
+   "category": "ambiguous_intent",
+   "author_label": "ambiguous",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "My friend told me that she goes to the station",
+    "alternatives": [
+     "My friend told me that she went to the station",
+     "My friend told me that she was going to the station"
+    ],
+    "confidence": "low",
+    "why": "tense error; habitual vs past reading differ somewhat"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "My friend told me that she goes to the station",
+    "alternatives": [
+     "My friend told me that she went to the station",
+     "My friend told me that she was going to the station"
+    ],
+    "confidence": "low",
+    "why": "tense/agreement"
+   }
+  },
+  "n09": {
+   "source": "She is going to the movies on the weekend with her roommate",
+   "category": "regional_us",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "US usage fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "American usage"
+   }
+  },
+  "f17": {
+   "source": "I am interested on learning Portuguese",
+   "category": "grammar_prepositions",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "I am interested in learning Portuguese",
+    "confidence": "high",
+    "why": "preposition"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "I am interested in learning Portuguese",
+    "confidence": "high",
+    "why": "preposition"
+   }
+  },
+  "n02": {
+   "source": "She has just bought a new car and we are going to see it at the weekend",
+   "category": "regional_uk",
+   "author_label": "natural",
+   "reviewer_A": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "fine"
+   },
+   "reviewer_B": {
+    "label": "natural",
+    "confidence": "high",
+    "why": "Acceptable as spoken"
+   }
+  },
+  "f08": {
+   "source": "My brother work at a hospital and he love it",
+   "category": "grammar_agreement",
+   "author_label": "fix",
+   "reviewer_A": {
+    "label": "fix",
+    "correction": "My brother works at a hospital and he loves it",
+    "confidence": "high",
+    "why": "agreement"
+   },
+   "reviewer_B": {
+    "label": "fix",
+    "correction": "My brother works at a hospital and he loves it",
+    "confidence": "high",
+    "why": "agreement"
+   }
+  }
+ },
+ "calibration": {
+  "s01": {
+   "original": "The road was closed so we take another way",
+   "improved": "The road was closed so we took another way",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "tense fix only"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "tense only"
+   }
+  },
+  "c23": {
+   "original": "Water boil at fifty degrees",
+   "improved": "Water boils at one hundred degrees",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "fifty changed to one hundred (fact corrected)"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "fifty corrected to one hundred"
+   }
+  },
+  "s11": {
+   "original": "I don't know where is the bank",
+   "improved": "I don't know where the bank is",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "word order in embedded question"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "word order"
+   }
+  },
+  "s10": {
+   "original": "Always she arrives early",
+   "improved": "She always arrives early",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "adverb position"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "word order"
+   }
+  },
+  "s07": {
+   "original": "She bought umbrella at the market",
+   "improved": "She bought an umbrella at the market",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "article added"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "article"
+   }
+  },
+  "s09": {
+   "original": "He has many informations",
+   "improved": "He has a lot of information",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "low",
+    "why": "many informations -> a lot of information; same quantity sense, mass noun fix"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "word form/quantifier synonym"
+   }
+  },
+  "c17": {
+   "original": "I am sure she are at home",
+   "improved": "I think she is at home",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "certainty weakened: sure -> think"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "sure weakened to think"
+   }
+  },
+  "c24": {
+   "original": "Mount Everest are in Africa",
+   "improved": "Mount Everest is in Asia",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "Africa corrected to Asia"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "Africa corrected to Asia"
+   }
+  },
+  "c01": {
+   "original": "She like tea in the morning",
+   "improved": "She does not like tea in the morning",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "negation added"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "negation added"
+   }
+  },
+  "c25": {
+   "original": "We saw a film and eat dinner",
+   "improved": "We saw a film and ate dinner with her parents",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "added detail: with her parents"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "added with her parents"
+   }
+  },
+  "c09": {
+   "original": "We works with Dr Silva at the Central Hospital",
+   "improved": "We work with Dr Silva at the City Hospital",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "Central Hospital changed to City Hospital"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "Central Hospital changed to City Hospital"
+   }
+  },
+  "s12": {
+   "original": "They was travelling to the centre",
+   "improved": "They were traveling to the center",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "agreement and spelling variants"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "agreement and spelling variant"
+   }
+  },
+  "c18": {
+   "original": "He was late because the train was cancel",
+   "improved": "He was late so the train was cancelled",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "cause reversed: because -> so"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "causal because changed to so (reversed)"
+   }
+  },
+  "s03": {
+   "original": "Rome is the capital of Spain and it have many parks",
+   "improved": "Rome is the capital of Spain and it has many parks",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "agreement only; false claim kept"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "agreement only; false fact kept"
+   }
+  },
+  "c07": {
+   "original": "She is twenty years old and live in Rome",
+   "improved": "She is twenty-two years old and lives in Rome",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "age twenty changed to twenty-two"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "age 20 changed to 22"
+   }
+  },
+  "s06": {
+   "original": "I am almost sure she comes tonight",
+   "improved": "I am almost sure she will come tonight",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "low",
+    "why": "present for future -> will; same prediction"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "future form of same claim"
+   }
+  },
+  "c22": {
+   "original": "Paris are the capital of Germany",
+   "improved": "Berlin is the capital of Germany",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "Paris corrected to Berlin"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "Paris corrected to Berlin"
+   }
+  },
+  "c08": {
+   "original": "Anna and Ben visits Paris every year",
+   "improved": "Anna and Tom visit Paris every year",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "name Ben changed to Tom"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "name Ben changed to Tom"
+   }
+  },
+  "s08": {
+   "original": "I am afraid on spiders",
+   "improved": "I am afraid of spiders",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "preposition fix"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "preposition"
+   }
+  },
+  "c02": {
+   "original": "We can finishing the report today",
+   "improved": "We cannot finish the report today",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "can changed to cannot (negation)"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "can changed to cannot"
+   }
+  },
+  "c04": {
+   "original": "They don't have no time",
+   "improved": "They have time",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "low",
+    "why": "original means no time; improved says they have time (negation removed)"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "negation removed"
+   }
+  },
+  "c13": {
+   "original": "You can to leave early today",
+   "improved": "You must leave early today",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "permission changed to obligation"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "can changed to must"
+   }
+  },
+  "c06": {
+   "original": "I buyed three tickets for the concert",
+   "improved": "I bought two tickets for the concert",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "three changed to two"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "three changed to two"
+   }
+  },
+  "c21": {
+   "original": "My brother is the more tall in the family",
+   "improved": "My brother is the shortest in the family",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "tallest changed to shortest"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "tallest changed to shortest"
+   }
+  },
+  "c05": {
+   "original": "The class start at nine and finish at ten",
+   "improved": "The class starts at eight and finishes at ten",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "start time nine changed to eight"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "start time nine changed to eight"
+   }
+  },
+  "s02": {
+   "original": "I am really tiring after the long exam",
+   "improved": "I am really tired after the long exam",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "word form"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "word form"
+   }
+  },
+  "c27": {
+   "original": "Anna called Ben and he answer quickly",
+   "improved": "Ben called Anna and she answered quickly",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "who called whom reversed"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "caller and answerer swapped"
+   }
+  },
+  "c10": {
+   "original": "Many people was at the station",
+   "improved": "Few people were at the station",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "many changed to few"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "many changed to few"
+   }
+  },
+  "c20": {
+   "original": "This phone is more cheap than that one",
+   "improved": "This phone is more expensive than that one",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "cheap changed to expensive"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "cheaper changed to more expensive"
+   }
+  },
+  "c14": {
+   "original": "He might comes to the meeting",
+   "improved": "He will come to the meeting",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "might changed to will (certainty)"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "might changed to will"
+   }
+  },
+  "c15": {
+   "original": "We must finishing it today",
+   "improved": "We could finish it today",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "must changed to could (modality)"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "must changed to could"
+   }
+  },
+  "c26": {
+   "original": "The manager and the engineer was late",
+   "improved": "The manager was late",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "engineer removed"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "engineer removed"
+   }
+  },
+  "s05": {
+   "original": "He is forty years old and he was born in two thousand twenty",
+   "improved": "He is forty years old and was born in two thousand twenty",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "redundant pronoun dropped"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "pronoun ellipsis only"
+   }
+  },
+  "c12": {
+   "original": "I have few time today",
+   "improved": "I have no time today",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "few time changed to no time"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "few time changed to no time"
+   }
+  },
+  "s04": {
+   "original": "Ice are hot and we put it in the oven",
+   "improved": "Ice is hot and we put it in the oven",
+   "author_label": "same",
+   "reviewer_A": {
+    "label": "same",
+    "confidence": "high",
+    "why": "agreement; false claim kept"
+   },
+   "reviewer_B": {
+    "label": "same",
+    "confidence": "high",
+    "why": "agreement only; false claim kept"
+   }
+  },
+  "c11": {
+   "original": "All the students passes the exam",
+   "improved": "Most of the students pass the exam",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "all changed to most"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "all changed to most"
+   }
+  },
+  "c03": {
+   "original": "He didn't went to the party",
+   "improved": "He went to the party",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "negation removed"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "negation removed"
+   }
+  },
+  "c19": {
+   "original": "She stay home because she was sick",
+   "improved": "She stayed home because it rained",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "reason changed from sick to rained"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "cause changed from sick to rained"
+   }
+  },
+  "c16": {
+   "original": "Maybe it rain tomorrow",
+   "improved": "It will definitely rain tomorrow",
+   "author_label": "different",
+   "reviewer_A": {
+    "label": "different",
+    "confidence": "high",
+    "why": "maybe changed to definitely"
+   },
+   "reviewer_B": {
+    "label": "different",
+    "confidence": "high",
+    "why": "maybe changed to definitely"
+   }
+  }
+ },
+ "recheck_of_replacements": [
+  {
+   "text": "Tomorrow I saw the doctor about my knee",
+   "reviewer": "C",
+   "label": "ambiguous",
+   "readings": [
+    "Tomorrow I will see the doctor about my knee",
+    "Yesterday I saw the doctor about my knee"
+   ],
+   "confidence": "high",
+   "why": "Past tense clashes with 'tomorrow'; either the tense or the time word is wrong."
+  },
+  {
+   "text": "This box is more heavier than that one",
+   "reviewer": "C",
+   "label": "fix",
+   "correction": "This box is heavier than that one",
+   "alternatives": [
+    "This box is more heavy than that one"
+   ],
+   "confidence": "high",
+   "why": "Double comparative 'more heavier'."
+  },
+  {
+   "text": "Tomorrow I saw the doctor about my knee",
+   "reviewer": "D",
+   "label": "ambiguous",
+   "readings": [
+    "Yesterday I saw the doctor about my knee",
+    "Tomorrow I will see the doctor about my knee"
+   ],
+   "confidence": "high",
+   "why": "Tense conflicts with time adverb; the intended time (past or future) cannot be determined."
+  },
+  {
+   "text": "This box is more heavier than that one",
+   "reviewer": "D",
+   "label": "fix",
+   "correction": "This box is heavier than that one",
+   "alternatives": [
+    "This box is more heavy than that one"
+   ],
+   "confidence": "high",
+   "why": "Double comparative; heavier is standard."
+  }
+ ]
+}

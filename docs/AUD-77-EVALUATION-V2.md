@@ -1,6 +1,6 @@
 # AUD-77 evaluation 2: frozen held-out set, seeded calibration set, statistics and plan
 
-**Status: prepared, NOT executed.** No provider has been contacted for this work and no credential was read. Migration 007 is unapplied and `AUDLI_REVIEW_IMPROVEMENT_ENABLED` is off. A paid run needs a new approval file completed personally by the owner (section 7).
+**Status: prepared, NOT executed. Labels independently reviewed (docs/AUD-77-LABEL-REVIEW.md); release gates ratified by the owner as provisional.** No provider has been contacted for this work and no credential was read. Migration 007 is unapplied and `AUDLI_REVIEW_IMPROVEMENT_ENABLED` is off. A paid run needs a new approval file completed personally by the owner (section 7).
 
 Evaluation 1 (55 cases) exposed failures that were then tuned against (`docs/AUD-77-QUALITY-TUNING.md`, PR #77). Those 55 cases are therefore **regression data only**. This document describes the data that can support a release decision.
 
@@ -8,7 +8,7 @@ Evaluation 1 (55 cases) exposed failures that were then tuned against (`docs/AUD
 
 | file | what | size | sha256 |
 |---|---|---|---|
-| `tests/fixtures/review_improvement_heldout_v2.json` | fresh held-out cases | 104 (100 reach the provider, 4 are blocked before any call) | `91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd` |
+| `tests/fixtures/review_improvement_heldout_v2.json` | fresh held-out cases | 104 (100 reach the provider, 4 are blocked before any call) | `30513a0de1533726f6615d3d089753f784ac2e37b4ac680d6aeda04f4bbc24e5` |
 | `tests/fixtures/review_improvement_calibration.json` | seeded meaning pairs for the comparison step | 39 pairs: 27 deliberately unsafe, 12 same-meaning | `00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f` |
 
 **Held-out v2** (all synthetic, disjoint from the development set and from evaluation 1's set; a test enforces both, and the runner refuses to start if they ever overlap):
@@ -24,7 +24,7 @@ Evaluation 1 (55 cases) exposed failures that were then tuned against (`docs/AUD
 
 ### How the labels were made, and what that does and does not give you
 - Written in one sitting from the product rules and general English usage, **before any provider output on these cases existed**. Every reference rewrite and invariant is checked by tests: each reference passes its own checks, each fix case's source fails its required fixes, and every unchanged source satisfies its own invariants (so returning an answer unchanged can never look like an unsafe acceptance).
-- **They are not independently labelled in the strict sense.** The author is the same agent that tuned the validator and prompts, knows their rules, and labelled alone. To limit leakage: no held-out case was run through the validator or a provider before freezing; the only offline check was the label-consistency tests above. Disclosed edits made while building: one held-out source replaced because it duplicated an evaluation-1 sentence (f02), one invariant corrected because the *unchanged source* failed it (f34 required the word "information" that only the corrected text contains), and one calibration note widened so it covered the whole change (c09). The calibration pairs were run through layers 1-3 offline to confirm the notes are grounded; no label was changed because of a validator result.
+- **Superseded by the blind review in docs/AUD-77-LABEL-REVIEW.md, which found three disputed held-out labels, resolved before the final freeze. Original disclosure: they were not independently labelled in the strict sense.** The author is the same agent that tuned the validator and prompts, knows their rules, and labelled alone. To limit leakage: no held-out case was run through the validator or a provider before freezing; the only offline check was the label-consistency tests above. Disclosed edits made while building: one held-out source replaced because it duplicated an evaluation-1 sentence (f02), one invariant corrected because the *unchanged source* failed it (f34 required the word "information" that only the corrected text contains), and one calibration note widened so it covered the whole change (c09). The calibration pairs were run through layers 1-3 offline to confirm the notes are grounded; no label was changed because of a validator result.
 - **Recommended before the paid run: a second person reads the labels** (especially the 32 natural answers and the 4 ambiguous cases, where "acceptable English" is a judgment) and any change is made before the hashes are recorded in an approval. The datasets are frozen by hash from the moment this PR merges: tests pin both hashes and the approval file binds them, so a later edit is impossible to miss. After the release decision they stay frozen; prompts and rules must not be tuned against their results first.
 
 ## 2. Runner extension (this PR)
@@ -32,9 +32,9 @@ Evaluation 1 (55 cases) exposed failures that were then tuned against (`docs/AUD
 - **Stage gate:** if the calibration stage lets any seeded unsafe pair through the pipeline, or the budget stops it, the held-out stage is skipped and nothing is spent on it.
 - Calibration costs one comparison request per pair (39). The pipeline decision for a pair uses the production `coach` path with the verdict already obtained, never a second request.
 - The approval additionally binds `calibration_sha256` and `stages`; `max_requests` must cover the selected stages and cannot exceed 400 in code. All existing safeguards are unchanged: $1.00 hard cap that an approval cannot raise, reservation before every request, fsync'd ledger, zero retries, concurrency one, 30 s timeout, family-based environment refusal (no `AUDLI_*`, Supabase, Postgres, database URL or other-provider variables), pinned model, credential read only after validation.
-- Every report rate carries its sample size and exact 95% bound (`scripts/eval_statistics.py`), and the report ends with the **proposed** thresholds applied to the run (section 4). They are evidence for a decision; the report states they are not ratified and never says "approved".
+- Every report rate carries its sample size and exact 95% bound (`scripts/eval_statistics.py`), and the report ends with the ratified provisional release gates applied to the run (section 4). They are evidence for a decision; the report says so and never says "approved".
 
-## 3. Are the proposed 95% bounds achievable with these sample sizes?
+## 3. Are 95% bounds achievable with these sample sizes? (analysis behind the ratified gates)
 Exact (Clopper-Pearson, one-sided 95%) upper bounds, and the chance a gate passes at a given *true* failure rate:
 
 | measure | n | observed | upper 95% | note |
@@ -61,27 +61,26 @@ Conclusions, stated plainly:
 3. **Zero observed unsafe acceptances cannot be shown to be "rare" by this evaluation.** 27 seeded unsafe pairs bound the leak rate only below ~10.5%, and held-out v2 adds little (it contains unsafe candidates only if the model produces them). The evaluation is a necessary gate that can find defects; it is not a proof of safety. Accordingly, activation should be staged (internal learners first, rejection-layer monitoring already in place, a quick rollback via the flag), which is a decision for the owner and not something this PR changes.
 4. The 12 same-meaning pairs are for diagnosis (are the five evaluation-1 patterns still rejected by the comparison step?), not for a pass/fail rate.
 
-## 4. Recommended thresholds (applied automatically in the report, labelled PROPOSED)
-| criterion | gate |
-|---|---|
-| held-out false accepts | 0 |
-| seeded unsafe leaks (pipeline) | 0 of 27 (report the 10.5% bound) |
-| false-rejection rate | point ≤ 10% **and** exact upper ≤ 20% (≤ 6 of ~64) |
-| unnecessary-edit rate (natural answers, ambiguous excluded) | point ≤ 10% (≤ 3 of 32); bound reported, not gating |
-| correction yield (fix cases accepted and correct) | ≥ 80% |
-| mean best F1 of accepted corrections | ≥ 0.95 |
-| provider failure rate | ≤ 2%, no retries |
-| latency | p95 per improvement ≤ 5 s (evaluation 1: 3.3 s) |
-| cost | mean ≤ $0.001 per attempt; the run stays under the $1 cap |
-Informational, never gating: ambiguous-intent edits accepted; the seeded same-meaning results.
-Any miss means: investigate each failing case individually and do not recommend activation. A pass means only that the evidence supports asking the owner for the next decision.
+## 4. Release gates (ratified by the owner on 2026-10-23 as PROVISIONAL; applied automatically in the report)
+| criterion | gate | planned sample | exact 95% upper bound at the gate |
+|---|---|---|---|
+| held-out unsafe acceptances | 0 | ~64 fix cases | 0 of 64: 4.6% |
+| seeded unsafe leaks (pipeline) | 0 | 27 unsafe pairs | 0 of 27: **10.5%** |
+| false rejections | at most 6 | 64 fix cases | 6 of 64: 17.7% (point 9.4%) |
+| unnecessary accepted edits | at most 3 | 32 natural answers (ambiguous-intent excluded) | 3 of 32: **22.5%** (point 9.4%) |
+| correction yield (fix cases accepted and correct) | at least 80% | 64 | n/a |
+| mean best F1 of accepted corrections | at least 0.95 | accepted fix cases | n/a |
+| provider failure rate | at most 2%, no retries | all requests | n/a |
+| p95 latency per improvement | at most 5 s | held-out | n/a (evaluation 1: 3.3 s) |
+Not ratified as a gate: mean cost per attempt (the $1.00 hard cap controls cost; it is reported). Informational, never gating: ambiguous-intent edits accepted; the seeded same-meaning results; every exact upper bound above.
+**How to read a pass.** Passing means: no unsafe acceptance was observed in these samples, and the observed rates were within the gates. It does **not** show the rates are below the gates (a true false-rejection rate of 10% still passes the 6-of-64 gate about half the time), and it does not show universal safety: 0 of 27 seeded and 0 of ~64 held-out leave the true leak rate plausibly as high as 10% and 5%. The gates detect defects; they do not certify absence. Any miss means: investigate each failing case individually and do not recommend activation.
 
 ## 5. Revised evaluation plan (pinned, nothing executed)
 | item | value |
 |---|---|
 | model | `gpt-4.1-mini-2025-04-14` (pinned; the returned model is recorded and must match) |
 | prompt version | `v3` |
-| held-out sha256 | `91bc9d23e319d3ff7d4dabeb1e56fa1ba8dc693fe3c06d35803efcae07bedffd` |
+| held-out sha256 | `30513a0de1533726f6615d3d089753f784ac2e37b4ac680d6aeda04f4bbc24e5` |
 | calibration sha256 | `00eb8d51fb309c1d2e410af9e676b5f1a204df20922a7d096c314b16568fde2f` |
 | requests | calibration 39 + held-out at most 300 (100 cases × coach, one repair, one comparison) = **at most 339** (code ceiling 400); expected about 39 + 195 ≈ 235 (evaluation 1 used 1.9 requests per case) |
 | prices | $0.40 / $1.60 per million tokens (input/output); an approval must restate them |
@@ -96,7 +95,7 @@ Any miss means: investigate each failing case individually and do not recommend 
 Every existing adversarial meaning-preservation test remains in the suite and green (the full backend suite is run on the PR). Nothing in the validator or prompts changed; this PR touches evaluation support only.
 
 ## 7. Authorization requirements (the next boundary)
-1. Owner reviews the labels in both datasets (recommended), then confirms the two hashes above.
+1. The labels were independently reviewed (docs/AUD-77-LABEL-REVIEW.md); a human spot-check of the items listed there is still recommended. Confirm the two hashes above.
 2. Owner personally completes a copy of `docs/AUD-77-LIVE-EVALUATION-APPROVAL.json`: `approved` true, `approved_by`, `approved_at`, `expires_at`; optionally narrows `stages`. No other field may change. `python3 ~/audli-eval/launch.py validate` must print VALID.
 3. A new dedicated OpenAI key (the previous one was deleted from disk and is to be revoked by the owner) in a mode-600 key file or a hidden prompt, with an organization spend limit.
 4. Explicit "authorized" in the conversation. Until then no paid call is made, migration 007 stays unapplied, and the flag stays off.

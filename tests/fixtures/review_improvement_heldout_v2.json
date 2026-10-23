@@ -1188,24 +1188,24 @@
  {
   "id": "f54",
   "category": "comparison",
-  "source": "This road is more safe than the old one",
+  "source": "This box is more heavier than that one",
   "references": [
-   "This road is safer than the old one"
+   "This box is heavier than that one"
   ],
   "must_preserve": [
    "than",
-   "old"
+   "box"
   ],
   "must_fix": [
    {
-    "remove": "more safe",
-    "add": "safer"
+    "remove": "more heavier",
+    "add": "heavier"
    }
   ],
   "must_not_add": [
-   "less",
-   "dangerous",
-   "safest"
+   "lighter",
+   "lightest",
+   "less"
   ],
   "expect": "accept",
   "note": ""
@@ -1875,24 +1875,6 @@
   "note": ""
  },
  {
-  "id": "a01",
-  "category": "ambiguous_intent",
-  "source": "My friend told me that she go to the station",
-  "references": [
-   "My friend told me that she go to the station"
-  ],
-  "must_preserve": [],
-  "must_fix": [],
-  "must_not_add": [
-   "went",
-   "will",
-   "yesterday",
-   "tomorrow"
-  ],
-  "expect": "accept_unchanged",
-  "note": "goes / went / will go / to go are different claims"
- },
- {
   "id": "a02",
   "category": "ambiguous_intent",
   "source": "I will see him last week",
@@ -1929,6 +1911,25 @@
   ],
   "expect": "accept_unchanged",
   "note": "did not / will not / does not come differ in meaning"
+ },
+ {
+  "id": "a05",
+  "category": "ambiguous_intent",
+  "source": "Tomorrow I saw the doctor about my knee",
+  "references": [
+   "Tomorrow I saw the doctor about my knee"
+  ],
+  "must_preserve": [
+   "tomorrow"
+  ],
+  "must_fix": [],
+  "must_not_add": [
+   "will",
+   "yesterday",
+   "last"
+  ],
+  "expect": "accept_unchanged",
+  "note": "saw (past) clashes with tomorrow (future): either the tense or the time word is wrong"
  },
  {
   "id": "a04",

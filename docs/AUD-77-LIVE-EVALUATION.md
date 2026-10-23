@@ -40,7 +40,7 @@ OPENAI_API_KEY=... python -m scripts.run_review_improvement_eval run --approval 
 The template in the plan is deliberately not an approval and is refused as written.
 
 ## The prepared approval file (not an approval)
-`docs/AUD-77-LIVE-EVALUATION-APPROVAL.json` is the approval file, filled in and bound to this exact plan: model `gpt-4.1-mini-2025-04-14`, prompt `v2`, the fixtures hash, the verified prices, `max_usd` 1.0, `max_requests` 153, `repeats` 1. It is committed with `approved: false` and the owner's four fields blank, so **it authorizes nothing and the runner refuses it as written**. A test pins that, and also that filling in only `approved`, `approved_by`, `approved_at` and `expires_at` makes it valid, so nothing else can drift unnoticed (change a fixture or a price and the test fails until the file is regenerated).
+`docs/AUD-77-LIVE-EVALUATION-APPROVAL.json` is the approval file, filled in and bound to this exact plan: model `gpt-4.1-mini-2025-04-14`, prompt `v3`, the fixtures hash, the verified prices, `max_usd` 1.0, `max_requests` 153, `repeats` 1. It is committed with `approved: false` and the owner's four fields blank, so **it authorizes nothing and the runner refuses it as written**. A test pins that, and also that filling in only `approved`, `approved_by`, `approved_at` and `expires_at` makes it valid, so nothing else can drift unnoticed (change a fixture or a price and the test fails until the file is regenerated).
 
 To authorize the run, the owner completes a COPY of the file outside the repository (the committed file stays unapproved):
 ```

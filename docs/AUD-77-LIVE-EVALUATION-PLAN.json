@@ -5,7 +5,7 @@
  "network_calls": 0,
  "status": "PROPOSAL ONLY. A run needs a separate owner approval file matching this plan; none exists.",
  "model": "gpt-4.1-mini-2025-04-14",
- "prompt_version": "v2",
+ "prompt_version": "v3",
  "prices_usd_per_million": {
   "input": 0.4,
   "output": 1.6
@@ -24,7 +24,7 @@
   "coach": 1000,
   "comparison": 60
  },
- "worst_case_reservation_usd": 0.4036,
+ "worst_case_reservation_usd": 0.449,
  "hard_cap_usd": 1.0,
  "categories": {
   "causality": 3,
@@ -1119,7 +1119,7 @@
   "expires_at": "<ISO-8601 time>",
   "run_id": "<unique id>",
   "model": "gpt-4.1-mini-2025-04-14",
-  "prompt_version": "v2",
+  "prompt_version": "v3",
   "fixtures_sha256": "da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7",
   "prices_usd_per_million": {
    "input": 0.4,
@@ -1128,6 +1128,6 @@
   "max_usd": "<= 1.0 (cannot exceed the in-code cap)",
   "max_requests": ">= 153 and <= 400",
   "repeats": 1,
-  "worst_case_reservation_usd": 0.4036
+  "worst_case_reservation_usd": 0.449
  }
 }

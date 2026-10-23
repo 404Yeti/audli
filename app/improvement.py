@@ -19,7 +19,8 @@ from pydantic import Field
 
 from app.models import StrictModel
 
-PROMPT_VERSION = 'v2'  # v2: adds the optional application formatting reminder used by the single automatic repair
+PROMPT_VERSION = 'v3'  # v2: adds the optional application formatting reminder used by the single automatic repair.
+# v3: quality tuning: leave natural answers alone, judge the speaker's claim not its truth, narrower deterministic exceptions.
 MIN_SOURCE_WORDS = 4
 MAX_SOURCE_CHARS = 1200
 MAX_NOTES = 2
@@ -201,6 +202,8 @@ STOPWORDS = {
     "n't", 's', 't', 'd', 'll', 've', 're', 'm',
     # Light verb: "do a decision" -> "make a decision" is a collocation repair, not new content. Layer 4 still compares meaning.
     'make', 'makes', 'made', 'making',
+    # Same for "we like it" -> "we liked it": 'like' is a stopword, so its inflections must be too or a tense fix looks like new content.
+    'liked', 'likes', 'liking',
 }
 
 
@@ -211,7 +214,7 @@ def stem(word: str) -> str:
         if len(word) > len(suffix) + 2 and word.endswith(suffix):
             word = word[:-len(suffix)] + replacement
             break
-    return word[:-1] if len(word) > 4 and word.endswith('e') else word
+    return word[:-1] if len(word) > 3 and word.endswith('e') else word  # come/comes/came-less forms must share one stem
 
 
 def content_stems(text: str) -> set[str]:
@@ -259,6 +262,67 @@ def changed_words(source: str, improved: str) -> tuple[list[str], list[str]]:
 
 
 # ---------------------------------------------------------------------------------------------------- meaning classes
+
+# A doubled marker is a grammar slip, not a quantity or a comparison: "the most tallest" says what "the tallest" says.
+_DOUBLED_MARKER = re.compile(r"\b(?:more|most)\s+(?=(?:" + '|'.join(sorted(COMPARATIVE_FORMS)) + r")\b)", re.I)
+
+
+def undoubled(text: str) -> str:
+    return _DOUBLED_MARKER.sub('', text)
+
+
+# Regional spelling variants are the same word. A closed table, never a pattern, so two different words cannot be merged.
+_SPELLING_PAIRS = (
+    ('travelling', 'traveling'), ('travelled', 'traveled'), ('traveller', 'traveler'), ('travellers', 'travelers'),
+    ('colour', 'color'), ('colours', 'colors'), ('coloured', 'colored'), ('favour', 'favor'), ('favours', 'favors'),
+    ('favourite', 'favorite'), ('favourites', 'favorites'), ('honour', 'honor'), ('neighbour', 'neighbor'),
+    ('neighbours', 'neighbors'), ('neighbourhood', 'neighborhood'), ('behaviour', 'behavior'), ('labour', 'labor'),
+    ('centre', 'center'), ('centres', 'centers'), ('metre', 'meter'), ('metres', 'meters'), ('kilometre', 'kilometer'),
+    ('kilometres', 'kilometers'), ('theatre', 'theater'), ('litre', 'liter'), ('litres', 'liters'),
+    ('organise', 'organize'), ('organised', 'organized'), ('organising', 'organizing'), ('organisation', 'organization'),
+    ('realise', 'realize'), ('realised', 'realized'), ('recognise', 'recognize'), ('recognised', 'recognized'),
+    ('apologise', 'apologize'), ('apologised', 'apologized'), ('analyse', 'analyze'), ('analysed', 'analyzed'),
+    ('summarise', 'summarize'), ('summarised', 'summarized'), ('prioritise', 'prioritize'), ('prioritised', 'prioritized'),
+    ('grey', 'gray'), ('programme', 'program'), ('programmes', 'programs'), ('cancelled', 'canceled'),
+    ('cancelling', 'canceling'), ('labelled', 'labeled'), ('modelling', 'modeling'), ('defence', 'defense'),
+    ('offence', 'offense'), ('catalogue', 'catalog'), ('enrol', 'enroll'), ('judgement', 'judgment'), ('ageing', 'aging'),
+    ('mum', 'mom'), ('tyre', 'tire'), ('tyres', 'tires'), ('towards', 'toward'), ('learnt', 'learned'), ('spelt', 'spelled'),
+    ('fulfil', 'fulfill'), ('cosy', 'cozy'), ('pyjamas', 'pajamas'), ('sceptical', 'skeptical'), ('aluminium', 'aluminum'),
+)
+SPELLING = {uk: us for uk, us in _SPELLING_PAIRS}
+
+
+def canonical_words(text: str) -> list[str]:
+    return [SPELLING.get(w, w) for w in lower_words(text)]
+
+
+def cosmetic_only(source: str, improved: str) -> bool:
+    """True when the two texts differ only in punctuation, capitalization or a regional spelling variant.
+
+    Those are not listening or meaning edits and a spoken answer has no punctuation to correct, so they are shown as
+    "already natural" rather than as a correction."""
+    return canonical_words(source) == canonical_words(improved)
+
+
+# Present tense used for a repeated or habitual state is correct as it stands; only a one-off present is read as a future.
+HABITUAL = {'always', 'usually', 'often', 'every', 'everyday', 'each', 'daily', 'weekly', 'sometimes', 'never', 'rarely', 'seldom',
+            'normally', 'typically', 'generally', 'frequently', 'regularly', 'occasionally', 'ever'}
+
+
+def agreement_will(source: str, improved: str) -> bool:
+    """The one tense repair that adds `will`: "he comes" -> "he will come".
+
+    Only when `will` is the sole modality that appears, the inflected verb is replaced by its own base form (so the
+    verb is unchanged), nothing in the answer is habitual and nothing is negated. A different modal (would, can, must,
+    should), a different verb, or a changed verb tense (came -> will come) is still a modality change."""
+    if modality(source) or modality(improved) != {'will'} or negation_present(source) or negation_present(improved):
+        return False
+    if set(lower_words(source)) & HABITUAL:
+        return False
+    removed, added = changed_words(source, improved)
+    return (len(removed) == 1 and len(added) == 2 and added[0].lower() == 'will' and removed[0].lower() != added[1].lower()
+            and stem(removed[0]) == stem(added[1]))
+
 def negation_present(text: str) -> bool:
     lowered = text.lower().replace('’', "'")
     if re.search(r"\w+n't\b", lowered) or re.search(r'\bno one\b', lowered):
@@ -297,7 +361,7 @@ def numbers(text: str) -> list[float]:
 
 
 def quantifiers(text: str) -> set[str]:
-    found = classes(text, QUANTIFIER_CLASSES)
+    found = classes(undoubled(text), QUANTIFIER_CLASSES)
     if negation_present(text):
         found.discard('SOME')  # "no time" and "don't have any time" say the same thing.
     return found
@@ -309,7 +373,7 @@ def classes(text: str, mapping: dict[str, set[str]]) -> set[str]:
 
 
 def comparison_signals(text: str) -> tuple[bool, set[str], set[str]]:
-    present = set(lower_words(text))
+    present = set(lower_words(undoubled(text)))
     return 'than' in present, present & LESS_WORDS, present & COMPARATIVE_FORMS
 
 
@@ -394,7 +458,7 @@ def reject_reason(source: str, coaching: LanguageCoaching) -> str | None:
     # Layer 3: deterministic meaning classes.
     if negation_present(source) != negation_present(improved):
         return 'negation_changed'
-    if modality(source) != modality(improved):
+    if modality(source) != modality(improved) and not agreement_will(source, improved):
         return 'modality_changed'
     if numbers(source) != numbers(improved) or quantifiers(source) != quantifiers(improved):
         return 'quantity_changed'
@@ -402,7 +466,7 @@ def reject_reason(source: str, coaching: LanguageCoaching) -> str | None:
     than_b, less_b, forms_b = comparison_signals(improved)
     if than_a != than_b or less_a != less_b:
         return 'comparison_changed'
-    more_a, more_b = {'more', 'most'} & set(lower_words(source)), {'more', 'most'} & set(lower_words(improved))
+    more_a, more_b = {'more', 'most'} & set(lower_words(undoubled(source))), {'more', 'most'} & set(lower_words(undoubled(improved)))
     # "more fast" <-> "faster" and a dropped doubled "more taller" are grammar; a swapped comparative adjective is not.
     if not more_a and not more_b and forms_a != forms_b:
         return 'comparison_changed'
@@ -416,6 +480,14 @@ def reject_reason(source: str, coaching: LanguageCoaching) -> str | None:
     if not (_present_elsewhere(entities_a, improved) and _present_elsewhere(entities_b, source)):
         return 'entity_changed'
     return None
+
+
+def natural_already(source: str, coaching: LanguageCoaching) -> bool:
+    """A suggestion that only touches punctuation, capitalization or a regional spelling means the answer needs no change.
+
+    Nothing from the candidate is kept: the learner's own text is the result. The provider's self-report still has to be clean."""
+    return (coaching.meaning_preserved and not coaching.adds_information and bool(words(source))
+            and cosmetic_only(source, coaching.improved_text))
 
 
 def is_unchanged(source: str, improved: str) -> bool:
@@ -457,10 +529,14 @@ async def coach(provider, text: str) -> Outcome:
     At most ONE automatic repair, only for FORMAT_FAILURES. Worst case per attempt: two coach calls and one comparison."""
     repaired = False
     coaching = await provider.coach_language(text)
+    if natural_already(text, coaching):
+        return Outcome('ready', improved_text=text.strip())
     rejection = reject_reason(text, coaching)
     if rejection in FORMAT_FAILURES:
         repaired = True
         coaching = await provider.coach_language(text, repair=REPAIR_REMINDER)
+        if natural_already(text, coaching):
+            return Outcome('ready', improved_text=text.strip(), repaired=True)
         rejection = reject_reason(text, coaching)
     if rejection is not None:
         return Outcome('rejected', rejection=rejection, repaired=repaired)

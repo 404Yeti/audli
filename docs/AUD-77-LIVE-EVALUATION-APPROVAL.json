@@ -1,12 +1,12 @@
 {
-  "note": "PREPARED, NOT APPROVED. This file authorizes nothing while approved is false. To authorize the paid synthetic evaluation, the owner sets approved to true and fills approved_by, approved_at and expires_at (a time in the future, with timezone). Every other field is bound to the exact plan and is refused if it drifts.",
+  "note": "PREPARED, NOT APPROVED. This file authorizes nothing while approved is false. IMPORTANT: prompt v3 and the validator were tuned against these 55 fixtures after evaluation 1, so they are no longer held out; replace tests/fixtures/review_improvement_heldout.json with a fresh unseen set and regenerate this file before asking for authorization. To authorize, the owner sets approved to true and fills approved_by, approved_at and expires_at (a time in the future, with timezone). Every other field is bound to the exact plan and is refused if it drifts.",
   "approved": false,
   "approved_by": "",
   "approved_at": "",
   "expires_at": "",
-  "run_id": "aud77-live-eval-1",
+  "run_id": "aud77-live-eval-2",
   "model": "gpt-4.1-mini-2025-04-14",
-  "prompt_version": "v2",
+  "prompt_version": "v3",
   "fixtures_sha256": "da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7",
   "prices_usd_per_million": {
     "input": 0.4,

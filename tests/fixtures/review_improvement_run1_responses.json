@@ -1,0 +1,1732 @@
+{
+ "about": "Saved raw provider responses from the AUD-77 live evaluation 1 (2026-10-23, model gpt-4.1-mini-2025-04-14, prompt v2). All text is synthetic fixture text; no learner data. Used only for OFFLINE replay of the deterministic validator.",
+ "run_id": "aud77-live-eval-1",
+ "prompt_version": "v2",
+ "fixtures_sha256": "da35a62fd10483b27ab7061e60df881934fcec22d323f6af7be2799acb8e90f7",
+ "records": [
+  {
+   "id": "h01",
+   "category": "grammar_tense",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Last week my manager sent me a long email about the budget",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Last week my manager sent me a long email about the budget",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "my manager send me",
+        "after": "my manager sent me",
+        "why": "The past tense of 'send' is 'sent' to match 'Last week' as a time reference."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h02",
+   "category": "grammar_tense",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "We were waiting for the bus when it started to rain",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "We were waiting for the bus when it started to rain",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "We was waiting",
+        "after": "We were waiting",
+        "why": "Subject-verb agreement requires 'were' with 'we' in past continuous tense."
+       },
+       {
+        "kind": "grammar",
+        "before": "it start to rain",
+        "after": "it started to rain",
+        "why": "Past tense of 'start' is 'started' to match the past progressive context."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h03",
+   "category": "grammar_tense",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "She has finished her homework before dinner",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "She has finished her homework before dinner",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "She have finish her homework before dinner",
+        "after": "She has finished her homework before dinner",
+        "why": "Subject-verb agreement and tense correction require 'has finished' for third person singular present perfect."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h04",
+   "category": "grammar_agreement",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "They go to the market every Saturday morning",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "They go to the market every Saturday morning",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "goes",
+        "after": "go",
+        "why": "The verb must agree with the plural subject 'They', so 'goes' changes to 'go'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h05",
+   "category": "grammar_articles",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "I need advice about my new job",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I need advice about my new job",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "a advice",
+        "after": "advice",
+        "why": " 'Advice' is an uncountable noun and does not take an article 'a'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h06",
+   "category": "grammar_prepositions",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "He is interested in learning English for travel",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "He is interested in learning English for travel",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "interested on",
+        "after": "interested in",
+        "why": "The correct preposition to use with 'interested' is 'in', not 'on'."
+       },
+       {
+        "kind": "grammar",
+        "before": "for the travel",
+        "after": "for travel",
+        "why": "In this context, 'travel' is used as an uncountable noun, so 'the' is unnecessary."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h07",
+   "category": "grammar_agreement",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "There are three chairs in the small room",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "There are three chairs in the small room",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "There is three chairs",
+        "after": "There are three chairs",
+        "why": "Use 'are' with plural nouns like 'chairs'. This is subject-verb agreement."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h08",
+   "category": "grammar_prepositions",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "She suggested that I take the earlier train",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "She suggested that I take the earlier train",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "suggested me to take",
+        "after": "suggested that I take",
+        "why": "In English, 'suggest' is not followed by an object and infinitive; it is followed by 'that' plus a subject and base verb."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h09",
+   "category": "grammar_agreement",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "The information on the website was old",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "The information on the website was old",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "The informations",
+        "after": "The information",
+        "why": "Information is an uncountable noun and does not take a plural form."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h10",
+   "category": "word_order",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "I always drink coffee in the morning before work.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I always drink coffee in the morning before work.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "Always I drink coffee in the morning before work",
+        "after": "I always drink coffee in the morning before work",
+        "why": "In English, the adverb 'always' typically comes after the subject for natural phrasing."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h11",
+   "category": "word_order",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "I don't know where he put the keys",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I don't know where he put the keys",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "where did he put the keys",
+        "after": "where he put the keys",
+        "why": "In indirect questions, the subject comes before the verb, so 'where he put' is correct, not 'where did he put'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h12",
+   "category": "vocabulary",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "He made a big mistake at the meeting",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "He made a big mistake at the meeting",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "did a big mistake",
+        "after": "made a big mistake",
+        "why": "In English, the verb 'make' is used with 'mistake' rather than 'do'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h13",
+   "category": "vocabulary",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "We discussed hiring two new engineers",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "We discussed hiring two new engineers",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "discussed about to hire",
+        "after": "discussed hiring",
+        "why": "The verb 'discuss' is not followed by 'about' and should be followed directly by a noun or gerund form."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h14",
+   "category": "vocabulary",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "The weather is very hot, so I will turn on the air conditioner.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "The weather is very hot, so I will turn on the air conditioner.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "The weather is very hot so I will open the air conditioner",
+        "after": "The weather is very hot, so I will turn on the air conditioner",
+        "why": "Added a comma before 'so' because it connects two independent clauses."
+       },
+       {
+        "kind": "vocabulary",
+        "before": "open the air conditioner",
+        "after": "turn on the air conditioner",
+        "why": "We usually say 'turn on' an air conditioner, not 'open'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h15",
+   "category": "vocabulary",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "4",
+   "code": "meaning_check_failed",
+   "repaired": false,
+   "candidate": "I am very bored in this class because the lesson is slow.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I am very bored in this class because the lesson is slow.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "very boring",
+        "after": "very bored",
+        "why": "Use 'bored' to describe a feeling, 'boring' describes something that causes boredom."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": false
+     }
+    ]
+   }
+  },
+  {
+   "id": "h16",
+   "category": "natural",
+   "outcome": "accepted",
+   "classification": "unneeded_edit_accepted",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Our team shipped the new feature on Thursday, and customers liked it.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Our team shipped the new feature on Thursday, and customers liked it.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "Thursday and customers",
+        "after": "Thursday, and customers",
+        "why": "A comma is needed before 'and' connecting two independent clauses."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h17",
+   "category": "natural",
+   "outcome": "rejected",
+   "classification": "unneeded_edit_rejected",
+   "layer": "3",
+   "code": "causality_changed",
+   "repaired": false,
+   "candidate": "I'm not sure if the shop is open, but we can check on the way.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I'm not sure if the shop is open, but we can check on the way.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "I'm not sure the shop is open",
+        "after": "I'm not sure if the shop is open",
+        "why": "In English, 'not sure if' is more natural when expressing uncertainty about a condition."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": []
+   }
+  },
+  {
+   "id": "h18",
+   "category": "natural",
+   "outcome": "accepted",
+   "classification": "unneeded_edit_accepted",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "They moved the call to the afternoon because two people were traveling.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "They moved the call to the afternoon because two people were traveling.",
+      "notes": [
+       {
+        "kind": "vocabulary",
+        "before": "travelling",
+        "after": "traveling",
+        "why": "In American English, 'traveling' is the more common spelling."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h19",
+   "category": "natural",
+   "outcome": "accepted",
+   "classification": "unneeded_edit_accepted",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "The report was shorter than last year's, and nobody complained about it.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "The report was shorter than last year's, and nobody complained about it.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "last year",
+        "after": "last year's",
+        "why": "Possessive form is needed to refer to the report of last year."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h20",
+   "category": "natural",
+   "outcome": "accepted",
+   "classification": "unneeded_edit_accepted",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "If the tests pass tonight, we will release the update tomorrow morning.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "If the tests pass tonight, we will release the update tomorrow morning.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "If the tests pass tonight, we will release the update tomorrow morning",
+        "after": "If the tests pass tonight, we will release the update tomorrow morning.",
+        "why": "A period is needed at the end of the sentence to complete it grammatically."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h21",
+   "category": "negation",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "He does not like the new office because it is too noisy",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "He does not like the new office because it is too noisy",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "He no like",
+        "after": "He does not like",
+        "why": "In English, the negative form for the simple present tense requires an auxiliary verb (does not) plus the base form of the main verb."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h22",
+   "category": "negation",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "I have never seen that movie before",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I have never seen that movie before",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "didn't never see",
+        "after": "have never seen",
+        "why": "Double negatives like 'didn't never' are incorrect in standard English; the present perfect tense is more natural for past experiences relevant to now."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h23",
+   "category": "negation",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "She said she can't come because she has a meeting",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "She said she can't come because she has a meeting",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "she have a meeting",
+        "after": "she has a meeting",
+        "why": "Subject-verb agreement requires 'has' with 'she'"
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h24",
+   "category": "negation",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Nobody is in the office today",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Nobody is in the office today",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "Nobody are",
+        "after": "Nobody is",
+        "why": "The subject 'Nobody' is singular, so the verb should be 'is'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h25",
+   "category": "modality",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "You must send the form before Friday",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "You must send the form before Friday",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "must to send",
+        "after": "must send",
+        "why": "In English, 'must' is followed directly by the base form of the verb without 'to'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h26",
+   "category": "modality",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "He could finish the work if he had more time",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "He could finish the work if he had more time",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "could finished",
+        "after": "could finish",
+        "why": "After modal verbs like 'could', the base form of the verb is used."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h27",
+   "category": "modality",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "We should leave early to avoid the traffic",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "We should leave early to avoid the traffic",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "should to leave",
+        "after": "should leave",
+        "why": "The modal verb 'should' is directly followed by the base form without 'to'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h28",
+   "category": "quantity",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Only two students were late for the exam",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Only two students were late for the exam",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "was",
+        "after": "were",
+        "why": "Subject-verb agreement requires 'were' for the plural subject 'two students'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h29",
+   "category": "quantity",
+   "outcome": "rejected",
+   "classification": "rejected_poor_candidate",
+   "layer": "2",
+   "code": "content_added",
+   "repaired": false,
+   "candidate": "I have a lot of homework and few free moments today.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I have a lot of homework and few free moments today.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "many homeworks",
+        "after": "a lot of homework",
+        "why": "Homework is uncountable, so 'a lot of' is more appropriate than 'many' and 'homework' is singular."
+       },
+       {
+        "kind": "vocabulary",
+        "before": "few times today",
+        "after": "few free moments today",
+        "why": "'Few free moments' better conveys limited free time compared to 'few times'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": []
+   }
+  },
+  {
+   "id": "h30",
+   "category": "quantity",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Both of my sisters live in Canada",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Both of my sisters live in Canada",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "lives",
+        "after": "live",
+        "why": "The subject 'sisters' is plural, so the verb should be 'live' for subject-verb agreement."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h31",
+   "category": "comparison",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "This phone is cheaper than that one",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "This phone is cheaper than that one",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "more cheaper",
+        "after": "cheaper",
+        "why": "Comparative form 'cheaper' already implies 'more', so 'more' is redundant."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h32",
+   "category": "comparison",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "My brother runs faster than me",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "My brother runs faster than me",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "more fast",
+        "after": "faster",
+        "why": "Use the comparative form 'faster' instead of 'more fast' to describe speed."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h33",
+   "category": "comparison",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "3",
+   "code": "quantity_changed",
+   "repaired": false,
+   "candidate": "She is the tallest girl in our class.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "She is the tallest girl in our class.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "the most tallest",
+        "after": "the tallest",
+        "why": "In English, 'tallest' is already a superlative, so using 'most' is unnecessary and incorrect."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": []
+   }
+  },
+  {
+   "id": "h34",
+   "category": "certainty",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Maybe it will rain tomorrow",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Maybe it will rain tomorrow",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "it will rains",
+        "after": "it will rain",
+        "why": "After 'will,' the base form of the verb is used without 's'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h35",
+   "category": "certainty",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "3",
+   "code": "modality_changed",
+   "repaired": false,
+   "candidate": "I am almost sure he will come to the party.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I am almost sure he will come to the party.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "he comes to the party",
+        "after": "he will come to the party",
+        "why": "Future events are more naturally expressed with 'will' in this context."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": []
+   }
+  },
+  {
+   "id": "h36",
+   "category": "certainty",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "The doctor said it probably isn't serious.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "The doctor said it probably isn't serious.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "probably is not",
+        "after": "probably isn't",
+        "why": "Using the contraction 'isn't' sounds more natural in spoken English."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h37",
+   "category": "certainty",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "They are always late for the meetings",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "They are always late for the meetings",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "They always is late",
+        "after": "They are always late",
+        "why": "Subject-verb agreement requires 'are' with 'They,' and adverb 'always' is best placed before the verb 'late'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h38",
+   "category": "causality",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "I was late because the train was cancelled.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I was late because the train was cancelled.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "the train it was cancelled",
+        "after": "the train was cancelled",
+        "why": "Removed the redundant pronoun 'it' to make the sentence grammatically correct."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h39",
+   "category": "causality",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "4",
+   "code": "meaning_check_failed",
+   "repaired": false,
+   "candidate": "The road was closed, so we took another way.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "The road was closed, so we took another way.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "we take",
+        "after": "we took",
+        "why": "The past tense 'took' is needed to match the past tense 'was closed' in the sentence."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": false
+     }
+    ]
+   }
+  },
+  {
+   "id": "h40",
+   "category": "causality",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "He studied hard although he was very tired",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "He studied hard although he was very tired",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "he were",
+        "after": "he was",
+        "why": "Use 'was' instead of 'were' for singular third-person subjects in the past tense."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h41",
+   "category": "named_entity",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Priya and Daniel are meeting at the Berlin office on Tuesday",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Priya and Daniel are meeting at the Berlin office on Tuesday",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "Priya and Daniel is meeting",
+        "after": "Priya and Daniel are meeting",
+        "why": "Use plural 'are' instead of singular 'is' with two subjects joined by 'and'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h42",
+   "category": "named_entity",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "2",
+   "code": "content_added",
+   "repaired": false,
+   "candidate": "We visited Lisbon last summer and we liked it a lot.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "We visited Lisbon last summer and we liked it a lot.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "we like it much",
+        "after": "we liked it a lot",
+        "why": "The past tense is needed to match 'visited,' and 'a lot' is a more natural collocation in this context."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": []
+   }
+  },
+  {
+   "id": "h43",
+   "category": "named_entity",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "Doctor Okafor told me to rest for five days",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Doctor Okafor told me to rest for five days",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "tell me",
+        "after": "told me",
+        "why": "Past tense is needed because the instruction was given in the past."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h44",
+   "category": "plausible_wrong_fact",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "4",
+   "code": "meaning_check_failed",
+   "repaired": false,
+   "candidate": "Paris is the capital of Germany and it has many museums",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Paris is the capital of Germany and it has many museums",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "it have",
+        "after": "it has",
+        "why": "The subject 'it' requires the singular verb 'has'"
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": false
+     }
+    ]
+   }
+  },
+  {
+   "id": "h45",
+   "category": "plausible_wrong_fact",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "4",
+   "code": "meaning_check_failed",
+   "repaired": false,
+   "candidate": "Water boils at fifty degrees, so we make tea quickly.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Water boils at fifty degrees, so we make tea quickly.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "Water boil",
+        "after": "Water boils",
+        "why": "The subject 'Water' is singular, so the verb needs an 's' for the third person singular present tense."
+       },
+       {
+        "kind": "vocabulary",
+        "before": "fast",
+        "after": "quickly",
+        "why": "In this context, 'quickly' is a more natural adverb to describe the speed of making tea."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": false
+     }
+    ]
+   }
+  },
+  {
+   "id": "h46",
+   "category": "plausible_wrong_fact",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": true,
+   "candidate": "The meeting is on Sunday but the office is closed on weekends",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "The meeting is on Sunday, but the office is closed on weekends.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "the office are closed",
+        "after": "the office is closed",
+        "why": "The subject \"office\" is singular, so it requires the singular verb \"is\"."
+       },
+       {
+        "kind": "grammar",
+        "before": "Sunday but the office",
+        "after": "Sunday, but the office",
+        "why": "A comma is needed before \"but\" when joining two independent clauses."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     },
+     {
+      "improved_text": "The meeting is on Sunday but the office is closed on weekends",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "the office are closed",
+        "after": "the office is closed",
+        "why": "The subject 'office' is singular, so the verb should be 'is' instead of 'are'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h47",
+   "category": "plausible_wrong_fact",
+   "outcome": "rejected",
+   "classification": "false_rejection",
+   "layer": "4",
+   "code": "meaning_check_failed",
+   "repaired": false,
+   "candidate": "He is thirty years old and was born in two thousand ten.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "He is thirty years old and was born in two thousand ten.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "he was born",
+        "after": "was born",
+        "why": "In compound sentences, the subject can be omitted in the second clause when it is the same as in the first clause."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": false
+     }
+    ]
+   }
+  },
+  {
+   "id": "h48",
+   "category": "plausible_wrong_fact",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "My sister has three children, two boys and one boy",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "My sister has three children, two boys and one boy",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "have",
+        "after": "has",
+        "why": "Subject-verb agreement: 'sister' is singular so the verb should be 'has'."
+       },
+       {
+        "kind": "grammar",
+        "before": "one boys",
+        "after": "one boy",
+        "why": "Singular 'one' should be followed by singular noun 'boy'."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h49",
+   "category": "disfluency",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": true,
+   "candidate": "Um, I think that the project is almost finished.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "Um, I think that the project is almost finished.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "is almost finish",
+        "after": "is almost finished",
+        "why": "Use the correct past participle 'finished' after 'is almost' for proper grammar."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     },
+     {
+      "improved_text": "Um, I think that the project is almost finished.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "Um I think that like the project is almost finish",
+        "after": "Um, I think that the project is almost finished",
+        "why": "Added a comma after 'Um' for natural pausing; removed 'like' as it is unnecessary here; changed 'finish' to 'finished' to use correct past participle."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "h50",
+   "category": "disfluency",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "We need to talk about the schedule.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "We need to talk about the schedule.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "We uh need to talk about the the schedule",
+        "after": "We need to talk about the schedule",
+        "why": "Removed filler word and repeated article for clarity and fluency."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "hu01",
+   "category": "uncertain",
+   "outcome": "unavailable",
+   "classification": "blocked_ok",
+   "layer": null,
+   "code": "unreliable_recognition",
+   "repaired": false,
+   "candidate": null,
+   "raw": null
+  },
+  {
+   "id": "hu02",
+   "category": "uncertain",
+   "outcome": "unavailable",
+   "classification": "blocked_ok",
+   "layer": null,
+   "code": "unreliable_recognition",
+   "repaired": false,
+   "candidate": null,
+   "raw": null
+  },
+  {
+   "id": "hu03",
+   "category": "too_short",
+   "outcome": "unavailable",
+   "classification": "blocked_ok",
+   "layer": null,
+   "code": "too_short",
+   "repaired": false,
+   "candidate": null,
+   "raw": null
+  },
+  {
+   "id": "hu04",
+   "category": "too_long",
+   "outcome": "unavailable",
+   "classification": "blocked_ok",
+   "layer": null,
+   "code": "too_long",
+   "repaired": false,
+   "candidate": null,
+   "raw": null
+  },
+  {
+   "id": "hu05",
+   "category": "learner_corrected",
+   "outcome": "accepted",
+   "classification": "accepted_ok",
+   "layer": null,
+   "code": null,
+   "repaired": false,
+   "candidate": "I think the team finished the report yesterday.",
+   "raw": {
+    "coach": [
+     {
+      "improved_text": "I think the team finished the report yesterday.",
+      "notes": [
+       {
+        "kind": "grammar",
+        "before": "have finish",
+        "after": "finished",
+        "why": "The past simple tense is needed here because the action was completed at a specific time in the past ('yesterday')."
+       }
+      ],
+      "meaning_preserved": true,
+      "adds_information": false
+     }
+    ],
+    "check": [
+     {
+      "same_meaning": true
+     }
+    ]
+   }
+  }
+ ]
+}

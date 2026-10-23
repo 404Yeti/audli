@@ -93,7 +93,7 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 
 **Not part of this approval:** applying 007 and enabling the flag are separate. Enabling additionally requires the retention decision below.
 
-**Approval needed:** (a) build `scripts/migration007` and run steps 1–5 (read-only against production, rehearsal on a local database, nothing written to production); (b) separately, apply 007 with the exact confirmation phrase; (c) separately, enable `AUDLI_REVIEW_IMPROVEMENT_ENABLED`.
+**Approval needed:** (a) merge PR #74 (rollback guard + rehearsal tooling); (b) a production backup and a restore-rehearsal against that backup (read-only against production); (c) separately, apply 007 with the exact confirmation phrase; (d) separately, enable `AUDLI_REVIEW_IMPROVEMENT_ENABLED`.
 
 ---
 

@@ -14,12 +14,17 @@ What it does, in order (each step is recorded as pass/fail in the report; any fa
      phrase (nothing may change), succeeds with it, the discarded rows come back from a table backup, an empty table needs no phrase.
   5. Restores a post-007 dump, and checks the application's own schema gates (flag on fails closed at 6, passes at 7).
 
-The report holds counts, hashes, timings and pass/fail only: no connection strings, no passwords, no learner data (all synthetic).
+  --source-db NAME  runs the same rehearsal against an existing database instead of building a fixture: a RESTORED COPY of a production
+                    backup (made by 03-restore-verify.sh). That database is only read: every change happens in clones of it. Real ids are chosen
+                    inside the database and never printed; everything printed or written is scrubbed of UUIDs and e-mail addresses.
+
+The report holds counts, hashes, timings and pass/fail only: no connection strings, no passwords, no learner data (fixture data is synthetic).
 """
 import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +51,16 @@ PG_BIN = Path('/usr/lib/postgresql/17/bin')
 
 def tool(name):
     return str(PG_BIN / name) if (PG_BIN / name).exists() else (shutil.which(name) or sys.exit(f'missing tool: {name}'))
+
+
+UUID = re.compile(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
+EMAIL = re.compile(r'[\w.+-]+@[\w-]+(\.[\w-]+)+')
+
+
+def scrub(text, limit=240):
+    """Nothing that could identify a learner may reach the console or the report: ids and addresses are masked, length is capped."""
+    text = EMAIL.sub('<email>', UUID.sub('<id>', str(text)))
+    return text if len(text) <= limit else text[:limit] + '...'
 
 
 class Rehearsal:
@@ -103,6 +118,7 @@ class Rehearsal:
             return row[0] if row else None
 
     def record(self, name, ok, detail=''):
+        detail = scrub(detail)
         self.results.append({'step': name, 'ok': bool(ok), 'detail': detail})
         print(f"  [{'PASS' if ok else 'FAIL'}] {name}" + (f' - {detail}' if detail else ''), flush=True)
         return ok
@@ -135,6 +151,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--learners', type=int, default=60)
     parser.add_argument('--keep', action='store_true', help='keep the rehearsal databases and scratch directory')
+    parser.add_argument('--source-db', help='an existing database holding a restored production copy at schema 6 (read only)')
     parser.add_argument('--out')
     args = parser.parse_args()
 
@@ -163,26 +180,32 @@ def main():
                 conn.execute(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{role}') THEN CREATE ROLE {role} NOLOGIN; END IF; END $$")
 
         # 1. production-shaped schema 6 ---------------------------------------------------------------------------------------------
-        src = f'audli_r007_src_{stamp}'
-        done = subprocess.run([sys.executable, str(REPO / 'scripts' / 'migration006' / 'make_fixture.py'), '--url-var', URL_VAR, '--db-name', src,
-                               '--learners', str(args.learners)], env=r.env() | {URL_VAR: admin_url}, capture_output=True, text=True, timeout=900)
-        r.dbs.append(src)
-        if not r.record('fixture built by the real application code (schema 5)', done.returncode == 0, done.stderr.strip()[-200:] if done.returncode else ''):
-            raise SystemExit(1)
-        applied = r.psql(src, file=REPO / 'docs' / 'postgres-006.sql')
-        r.record('migration 006 applied exactly as checked in (fixture is now schema 6)', applied.returncode == 0 and r.versions(src) == [1, 2, 3, 4, 5, 6],
-                 applied.stderr.strip()[-200:])
-        with r.connect(src) as conn:  # synthetic exercises + attempts for review rows to reference
-            users = [row[0] for row in conn.execute('SELECT id FROM users ORDER BY id LIMIT 6')]
-            for index, user in enumerate(users):
-                session = str(uuid4())
-                conn.execute("INSERT INTO training_sessions (id, user_id, status, started_at, starting_difficulty) VALUES (%s, %s, 'active', now(), '{}')", (session, user))
-                for number in range(2):
-                    exercise, attempt = str(uuid4()), str(uuid4())
-                    conn.execute("INSERT INTO exercises (id, user_id, session_id, content, difficulty, audio_name, created_at) VALUES (%s, %s, %s, '{}', '{}', %s, now())",
-                                 (exercise, user, session, f'rehearsal-{index}-{number}.mp3'))
-                    conn.execute("INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%s, %s, '{}', %s, 0.93, 'openai', 'evaluated', now())",
-                                 (attempt, exercise, 'we meets on friday'))
+        if args.source_db:
+            src = args.source_db
+            report['mode'] = 'restored_production_copy'
+            r.record('source is an existing restored copy at schema 6 (it is only read; all changes happen in clones)', r.versions(src) == [1, 2, 3, 4, 5, 6])
+        else:
+            report['mode'] = 'synthetic_fixture'
+            src = f'audli_r007_src_{stamp}'
+            done = subprocess.run([sys.executable, str(REPO / 'scripts' / 'migration006' / 'make_fixture.py'), '--url-var', URL_VAR, '--db-name', src,
+                                   '--learners', str(args.learners)], env=r.env() | {URL_VAR: admin_url}, capture_output=True, text=True, timeout=900)
+            r.dbs.append(src)
+            if not r.record('fixture built by the real application code (schema 5)', done.returncode == 0, done.stderr.strip()[-200:] if done.returncode else ''):
+                raise SystemExit(1)
+            applied = r.psql(src, file=REPO / 'docs' / 'postgres-006.sql')
+            r.record('migration 006 applied exactly as checked in (fixture is now schema 6)', applied.returncode == 0 and r.versions(src) == [1, 2, 3, 4, 5, 6],
+                     applied.stderr.strip()[-200:])
+            with r.connect(src) as conn:  # synthetic exercises + attempts for review rows to reference
+                users = [row[0] for row in conn.execute('SELECT id FROM users ORDER BY id LIMIT 6')]
+                for index, user in enumerate(users):
+                    session = str(uuid4())
+                    conn.execute("INSERT INTO training_sessions (id, user_id, status, started_at, starting_difficulty) VALUES (%s, %s, 'active', now(), '{}')", (session, user))
+                    for number in range(2):
+                        exercise, attempt = str(uuid4()), str(uuid4())
+                        conn.execute("INSERT INTO exercises (id, user_id, session_id, content, difficulty, audio_name, created_at) VALUES (%s, %s, %s, '{}', '{}', %s, now())",
+                                     (exercise, user, session, f'rehearsal-{index}-{number}.mp3'))
+                        conn.execute("INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%s, %s, '{}', %s, 0.93, 'openai', 'evaluated', now())",
+                                     (attempt, exercise, 'we meets on friday'))
         before = r.snapshot(src)
         r.record('schema 6 fingerprint taken (every table: rows + md5)', 'lesson_entitlements' in before and before['lesson_entitlements'][0] > 0 and before['lesson_lifecycles'][0] > 0 and 'review_improvements' not in before,
                  f"{len(before)} tables, {before['lesson_lifecycles'][0]} lessons, {before['lesson_entitlements'][0]} entitlement rows")
@@ -215,7 +238,8 @@ def main():
                  not unchanged and migrated['review_improvements'][0] == 0 and set(migrated) - set(before) == {'review_improvements'}, f'changed: {sorted(unchanged)}' if unchanged else '')
         r.record('the only other change is exactly one new schema_migrations row (version 7)',
                  migrated['schema_migrations'][0] == before['schema_migrations'][0] + 1 and r.versions(work) == [1, 2, 3, 4, 5, 6, 7])
-        columns = [row[0] for row in r.connect(work).execute("SELECT column_name FROM information_schema.columns WHERE table_name='review_improvements' ORDER BY ordinal_position")]
+        with r.connect(work) as conn:
+            columns = [row[0] for row in conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name='review_improvements' ORDER BY ordinal_position")]
         r.record('review_improvements has exactly the expected columns', columns == EXPECTED_COLUMNS, str(columns) if columns != EXPECTED_COLUMNS else '')
         rls = r.scalar(work, "SELECT relrowsecurity FROM pg_class WHERE relname='review_improvements'")
         grants = r.scalar(work, "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='review_improvements' AND grantee IN ('PUBLIC','anon','authenticated')")
@@ -223,7 +247,9 @@ def main():
         r.record('private: row-level security on, no grants for PUBLIC/anon/authenticated', rls is True and grants == 0 and probes == [False, False], f'rls={rls} grants={grants} probes={probes}')
 
         with r.connect(work) as conn:  # behaviour with real learner / exercise / attempt ids
-            rows = conn.execute('SELECT e.user_id, e.id, a.id FROM exercises e JOIN attempts a ON a.exercise_id = e.id WHERE e.audio_name LIKE %s ORDER BY e.id LIMIT 3', ('rehearsal-%',)).fetchall()
+            rows = conn.execute("SELECT DISTINCT ON (e.id) e.user_id, e.id, a.id FROM exercises e JOIN attempts a ON a.exercise_id = e.id WHERE a.status = 'evaluated' ORDER BY e.id LIMIT 3").fetchall()
+        if len(rows) < 3:
+            raise RuntimeError('the source needs at least three exercises with evaluated attempts to rehearse the constraints')
         (user1, ex1, at1), (_, ex2, at2), (user3, ex3, at3) = rows
 
         def insert(user, exercise, attempt, status, text='better', notes='[]', rid=None):
@@ -289,14 +315,17 @@ def main():
         clean6, problems6 = r.restore(pre, dump)
         r.record('the original pre-007 backup still restores exactly (production-equivalent recovery path)', clean6 and r.snapshot(pre) == before and r.versions(pre) == [1, 2, 3, 4, 5, 6], problems6)
 
+        iso = subprocess.run([sys.executable, '-c', ISOLATION_CHECK, r.dsn(v7_copy)], env=r.env() | {'AUDLI_CI_OFFLINE': '1'}, capture_output=True, text=True, timeout=300, cwd=REPO)
+        r.record('account isolation on migrated data: another learner cannot read or claim an exercise they do not own; every review row belongs to the exercise owner',
+                 iso.returncode == 0 and iso.stdout.strip().endswith('ISOLATION OK'), scrub(iso.stdout + iso.stderr) if iso.returncode else '')
         gate = subprocess.run([sys.executable, '-c', GATE_CHECK, r.dsn(pre), r.dsn(v7_copy)], env=r.env() | {'AUDLI_CI_OFFLINE': '1'}, capture_output=True, text=True, timeout=300,
                               cwd=REPO)
         r.record("application gates: schema 6 + flag on fails closed; schema 6 + flag off starts; schema 7 + flag on starts; lesson-limit gate passes at 6 and 7",
                  gate.returncode == 0 and gate.stdout.strip().endswith('GATES OK'), (gate.stdout + gate.stderr).strip()[-300:] if gate.returncode else '')
+        r.record('the source database was never modified (every table count and md5 equals the fingerprint taken at the start)', r.snapshot(src) == before)
         finished = True
-    except Exception:  # never let the summary hide what went wrong
-        import traceback
-        traceback.print_exc()
+    except Exception as error:  # never let the summary hide what went wrong, and never print row data
+        print(f'ERROR {type(error).__name__}: {scrub(error)}')
     finally:
         failed = [x for x in r.results if not x['ok']]
         if not finished:
@@ -305,6 +334,8 @@ def main():
         if not args.keep:
             r.drop_all()
             shutil.rmtree(r.scratch, ignore_errors=True)
+        else:
+            print('kept databases: ' + ', '.join(r.dbs) + f' and scratch directory {r.scratch}')
         text = json.dumps(report, indent=2)
         if args.out:
             Path(args.out).write_text(text + '\n')
@@ -312,6 +343,40 @@ def main():
         if failed:
             sys.exit(1)
 
+
+ISOLATION_CHECK = r'''
+import sys
+from datetime import datetime, timezone
+from sqlalchemy import text
+from app.repository import PostgresRepository
+from app.storage import improvement as store
+url = sys.argv[1]
+probe = PostgresRepository(url)
+with probe.engine.connect() as db:
+    owner, exercise, attempt = db.execute(text("SELECT e.user_id, e.id, a.id FROM exercises e JOIN attempts a ON a.exercise_id = e.id JOIN learner_profiles p ON p.user_id = e.user_id "
+        "WHERE a.status = 'evaluated' AND NOT EXISTS (SELECT 1 FROM review_improvements r WHERE r.exercise_id = e.id) ORDER BY e.id LIMIT 1")).one()
+    other = db.execute(text("SELECT p.user_id FROM learner_profiles p WHERE p.user_id <> :o ORDER BY p.user_id LIMIT 1"), {"o": owner}).scalar_one()
+probe.close()
+mine, theirs = PostgresRepository(url, str(owner)), PostgresRepository(url, str(other))
+try:
+    assert store.evaluated_root(mine, str(exercise)) is not None, "the owner must see their evaluated exercise"
+    assert store.evaluated_root(theirs, str(exercise)) is None, "another learner must not see it"
+    try:
+        store.claim(theirs, str(exercise), str(attempt), "x", "v2", 10, datetime.now(timezone.utc)); raise SystemExit("another learner claimed an exercise they do not own")
+    except LookupError:
+        pass
+    claimed = store.claim(mine, str(exercise), str(attempt), "x", "v2", 10, datetime.now(timezone.utc))
+    assert claimed.kind == "claimed", claimed.kind
+    assert store.live_row(mine, str(exercise)) is not None and store.live_row(theirs, str(exercise)) is None, "rows must be visible only to the owner"
+finally:
+    mine.close(); theirs.close()
+check = PostgresRepository(url)
+with check.engine.connect() as db:
+    stray = db.execute(text("SELECT count(*) FROM review_improvements r JOIN exercises e ON e.id = r.exercise_id WHERE r.user_id <> e.user_id")).scalar_one()
+check.close()
+assert stray == 0, "a review row belongs to someone other than the exercise owner"
+print("ISOLATION OK")
+'''
 
 GATE_CHECK = r'''
 import sys, tempfile

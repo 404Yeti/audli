@@ -397,3 +397,23 @@ def test_the_guarded_provider_always_applies_the_reserved_output_ceiling(tmp_pat
     run(tmp_path, server)
     assert server.requests                                     # the handler itself asserts every body carried a max_output_tokens
     assert runner.COACH_MAX_OUTPUT_TOKENS >= 1000 and runner.CHECK_MAX_OUTPUT_TOKENS == 60
+
+
+# ------------------------------------------------------------------------------------------------ the prepared approval file
+def test_the_prepared_approval_file_is_complete_but_authorizes_nothing(tmp_path, capsys):
+    path = Path(runner.__file__).resolve().parents[1] / 'docs' / 'AUD-77-LIVE-EVALUATION-APPROVAL.json'
+    prepared = json.loads(path.read_text())
+    plan = runner.plan(repeats=1)
+    assert prepared['approved'] is False and not prepared['approved_by'] and not prepared['approved_at'] and not prepared['expires_at']
+    assert prepared['max_usd'] == 1.0 <= runner.HARD_CAP_USD and prepared['repeats'] == 1 and prepared['max_requests'] == plan['max_requests']
+    problems = runner.validate_approval(prepared, plan, NOW)
+    assert 'approved must be true' in problems and 'approved_by is required' in problems     # as committed it is refused
+    assert not any('model' in p or 'prompt_version' in p or 'fixtures_sha256' in p or 'prices' in p or 'max_usd' in p or 'max_requests' in p or 'repeats' in p for p in problems), problems
+    # Filling in only the owner's fields makes it valid: nothing else can have drifted from the plan, the fixtures or the prices.
+    owner = {**prepared, 'approved': True, 'approved_by': 'owner', 'approved_at': '2026-10-22T10:00:00Z', 'expires_at': '2026-10-23T10:00:00Z'}
+    assert runner.validate_approval(owner, plan, NOW) == []
+    with pytest.raises(runner.RefusedToRun, match='approval refused'):                         # the run itself refuses it before any credential or network use
+        asyncio.run(runner.run_live(prepared, tmp_path / 'run', env={'OPENAI_API_KEY': 'sk-never-read'}, http_client=Server().client(), now=NOW))
+    assert not (tmp_path / 'run').exists()
+    assert runner.main(['run', '--approval', str(path), '--out', str(tmp_path / 'out')]) == 2
+    assert not (tmp_path / 'out').exists()

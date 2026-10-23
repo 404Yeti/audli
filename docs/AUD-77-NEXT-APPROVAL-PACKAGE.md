@@ -16,16 +16,6 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 | PR #71 | closed, superseded by #72 |
 | PR #73 | this document (draft) |
 
----|---|
-| Production | API revision `aee7693`; both Vercel apps serve Next.js 16.4.1; schema version 6; **migration 007 unapplied**; Review improvement flag **off** (inferred from startup, which fails closed without 007; the Render service exposes no environment values); AUD-47 report OK; no paid provider call has ever run |
-| PR #66, #67, #69 | merged and deployed (saved answer; flag-off coaching bridge; rejection recovery) |
-| PR #72 (AUD-80) | merged `2d4a1e3`: Next.js 16.4.1, `npm audit` clean in `web/` and `site/`, Browser CI now runs in a digest-pinned Playwright container |
-| PR #70 | merged `aee7693`: the live evaluation runner; **never executed** |
-| PR #71 | closed, superseded by #72 |
-| PR #68 (AUD-34) | rebased onto `aee7693`, net diff identical to the reviewed change (17 files); CI in progress; flag off; AUD-34 stays In Review |
-| PR #74 | draft: 007 rollback now refuses a populated table without an exact authorization phrase, plus the isolated rehearsal (30/30; see part 3) |
-| PR #73 | this document (draft) |
-
 ---
 
 ## 1. Synthetic live-model evaluation (PR #70, runner `scripts/run_review_improvement_eval.py`)
@@ -53,13 +43,13 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 
 **Data handled by OpenAI.** Synthetic text only. `store=false` is sent, but this is **not** zero retention (OpenAI keeps abuse-monitoring logs up to 30 days).
 
-**Approval needed:** (a) PR #70 is already merged (the runner is inert); (b) execution still needs a separate approval file that you author. Nothing has been run.
+**Approval needed:** execution only. The runner is merged (inert) and `docs/AUD-77-LIVE-EVALUATION-APPROVAL.json` is prepared with every plan-bound field filled, but it ships `approved: false` with `approved_by`, `approved_at` and `expires_at` blank; **only you fill those in**, and the runner refuses it as written. Nothing has been run.
 
 ---
 
 ## 2. Account-deletion release review (PR #68, AUD-34)
 
-**State.** Draft, head `73bd876`, all 8 required checks green on that commit (before the Next.js advisories). Not merged, not deployed. Flag `AUDLI_ACCOUNT_DELETION_ENABLED` defaults off; with it off there is no delete route and the controls report it unavailable.
+**State.** Merged flag-off as `5f5a3e6` after all 8 required checks were green on `0fc2fd7`. Deployed but inert: `AUDLI_ACCOUNT_DELETION_ENABLED` defaults off (inferred off in production; the Render service exposes no environment values). AUD-34 stays In Review.
 
 **What it does.** Schema-derived erase plan (reverse foreign-key order; only NOT NULL ownership paths; every table must be classified learner-owned or not, enforced by `tests/test_schema_ownership_inventory.py`). Covers `review_improvements`, `learner_roadmaps`, `homework_assignments`, `homework_reflections`, `lesson_entitlements`, and tolerates tables that do not exist (so it works at schema 6 and at 7). Locks `auth.users` to prevent resurrection, requires fresh password re-authentication, refuses accounts with verified MFA factors (support-assisted deletion only), revokes sessions, and never reports success on partial failure.
 
@@ -75,9 +65,9 @@ Three proposals. **Nothing here is approved or executed.** Each part ends with t
 | Deployed environment | `auth.*` privileges for the service role, zero storage buckets, single instance | A read-only confirmation on the deployed project |
 | Legal holds | Deletion must not destroy data under a hold | An owner statement that no hold applies, or a hold check |
 
-**Proposed sequence.** (1) Merge #68 as a **flag-off** release (inert) once CI is green on its final head; this is already approved. (2) Resolve or accept each row above. (3) Separate approval to enable the flag, with a first deletion of an owner-controlled test account only.
+**Remaining sequence.** (1) Resolve or accept each row above. (2) A separate approval to enable the flag, with a first deletion of an owner-controlled test account only.
 
-**Approval needed:** (a) merge #68 flag-off after CI is green; (b) later, a written decision on each dependency row; (c) later, enabling the flag.
+**Approval needed:** (a) a written decision on each dependency row; (b) separately, enabling the flag. The merge itself is done.
 
 ---
 

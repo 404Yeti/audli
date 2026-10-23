@@ -230,3 +230,43 @@ def test_owned_api_cache_config_invalidation_and_transcript_gate(tmp_path,reposi
         assert a.get(f'/api/exercises/{exercise}/coach-audio/feedback').status_code==403
     finally:
         app.state.repository.close();asyncio.run(auth.aclose());asyncio.run(router.close())
+
+
+@pytest.mark.parametrize('fast,expected', [(False, 'reencode'), (True, 'strip')])
+def test_fast_sanitize_flag_selects_path_and_strips_tags(tmp_path, audio_bytes, fast, expected):
+    import subprocess
+    from imageio_ffmpeg import get_ffmpeg_exe
+    wav = tmp_path / 'a.wav'; wav.write_bytes(audio_bytes)
+    tagged = tmp_path / 'a.mp3'
+    secret = 'HIDDEN TUTOR SCRIPT'
+    subprocess.run([get_ffmpeg_exe(), '-v', 'error', '-i', str(wav), '-id3v2_version', '3', '-metadata', 'comment=' + secret, str(tagged)], check=True)
+    metrics = []
+    async def run():
+        router = TutorTTSProvider(FakeProvider(), settings(tutor_audio_fast_sanitize=fast),
+            httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=tagged.read_bytes()))))
+        token = tts_measurements.set(metrics)
+        try:
+            return await router.speak('private tutor text')
+        finally:
+            tts_measurements.reset(token); await router.close()
+    audio = asyncio.run(run())
+    assert signature_matches(audio, 'mp3') and secret.encode() not in audio and audio[:3] != b'ID3'
+    assert metrics[0]['sanitization'] == expected and metrics[0]['sanitize_ms'] >= 0
+
+
+def test_fast_sanitize_falls_back_to_reencode_on_unclean_stream(monkeypatch, tmp_path, audio_bytes):
+    import app.services.tutor_tts as module
+    async def refuse(data, **kwargs):
+        raise ValueError('not clean')
+    monkeypatch.setattr(module, 'strip_generated_mp3', refuse)
+    metrics = []
+    async def run():
+        mp3 = await sanitize_generated_audio(audio_bytes, 'mp3')
+        router = TutorTTSProvider(FakeProvider(), settings(tutor_audio_fast_sanitize=True),
+            httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=mp3))))
+        token = tts_measurements.set(metrics)
+        try:
+            return await router.speak('private tutor text')
+        finally:
+            tts_measurements.reset(token); await router.close()
+    assert signature_matches(asyncio.run(run()), 'mp3') and metrics[0]['sanitization'] == 'reencode'

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { api } from '../web/lib/api.ts';
+import { api, resolveApiUrl } from '../web/lib/api.ts';
 
 // Dependency-free checks of the actual helper imported by the exercise screen.
 // These do not replace a Next.js build or browser test.
@@ -289,4 +289,23 @@ test('backup voice disclosure is metadata-only and ignores an old account respon
     globalThis.fetch=async()=>{setAccessTokenProvider(async ()=>'synthetic-b');return response();};
     await authenticatedFetch('/api/recognition/retry-audio');assert.equal(notices,1);
   } finally {setAccessTokenProvider(null);globalThis.fetch=originalFetch;globalThis.window=originalWindow;}
+});
+
+test('direct API origin is opt-in and only an exact https origin is honoured', () => {
+  assert.equal(resolveApiUrl('/api/profile', undefined), '/api/profile');
+  assert.equal(resolveApiUrl('/api/profile', ''), '/api/profile');
+  assert.equal(resolveApiUrl('/api/profile', 'https://audli-api.onrender.com'), 'https://audli-api.onrender.com/api/profile');
+  for (const bad of ['http://audli-api.onrender.com', 'https://audli-api.onrender.com/', 'https://audli-api.onrender.com/x',
+    'https://user:pw@audli-api.onrender.com', 'https://*.onrender.com', 'audli-api.onrender.com', 'javascript:alert(1)'])
+    assert.equal(resolveApiUrl('/api/profile', bad), '/api/profile', bad);
+});
+
+test('requests use the configured direct origin without credentials', async () => {
+  const original = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url, init) => { seen.push([url, init.credentials]); return new Response('null', { status: 200 }); };
+  process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN = 'https://audli-api.onrender.com';
+  try { await api('/exercises/current'); }
+  finally { delete process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN; globalThis.fetch = original; }
+  assert.deepEqual(seen, [['https://audli-api.onrender.com/api/exercises/current', 'omit']]);
 });

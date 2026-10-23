@@ -1,0 +1,1527 @@
+{
+  "exercise": "demo passage (synthetic)",
+  "fixtures": 12,
+  "reps_requested": 3,
+  "estimated_spend_usd": 0.1816,
+  "budget_usd": 0.6,
+  "stopped_on_budget": false,
+  "unsupported_models": {},
+  "price_sources": {
+    "gpt-4.1-mini": "published",
+    "gpt-5.4-mini": "assumed",
+    "gpt-5.4-nano": "assumed",
+    "gpt-5-mini": "third-party"
+  },
+  "models": {
+    "gpt-4.1-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 2.804,
+        "p90": 3.825,
+        "mean": 2.927
+      },
+      "mean_output_tokens": 294,
+      "unit_agreement_with_gold": 0.833,
+      "false_misunderstood_units": 0,
+      "false_demonstrated_units": 7
+    },
+    "gpt-5.4-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 2.282,
+        "p90": 2.724,
+        "mean": 2.272
+      },
+      "mean_output_tokens": 278,
+      "unit_agreement_with_gold": 0.869,
+      "false_misunderstood_units": 2,
+      "false_demonstrated_units": 16
+    },
+    "gpt-5.4-nano": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 2.869,
+        "p90": 3.452,
+        "mean": 2.886
+      },
+      "mean_output_tokens": 312,
+      "unit_agreement_with_gold": 0.837,
+      "false_misunderstood_units": 0,
+      "false_demonstrated_units": 9
+    },
+    "gpt-5-mini": {
+      "calls": 36,
+      "valid": 36,
+      "invalid_or_error": 0,
+      "errors": [],
+      "latency_s": {
+        "p50": 3.865,
+        "p90": 4.861,
+        "mean": 3.863
+      },
+      "mean_output_tokens": 400,
+      "unit_agreement_with_gold": 0.813,
+      "false_misunderstood_units": 2,
+      "false_demonstrated_units": 27
+    }
+  },
+  "rows": {
+    "gpt-4.1-mini": [
+      {
+        "fixture": "excellent",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 4.36,
+        "output_tokens": 337,
+        "input_tokens": 1311
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 0,
+        "ok": true,
+        "got": "DIIIIID",
+        "gold": "DIIIDID",
+        "seconds": 2.973,
+        "output_tokens": 266,
+        "input_tokens": 1178
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 0,
+        "ok": true,
+        "got": "MMMMIII",
+        "gold": "MIMMIMM",
+        "seconds": 2.372,
+        "output_tokens": 278,
+        "input_tokens": 1212
+      },
+      {
+        "fixture": "nothing",
+        "rep": 0,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.312,
+        "output_tokens": 276,
+        "input_tokens": 1128
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.395,
+        "output_tokens": 267,
+        "input_tokens": 1269
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.372,
+        "output_tokens": 336,
+        "input_tokens": 1276
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDMIII",
+        "gold": "DDDMDDD",
+        "seconds": 2.861,
+        "output_tokens": 300,
+        "input_tokens": 1198
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 0,
+        "ok": true,
+        "got": "PMMDIII",
+        "gold": "PIIIIII",
+        "seconds": 2.652,
+        "output_tokens": 270,
+        "input_tokens": 1099
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 0,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.366,
+        "output_tokens": 278,
+        "input_tokens": 1163
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 0,
+        "ok": true,
+        "got": "IIDIIII",
+        "gold": "PDDIIII",
+        "seconds": 3.406,
+        "output_tokens": 279,
+        "input_tokens": 1089
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 0,
+        "ok": true,
+        "got": "MMIIIII",
+        "gold": "MMMMIIM",
+        "seconds": 2.804,
+        "output_tokens": 300,
+        "input_tokens": 1160
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.196,
+        "output_tokens": 350,
+        "input_tokens": 1298
+      },
+      {
+        "fixture": "excellent",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.968,
+        "output_tokens": 343,
+        "input_tokens": 1311
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 1,
+        "ok": true,
+        "got": "DIIIIID",
+        "gold": "DIIIDID",
+        "seconds": 2.466,
+        "output_tokens": 269,
+        "input_tokens": 1178
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 1,
+        "ok": true,
+        "got": "MMMPIII",
+        "gold": "MIMMIMM",
+        "seconds": 3.869,
+        "output_tokens": 289,
+        "input_tokens": 1212
+      },
+      {
+        "fixture": "nothing",
+        "rep": 1,
+        "ok": true,
+        "got": "PIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.407,
+        "output_tokens": 281,
+        "input_tokens": 1128
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.032,
+        "output_tokens": 278,
+        "input_tokens": 1269
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.825,
+        "output_tokens": 336,
+        "input_tokens": 1276
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDMIII",
+        "gold": "DDDMDDD",
+        "seconds": 2.717,
+        "output_tokens": 290,
+        "input_tokens": 1198
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 1,
+        "ok": true,
+        "got": "PMIDIII",
+        "gold": "PIIIIII",
+        "seconds": 2.563,
+        "output_tokens": 257,
+        "input_tokens": 1099
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 1,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.349,
+        "output_tokens": 257,
+        "input_tokens": 1163
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 1,
+        "ok": true,
+        "got": "IDDIIII",
+        "gold": "PDDIIII",
+        "seconds": 4.494,
+        "output_tokens": 312,
+        "input_tokens": 1089
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 1,
+        "ok": true,
+        "got": "MMMIIII",
+        "gold": "MMMMIIM",
+        "seconds": 2.763,
+        "output_tokens": 287,
+        "input_tokens": 1160
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.288,
+        "output_tokens": 365,
+        "input_tokens": 1298
+      },
+      {
+        "fixture": "excellent",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.897,
+        "output_tokens": 351,
+        "input_tokens": 1311
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 2,
+        "ok": true,
+        "got": "DIIIIID",
+        "gold": "DIIIDID",
+        "seconds": 2.795,
+        "output_tokens": 277,
+        "input_tokens": 1178
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 2,
+        "ok": true,
+        "got": "MMMMIII",
+        "gold": "MIMMIMM",
+        "seconds": 2.186,
+        "output_tokens": 254,
+        "input_tokens": 1212
+      },
+      {
+        "fixture": "nothing",
+        "rep": 2,
+        "ok": true,
+        "got": "PIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.452,
+        "output_tokens": 261,
+        "input_tokens": 1128
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.937,
+        "output_tokens": 225,
+        "input_tokens": 1269
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDPP",
+        "gold": "DDDDDDD",
+        "seconds": 3.592,
+        "output_tokens": 397,
+        "input_tokens": 1276
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDMIII",
+        "gold": "DDDMDDD",
+        "seconds": 2.548,
+        "output_tokens": 270,
+        "input_tokens": 1198
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 2,
+        "ok": true,
+        "got": "PIPDIII",
+        "gold": "PIIIIII",
+        "seconds": 3.628,
+        "output_tokens": 263,
+        "input_tokens": 1099
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 2,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.468,
+        "output_tokens": 287,
+        "input_tokens": 1163
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 2,
+        "ok": true,
+        "got": "IDDIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.63,
+        "output_tokens": 267,
+        "input_tokens": 1089
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 2,
+        "ok": true,
+        "got": "MMMIIII",
+        "gold": "MMMMIIM",
+        "seconds": 2.565,
+        "output_tokens": 295,
+        "input_tokens": 1160
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.878,
+        "output_tokens": 344,
+        "input_tokens": 1298
+      }
+    ],
+    "gpt-5.4-mini": [
+      {
+        "fixture": "excellent",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.717,
+        "output_tokens": 342,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 0,
+        "ok": true,
+        "got": "DIIIIID",
+        "gold": "DIIIDID",
+        "seconds": 2.041,
+        "output_tokens": 245,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 0,
+        "ok": true,
+        "got": "MMIMMMM",
+        "gold": "MIMMIMM",
+        "seconds": 2.14,
+        "output_tokens": 233,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 0,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 1.797,
+        "output_tokens": 258,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.356,
+        "output_tokens": 226,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.586,
+        "output_tokens": 307,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDMDPP",
+        "gold": "DDDMDDD",
+        "seconds": 2.221,
+        "output_tokens": 338,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "PIIIIII",
+        "seconds": 1.872,
+        "output_tokens": 201,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 0,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.623,
+        "output_tokens": 254,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 0,
+        "ok": true,
+        "got": "IDDIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.444,
+        "output_tokens": 269,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 0,
+        "ok": true,
+        "got": "MMMMIII",
+        "gold": "MMMMIIM",
+        "seconds": 2.288,
+        "output_tokens": 275,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.798,
+        "output_tokens": 371,
+        "input_tokens": 1296
+      },
+      {
+        "fixture": "excellent",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.71,
+        "output_tokens": 340,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 1,
+        "ok": true,
+        "got": "DIIIDDD",
+        "gold": "DIIIDID",
+        "seconds": 2.31,
+        "output_tokens": 256,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 1,
+        "ok": true,
+        "got": "MMMMIMM",
+        "gold": "MIMMIMM",
+        "seconds": 1.658,
+        "output_tokens": 232,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 1,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 1.689,
+        "output_tokens": 266,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.226,
+        "output_tokens": 235,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.142,
+        "output_tokens": 318,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDMDMP",
+        "gold": "DDDMDDD",
+        "seconds": 2.369,
+        "output_tokens": 300,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 1,
+        "ok": true,
+        "got": "PIDDDDI",
+        "gold": "PIIIIII",
+        "seconds": 2.132,
+        "output_tokens": 224,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 1,
+        "ok": true,
+        "got": "PIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.136,
+        "output_tokens": 255,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 1,
+        "ok": true,
+        "got": "IDDIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.534,
+        "output_tokens": 279,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 1,
+        "ok": true,
+        "got": "MMMMIII",
+        "gold": "MMMMIIM",
+        "seconds": 2.001,
+        "output_tokens": 279,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.625,
+        "output_tokens": 372,
+        "input_tokens": 1296
+      },
+      {
+        "fixture": "excellent",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.41,
+        "output_tokens": 341,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 2,
+        "ok": true,
+        "got": "DIIIIID",
+        "gold": "DIIIDID",
+        "seconds": 2.232,
+        "output_tokens": 265,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 2,
+        "ok": true,
+        "got": "MMMMMMM",
+        "gold": "MIMMIMM",
+        "seconds": 1.807,
+        "output_tokens": 235,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 2,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 1.544,
+        "output_tokens": 243,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 1.837,
+        "output_tokens": 226,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.456,
+        "output_tokens": 317,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDMDMP",
+        "gold": "DDDMDDD",
+        "seconds": 2.228,
+        "output_tokens": 300,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 2,
+        "ok": true,
+        "got": "PIDDDDI",
+        "gold": "PIIIIII",
+        "seconds": 1.803,
+        "output_tokens": 224,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 2,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.235,
+        "output_tokens": 246,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 2,
+        "ok": true,
+        "got": "IDDIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.824,
+        "output_tokens": 284,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 2,
+        "ok": true,
+        "got": "MMMMIMI",
+        "gold": "MMMMIIM",
+        "seconds": 2.282,
+        "output_tokens": 275,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 2,
+        "ok": true,
+        "got": "DPDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.724,
+        "output_tokens": 383,
+        "input_tokens": 1296
+      }
+    ],
+    "gpt-5.4-nano": [
+      {
+        "fixture": "excellent",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.447,
+        "output_tokens": 409,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 0,
+        "ok": true,
+        "got": "DIIIDID",
+        "gold": "DIIIDID",
+        "seconds": 2.325,
+        "output_tokens": 291,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 0,
+        "ok": true,
+        "got": "MPIMIIM",
+        "gold": "MIMMIMM",
+        "seconds": 3.366,
+        "output_tokens": 322,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 0,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.96,
+        "output_tokens": 289,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.291,
+        "output_tokens": 272,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 0,
+        "ok": true,
+        "got": "PDDDDDP",
+        "gold": "DDDDDDD",
+        "seconds": 2.998,
+        "output_tokens": 331,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 0,
+        "ok": true,
+        "got": "PDDMIII",
+        "gold": "DDDMDDD",
+        "seconds": 3.53,
+        "output_tokens": 330,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 0,
+        "ok": true,
+        "got": "PIPDIII",
+        "gold": "PIIIIII",
+        "seconds": 3.13,
+        "output_tokens": 309,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 0,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.788,
+        "output_tokens": 268,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 0,
+        "ok": true,
+        "got": "IDIIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.861,
+        "output_tokens": 274,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 0,
+        "ok": true,
+        "got": "MMIMIII",
+        "gold": "MMMMIIM",
+        "seconds": 3.223,
+        "output_tokens": 310,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 0,
+        "ok": true,
+        "got": "PDDPIIP",
+        "gold": "DDDDDDD",
+        "seconds": 2.953,
+        "output_tokens": 369,
+        "input_tokens": 1296
+      },
+      {
+        "fixture": "excellent",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.964,
+        "output_tokens": 432,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 1,
+        "ok": true,
+        "got": "DIIIDID",
+        "gold": "DIIIDID",
+        "seconds": 2.535,
+        "output_tokens": 295,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 1,
+        "ok": true,
+        "got": "MMIMIIM",
+        "gold": "MIMMIMM",
+        "seconds": 2.762,
+        "output_tokens": 308,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 1,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.622,
+        "output_tokens": 275,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.618,
+        "output_tokens": 281,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.687,
+        "output_tokens": 318,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 1,
+        "ok": true,
+        "got": "PDDPIIP",
+        "gold": "DDDMDDD",
+        "seconds": 2.548,
+        "output_tokens": 303,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 1,
+        "ok": true,
+        "got": "PIPDIII",
+        "gold": "PIIIIII",
+        "seconds": 2.869,
+        "output_tokens": 270,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 1,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.472,
+        "output_tokens": 274,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 1,
+        "ok": true,
+        "got": "IDIIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.695,
+        "output_tokens": 281,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 1,
+        "ok": true,
+        "got": "MPIMIII",
+        "gold": "MMMMIIM",
+        "seconds": 3.452,
+        "output_tokens": 358,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 1,
+        "ok": true,
+        "got": "PPDIIII",
+        "gold": "DDDDDDD",
+        "seconds": 2.657,
+        "output_tokens": 325,
+        "input_tokens": 1296
+      },
+      {
+        "fixture": "excellent",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.56,
+        "output_tokens": 401,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 2,
+        "ok": true,
+        "got": "DIIIDID",
+        "gold": "DIIIDID",
+        "seconds": 3.613,
+        "output_tokens": 283,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 2,
+        "ok": true,
+        "got": "MMIMIIM",
+        "gold": "MIMMIMM",
+        "seconds": 2.75,
+        "output_tokens": 289,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 2,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.574,
+        "output_tokens": 288,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.204,
+        "output_tokens": 268,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.296,
+        "output_tokens": 357,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 2,
+        "ok": true,
+        "got": "PDDPDID",
+        "gold": "DDDMDDD",
+        "seconds": 3.113,
+        "output_tokens": 331,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 2,
+        "ok": true,
+        "got": "PIIPIII",
+        "gold": "PIIIIII",
+        "seconds": 2.87,
+        "output_tokens": 273,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 2,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 2.53,
+        "output_tokens": 267,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 2,
+        "ok": true,
+        "got": "PPPIIII",
+        "gold": "PDDIIII",
+        "seconds": 2.62,
+        "output_tokens": 314,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 2,
+        "ok": true,
+        "got": "MMIIIII",
+        "gold": "MMMMIIM",
+        "seconds": 2.917,
+        "output_tokens": 280,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 2,
+        "ok": true,
+        "got": "PDDPPIP",
+        "gold": "DDDDDDD",
+        "seconds": 3.104,
+        "output_tokens": 388,
+        "input_tokens": 1296
+      }
+    ],
+    "gpt-5-mini": [
+      {
+        "fixture": "excellent",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.209,
+        "output_tokens": 340,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 0,
+        "ok": true,
+        "got": "DIDIDDD",
+        "gold": "DIIIDID",
+        "seconds": 3.182,
+        "output_tokens": 392,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 0,
+        "ok": true,
+        "got": "MMMMMMM",
+        "gold": "MIMMIMM",
+        "seconds": 3.701,
+        "output_tokens": 463,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 0,
+        "ok": true,
+        "got": "PIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 3.294,
+        "output_tokens": 378,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.452,
+        "output_tokens": 340,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.22,
+        "output_tokens": 394,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDMDPP",
+        "gold": "DDDMDDD",
+        "seconds": 4.848,
+        "output_tokens": 438,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 0,
+        "ok": true,
+        "got": "PMPDIIP",
+        "gold": "PIIIIII",
+        "seconds": 2.725,
+        "output_tokens": 378,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 0,
+        "ok": true,
+        "got": "IIPIIII",
+        "gold": "IIIIIII",
+        "seconds": 3.865,
+        "output_tokens": 396,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 0,
+        "ok": true,
+        "got": "IDIIIIP",
+        "gold": "PDDIIII",
+        "seconds": 3.943,
+        "output_tokens": 423,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 0,
+        "ok": true,
+        "got": "MMMPMPM",
+        "gold": "MMMMIIM",
+        "seconds": 4.846,
+        "output_tokens": 427,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 0,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 5.095,
+        "output_tokens": 470,
+        "input_tokens": 1296
+      },
+      {
+        "fixture": "excellent",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 4.173,
+        "output_tokens": 435,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 1,
+        "ok": true,
+        "got": "DPDIDDD",
+        "gold": "DIIIDID",
+        "seconds": 3.617,
+        "output_tokens": 394,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 1,
+        "ok": true,
+        "got": "MMMMMIM",
+        "gold": "MIMMIMM",
+        "seconds": 2.974,
+        "output_tokens": 302,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 1,
+        "ok": true,
+        "got": "PIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 4.861,
+        "output_tokens": 421,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.177,
+        "output_tokens": 248,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 3.622,
+        "output_tokens": 307,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDMDPM",
+        "gold": "DDDMDDD",
+        "seconds": 5.196,
+        "output_tokens": 459,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 1,
+        "ok": true,
+        "got": "DPDDIID",
+        "gold": "PIIIIII",
+        "seconds": 2.734,
+        "output_tokens": 385,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 1,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 3.644,
+        "output_tokens": 412,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 1,
+        "ok": true,
+        "got": "IDIIIII",
+        "gold": "PDDIIII",
+        "seconds": 3.99,
+        "output_tokens": 415,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 1,
+        "ok": true,
+        "got": "MMMMIIM",
+        "gold": "MMMMIIM",
+        "seconds": 3.75,
+        "output_tokens": 410,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 1,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 4.858,
+        "output_tokens": 471,
+        "input_tokens": 1296
+      },
+      {
+        "fixture": "excellent",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 4.248,
+        "output_tokens": 458,
+        "input_tokens": 1309
+      },
+      {
+        "fixture": "main_idea_only",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDIDDD",
+        "gold": "DIIIDID",
+        "seconds": 3.549,
+        "output_tokens": 393,
+        "input_tokens": 1176
+      },
+      {
+        "fixture": "misunderstood",
+        "rep": 2,
+        "ok": true,
+        "got": "MMMMMIM",
+        "gold": "MIMMIMM",
+        "seconds": 3.195,
+        "output_tokens": 409,
+        "input_tokens": 1210
+      },
+      {
+        "fixture": "nothing",
+        "rep": 2,
+        "ok": true,
+        "got": "PIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 4.035,
+        "output_tokens": 389,
+        "input_tokens": 1126
+      },
+      {
+        "fixture": "broken_grammar_correct",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 2.958,
+        "output_tokens": 342,
+        "input_tokens": 1267
+      },
+      {
+        "fixture": "vietnamese_pattern",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 4.348,
+        "output_tokens": 404,
+        "input_tokens": 1274
+      },
+      {
+        "fixture": "wrong_date",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDPDPM",
+        "gold": "DDDMDDD",
+        "seconds": 5.014,
+        "output_tokens": 445,
+        "input_tokens": 1196
+      },
+      {
+        "fixture": "short_fragments",
+        "rep": 2,
+        "ok": true,
+        "got": "DPPDIII",
+        "gold": "PIIIIII",
+        "seconds": 4.114,
+        "output_tokens": 397,
+        "input_tokens": 1097
+      },
+      {
+        "fixture": "off_topic",
+        "rep": 2,
+        "ok": true,
+        "got": "IIIIIII",
+        "gold": "IIIIIII",
+        "seconds": 4.012,
+        "output_tokens": 395,
+        "input_tokens": 1161
+      },
+      {
+        "fixture": "cause_only",
+        "rep": 2,
+        "ok": true,
+        "got": "IDIIIID",
+        "gold": "PDDIIII",
+        "seconds": 4.091,
+        "output_tokens": 401,
+        "input_tokens": 1087
+      },
+      {
+        "fixture": "contradiction",
+        "rep": 2,
+        "ok": true,
+        "got": "MMMIMIM",
+        "gold": "MMMMIIM",
+        "seconds": 3.822,
+        "output_tokens": 405,
+        "input_tokens": 1158
+      },
+      {
+        "fixture": "synonyms_no_keywords",
+        "rep": 2,
+        "ok": true,
+        "got": "DDDDDDD",
+        "gold": "DDDDDDD",
+        "seconds": 4.698,
+        "output_tokens": 465,
+        "input_tokens": 1296
+      }
+    ]
+  }
+}

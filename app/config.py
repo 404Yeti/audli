@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     elevenlabs_similarity_boost: float = Field(default=.75, ge=0, le=1)
     elevenlabs_style: float = Field(default=0, ge=0, le=1)
     elevenlabs_speaker_boost: bool = True
+    # AUD-82: stream-copy tag stripping for tutor speech instead of a full re-encode (default off).
+    tutor_audio_fast_sanitize: bool = False
+    # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
+    cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)
     tutor_tts_fallback_timeout_seconds: float = Field(default=20, gt=0, le=60)
     data_dir: Path = Path('data')
@@ -146,6 +150,8 @@ class Settings(BaseSettings):
                 raise ValueError('ElevenLabs tutor TTS requires AUDLI_PROVIDER=openai')
             if not self.elevenlabs_api_key or not self.elevenlabs_api_key.get_secret_value().strip():
                 raise ValueError('ElevenLabs tutor TTS requires ELEVENLABS_API_KEY')
+        if self.cors_enabled and not self.allowed_origins:
+            raise ValueError('AUDLI_CORS_ENABLED requires explicit AUDLI_ALLOWED_ORIGINS')
         if not self.low_score < self.edge_low < self.edge_high:
             raise ValueError('Expected low_score < edge_low < edge_high')
         if self.environment == 'production' and self.persistence != 'postgres':

@@ -13,7 +13,7 @@ from app.adaptive import adapt
 from app.audio import validate_upload, sanitize_generated_audio
 from app.config import Settings
 from app.diagnostics import operation, report_failure, timed_lock, request_timings
-from app.telemetry import aggregator, summary_loop
+from app.telemetry import aggregator, loop_lag_loop, summary_loop
 from app.telemetry_api import register_telemetry_routes
 from time import perf_counter
 from app.evaluation import score_judgments
@@ -68,18 +68,20 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
 
     @asynccontextmanager
     async def lifespan(app):
-        summary = None
+        summary = lag = None
         try:
             from app.services.tutor_tts import emit_configuration
             emit_configuration(settings)
             from app.default_passage import emit_default_passage_configuration
             emit_default_passage_configuration(settings)
             summary = asyncio.create_task(summary_loop(settings.latency_summary_seconds)) if settings.latency_aggregates else None
+            lag = asyncio.create_task(loop_lag_loop()) if settings.latency_aggregates else None
             yield
         finally:
-            if summary:
-                summary.cancel()
-                await asyncio.gather(summary, return_exceptions=True)
+            for task in (summary, lag):
+                if task:
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
             passage_limits.close()
             database.close()
             if identity is not None:
@@ -130,7 +132,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             response = JSONResponse(status_code=503, content={'detail': 'Audli could not finish that step. Check server configuration and try again; your progress is safe.'})
         finally:
             if db_token is not None:
-                finish_request(request.method, (perf_counter() - started) * 1000)
+                finish_request(request.method, (perf_counter() - started) * 1000,
+                               getattr(request.scope.get('route'), 'path', None))
                 request_db.reset(db_token)
             request_timings.reset(token)
             if settings.latency_aggregates:

@@ -14,7 +14,7 @@ from app.telemetry import aggregator
 # Per request: one dict shared by every task/thread the request spawns (ContextVars copy the reference).
 request_db: ContextVar[dict | None] = ContextVar('audli_request_db', default=None)
 
-KEYS = ('queries', 'query_ms', 'checkouts', 'checkout_ms', 'auth_ms', 'lease_ms')
+KEYS = ('queries', 'query_ms', 'checkouts', 'checkout_ms', 'auth_ms', 'lease_ms', 'transactions', 'txn_end_ms')
 
 
 def new_request_accumulator() -> dict:
@@ -69,6 +69,13 @@ def instrument_engine(engine, kind: str) -> None:
         finally:
             aggregator.record(f'{kind}.connect_physical', (perf_counter() - began) * 1000)
 
+    if main:
+        @event.listens_for(engine, 'begin')
+        def began(conn):
+            accumulator = request_db.get()
+            if accumulator is not None:
+                accumulator['transactions'] += 1
+
     pool = engine.pool
     original_connect = pool.connect
 
@@ -85,6 +92,23 @@ def instrument_engine(engine, kind: str) -> None:
     pool.connect = timed_connect
 
     dialect = engine.dialect
+
+    def timed_end(name, original):
+        # COMMIT or ROLLBACK reaching the server (including the reset-on-return rollback after a read) is a network
+        # round trip; on an idle connection the driver returns at once, so counts show how many were real.
+        def wrapper(dbapi_connection):
+            began = perf_counter()
+            try:
+                return original(dbapi_connection)
+            finally:
+                elapsed = (perf_counter() - began) * 1000
+                aggregator.record(f'{kind}.{name}', elapsed)
+                if main:
+                    _add('txn_end_ms', None, elapsed)
+        return wrapper
+    dialect.do_commit = timed_end('commit', dialect.do_commit)
+    dialect.do_rollback = timed_end('rollback', dialect.do_rollback)
+
     original_ping = dialect.do_ping
 
     def timed_ping(dbapi_connection):
@@ -96,7 +120,7 @@ def instrument_engine(engine, kind: str) -> None:
     dialect.do_ping = timed_ping
 
 
-def finish_request(method: str, total_ms: float) -> None:
+def finish_request(method: str, total_ms: float, route: str | None = None) -> None:
     """Fold the per-request totals into aggregates. Reads and writes are kept apart; 'unattributed' still
     contains provider calls, commits/rollbacks, serialization and event-loop waits."""
     accumulator = request_db.get()
@@ -107,6 +131,11 @@ def finish_request(method: str, total_ms: float) -> None:
     aggregator.record(f'req.{group}.database', database)
     aggregator.record(f'req.{group}.auth_verify', accumulator['auth_ms'])
     aggregator.record(f'req.{group}.lease', accumulator['lease_ms'])
-    aggregator.record(f'req.{group}.unattributed', max(0.0, total_ms - database - accumulator['auth_ms'] - accumulator['lease_ms']))
+    aggregator.record(f'req.{group}.txn_end', accumulator['txn_end_ms'])
+    aggregator.record(f'req.{group}.unattributed', max(0.0, total_ms - database - accumulator['txn_end_ms']
+                                                        - accumulator['auth_ms'] - accumulator['lease_ms']))
+    # Route template only (e.g. POST /api/lessons/{lesson_id}/heard), never the concrete path.
+    aggregator.record_route(f'{method} {route}' if route else 'unmatched', accumulator['queries'], accumulator['checkouts'],
+                            accumulator['transactions'])
     aggregator.record_gauge(f'req.{group}.db_queries', accumulator['queries'])
     aggregator.record_gauge(f'req.{group}.db_checkouts', accumulator['checkouts'])

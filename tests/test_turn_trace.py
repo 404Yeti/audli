@@ -194,11 +194,12 @@ def test_lease_polling_runs_on_the_event_loop_and_is_traced(tmp_path, repository
     if repo.engine.dialect.name != 'postgresql':
         pytest.skip('The account lease exists only on PostgreSQL.')
     monkeypatch.setattr(turntrace, 'BLOCK_MIN_MS', 0.0)
+    monkeypatch.setattr(turntrace, 'MAX_BLOCKS', 500)          # the per-request cap keeps the LONGEST blocks; every kind must survive here
     from app.config import Settings as S
     import httpx
     from test_auth import auth_response, settings_for
     http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path, latency_aggregates=True, turn_trace=True), FakeProvider(), repository=repo, auth_client=http)
+    app = create_app(settings_for(tmp_path, latency_aggregates=True, turn_trace=True, db_offload=False), FakeProvider(), repository=repo, auth_client=http)
     caplog.set_level(logging.INFO, logger='uvicorn.error')
     async def run():
         async with client_for(app) as client:

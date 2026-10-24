@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     # AUD-87: skip the pool pre-ping for connections used within the last db_lazy_ping_seconds (default 5, the window in which a dying connection fails one request instead of being replaced silently). Off = ping before every checkout (previous behaviour).
     db_lazy_ping: bool = False
     db_lazy_ping_seconds: float = Field(default=5, ge=1, le=300)
+    # AUD-87: run the synchronous database sections of the hot turn routes and the lease middleware in worker threads. Off = previous behaviour.
+    db_offload: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

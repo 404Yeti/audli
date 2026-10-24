@@ -251,9 +251,11 @@ def test_a_cancelled_request_keeps_the_account_lease_until_its_section_finished(
     if repo.engine.dialect.name != 'postgresql':
         pytest.skip('The account lease exists only on PostgreSQL.')
     original = SQLProgressRepository.exercise
+    entered, release = threading.Event(), threading.Event()
 
     def slow(self, exercise_id):
-        time.sleep(.6)
+        entered.set()
+        assert release.wait(20)                               # the section stays "writing" until the test lets it finish
         return original(self, exercise_id)
     monkeypatch.setattr(SQLProgressRepository, 'exercise', slow)
     http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
@@ -267,12 +269,16 @@ def test_a_cancelled_request_keeps_the_account_lease_until_its_section_finished(
     async def run():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://t') as client:
             request = asyncio.create_task(client.post('/api/exercises/00000000-0000-4000-8000-000000000042/conversation/listened', headers=HEADERS))
-            await asyncio.sleep(.35)                              # inside the section (lease held, section sleeping)
+            assert await asyncio.to_thread(entered.wait, 20)       # inside the section: lease held, section blocked
             request.cancel()
-            await asyncio.sleep(.05)
+            await asyncio.sleep(.2)
             held.append(not await asyncio.to_thread(lease_is_free))     # cancelled, yet the lease is still held
-            await asyncio.sleep(.8)
-            held.append(await asyncio.to_thread(lease_is_free))          # released once the section is over
+            release.set()
+            for _ in range(100):                                         # released once the section is over
+                if await asyncio.to_thread(lease_is_free):
+                    held.append(True)
+                    break
+                await asyncio.sleep(.05)
             with pytest.raises(asyncio.CancelledError):
                 await request
     asyncio.run(run())

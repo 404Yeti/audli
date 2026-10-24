@@ -194,6 +194,7 @@ def test_lease_polling_runs_on_the_event_loop_and_is_traced(tmp_path, repository
     if repo.engine.dialect.name != 'postgresql':
         pytest.skip('The account lease exists only on PostgreSQL.')
     monkeypatch.setattr(turntrace, 'BLOCK_MIN_MS', 0.0)
+    monkeypatch.setattr(turntrace, 'MAX_BLOCKS', 500)          # the per-request cap keeps the LONGEST blocks; every kind must survive here
     from app.config import Settings as S
     import httpx
     from test_auth import auth_response, settings_for

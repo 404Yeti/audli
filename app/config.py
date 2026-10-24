@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     request_read_memo: bool = False
     # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.
     lease_pool: bool = False
+    # AUD-87: run the synchronous database sections of the hot turn routes and the lease middleware in worker threads. Off = previous behaviour.
+    db_offload: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

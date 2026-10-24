@@ -32,6 +32,7 @@ class LessonRevision(StrictModel):
 
 def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, public_exercise, passage_limits, new_lock):
     acknowledgment_lock = new_lock()
+    offload = app.state.offload   # AUD-87: database sections in worker threads when AUDLI_DB_OFFLOAD is on; inline otherwise
     limits = app.state.limits
 
     def settle(lesson):
@@ -103,21 +104,23 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         return key.startswith(('homework-', 'lesson-farewell', 'planner-'))
 
     async def speech(text, key, purpose=None, lesson=None):
-        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'homework' if key.startswith('homework-') else 'classroom')
+        def lookup():
+            tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'homework' if key.startswith('homework-') else 'classroom')
+            # Cache is scoped to the verified owner and complete spoken message.
+            name = sha256((str(repo.learner_id) + ':' + tutor.signature + ':' + key + ':' + text).encode()).hexdigest() + '.' + tutor.kind
+            return tutor, name, repo.audio_blob(name)
+        tutor, name, data = await offload.run(lookup)
         kind = tutor.kind
-        # Cache is scoped to the verified owner and complete spoken message.
-        name = sha256((str(repo.learner_id) + ':' + tutor.signature + ':' + key + ':' + text).encode()).hexdigest() + '.' + kind
-        data = repo.audio_blob(name)
         if data is None:
             # Only a cache miss is billable: saved audio replays freely, in cooldown too.
-            limits.admit(purpose or ('wrapup' if wrapup_key(key) else 'practice'), 'lesson.speech:' + key.split('-v')[0], lesson)
+            await offload.run(limits.admit, purpose or ('wrapup' if wrapup_key(key) else 'practice'), 'lesson.speech:' + key.split('-v')[0], lesson)
             with operation(settings, 'lesson.tts_provider'):
                 generated = await tutor.speak(text)
             with operation(settings, 'lesson.tts_sanitization'):
                 data = await tutor.sanitize(generated)
             with operation(settings, 'lesson.audio_persistence'):
                 if not tutor.fallback:
-                    repo.cache_lesson_audio(name, data)
+                    await offload.run(repo.cache_lesson_audio, name, data)
         return Response(data, media_type='audio/wav' if kind == 'wav' else 'audio/mpeg', headers=tutor.headers)
 
     from app.planner import preferred_topic

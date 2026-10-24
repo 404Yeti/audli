@@ -10,11 +10,23 @@ ClientStage = Literal['silence_detection', 'recording_finalization', 'upload_tra
     'request_submission', 'response_headers', 'first_audio_byte', 'audio_body_ready',
     'acknowledgment_playback', 'retry_playback', 'acknowledgment_duration', 'coaching_readiness',
     'coaching_wait_after_ack', 'longest_pause', 'speech_span']
+Milliseconds = Annotated[int, Field(ge=0, le=300000)]
+
+
+class RequestSpan(StrictModel):
+    # AUD-85: one request of a turn as the browser saw it. Fixed kinds, integers only.
+    kind: Literal['upload', 'assess', 'ack', 'coach']
+    start: Milliseconds       # request start, relative to the detected end of speech
+    token: Milliseconds       # time spent obtaining the access token before the request was sent
+    ttfb: Milliseconds        # request sent -> response headers
 
 
 class TurnReport(StrictModel):
     # Elapsed milliseconds per stage. No identifiers, no text, no timestamps.
-    stages: dict[ClientStage, Annotated[int, Field(ge=0, le=300000)]] = Field(min_length=1, max_length=len(ClientStage.__args__))
+    stages: dict[ClientStage, Milliseconds] = Field(min_length=1, max_length=len(ClientStage.__args__))
+    # AUD-85, only with AUDLI_TURN_TRACE: a random per-turn id (not derived from any account) and the turn's request spans.
+    turn: str | None = Field(default=None, pattern=r'^[0-9a-f]{12}$')
+    requests: list[RequestSpan] = Field(default_factory=list, max_length=16)
 
 
 def register_telemetry_routes(app, settings):
@@ -24,4 +36,5 @@ def register_telemetry_routes(app, settings):
         if settings.latency_aggregates:
             for stage, elapsed in body.stages.items():
                 aggregator.record_client(stage, elapsed)
+            aggregator.record_client_trace(body.turn, body.requests, body.stages)
         return Response(status_code=204)

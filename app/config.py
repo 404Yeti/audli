@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     latency_telemetry: bool = False
     # Numeric-only aggregate timings logged periodically; no per-request headers, IDs or content.
     latency_aggregates: bool = False
+    # AUD-85: per-turn request tracing (random turn ids, numbers only). Needs latency_aggregates; diagnostic, off by default.
+    turn_trace: bool = False
     latency_summary_seconds: float = Field(default=300, ge=30, le=3600)
     # AUD-70: one lock per verified learner instead of one process-wide lock. Off = previous behavior.
     per_learner_locks: bool = False

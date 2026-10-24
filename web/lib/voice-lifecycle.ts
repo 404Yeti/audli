@@ -4,7 +4,7 @@ import { authenticatedFetch, currentAuthRevision, LessonLifetime, limitErrorFrom
 import { captureRecording, recordingDiagnostic, InterruptedRecording } from './recording';
 import { microphoneError } from './session';
 import { turnDetector } from './hands-free';
-import { measureTurn, turnTiming, turnValue, speechLatency, measuredAudioBody } from './turn-timing';
+import { measureTurn, turnTiming, turnValue, speechLatency, measuredAudioBody, beginTurnTrace } from './turn-timing';
 import { installTurnReporting } from './turn-reporting';
 import { PreparedAudio } from './prepared-audio';
 import type { LessonCheckpoint } from './lesson-lifecycle';
@@ -261,7 +261,7 @@ export function useVoiceLifecycle() {
               const turn = detect(Date.now(), rms); setActivity(turn.activity);
               if (turn.activity) lastVoiceAt = performance.now();
               if (turn.end) {
-                latency.current.begin(lastVoiceAt); turnTiming('silence_detection', lastVoiceAt); stoppedAt = performance.now();
+                latency.current.begin(lastVoiceAt); beginTurnTrace(lastVoiceAt); turnTiming('silence_detection', lastVoiceAt); stoppedAt = performance.now();
                 const pauses = detect.stats(); if (pauses) { turnValue('longest_pause', pauses.longestPauseMs); turnValue('speech_span', pauses.speechSpanMs); }
                 setState('Thinking'); setActivity(false);
                 if (interval) clearInterval(interval); capture?.stop();

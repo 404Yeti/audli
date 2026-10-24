@@ -30,6 +30,7 @@ from app.security import LocalRequestGuard
 from app.limits import LessonLimits
 from app.lesson_limit import LimitRefused
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
+from app import turntrace
 from app.dbtiming import instrument_engine, request_db, new_request_accumulator, finish_request
 
 class Onboarding(StrictModel):
@@ -126,11 +127,16 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 provider = TutorTTSProvider(provider, settings)
         return provider
 
+    turntrace.enabled = bool(settings.turn_trace and settings.latency_aggregates)
+
     @app.middleware('http')
     async def privacy_headers(request: Request, call_next):
         timings = [] if settings.latency_telemetry or settings.environment == 'development' else None
         token = request_timings.set(timings)
         db_token = request_db.set(new_request_accumulator()) if settings.latency_aggregates else None
+        trace = turntrace.begin(request.scope['headers'])
+        trace_token = turntrace.request_trace.set(trace) if trace is not None else None
+        response = None
         started = perf_counter()
         try:
             with operation(settings, 'request_total'):
@@ -140,9 +146,14 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             response = JSONResponse(status_code=503, content={'detail': 'Audli could not finish that step. Check server configuration and try again; your progress is safe.'})
         finally:
             if db_token is not None:
+                if trace is not None:
+                    turntrace.finish(trace, request.method, getattr(request.scope.get('route'), 'path', None),
+                                     getattr(response, 'status_code', 0), (perf_counter() - started) * 1000, request_db.get())
                 finish_request(request.method, (perf_counter() - started) * 1000,
                                getattr(request.scope.get('route'), 'path', None))
                 request_db.reset(db_token)
+            if trace_token is not None:
+                turntrace.request_trace.reset(trace_token)
             request_timings.reset(token)
             if settings.latency_aggregates:
                 # Route template only (e.g. /api/lessons/{lesson_id}/heard), never the concrete path.

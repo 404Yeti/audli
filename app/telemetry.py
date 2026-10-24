@@ -12,6 +12,8 @@ import re
 import threading
 from bisect import bisect_left
 
+from app import turntrace
+
 BUCKETS_MS = (25, 50, 100, 250, 500, 1000, 2000, 3000, 5000, 8000, 12000, 20000, 30000, 60000)
 MAX_STAGES = 160
 MAX_DEPTH = 16
@@ -95,6 +97,11 @@ class LatencyAggregator:
         else:
             self.record('client.' + stage, value_ms)
 
+    def record_client_trace(self, turn, requests, stages) -> None:
+        """Log the browser's per-turn spans keyed by the random turn id. No-op unless tracing is on."""
+        if turn and turntrace.enabled:
+            turntrace.log_client(turn, [item.model_dump() for item in requests], stages)
+
     def record_route(self, name: str, queries: int, checkouts: int, transactions: int) -> None:
         """Database work of one request, keyed by route template (never a concrete path). Bounded; overflow joins 'other'."""
         key = name if STAGE_NAME.match(name) else 'other'
@@ -176,7 +183,9 @@ async def loop_lag_loop(interval: float = LAG_INTERVAL_SECONDS) -> None:
     while True:
         expected = loop.time() + interval
         await asyncio.sleep(interval)
-        aggregator.record('loop.lag', max(0.0, (loop.time() - expected) * 1000))
+        lag = max(0.0, (loop.time() - expected) * 1000)
+        aggregator.record('loop.lag', lag)
+        turntrace.report_stall(lag)
 
 
 async def summary_loop(interval_seconds: float) -> None:

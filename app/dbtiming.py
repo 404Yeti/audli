@@ -9,6 +9,7 @@ from time import perf_counter
 
 from sqlalchemy import event
 
+from app import turntrace
 from app.telemetry import aggregator
 
 # Per request: one dict shared by every task/thread the request spawns (ContextVars copy the reference).
@@ -40,6 +41,7 @@ def span(name: str, accumulate: str | None = None):
         aggregator.record(name, elapsed)
         if accumulate:
             _add(accumulate, None, elapsed)
+        turntrace.span(name, started, elapsed)
 
 
 def instrument_engine(engine, kind: str) -> None:
@@ -59,6 +61,7 @@ def instrument_engine(engine, kind: str) -> None:
         aggregator.record(f'{kind}.query', elapsed)
         if main:
             _add('query_ms', 'queries', elapsed)
+        turntrace.sync_section(f'{kind}.query', began, elapsed)
 
     @event.listens_for(engine, 'do_connect')
     def physical_connect(dialect, connection_record, cargs, cparams):
@@ -89,6 +92,7 @@ def instrument_engine(engine, kind: str) -> None:
             aggregator.record(f'{kind}.checkout', elapsed)
             if main:
                 _add('checkout_ms', 'checkouts', elapsed)
+            turntrace.sync_section(f'{kind}.checkout', began, elapsed)   # includes any ping or physical connect
     pool.connect = timed_connect
 
     dialect = engine.dialect
@@ -105,6 +109,7 @@ def instrument_engine(engine, kind: str) -> None:
                 aggregator.record(f'{kind}.{name}', elapsed)
                 if main:
                     _add('txn_end_ms', None, elapsed)
+                turntrace.sync_section(f'{kind}.{name}', began, elapsed)
         return wrapper
     dialect.do_commit = timed_end('commit', dialect.do_commit)
     dialect.do_rollback = timed_end('rollback', dialect.do_rollback)

@@ -11,7 +11,7 @@ One real class (23:46 UTC, 6 exercise turns, one learner): a turn took ~26 s fro
 | Route (per call) | Statements | Checkouts | Repeated identical statements | Round trips now | x 72 ms |
 |---|---|---|---|---|---|
 | `POST /attempts/{id}/assess` (avg of a follow-up turn and a final turn) | 48 | 17 | 16 | **99** | 7.1 s |
-| `POST /exercises/{id}/conversation/ready` (only flips a state flag) | **31** | 14 | 8 | **73** | 5.3 s |
+| `POST /exercises/{id}/conversation/ready` (only flips a state flag; ~17 of its 31 statements are the conversation rewrite, ~11 build the response) | **31** | 14 | 8 | **73** | 5.3 s |
 | `POST /lessons/{id}/exercise` | 21 | 12 | 7 | 57 | 4.1 s |
 | `GET /exercises/{id}/conversation` | 11 | 11 | 5 | 44 | 3.2 s |
 | `POST /exercises/{id}/conversation/listened` | 11 | 10 | 6 | 41 | 3.0 s |
@@ -49,7 +49,7 @@ Round trips are cumulative on the synthetic lesson; time uses 72 ms per round tr
 | **2** | **Read-only operations in autocommit**: no `BEGIN`, no end-of-transaction round trip. Reads only; locking reads (`FOR SHARE`) and all writes stay transactional | `AUDLI_DB_READ_AUTOCOMMIT` | -55 = **-3.9 s** | Medium: misclassifying a write as a read |
 | **3** | **Batch conversation writes**: one multi-row evidence insert; fold the "prior" selects into the upsert (preserve `created_at`, keep the foreign-exercise check) | `AUDLI_DB_BATCH_CONVERSATION_WRITES` | -17 = **-1.2 s** | Medium: ownership checks must be preserved |
 | **4** | **Per-request memo of immutable `exercises` rows** keyed by (learner, exercise) in a request-scoped ContextVar | `AUDLI_DB_REQUEST_MEMO` | -9 = **-0.7 s** | Low-medium: stale if the row ever changes |
-| **5** | **State-only transitions**: `/conversation/ready` updates only `conversations.state` (1 read + 1 update, children untouched) | `AUDLI_DB_STATE_ONLY_TRANSITIONS` | none inside a turn; **-4.9 s once per exercise**, on the wait after the feedback audio (73 to 5 round trips) | Low |
+| **5** | **State-only transitions**: `/conversation/ready` updates only the `conversations` row instead of rewriting every child row. **Corrected 2026-10-24:** the route still performs the reads that build its response (about 11 statements), so only the save is removed | `AUDLI_DB_STATE_ONLY_TRANSITIONS` | none inside a turn; **about -17 round trips (73 to 56), about -1.2 s once per exercise**, on the wait after the feedback audio | Low |
 | Total phases 1-4 | | | **~8.1 s modelled** of 12.5 s database time (-65%) | |
 
 **Lock and loop phases (need separate approval; none removes the lock)**
@@ -95,4 +95,4 @@ Handlers' own database calls stay synchronous for now. After phases 1-5 the bloc
 * Stop conditions: any rise in 5xx, `AccountUnavailable`, lock timeouts, or a golden-dump diff in production-like staging.
 
 ## 10. Recommended first step
-Merge nothing risky yet. Next PR: **Phase 0 + the round-trip budget test**, then **Phase 5** (lowest risk, large win: 73 to 5 round trips), then **P1** and **P2**, which together are 80% of the measured saving.
+Merge nothing risky yet. Next PR: **Phase 0 + the round-trip budget test**, then **Phase 5** (lowest risk, but a modest win: about 17 of `ready`'s 73 round trips; my first estimate of 73 to 5 forgot the response-building reads), then **P1** and **P2**, which together are 80% of the measured saving.

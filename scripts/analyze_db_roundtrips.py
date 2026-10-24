@@ -171,7 +171,7 @@ def histogram(rows: list[dict], route: str) -> Counter:
 
 
 PHASES = ('now', 'P1 no ping on hot connections', 'P2 read-only autocommit', 'P3 batch evidence + drop prior-selects',
-          'P4 per-request memo of immutable exercise rows', 'P5 state-only transitions')
+          'P4 per-request memo of immutable exercise rows', 'P5 state-only transitions, ALONE vs now (overlaps P3)')
 
 
 def phase_model(row: dict, label: str) -> list[int]:
@@ -190,8 +190,14 @@ def phase_model(row: dict, label: str) -> list[int]:
     rtt3 = rtt2 - batched
     exercise_reads = row['shapes'].count('SELECT exercises')
     rtt4 = rtt3 - max(0, exercise_reads - 1)                         # P4: exercises rows are immutable within a request
-    rtt5 = 5 if label.endswith('/conversation/ready') else rtt4      # P5: one SELECT + one UPDATE in one transaction (ping, BEGIN, 2 statements, COMMIT)
-    return [rtt0, rtt1, rtt2, rtt3, rtt4, min(rtt5, rtt4)]
+    rtt5 = rtt0
+    if label.endswith('/conversation/ready'):
+        # P5 alone, against today's code (it overlaps P3, which trims the same save): the whole conversation rewrite (the
+        # transaction that upserts the conversation row) becomes one UPDATE; the reads that build the response stay.
+        save = next((t for t in row['txns'] if 'INSERT conversations' in t['shapes']), None)
+        if save:
+            rtt5 = rtt0 - (len(save['shapes']) - 1)
+    return [rtt0, rtt1, rtt2, rtt3, rtt4, rtt5]
 
 
 def summarize(rows: list[dict]) -> list[dict]:

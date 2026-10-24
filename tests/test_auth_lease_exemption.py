@@ -29,7 +29,7 @@ HEADERS = {'Authorization': 'Bearer valid-a'}
 
 def build(tmp_path, repository):
     http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path, latency_aggregates=True), FakeProvider(), repository=repository, auth_client=http)
+    app = create_app(settings_for(tmp_path, latency_aggregates=True, ack_lease_exempt=False), FakeProvider(), repository=repository, auth_client=http)   # the legacy lease-taking cue; the exemption has its own tests
     return app, http
 
 

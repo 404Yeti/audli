@@ -77,13 +77,19 @@ LEASE_EXEMPT_PATHS = frozenset({'/api/telemetry/turn'})
 LEASE_EXEMPT_ROUTES = (('POST', re.compile(r'/api/exercises/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/review/improvement')),)
 
 
+# AUD-87 (AUDLI_ACK_LEASE_EXEMPT, default off): the static acknowledgment cue is read-only, so it does not queue behind the lease
+# (it used to wait ~7 s for an in-flight assessment). Exactly one method and one path, evaluated after authentication succeeded.
+ACK_ROUTE = ('POST', '/api/recognition/acknowledgment-audio')
+
+
 def lease_exempt(method: str, path: str) -> bool:
     return path in LEASE_EXEMPT_PATHS or any(method == verb and pattern.fullmatch(path) for verb, pattern in LEASE_EXEMPT_ROUTES)
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository, timing=False, offload=None):
+    def __init__(self, app, identity, repository, request_repository, timing=False, ack_exempt=False, offload=None):
         self.app, self.identity = app, identity
+        self.ack_exempt = ack_exempt
         self.offload = offload or Offload(False)
         self.repository, self.request_repository = repository, request_repository
         self.timing = timing  # AUD-82: numeric-only stage timings (AUDLI_LATENCY_AGGREGATES); no behaviour change.
@@ -127,7 +133,8 @@ class LearnerAuthentication:
         trace = turntrace.request_trace.get()
         try:
             if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
-                    and not lease_exempt(scope['method'], scope['path'])):
+                    and not lease_exempt(scope['method'], scope['path'])
+                    and not (self.ack_exempt and (scope['method'], scope['path']) == ACK_ROUTE)):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
                 lease_key = key
                 attempts = 0

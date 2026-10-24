@@ -51,7 +51,7 @@ def drive_lesson(repository_factory, tmp_path, audio_bytes, **settings):
     async def speak(text, speech_rate=.9):
         return audio_bytes
     provider.speak = speak
-    app = create_app(Settings(data_dir=tmp_path, latency_aggregates=True, _env_file=None, **settings), provider, repo)
+    app = create_app(Settings(data_dir=tmp_path, latency_aggregates=True, ack_lease_exempt=False, _env_file=None, **settings), provider, repo)
     client = ASGIClient(app, provider)
     ready = run_lesson(client, audio_bytes)
     return repo, client, ready, aggregator.snapshot()

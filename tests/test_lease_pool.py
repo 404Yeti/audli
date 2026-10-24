@@ -20,14 +20,14 @@ from test_persistence import repository_factory  # noqa: F401  (fixture)
 POST = ('/api/recognition/retry-audio', None)           # an ordinary mutating route, so it takes the lease
 
 
-def build(tmp_path, repository, flag):
+def build(tmp_path, repository, flag, **settings):
     provider = FakeProvider()
 
     async def speak(text, speech_rate=.9):
         return await provider.speech(None)
     provider.speak = speak
     http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path, lease_pool=flag, latency_aggregates=True), provider, repository=repository, auth_client=http)
+    app = create_app(settings_for(tmp_path, lease_pool=flag, latency_aggregates=True, **settings), provider, repository=repository, auth_client=http)
     return app, http
 
 
@@ -161,3 +161,37 @@ def test_exempt_and_read_requests_still_take_no_lease(tmp_path, repository_facto
     assert asyncio.run(run()) == (200, 204)
     assert 'lease.query' not in aggregator.snapshot()['stages']
     repo.close()
+
+
+def test_the_pool_size_is_configurable_and_a_full_pool_spills_to_a_one_off_connection_instead_of_blocking(tmp_path, repository_factory, monkeypatch):
+    """Capacity: size + overflow kept lease connections at most; beyond that a request opens a one-off connection, as the unpooled lease did."""
+    import time
+    from app.storage.repository import SQLProgressRepository
+    repo = repository_factory(None); postgres_only(repo)
+    aggregator.reset()
+    app, http = build(tmp_path, repo, True, lease_pool_size=1, lease_pool_overflow=0)
+    pool = middleware(app).lease_engine.pool
+    assert (pool.size(), pool._max_overflow) == (1, 0)
+    original = SQLProgressRepository.audio_blob
+
+    def slow(self, name):
+        time.sleep(.5)
+        return original(self, name)
+    monkeypatch.setattr(SQLProgressRepository, 'audio_blob', slow)
+
+    async def run():
+        async with client_for(app) as client:
+            started = time.perf_counter()
+            first = asyncio.create_task(client.post(POST[0], headers=HEADERS))
+            second = asyncio.create_task(client.post(POST[0], headers={'Authorization': 'Bearer valid-b'}))
+            results = [(await first).status_code, (await second).status_code]
+            return results, time.perf_counter() - started
+    results, elapsed = asyncio.run(run())
+    assert results == [200, 200] and elapsed < 3                         # a wait for the first's connection would freeze the loop for the 5 s of the old timeout, then fail
+    assert aggregator.snapshot()['stages']['lease.connect_physical']['count'] >= 2    # the kept connection plus a one-off for the second request
+    assert pool.checkedout() == 0
+    repo.close()
+
+
+def test_defaults_are_small():
+    assert (Settings.model_fields['lease_pool_size'].default, Settings.model_fields['lease_pool_overflow'].default) == (2, 6)

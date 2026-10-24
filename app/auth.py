@@ -5,7 +5,7 @@ import re
 from hashlib import sha256
 from contextlib import nullcontext
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError, TimeoutError as PoolTimeout
 from sqlalchemy.pool import NullPool
 from uuid import UUID
 
@@ -82,7 +82,7 @@ def lease_exempt(method: str, path: str) -> bool:
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository, timing=False, lease_pool=False):
+    def __init__(self, app, identity, repository, request_repository, timing=False, lease_pool=False, pool_size=2, pool_overflow=6):
         self.app, self.identity = app, identity
         self.lease_pool = bool(lease_pool and repository.engine.dialect.name == 'postgresql')
         self.repository, self.request_repository = repository, request_repository
@@ -93,13 +93,18 @@ class LearnerAuthentication:
         if self.lease_pool:
             # AUD-87: kept connections (no new TCP/TLS/auth handshake per request). No pre-ping: a stale connection is detected by the
             # lock statement itself and replaced once (see _take_lease). Recycled before typical idle limits.
-            self.lease_engine = create_engine(repository.engine.url, pool_size=4, max_overflow=32, pool_timeout=5, pool_recycle=240,
+            # pool_timeout=0: a full pool never WAITS (a checkout is synchronous and would freeze the event loop, starving the very request
+            # that holds the connection); the extra request opens a one-off connection exactly as the unpooled lease always did.
+            self.lease_engine = create_engine(repository.engine.url, pool_size=pool_size, max_overflow=pool_overflow, pool_timeout=0, pool_recycle=240,
                                               pool_pre_ping=False, connect_args=connect_args)
+            self.lease_spill = create_engine(repository.engine.url, poolclass=NullPool, connect_args=connect_args)
         else:
             self.lease_engine = (create_engine(repository.engine.url, poolclass=NullPool, connect_args=connect_args)
                                  if repository.engine.dialect.name == 'postgresql' else None)
         if timing and self.lease_engine is not None:
             instrument_engine(self.lease_engine, 'lease')
+            if self.lease_pool:
+                instrument_engine(self.lease_spill, 'lease')
 
     def _span(self, name, accumulate=None):
         return span(name, accumulate) if self.timing else nullcontext()
@@ -119,7 +124,10 @@ class LearnerAuthentication:
             return candidate, acquired
         for fresh in (False, True):
             with self._span('auth.lease_connect'):
-                candidate = self.lease_engine.connect()
+                try:
+                    candidate = self.lease_engine.connect()
+                except PoolTimeout:
+                    candidate = self.lease_spill.connect()
             try:
                 with self._span('auth.lease_lock_query'):
                     # Same lock and key as before; the transaction-local setting and the try-lock travel in ONE statement.

@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     db_read_autocommit: bool = False
     # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.
     lease_pool: bool = False
+    lease_pool_size: int = Field(default=2, ge=1, le=16)       # connections kept open for leases
+    lease_pool_overflow: int = Field(default=6, ge=0, le=64)   # extra connections under load, closed again afterwards
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

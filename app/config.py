@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     db_state_only_transitions: bool = False
     # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
     db_read_autocommit: bool = False
+    # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.
+    lease_pool: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

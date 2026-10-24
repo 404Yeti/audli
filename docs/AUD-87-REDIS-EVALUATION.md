@@ -3,7 +3,7 @@
 Question: would a shared cache such as Redis remove enough database round trips to be worth its cost and risk, compared with request-local caching or connection reuse?
 
 ## What is repeated (measured, `scripts/analyze_repeated_reads.py`)
-One synthetic lesson over the real app on PostgreSQL: 70 requests, 152 pool checkouts, 288 statements = 440 round trips with the P2 autocommit setting (one ping per checkout plus one per statement). Each read block (a checkout whose statements are all `SELECT`s) was replayed against an idealised cache with perfect invalidation: a table's version bumps on every write to it, unlimited TTL, zero cache latency.
+One synthetic lesson over the real app on PostgreSQL: 25 requests, 152 pool checkouts, 288 statements = 440 round trips with the P2 autocommit setting (one ping per checkout plus one per statement). Each read block (a checkout whose statements are all `SELECT`s) was replayed against an idealised cache with perfect invalidation: a table's version bumps on every write to it, unlimited TTL, zero cache latency.
 
 | Cache | Read blocks avoided | Round trips avoided | Time per lesson at 72 ms |
 |---|---|---|---|

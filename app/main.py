@@ -229,7 +229,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'passage_tts_daily_characters': settings.passage_tts_daily_characters,
                 'passage_tts_max_concurrent': settings.passage_tts_max_concurrent,
                 'db_read_autocommit': {'requested': read_autocommit['requested'], 'effective': read_autocommit['effective']},
-                'db_state_only_transitions': settings.db_state_only_transitions}
+                'db_state_only_transitions': settings.db_state_only_transitions,
+                'db_offload': settings.db_offload, 'db_lazy_ping': settings.db_lazy_ping,
+                'db_state_only_checkpoints': settings.db_state_only_checkpoints}
 
     @app.get('/api/auth/config')
     async def auth_config():
@@ -377,7 +379,10 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 if conversation:
                     conversation.pending_attempt_id, conversation.pending_text = attempt_id, None
                     conversation.state = 'AWAITING_FOLLOWUP' if conversation.active_followup else 'AWAITING_SUMMARY'
-                    repo.save_conversation(conversation)
+                    if settings.db_state_only_checkpoints:
+                        repo.save_conversation_checkpoint(conversation)
+                    else:
+                        repo.save_conversation(conversation)
                 return {'id': attempt_id, 'transcription': transcription}
             return await offload.run(persist)
 

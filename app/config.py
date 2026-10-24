@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     tutor_audio_fast_sanitize: bool = False
     # AUD-84 P5: /conversation/ready updates only the conversation row instead of rewriting its children (default off).
     db_state_only_transitions: bool = False
+    # AUD-88: the upload's pending-attempt marker and the assessment checkpoint update only the conversation row (extends the P5 technique). Off = full conversation rewrite.
+    db_state_only_checkpoints: bool = False
     # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
     db_read_autocommit: bool = False
     # AUD-87: skip the pool pre-ping for connections used within the last db_lazy_ping_seconds (default 5, the window in which a dying connection fails one request instead of being replaced silently). Off = ping before every checkout (previous behaviour).

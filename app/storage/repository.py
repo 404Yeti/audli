@@ -572,7 +572,7 @@ class SQLProgressRepository:
     def require_lesson_limit_schema(self):
         """Fail closed at startup when the limit is switched on before migration 006 is applied."""
         from sqlalchemy import inspect
-        with self.read() as db:
+        with self.engine.connect() as db:
             inspector = inspect(db)
             ready = inspector.has_table('lesson_entitlements') and set(s.lesson_entitlements.columns.keys()).issubset(
                 {column['name'] for column in inspector.get_columns('lesson_entitlements')})
@@ -585,7 +585,7 @@ class SQLProgressRepository:
     def require_review_improvement_schema(self):
         """Fail closed at startup when the feature is switched on before migration 007 is applied."""
         from sqlalchemy import inspect
-        with self.read() as db:
+        with self.engine.connect() as db:
             inspector = inspect(db)
             ready = inspector.has_table('review_improvements') and set(s.review_improvements.columns.keys()).issubset(
                 {column['name'] for column in inspector.get_columns('review_improvements')})

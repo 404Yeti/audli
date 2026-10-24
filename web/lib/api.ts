@@ -1,4 +1,8 @@
 let accessToken: (() => Promise<string | null>) | null = null;
+/** AUD-85, build-time opt-in diagnostics, installed by turn-reporting: the random per-turn id and request spans. */
+export type RequestTraceHooks = { turnId(): string | null; kindOf(path: string): string | null; record(kind: never, start: number, token: number, ttfb: number): void };
+let traceHooks: RequestTraceHooks | null = null;
+export function installRequestTrace(hooks: RequestTraceHooks | null) { traceHooks = hooks; }
 let authRevision = 0;
 const pendingOperations = new Set<AbortController>();
 export function currentAuthRevision() { return authRevision; }
@@ -87,6 +91,10 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   const revision = authRevision;
   let requestToken: string | null = null;
   const headers = new Headers(init?.headers);
+  // AUD-85 (build-time opt-in): the turn's random id, and how long this request waited for its access token.
+  const traceTurn = traceHooks?.turnId() ?? null;
+  const kind = traceTurn ? traceHooks!.kindOf(url) : null;
+  const requestStart = performance.now();
   if (accessToken) {
     const token = await accessToken();
     operation?.assertCurrent();
@@ -96,10 +104,13 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
     headers.set('Authorization', `Bearer ${token}`);
   }
   const submittedAt = performance.now();
+  const tokenMs = submittedAt - requestStart;
+  if (traceTurn && url !== '/api/telemetry/turn' && resolveApiUrl(url) === url) headers.set('X-Audli-Turn', traceTurn);   // same-origin only: no CORS change
   const logTurn = telemetry && (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1');
   if (logTurn) console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
   const response = await fetch(resolveApiUrl(url), { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
   if (logTurn) console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
+  if (kind) traceHooks!.record(kind as never, requestStart, tokenMs, performance.now() - submittedAt);
   operation?.assertCurrent();
   if (typeof window !== 'undefined' && response.ok && revision === authRevision && response.headers.get('X-Audli-Tutor-Fallback') === 'true') window.dispatchEvent(new Event('audli-backup-voice'));
   if (response.status === 401 && revision === authRevision && typeof window !== 'undefined') {

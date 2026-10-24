@@ -11,6 +11,7 @@ from contextvars import ContextVar
 from weakref import WeakKeyDictionary
 from pydantic import ValidationError
 from app.config import Settings
+from app import turntrace
 from app.telemetry import aggregator
 
 # Request-local numeric metadata only; never attach IDs, text, or provider payloads.
@@ -96,6 +97,7 @@ def operation(settings: Settings, name: str, sensitive: bool = False):
         timings = request_timings.get()
         if timings is not None:
             timings.append((name, elapsed_ms))
+        turntrace.span(name, started, elapsed_ms)
         if settings.latency_aggregates:
             aggregator.record(name, elapsed_ms, ok)
         if settings.environment == 'development':

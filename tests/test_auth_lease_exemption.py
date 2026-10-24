@@ -56,7 +56,7 @@ def test_exempt_path_is_one_post_route_and_its_module_cannot_touch_learner_state
     handler = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == 'turn_report')
     body_nodes = [n for statement in handler.body for n in ast.walk(statement)]      # the executed body, not decorators/annotations
     used = {n.id for n in body_nodes if isinstance(n, ast.Name)} | {n.attr for n in body_nodes if isinstance(n, ast.Attribute)}
-    assert used <= {'body', 'settings', 'aggregator', 'record', 'record_client', 'latency_aggregates', 'stages', 'items', 'stage', 'elapsed', 'Response', 'status_code'}, used
+    assert used <= {'body', 'settings', 'aggregator', 'record', 'record_client', 'record_client_trace', 'latency_aggregates', 'stages', 'items', 'stage', 'elapsed', 'Response', 'status_code', 'turn', 'requests'}, used
     app.state.repository.close(); asyncio.run(http.aclose())
 
 

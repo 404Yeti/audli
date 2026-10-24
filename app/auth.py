@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from starlette.responses import JSONResponse
 
 from app.storage.repository import AccountUnavailable
+from app import turntrace
 from app.dbtiming import span, instrument_engine
 from app.telemetry import aggregator
 
@@ -107,10 +108,13 @@ class LearnerAuthentication:
             return await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=headers)(scope, receive, send)
         lease = None
         token = None
+        lease_key = None
+        trace = turntrace.request_trace.get()
         try:
             if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
                     and not lease_exempt(scope['method'], scope['path'])):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
+                lease_key = key
                 attempts = 0
                 with self._span('auth.lease', 'lease_ms'):
                     for _ in range(100):
@@ -126,10 +130,15 @@ class LearnerAuthentication:
                             raise
                         if acquired:
                             lease = candidate
+                            turntrace.lease_acquired(key, trace, scope['method'], scope['path'])
                             break
                         candidate.close()
+                        if attempts == 1:
+                            turntrace.lease_contended(key, trace)
                         with self._span('auth.lease_wait_sleep'):
                             await asyncio.sleep(.05)
+                if trace is not None:
+                    trace.extra['lease_attempts'] = attempts
                 if self.timing:
                     aggregator.record_gauge('auth.lease_attempts', attempts)
                 if lease is None:
@@ -148,4 +157,6 @@ class LearnerAuthentication:
             if token is not None:
                 self.request_repository.current.reset(token)
             if lease is not None:
+                if lease_key is not None:
+                    turntrace.lease_released(lease_key)
                 lease.close()

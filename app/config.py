@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     tutor_audio_fast_sanitize: bool = False
     # AUD-84 P5: /conversation/ready updates only the conversation row instead of rewriting its children (default off).
     db_state_only_transitions: bool = False
+    # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
+    db_read_autocommit: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

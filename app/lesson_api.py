@@ -16,6 +16,7 @@ from app.models import StrictModel, Transcription
 from app.onboarding import ProfileExtraction
 from app.recognition import reliable_recognition
 from app.diagnostics import report_failure, operation, timed_lock
+from app.ack_cache import AckCache
 from app.services.tutor_tts import TutorSpeech
 from app.lesson_limit import LimitRefused, LessonCooldown, window_phase
 
@@ -229,9 +230,29 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         check(lesson_id, body.revision)  # A delayed body cannot continue an ended phase.
         return response
 
+    ack_cache = AckCache()
+
+    async def static_acknowledgment(cue):
+        """AUD-87 (AUDLI_ACK_LEASE_EXEMPT): read-only. One profile read picks the voice; the audio comes from a learner-independent
+        memory cache. A miss is admitted against the learner's allowance exactly like a billable cache miss, then generated once."""
+        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'classroom')
+        text = ACKNOWLEDGMENTS[cue]
+
+        async def generate():
+            limits.admit('practice', 'lesson.speech:acknowledgment')
+            with operation(settings, 'lesson.tts_provider'):
+                generated = await tutor.speak(text)
+            with operation(settings, 'lesson.tts_sanitization'):
+                data = await tutor.sanitize(generated)
+            return (data, tutor.headers), not tutor.fallback
+        (data, headers), _ = await ack_cache.get((tutor.signature, 'acknowledgment-v2', text), generate)
+        return Response(data, media_type='audio/wav' if tutor.kind == 'wav' else 'audio/mpeg', headers=headers)
+
     @app.post('/api/recognition/acknowledgment-audio')
     async def acknowledgment(body: AcknowledgmentCue = AcknowledgmentCue()):
         # Neutral, cached, no LLM generation or lesson progress mutation.
+        if settings.ack_lease_exempt:
+            return await static_acknowledgment(body.cue)
         async with timed_lock(settings, acknowledgment_lock, 'acknowledgment.audio'):
             return await speech(ACKNOWLEDGMENTS[body.cue], 'acknowledgment-v2')
 

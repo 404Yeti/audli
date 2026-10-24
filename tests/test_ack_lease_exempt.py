@@ -13,7 +13,7 @@ from app.ack_cache import AckCache
 from app.config import Settings
 from app.main import create_app
 from conftest import FakeProvider
-from test_auth import USER_A, auth_response, settings_for
+from test_auth import USER_A, USER_B as USER_B_ID, auth_response, settings_for
 from test_auth_lease_exemption import client_for, hold_lease, HEADERS
 from test_persistence import repository_factory  # noqa: F401  (fixture)
 from test_state_only_ready import dump
@@ -114,7 +114,7 @@ def test_the_exempt_handler_has_no_write_path():
 
 
 # ---------------------------------------------------------------------------------------------- billing and authorization
-def test_a_miss_is_admitted_against_the_allowance_and_a_hit_is_not(tmp_path, repository_factory):
+def test_each_learner_is_admitted_once_even_when_the_shared_audio_is_warm_and_replays_are_free(tmp_path, repository_factory):
     repo = repository_factory(None)
     app, provider, http = build(tmp_path, repo, True)
     admitted = []
@@ -125,8 +125,37 @@ def test_a_miss_is_admitted_against_the_allowance_and_a_hit_is_not(tmp_path, rep
         async with client_for(app) as client:
             for _ in range(3):
                 assert (await client.post(CUE, json={'cue': 'assessment'}, headers=HEADERS)).status_code == 200
+            assert len(admitted) == 1 and provider.spoken == 1                       # learner A: admitted once; audio generated once
+            other = {'Authorization': 'Bearer valid-b'}
+            for _ in range(2):
+                assert (await client.post(CUE, json={'cue': 'assessment'}, headers=other)).status_code == 200
+            assert len(admitted) == 2 and provider.spoken == 1                       # learner B: admitted on first use, no new audio
     asyncio.run(run())
-    assert len(admitted) == 1 and admitted[0][0] == 'practice'
+    assert admitted[0][0] == 'practice'
+    app.state.repository.close(); asyncio.run(http.aclose())
+
+
+def test_a_learner_the_allowance_would_refuse_gets_no_warm_audio_either(tmp_path, repository_factory):
+    from datetime import datetime, timedelta, timezone
+    from app.lesson_limit import LimitRefused
+    repo = repository_factory(None)
+    app, provider, http = build(tmp_path, repo, True)
+    original = app.state.limits.admit
+
+    def admit(*args, **kw):
+        if app.state.limits.repo.learner_id == USER_B_ID:
+            now = datetime.now(timezone.utc)
+            raise LimitRefused('lesson_cooldown', now, now + timedelta(hours=1))
+        return original(*args, **kw)
+    app.state.limits.admit = admit
+
+    async def run():
+        async with client_for(app) as client:
+            warm = await client.post(CUE, json={'cue': 'assessment'}, headers=HEADERS)                  # learner A warms the shared audio
+            refused = await client.post(CUE, json={'cue': 'assessment'}, headers={'Authorization': 'Bearer valid-b'})
+            return warm.status_code, refused.status_code, refused.content
+    warm, refused, body = asyncio.run(run())
+    assert warm == 200 and refused == 429 and b'audio' not in body[:16] and provider.spoken == 1
     app.state.repository.close(); asyncio.run(http.aclose())
 
 

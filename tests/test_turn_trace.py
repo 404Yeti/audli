@@ -198,7 +198,7 @@ def test_lease_polling_runs_on_the_event_loop_and_is_traced(tmp_path, repository
     import httpx
     from test_auth import auth_response, settings_for
     http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path, latency_aggregates=True, turn_trace=True), FakeProvider(), repository=repo, auth_client=http)
+    app = create_app(settings_for(tmp_path, latency_aggregates=True, turn_trace=True, ack_lease_exempt=False), FakeProvider(), repository=repo, auth_client=http)
     caplog.set_level(logging.INFO, logger='uvicorn.error')
     async def run():
         async with client_for(app) as client:

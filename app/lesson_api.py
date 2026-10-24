@@ -1,4 +1,5 @@
 """Owned lesson checkpoints around the existing exercise evidence loop."""
+from collections import OrderedDict
 from hashlib import sha256
 import asyncio
 import logging
@@ -231,21 +232,28 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         return response
 
     ack_cache = AckCache()
+    ack_served: OrderedDict = OrderedDict()   # (learner, voice, cue) already admitted in this process: later replays are free, as before
 
     async def static_acknowledgment(cue):
         """AUD-87 (AUDLI_ACK_LEASE_EXEMPT): read-only. One profile read picks the voice; the audio comes from a learner-independent
-        memory cache. A miss is admitted against the learner's allowance exactly like a billable cache miss, then generated once."""
+        memory cache. The learner's allowance is consulted exactly where it was before: on the first cue this learner is served (the
+        old per-learner cache miss), whether or not another learner already warmed the shared audio; saved replays stay free."""
         tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'classroom')
         text = ACKNOWLEDGMENTS[cue]
+        who = (str(repo.learner_id), tutor.signature, cue)
+        if who not in ack_served:
+            limits.admit('practice', 'lesson.speech:acknowledgment')      # may refuse (429/409) before any audio is served or generated
 
         async def generate():
-            limits.admit('practice', 'lesson.speech:acknowledgment')
             with operation(settings, 'lesson.tts_provider'):
                 generated = await tutor.speak(text)
             with operation(settings, 'lesson.tts_sanitization'):
                 data = await tutor.sanitize(generated)
             return (data, tutor.headers), not tutor.fallback
         (data, headers), _ = await ack_cache.get((tutor.signature, 'acknowledgment-v2', text), generate)
+        ack_served[who] = True
+        while len(ack_served) > 2048:
+            ack_served.popitem(last=False)
         return Response(data, media_type='audio/wav' if tutor.kind == 'wav' else 'audio/mpeg', headers=headers)
 
     @app.post('/api/recognition/acknowledgment-audio')

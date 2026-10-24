@@ -19,10 +19,15 @@ os.environ.update({
 })
 
 from app.config import Settings
+from app.storage.repository import SQLProgressRepository
 from app.main import create_app
 from app.models import LearnerProfile, Transcription, EvaluationJudgments
 from app.evaluation import expected_units
 from app.services.demo import DemoProvider
+
+# AUD-84 P2: every repository read in the whole suite is checked to be a plain SELECT, on SQLite too.
+SQLProgressRepository.read_guard = True
+
 
 @pytest.fixture
 def exercise():

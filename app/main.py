@@ -52,6 +52,11 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         database.require_lesson_limit_schema()
     database.limit_mode = settings.lesson_limit_mode
     database.require_auth_user = settings.account_deletion_enabled
+    if settings.db_read_autocommit:
+        # Only on a server whose default isolation is READ COMMITTED, where a read transaction pins no snapshot anyway.
+        allowed, reason = database.autocommit_reads_allowed()
+        database.read_autocommit = allowed
+        logging.getLogger('audli').info('AUDLI_DB_READ_AUTOCOMMIT %s (%s)', 'enabled' if allowed else 'IGNORED', reason)
     if settings.review_improvement_enabled:
         database.require_review_improvement_schema()
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None

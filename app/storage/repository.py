@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
 
-from sqlalchemy import select, update, and_, text, exists
+from sqlalchemy import select, update, and_, text, exists, event
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
@@ -64,6 +64,23 @@ def api_row(row):
     return result
 
 
+LOCKING_READS = (' FOR UPDATE', ' FOR SHARE', ' FOR NO KEY UPDATE', ' FOR KEY SHARE', 'PG_ADVISORY', 'SET_CONFIG', 'NEXTVAL')
+
+
+def guard_reads(engine):
+    """Reject anything but a plain SELECT on a connection opened by ``SQLProgressRepository.read``. Installed once per engine."""
+    if getattr(engine, '_audli_read_guard', False):
+        return
+    engine._audli_read_guard = True
+
+    @event.listens_for(engine, 'before_cursor_execute')
+    def check(conn, cursor, statement, parameters, context, executemany):
+        if conn.get_execution_options().get('audli_read_only'):
+            head = statement.lstrip().upper()
+            if not head.startswith(('SELECT', 'WITH', 'SHOW')) or any(token in head for token in LOCKING_READS):
+                raise RuntimeError('A read-only database connection was used for a write or a locking statement')
+
+
 class AccountUnavailable(Exception):
     """The Auth account no longer exists, so no application rows may be created for it."""
 
@@ -85,14 +102,45 @@ class SQLProgressRepository:
     def wall_clock(self):
         return self.limit_mode == 'enforce'
 
+    # AUD-84 P2: read-only operations may run in AUTOCOMMIT on Postgres (no BEGIN, no closing rollback round trip).
+    read_autocommit = False
+    read_guard = False          # tests switch this on everywhere so a mislabelled write cannot hide on SQLite
+
+    @contextmanager
+    def read(self):
+        """A connection for a read-only operation (plain SELECTs only).
+
+        Normally identical to ``engine.connect()``. With ``read_autocommit`` (Postgres only) the connection runs in
+        AUTOCOMMIT: every statement is its own implicit transaction, so the driver sends no ``BEGIN`` and no ``ROLLBACK``
+        when the connection goes back to the pool (two network round trips per operation). Postgres runs READ COMMITTED
+        here, where each statement already takes its own snapshot, so a multi-statement read sees exactly what it saw
+        inside a transaction (the startup check below refuses to enable this on any other isolation level). Writes and
+        locking reads never use this method; ``guard_reads`` rejects them if they ever do.
+        """
+        guarded = self.read_autocommit or self.read_guard
+        with self.engine.connect() as db:
+            if guarded:
+                guard_reads(self.engine)
+                db.execution_options(audli_read_only=True, **({'isolation_level': 'AUTOCOMMIT'} if self.read_autocommit else {}))
+            yield db
+
+    def autocommit_reads_allowed(self) -> tuple[bool, str]:
+        """Whether AUTOCOMMIT reads are safe on this database; the reason when they are not."""
+        if self.engine.dialect.name != 'postgresql':
+            return False, 'not PostgreSQL'
+        with self.engine.connect() as db:
+            level = db.execute(text('SHOW default_transaction_isolation')).scalar_one()
+        return level == 'read committed', f'default_transaction_isolation is {level!r}'
+
     def for_learner(self, learner_id: str):
         """A new request scope; never mutate the pool owner's identity or dispose it."""
         scoped = SQLProgressRepository(self.engine, learner_id)
         scoped.limit_mode = self.limit_mode
         scoped.require_auth_user = self.require_auth_user
+        scoped.read_autocommit = self.read_autocommit
         # Auth has already verified this identity. Existing accounts need a read,
         # not two no-op upserts and a commit on every protected request.
-        with self.engine.connect() as db:
+        with self.read() as db:
             initialized = db.execute(select(s.profiles.c.user_id).join(s.users,
                 s.users.c.id == s.profiles.c.user_id).where(s.profiles.c.user_id == learner_id)).first()
         if initialized is None:
@@ -149,7 +197,7 @@ class SQLProgressRepository:
                 **profile_values(LearnerProfile())).on_conflict_do_nothing())
 
     def profile(self):
-        with self.engine.connect() as db:
+        with self.read() as db:
             row = db.execute(select(s.profiles).where(s.profiles.c.user_id == self.learner_id)).mappings().one()
             return LearnerProfile(tutor_voice=row['data'].get('tutor_voice', 'original'), accent_preferences=row['data'].get('accent_preferences', {}), onboarding=row['data'].get('onboarding', {}), name=row['name'], target_language=row['target_language'], goal=row['goal'],
                 interests=row['interests'], target_situations=row['target_situations'],
@@ -202,13 +250,13 @@ class SQLProgressRepository:
         return current
 
     def current_exercise(self):
-        with self.engine.connect() as db:
+        with self.read() as db:
             row = db.execute(select(s.exercises).where(s.exercises.c.user_id == self.learner_id)
                 .order_by(s.exercises.c.created_at.desc(), s.exercises.c.id.desc()).limit(1)).mappings().first()
             return api_row(row)
 
     def exercise(self, exercise_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             return api_row(db.execute(select(s.exercises).where(and_(s.exercises.c.id == exercise_id,
                 s.exercises.c.user_id == self.learner_id))).mappings().first())
 
@@ -288,19 +336,19 @@ class SQLProgressRepository:
         return attempt_id
 
     def attempt(self, attempt_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             row = db.execute(select(s.attempts).join(s.exercises).where(and_(s.attempts.c.id == attempt_id,
                 s.exercises.c.user_id == self.learner_id))).mappings().first()
             return api_row(row)
 
     def completed(self, exercise_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             return db.execute(select(s.attempts.c.id).join(s.exercises).where(and_(
                 s.attempts.c.exercise_id == exercise_id, s.attempts.c.status == 'evaluated',
                 s.exercises.c.user_id == self.learner_id))).scalar_one_or_none()
 
     def result(self, attempt_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             row = db.execute(select(s.evaluations.c.data.label('evaluation'), s.events.c.data.label('adaptation'))
                 .select_from(s.attempts.join(s.exercises).join(s.evaluations).join(s.events))
                 .where(and_(s.attempts.c.id == attempt_id, s.exercises.c.user_id == self.learner_id))).mappings().first()
@@ -336,7 +384,7 @@ class SQLProgressRepository:
             db.execute(update(s.sessions).where(s.sessions.c.id == exercise['session_id']).values(status='completed', completed_at=utcnow()))
 
     def history(self):
-        with self.engine.connect() as db:
+        with self.read() as db:
             rows = db.execute(select(s.attempts.c.id, s.attempts.c.exercise_id, s.attempts.c.created_at,
                 s.evaluations.c.data.label('evaluation'), s.events.c.data.label('adaptation'))
                 .select_from(s.attempts.join(s.exercises).join(s.evaluations).join(s.events))
@@ -354,21 +402,21 @@ class SQLProgressRepository:
             query = query.where(s.sessions.c.completed_at >= completed_since)
         if before is not None:
             query = query.where(s.sessions.c.completed_at < before)
-        with self.engine.connect() as db:
+        with self.read() as db:
             rows = db.execute(query.order_by(s.sessions.c.started_at.desc(), s.sessions.c.id.desc())).mappings().all()
             return [TrainingSession(id=row['id'], learner_id=row['user_id'], status=row['status'],
                 started_at=aware(row['started_at']), completed_at=aware(row['completed_at']) if row['completed_at'] else None,
                 starting_difficulty=row['starting_difficulty']) for row in rows]
 
     def session_exercises(self, session_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             rows = db.execute(select(s.exercises).join(s.sessions, s.exercises.c.session_id == s.sessions.c.id).where(and_(s.sessions.c.id == session_id,
                 s.sessions.c.user_id == self.learner_id, s.exercises.c.user_id == self.learner_id))
                 .order_by(s.exercises.c.created_at)).mappings().all()
             return [api_row(row) for row in rows]
 
     def conversation(self, exercise_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             data = db.execute(select(s.conversations.c.data).join(s.exercises).where(and_(
                 s.conversations.c.exercise_id == exercise_id, s.exercises.c.user_id == self.learner_id))).scalar_one_or_none()
             return Conversation.model_validate(data) if data else None
@@ -453,7 +501,7 @@ class SQLProgressRepository:
             self.write_conversation(db, conversation)
 
     def coach_audio(self, exercise_id, cue_id):
-        with self.engine.connect() as db:
+        with self.read() as db:
             return db.execute(select(s.coach_audio.c.audio_name).join(s.exercises).where(and_(
                 s.coach_audio.c.exercise_id == exercise_id, s.coach_audio.c.cue_id == cue_id,
                 s.exercises.c.user_id == self.learner_id))).scalar_one_or_none()
@@ -470,12 +518,12 @@ class SQLProgressRepository:
             raise ValueError('Audio belongs to another learner')
 
     def audio_blob(self, audio_name):
-        with self.engine.connect() as db:
+        with self.read() as db:
             return db.execute(select(s.audio_assets.c.data).where(and_(s.audio_assets.c.audio_name == audio_name,
                 s.audio_assets.c.user_id == self.learner_id))).scalar_one_or_none()
 
     def owns_audio(self, audio_name):
-        with self.engine.connect() as db:
+        with self.read() as db:
             return db.execute(select(s.audio_assets.c.audio_name).where(and_(
                 s.audio_assets.c.audio_name == audio_name, s.audio_assets.c.user_id == self.learner_id))).first() is not None
 
@@ -510,13 +558,13 @@ class SQLProgressRepository:
             query = query.where(s.lessons.c.id == lesson_id)
         else:
             query = query.where(s.lessons.c.status == 'completed' if completed else s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES))
-        with self.engine.connect() as db:
+        with self.read() as db:
             row = db.execute(query.order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
             return Lesson.model_validate(row['data']) if row else None
 
     def accent_lesson_history(self):
         from app.lesson import Lesson
-        with self.engine.connect() as db:
+        with self.read() as db:
             rows = db.execute(select(s.lessons.c.data).where(s.lessons.c.user_id == self.learner_id)
                 .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc())).scalars().all()
             return [Lesson.model_validate(row) for row in rows]
@@ -615,7 +663,7 @@ class SQLProgressRepository:
         at = at or utcnow()
         if mode == 'off':
             return evaluate(mode, at, None, None, None)
-        with self.engine.connect() as db:
+        with self.read() as db:
             current = self._entitlement(db)
             row = db.execute(select(s.lessons.c.id, s.lessons.c.status, s.lessons.c.started_at).where(and_(
                 s.lessons.c.user_id == self.learner_id, s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).mappings().first()
@@ -636,13 +684,13 @@ class SQLProgressRepository:
     def cooldown_until(self, at=None):
         """The instant the next lesson opens, or None when the learner may start one."""
         at = at or utcnow()
-        with self.engine.connect() as db:
+        with self.read() as db:
             current = self._entitlement(db)
         return current['next_eligible_at'] if current is not None and at < current['next_eligible_at'] else None
 
     def latest_lesson(self):
         from app.lesson import Lesson
-        with self.engine.connect() as db:
+        with self.read() as db:
             row = db.execute(select(s.lessons.c.data).where(s.lessons.c.user_id == self.learner_id)
                 .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).scalar_one_or_none()
         return Lesson.model_validate(row) if row else None
@@ -758,7 +806,7 @@ class SQLProgressRepository:
 
     def lesson_work(self, lesson_id):
         """Only completed owned evidence; pending scripts never cross the lesson API."""
-        with self.engine.connect() as db:
+        with self.read() as db:
             rows = db.execute(select(s.exercises.c.id.label('exercise_id'), s.exercises.c.content, s.evaluations.c.data.label('evaluation'))
                 .select_from(s.lesson_exercises.join(s.exercises).join(s.attempts).join(s.evaluations))
                 .where(and_(s.lesson_exercises.c.lesson_id == lesson_id,
@@ -769,7 +817,7 @@ class SQLProgressRepository:
 
     def lesson_for_exercise(self, exercise_id):
         from app.lesson import Lesson
-        with self.engine.connect() as db:
+        with self.read() as db:
             data = db.execute(select(s.lessons.c.data).join(s.lesson_exercises)
                 .where(and_(s.lesson_exercises.c.exercise_id == exercise_id,
                     s.lesson_exercises.c.user_id == self.learner_id,

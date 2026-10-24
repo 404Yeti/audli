@@ -19,7 +19,17 @@ First step of `docs/AUD-88-ROUNDTRIP-PLAN.md`; extends the AUD-84 P5 technique (
 * The existing suite is run with the flag at its default and forced on.
 
 ## Measured
-Trace of the final turn (`scripts/trace_route_queries.py`, real PostgreSQL): upload 23 to 8 statements (27 to 12 round trips), assessment 65 to 50 statements (69 to 54 round trips): **30 round trips, 2.2 s at 72 ms, on the final turn**; the first turn of an exercise has few children to rewrite so saves little. Benchmark results below.
+Trace of the final turn (`scripts/trace_route_queries.py`, real PostgreSQL): upload 23 to 8 statements (27 to 12 round trips), assessment 65 to 50 statements (69 to 54 round trips): **30 round trips, 2.2 s at 72 ms, on the final turn**; the first turn of an exercise has few children to rewrite so saves little. 
+Synthetic benchmark (`scripts/bench_turns.py`: real app, PostgreSQL behind a 72 ms link, 20 sequential and 32 concurrent turns; P2 on in every row):
+
+| Configuration | One learner p50 / p95 (s) | Four learners p50 / p95 (s) | Statements (whole run) | Assessment route statements |
+|---|---|---|---|---|
+| baseline (current `main`) | 18.6 / 20.8 | 51.3 / 66.8 | 6049 | 48.0 |
+| + checkpoints | **17.3 / 18.5** (-1.3 s) | 45.4 / 58.9 | **5131** (-15 %) | **39.5** |
+| offload + lazy ping | 14.6 / 16.2 | 16.1 / 18.0 | 6049 | 48.0 |
+| offload + lazy ping + checkpoints | **13.2 / 14.1** (-1.4 s) | **14.0 / 16.2** (-2.1 s) | 5131 | 39.5 |
+
+The saving is additive with the offload and lazy-ping flags. It averages 1.3 to 1.4 s per turn (the trace's 2.2 s is the final turn of an exercise; the first turn has little to rewrite). Together with the offload and lazy ping the server-observed turn is 13.2 s; the remaining plan items in `docs/AUD-88-ROUNDTRIP-PLAN.md` are what stand between that and 10 s.
 
 ## Risks and rollback
 A conversation whose child rows were never written would not be repaired by these saves (same caveat as P5; schema 001 always writes them and every full save repairs them). Rollback: unset the flag or revert.

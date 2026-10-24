@@ -151,12 +151,10 @@ def health(app):
 
 def test_health_reports_the_requested_and_effective_state(make_repo, tmp_path):
     off = health(create_app(Settings(data_dir=tmp_path / 'off', _env_file=None), FakeProvider(), make_repo('off')))
-    assert off['db_read_autocommit'] == {'requested': False, 'effective': False, 'reason': 'flag off'}
+    assert off['db_read_autocommit'] == {'requested': False, 'effective': False}
     assert off['db_state_only_transitions'] is False
     repo = make_repo('on')
     on = health(create_app(Settings(data_dir=tmp_path / 'on', db_read_autocommit=True, _env_file=None), FakeProvider(), repo))
-    assert on['db_read_autocommit']['requested'] is True
     assert on['db_read_autocommit']['effective'] is repo.read_autocommit
     postgres = repo.engine.dialect.name == 'postgresql'
-    assert on['db_read_autocommit']['effective'] is postgres
-    assert ('read committed' in on['db_read_autocommit']['reason']) if postgres else on['db_read_autocommit']['reason'] == 'not PostgreSQL'
+    assert on['db_read_autocommit'] == {'requested': True, 'effective': postgres}   # no reason or isolation level on the public endpoint

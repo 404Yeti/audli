@@ -58,7 +58,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         allowed, reason = database.autocommit_reads_allowed()
         database.read_autocommit = allowed
         read_autocommit.update(effective=allowed, reason=reason)
-        # Visible on /api/health too: the 'audli' logger does not emit INFO in production.
+        # /api/health shows only requested/effective; the reason (isolation level) stays in this internal log line.
         logging.getLogger('audli').warning('AUDLI_DB_READ_AUTOCOMMIT %s (%s)', 'enabled' if allowed else 'IGNORED', reason)
     if settings.review_improvement_enabled:
         database.require_review_improvement_schema()
@@ -211,7 +211,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'passage_tts_model': settings.passage_tts_model,
                 'passage_tts_daily_characters': settings.passage_tts_daily_characters,
                 'passage_tts_max_concurrent': settings.passage_tts_max_concurrent,
-                'db_read_autocommit': read_autocommit,
+                'db_read_autocommit': {'requested': read_autocommit['requested'], 'effective': read_autocommit['effective']},
                 'db_state_only_transitions': settings.db_state_only_transitions}
 
     @app.get('/api/auth/config')

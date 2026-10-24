@@ -134,6 +134,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         timings = [] if settings.latency_telemetry or settings.environment == 'development' else None
         token = request_timings.set(timings)
         db_token = request_db.set(new_request_accumulator()) if settings.latency_aggregates else None
+        memo_token = repo.memo.set({}) if settings.request_read_memo else None
         trace = turntrace.begin(request.scope['headers'])
         trace_token = turntrace.request_trace.set(trace) if trace is not None else None
         response = None
@@ -154,6 +155,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 request_db.reset(db_token)
             if trace_token is not None:
                 turntrace.request_trace.reset(trace_token)
+            if memo_token is not None:
+                repo.memo.reset(memo_token)
             request_timings.reset(token)
             if settings.latency_aggregates:
                 # Route template only (e.g. /api/lessons/{lesson_id}/heard), never the concrete path.

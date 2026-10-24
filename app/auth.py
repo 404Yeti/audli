@@ -1,6 +1,7 @@
 """Supabase Auth verification and isolated request-scoped repository identities."""
 from contextvars import ContextVar
 import asyncio
+import copy
 import re
 from hashlib import sha256
 from contextlib import nullcontext
@@ -18,16 +19,64 @@ from app.dbtiming import span, instrument_engine
 from app.telemetry import aggregator
 
 
+# AUD-87 (AUDLI_REQUEST_READ_MEMO, default off): pure single-learner reads that handlers repeat within one request
+# (measured: the exercise row up to four times, the conversation and attempt rows two to three times).
+MEMO_READS = frozenset({'profile', 'current_exercise', 'exercise', 'attempt', 'completed', 'result', 'conversation',
+                        'coach_audio', 'lesson', 'lesson_for_exercise'})
+
+
+class _Clearing:
+    """A context manager (transaction/read) whose entry and exit both drop the request's memoised reads."""
+    def __init__(self, inner, memo):
+        self.inner, self.memo = inner, memo
+
+    def __enter__(self):
+        self.memo.clear()
+        return self.inner.__enter__()
+
+    def __exit__(self, *exc):
+        try:
+            return self.inner.__exit__(*exc)
+        finally:
+            self.memo.clear()
+
+
 class RequestRepository:
     """Existing route closures delegate to this request's verified learner scope."""
     def __init__(self, local_repository=None):
         self.current = ContextVar('audli_request_repository', default=local_repository)
+        self.memo = ContextVar('audli_request_memo', default=None)   # a dict while a memoising request is in flight
 
     def __getattr__(self, name):
         repository = self.current.get()
         if repository is None:
             raise RuntimeError('Learner repository accessed outside an authenticated request')
-        return getattr(repository, name)
+        attribute = getattr(repository, name)
+        memo = self.memo.get()
+        if memo is None or not callable(attribute):
+            return attribute
+        if name in MEMO_READS:
+            def memoised(*args, **kwargs):
+                key = (name, args, tuple(sorted(kwargs.items())))
+                try:
+                    hash(key)
+                except TypeError:                              # unhashable argument: just read
+                    return attribute(*args, **kwargs)
+                if key in memo:
+                    return copy.deepcopy(memo[key])           # callers mutate what they get (e.g. a conversation)
+                value = attribute(*args, **kwargs)
+                memo[key] = copy.deepcopy(value)
+                return value
+            return memoised
+
+        def other(*args, **kwargs):
+            memo.clear()                                       # any other call may write: forget everything, before and after
+            result = attribute(*args, **kwargs)
+            if hasattr(result, '__enter__') and hasattr(result, '__exit__'):
+                return _Clearing(result, memo)
+            memo.clear()
+            return result
+        return other
 
 
 class SupabaseIdentity:

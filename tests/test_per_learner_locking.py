@@ -148,6 +148,15 @@ def head(token): return {'Authorization': 'Bearer ' + token}
 class Slow(SlowProvider):
     assess_calls = 0
     assess_delay = 0.0
+    inflight = peak = 0       # transcriptions running at the same time: overlap measured directly, not inferred from wall time
+
+    async def transcribe(self, audio, filename):
+        self.inflight += 1
+        self.peak = max(self.peak, self.inflight)
+        try:
+            return await super().transcribe(audio, filename)
+        finally:
+            self.inflight -= 1
 
     async def assess(self, content, turns):
         self.assess_calls += 1
@@ -207,10 +216,11 @@ def test_different_learners_overlap_only_when_enabled(repository_factory, per_le
         theirs = await client.get(f"/api/exercises/{ex['valid-a']}/conversation", headers=head('valid-b'))
         remaining = app.state.locks.active_keys()
         await client.aclose(); await auth.aclose(); app.state.repository.close()
-        return wall, a['id'] != b['id'], mine['state'], theirs.status_code, remaining
-    wall, distinct, state, cross_status, remaining = asyncio.run(run())
+        return wall, a['id'] != b['id'], mine['state'], theirs.status_code, remaining, provider.peak
+    wall, distinct, state, cross_status, remaining, peak = asyncio.run(run())
     assert distinct and state == 'AWAITING_SUMMARY' and cross_status in (403, 404) and remaining == 0
-    assert (wall < 1.5 * DELAY) is parallel, wall
+    assert (peak == 2) is parallel, (peak, wall)        # the two transcriptions overlapped exactly when per-learner locks are on
+    assert wall < (4 * DELAY if parallel else 10 * DELAY)  # sanity only; wall time on a loaded runner is not the criterion
 
 
 @pytest.mark.parametrize('per_learner', [False, True])

@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     db_lazy_ping_seconds: float = Field(default=30, ge=1, le=300)
     # AUD-87: within one request, repeat reads of the same row return the first result until any other repository call (a possible write). Off = every read hits the database.
     request_read_memo: bool = False
+    # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.
+    lease_pool: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

@@ -204,7 +204,10 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             conversation = repo.conversation(exercise_id)
             if conversation:
                 conversation.state = 'READY_FOR_NEXT'
-                repo.save_conversation(conversation)
+                if settings.db_state_only_transitions:
+                    repo.save_conversation_state(conversation)
+                else:
+                    repo.save_conversation(conversation)
             return public_conversation(exercise_id)
 
     @app.post('/api/exercises/{exercise_id}/coach-audio')

@@ -13,7 +13,7 @@ from sqlalchemy import event
 MARK = '_audli_last_checkin'
 
 
-def install_lazy_ping(engine, max_idle_seconds: float = 30.0) -> None:
+def install_lazy_ping(engine, max_idle_seconds: float = 5.0) -> None:
     if getattr(engine, '_audli_lazy_ping', False):
         return
     engine._audli_lazy_ping = True

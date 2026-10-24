@@ -32,7 +32,7 @@ def pings(client, requests=12):
 
 
 def test_off_by_default():
-    assert Settings.model_fields['db_lazy_ping'].default is False and Settings.model_fields['db_lazy_ping_seconds'].default == 30
+    assert Settings.model_fields['db_lazy_ping'].default is False and Settings.model_fields['db_lazy_ping_seconds'].default == 5
 
 
 def test_pings_every_checkout_off_and_almost_none_on(tmp_path, make_repo):

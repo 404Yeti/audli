@@ -109,7 +109,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     if identity is not None:
         app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo,
-            timing=settings.latency_aggregates, lease_pool=settings.lease_pool, pool_size=settings.lease_pool_size, pool_overflow=settings.lease_pool_overflow, offload=offload)
+            timing=settings.latency_aggregates, ack_exempt=settings.ack_lease_exempt, lease_pool=settings.lease_pool, pool_size=settings.lease_pool_size, pool_overflow=settings.lease_pool_overflow, offload=offload)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database

@@ -31,6 +31,7 @@ from app.limits import LessonLimits
 from app.lesson_limit import LimitRefused
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
 from app import turntrace
+from app.offload import Offload
 from app.dbtiming import instrument_engine, request_db, new_request_accumulator, finish_request
 
 class Onboarding(StrictModel):
@@ -51,6 +52,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         database.engine._audli_timed = True
     if settings.lesson_limit_mode != 'off':
         database.require_lesson_limit_schema()
+    if settings.db_lazy_ping and database.engine.dialect.name == 'postgresql':
+        from app.lazyping import install_lazy_ping
+        install_lazy_ping(database.engine, settings.db_lazy_ping_seconds)    # after instrumentation, so pool_ping counts only real pings
     database.limit_mode = settings.lesson_limit_mode
     database.require_auth_user = settings.account_deletion_enabled
     read_autocommit = {'requested': settings.db_read_autocommit, 'effective': False, 'reason': 'flag off'}
@@ -64,6 +68,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     if settings.review_improvement_enabled:
         database.require_review_improvement_schema()
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
+    offload = Offload(settings.db_offload)
     repo = RequestRepository(database if identity is None else None)
     audio_dir = settings.data_dir / 'exercise_audio'
     audio_dir.mkdir(parents=True, exist_ok=True)
@@ -104,12 +109,13 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     if identity is not None:
         app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo,
-            timing=settings.latency_aggregates, ack_exempt=settings.ack_lease_exempt)
+            timing=settings.latency_aggregates, ack_exempt=settings.ack_lease_exempt, offload=offload)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database
     app.state.limits = LessonLimits(repo, settings)
     app.state.locks = lock
+    app.state.offload = offload
 
     def ai():
         nonlocal provider
@@ -339,19 +345,22 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     @app.post('/api/exercises/{exercise_id}/attempts')
     async def transcribe(exercise_id: str, audio: UploadFile):
         async with timed_lock(settings, lock, 'turn.upload'):
-            lesson = repo.lesson()
-            if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
+            def admit():
+                lesson = repo.lesson()
+                if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
+                    return HTTPException(409, 'Resume the active lesson exercise first.')
+                try:
+                    app.state.limits.admit_exercise('exercise.attempt', exercise_id)
+                except LimitRefused as refusal:
+                    return refusal
+                exercise_or_404(exercise_id)
+                current = repo.current_exercise()
+                if current['id'] != exercise_id or repo.completed(exercise_id):
+                    raise HTTPException(409, 'This exercise is already complete.')
+            refusal = await offload.run(admit)
+            if refusal is not None:
                 await audio.close()
-                raise HTTPException(409, 'Resume the active lesson exercise first.')
-            try:
-                app.state.limits.admit_exercise('exercise.attempt', exercise_id)
-            except LimitRefused:
-                await audio.close()
-                raise
-            exercise_or_404(exercise_id)
-            current = repo.current_exercise()
-            if current['id'] != exercise_id or repo.completed(exercise_id):
-                raise HTTPException(409, 'This exercise is already complete.')
+                raise refusal
             try:
                 with operation(settings, 'turn.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
@@ -362,13 +371,15 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                         raise HTTPException(503, 'I had trouble transcribing your recording. Please try again.') from None
             finally:
                 await audio.close()
-            attempt_id = repo.add_attempt(exercise_id, transcription)
-            conversation = repo.conversation(exercise_id)
-            if conversation:
-                conversation.pending_attempt_id, conversation.pending_text = attempt_id, None
-                conversation.state = 'AWAITING_FOLLOWUP' if conversation.active_followup else 'AWAITING_SUMMARY'
-                repo.save_conversation(conversation)
-            return {'id': attempt_id, 'transcription': transcription}
+            def persist():
+                attempt_id = repo.add_attempt(exercise_id, transcription)
+                conversation = repo.conversation(exercise_id)
+                if conversation:
+                    conversation.pending_attempt_id, conversation.pending_text = attempt_id, None
+                    conversation.state = 'AWAITING_FOLLOWUP' if conversation.active_followup else 'AWAITING_SUMMARY'
+                    repo.save_conversation(conversation)
+                return {'id': attempt_id, 'transcription': transcription}
+            return await offload.run(persist)
 
     @app.post('/api/attempts/{attempt_id}/evaluate')
     async def evaluate(attempt_id: str, body: Confirmation):

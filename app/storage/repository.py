@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
 
-from sqlalchemy import select, update, and_, text
+from sqlalchemy import select, update, and_, text, exists
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
@@ -415,6 +415,26 @@ class SQLProgressRepository:
     def save_conversation(self, conversation):
         with self.transaction() as db:
             self.write_conversation(db, conversation)
+
+    def save_conversation_state(self, conversation):
+        """AUD-84 P5: persist a state-only change (for example READY_FOR_NEXT) with one UPDATE of the conversation row.
+
+        ``write_conversation`` rewrites the whole conversation (every follow-up, turn, assessment and evidence row) on every
+        save. When only the conversation's own state changed, those child rows are already stored exactly as they would be
+        rewritten (they are written together with the row, from the same object), so only the ``conversations`` row needs
+        updating, with exactly the values ``write_conversation`` would give it. The UPDATE is scoped to this learner's
+        exercise in the same statement. Anything unusual falls back to the unchanged full save: a pending attempt (its
+        ownership check), a missing row (the full save re-inserts it) or an exercise that is not this learner's (the full
+        save raises the same error)."""
+        if conversation.pending_attempt_id is None:
+            with self.transaction() as db:
+                owned = exists().where(and_(s.exercises.c.id == conversation.exercise_id, s.exercises.c.user_id == self.learner_id))
+                updated = db.execute(update(s.conversations).where(and_(s.conversations.c.exercise_id == conversation.exercise_id, owned)).values(
+                    data=conversation.model_dump(mode='json'), state=conversation.state, pending_attempt_id=None,
+                    active_followup_id=conversation.active_followup.id if conversation.active_followup else None, updated_at=utcnow()))
+                if updated.rowcount == 1:
+                    return
+        self.save_conversation(conversation)
 
     def confirm_text(self, attempt_id, text):
         with self.transaction() as db:

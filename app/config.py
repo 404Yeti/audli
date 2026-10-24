@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     elevenlabs_speaker_boost: bool = True
     # AUD-82: stream-copy tag stripping for tutor speech instead of a full re-encode (default off).
     tutor_audio_fast_sanitize: bool = False
+    # AUD-84 P5: /conversation/ready updates only the conversation row instead of rewriting its children (default off).
+    db_state_only_transitions: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

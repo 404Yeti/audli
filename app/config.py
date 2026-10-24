@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     db_read_autocommit: bool = False
     # AUD-87: the acknowledgment cue no longer queues behind the account lease (read-only, learner-independent memory cache). Off = previous behaviour.
     ack_lease_exempt: bool = False
+    # AUD-87: skip the pool pre-ping for connections used within the last db_lazy_ping_seconds. Off = ping before every checkout (previous behaviour).
+    db_lazy_ping: bool = False
+    db_lazy_ping_seconds: float = Field(default=30, ge=1, le=300)
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

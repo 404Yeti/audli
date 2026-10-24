@@ -51,6 +51,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         database.engine._audli_timed = True
     if settings.lesson_limit_mode != 'off':
         database.require_lesson_limit_schema()
+    if settings.db_lazy_ping and database.engine.dialect.name == 'postgresql':
+        from app.lazyping import install_lazy_ping
+        install_lazy_ping(database.engine, settings.db_lazy_ping_seconds)    # after instrumentation, so pool_ping counts only real pings
     database.limit_mode = settings.lesson_limit_mode
     database.require_auth_user = settings.account_deletion_enabled
     read_autocommit = {'requested': settings.db_read_autocommit, 'effective': False, 'reason': 'flag off'}

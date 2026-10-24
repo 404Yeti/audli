@@ -17,6 +17,7 @@ MAX_STAGES = 160
 MAX_DEPTH = 16
 MAX_GAUGES = 16
 MAX_GAUGE_VALUE = 32
+MAX_ROUTES = 128
 # Code constants and route templates such as 'http.POST /api/lessons/{lesson_id}/heard'; never request values.
 STAGE_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_.:/{} -]{0,95}$')
 
@@ -50,6 +51,7 @@ class LatencyAggregator:
 
     def reset(self):
         with self._lock:
+            self._routes: dict[str, list] = {}   # name -> [calls, queries_sum, queries_max, checkouts_sum, checkouts_max, tx_sum, tx_max]
             self._stages: dict[str, _Stage] = {}
             self._depth = [0] * (MAX_DEPTH + 1)
             self._gauges: dict[str, list[int]] = {}
@@ -93,6 +95,20 @@ class LatencyAggregator:
         else:
             self.record('client.' + stage, value_ms)
 
+    def record_route(self, name: str, queries: int, checkouts: int, transactions: int) -> None:
+        """Database work of one request, keyed by route template (never a concrete path). Bounded; overflow joins 'other'."""
+        key = name if STAGE_NAME.match(name) else 'other'
+        with self._lock:
+            row = self._routes.get(key)
+            if row is None:
+                if len(self._routes) >= MAX_ROUTES:
+                    key = 'other'
+                row = self._routes.setdefault(key, [0, 0, 0, 0, 0, 0, 0])
+            row[0] += 1
+            row[1] += queries; row[2] = max(row[2], queries)
+            row[3] += checkouts; row[4] = max(row[4], checkouts)
+            row[5] += transactions; row[6] = max(row[6], transactions)
+
     def record_queue_depth(self, depth: int) -> None:
         """Requests ahead (current holder plus waiters) on the shared lock when a new one arrives."""
         with self._lock:
@@ -108,9 +124,13 @@ class LatencyAggregator:
             } for name, stage in sorted(self._stages.items())}
             depth = {str(i): n for i, n in enumerate(self._depth) if n}
             gauges = {name: {str(i): n for i, n in enumerate(levels) if n} for name, levels in sorted(self._gauges.items())}
+            routes = {name: {'calls': r[0], 'queries_mean': round(r[1] / r[0], 1), 'queries_max': r[2],
+                             'checkouts_mean': round(r[3] / r[0], 1), 'checkouts_max': r[4],
+                             'transactions_mean': round(r[5] / r[0], 1), 'transactions_max': r[6]}
+                      for name, r in sorted(self._routes.items()) if r[0]}
             if reset:
-                self._stages, self._depth, self._gauges = {}, [0] * (MAX_DEPTH + 1), {}
-        return {'version': 1, 'buckets_ms': list(BUCKETS_MS), 'stages': stages, 'gauges': gauges,
+                self._stages, self._depth, self._gauges, self._routes = {}, [0] * (MAX_DEPTH + 1), {}, {}
+        return {'version': 1, 'buckets_ms': list(BUCKETS_MS), 'stages': stages, 'gauges': gauges, 'routes': routes,
                 'lock_queue_depth_at_arrival': depth}
 
 
@@ -126,16 +146,37 @@ def emit_summary() -> None:
     """Log the window as small, self-describing lines: {window, part, parts, stages, ...}; part 1 carries the rest."""
     snapshot = aggregator.snapshot(reset=True)
     stages = snapshot.pop('stages')
-    if not stages and not snapshot['lock_queue_depth_at_arrival'] and not snapshot['gauges']:
+    routes = snapshot.pop('routes')
+    if not stages and not routes and not snapshot['lock_queue_depth_at_arrival'] and not snapshot['gauges']:
         return
-    names = sorted(stages)
-    chunks = [names[i:i + MAX_LINE_STAGES] for i in range(0, len(names), MAX_LINE_STAGES)] or [[]]
+    names, route_names = sorted(stages), sorted(routes)
+    chunks = [('stages', names[i:i + MAX_LINE_STAGES]) for i in range(0, len(names), MAX_LINE_STAGES)] or [('stages', [])]
+    chunks += [('routes', route_names[i:i + MAX_LINE_STAGES]) for i in range(0, len(route_names), MAX_LINE_STAGES)]
     window = next(_windows)
-    for index, chunk in enumerate(chunks, 1):
-        part = {'window': window, 'part': index, 'parts': len(chunks), 'stages': {name: stages[name] for name in chunk}}
+    for index, (kind, chunk) in enumerate(chunks, 1):
+        # Every line keeps a 'stages' object (empty on route lines) so existing readers need no change.
+        part = {'window': window, 'part': index, 'parts': len(chunks),
+                'stages': {name: stages[name] for name in chunk} if kind == 'stages' else {}}
+        if kind == 'routes':
+            part['routes'] = {name: routes[name] for name in chunk}
         if index == 1:
             part.update(snapshot)
         _logger.info('Latency summary %s', json.dumps(part, sort_keys=True, separators=(',', ':')))
+
+
+LAG_INTERVAL_SECONDS = 0.1
+
+
+async def loop_lag_loop(interval: float = LAG_INTERVAL_SECONDS) -> None:
+    """Record how late a timer fires: time the event loop spent blocked (synchronous database calls, CPU work).
+
+    The stage 'loop.lag' holds the lateness in ms of every wake-up; its max and upper-bound quantiles show stalls.
+    Numeric only; ten wake-ups per second."""
+    loop = asyncio.get_running_loop()
+    while True:
+        expected = loop.time() + interval
+        await asyncio.sleep(interval)
+        aggregator.record('loop.lag', max(0.0, (loop.time() - expected) * 1000))
 
 
 async def summary_loop(interval_seconds: float) -> None:

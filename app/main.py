@@ -52,11 +52,14 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         database.require_lesson_limit_schema()
     database.limit_mode = settings.lesson_limit_mode
     database.require_auth_user = settings.account_deletion_enabled
+    read_autocommit = {'requested': settings.db_read_autocommit, 'effective': False, 'reason': 'flag off'}
     if settings.db_read_autocommit:
         # Only on a server whose default isolation is READ COMMITTED, where a read transaction pins no snapshot anyway.
         allowed, reason = database.autocommit_reads_allowed()
         database.read_autocommit = allowed
-        logging.getLogger('audli').info('AUDLI_DB_READ_AUTOCOMMIT %s (%s)', 'enabled' if allowed else 'IGNORED', reason)
+        read_autocommit.update(effective=allowed, reason=reason)
+        # /api/health shows only requested/effective; the reason (isolation level) stays in this internal log line.
+        logging.getLogger('audli').warning('AUDLI_DB_READ_AUTOCOMMIT %s (%s)', 'enabled' if allowed else 'IGNORED', reason)
     if settings.review_improvement_enabled:
         database.require_review_improvement_schema()
     identity = SupabaseIdentity(settings, auth_client) if settings.auth_mode == 'supabase' else None
@@ -207,7 +210,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'tutor_voice_id': settings.elevenlabs_voice_id,
                 'passage_tts_model': settings.passage_tts_model,
                 'passage_tts_daily_characters': settings.passage_tts_daily_characters,
-                'passage_tts_max_concurrent': settings.passage_tts_max_concurrent}
+                'passage_tts_max_concurrent': settings.passage_tts_max_concurrent,
+                'db_read_autocommit': {'requested': read_autocommit['requested'], 'effective': read_autocommit['effective']},
+                'db_state_only_transitions': settings.db_state_only_transitions}
 
     @app.get('/api/auth/config')
     async def auth_config():

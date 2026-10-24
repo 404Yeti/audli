@@ -142,3 +142,19 @@ def test_scoped_repositories_inherit_the_mode(make_repo):
     postgres_only(repo)
     repo.read_autocommit = True
     assert repo.for_learner(OTHER).read_autocommit is True
+
+
+def health(app):
+    from conftest import ASGIClient
+    return ASGIClient(app, FakeProvider()).get('/api/health').json()
+
+
+def test_health_reports_the_requested_and_effective_state(make_repo, tmp_path):
+    off = health(create_app(Settings(data_dir=tmp_path / 'off', _env_file=None), FakeProvider(), make_repo('off')))
+    assert off['db_read_autocommit'] == {'requested': False, 'effective': False}
+    assert off['db_state_only_transitions'] is False
+    repo = make_repo('on')
+    on = health(create_app(Settings(data_dir=tmp_path / 'on', db_read_autocommit=True, _env_file=None), FakeProvider(), repo))
+    assert on['db_read_autocommit']['effective'] is repo.read_autocommit
+    postgres = repo.engine.dialect.name == 'postgresql'
+    assert on['db_read_autocommit'] == {'requested': True, 'effective': postgres}   # no reason or isolation level on the public endpoint

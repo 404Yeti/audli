@@ -197,7 +197,7 @@ def test_real_openai_tutor_uses_coral_and_disables_sdk_retries(mp3, selected):
 def test_owned_api_cache_config_invalidation_and_transcript_gate(tmp_path,repository_factory,mp3):
     from test_auth import settings_for
     calls=[]
-    config=settings_for(tmp_path).model_copy(update={'provider':'openai','tutor_tts_provider':'elevenlabs',
+    config=settings_for(tmp_path).model_copy(update={'provider':'openai','tutor_tts_provider':'elevenlabs','ack_lease_exempt':False,
         'elevenlabs_api_key':settings().elevenlabs_api_key})
     router=TutorTTSProvider(FakeProvider(),config,httpx.AsyncClient(transport=httpx.MockTransport(
         lambda r:(calls.append(r) or httpx.Response(200,content=mp3)))))

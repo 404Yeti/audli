@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     db_read_autocommit: bool = False
     # AUD-87: within one request, repeat reads of the same row return the first result until any other repository call (a possible write). Off = every read hits the database.
     request_read_memo: bool = False
+    # AUD-87: the acknowledgment cue no longer queues behind the account lease (read-only, learner-independent memory cache). Off = previous behaviour.
+    ack_lease_exempt: bool = False
     # AUD-87: skip the pool pre-ping for connections used within the last db_lazy_ping_seconds (default 5, the window in which a dying connection fails one request instead of being replaced silently). Off = ping before every checkout (previous behaviour).
     db_lazy_ping: bool = False
     db_lazy_ping_seconds: float = Field(default=5, ge=1, le=300)

@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     db_state_only_transitions: bool = False
     # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
     db_read_autocommit: bool = False
+    # AUD-87: within one request, repeat reads of the same row return the first result until any other repository call (a possible write). Off = every read hits the database.
+    request_read_memo: bool = False
     # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.
     lease_pool: bool = False
     lease_pool_size: int = Field(default=2, ge=1, le=16)       # connections kept open for leases

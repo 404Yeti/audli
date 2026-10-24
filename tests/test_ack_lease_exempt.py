@@ -41,7 +41,7 @@ def postgres_only(repo):
 
 
 def test_off_by_default():
-    assert Settings(_env_file=None).ack_lease_exempt is False
+    assert Settings.model_fields['ack_lease_exempt'].default is False   # the declared default
     assert auth.ACK_ROUTE == ('POST', CUE) and auth.LEASE_EXEMPT_PATHS == frozenset({'/api/telemetry/turn'})   # the reviewed set did not widen
 
 

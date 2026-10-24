@@ -44,7 +44,7 @@ def middleware(app):
 
 
 def test_off_by_default_and_the_pool_is_only_used_when_enabled(tmp_path, repository_factory):
-    assert Settings(_env_file=None).lease_pool is False
+    assert Settings.model_fields['lease_pool'].default is False   # the declared default, so a suite forced on still checks it
     repo = repository_factory(None); postgres_only(repo)
     off, http_off = build(tmp_path / 'off', repo, False)
     on, http_on = build(tmp_path / 'on', repo, True)

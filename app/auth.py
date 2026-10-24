@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse
 
 from app.storage.repository import AccountUnavailable
 from app import turntrace
+from app.offload import Offload
 from app.dbtiming import span, instrument_engine
 from app.telemetry import aggregator
 
@@ -81,8 +82,9 @@ def lease_exempt(method: str, path: str) -> bool:
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository, timing=False):
+    def __init__(self, app, identity, repository, request_repository, timing=False, offload=None):
         self.app, self.identity = app, identity
+        self.offload = offload or Offload(False)
         self.repository, self.request_repository = repository, request_repository
         self.timing = timing  # AUD-82: numeric-only stage timings (AUDLI_LATENCY_AGGREGATES); no behaviour change.
         # Mutations share an owner-specific lease across API workers, including
@@ -95,6 +97,19 @@ class LearnerAuthentication:
 
     def _span(self, name, accumulate=None):
         return span(name, accumulate) if self.timing else nullcontext()
+
+    def _take_lease(self, key):
+        """One attempt at the account lease: returns (connection, acquired). The connection stays open (and the lock held) only when acquired."""
+        with self._span('auth.lease_connect'):
+            candidate = self.lease_engine.connect()
+        try:
+            with self._span('auth.lease_lock_query'):
+                candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
+                acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
+        except BaseException:
+            candidate.close()
+            raise
+        return candidate, acquired
 
     async def __call__(self, scope, receive, send):
         public = scope.get('path') in ('/api/health', '/api/auth/config')
@@ -119,15 +134,7 @@ class LearnerAuthentication:
                 with self._span('auth.lease', 'lease_ms'):
                     for _ in range(100):
                         attempts += 1
-                        with self._span('auth.lease_connect'):
-                            candidate = self.lease_engine.connect()
-                        try:
-                            with self._span('auth.lease_lock_query'):
-                                candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
-                                acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
-                        except BaseException:
-                            candidate.close()
-                            raise
+                        candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
                         if acquired:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])
@@ -145,7 +152,7 @@ class LearnerAuthentication:
                     raise HTTPException(409, 'Your account is saving another step. Wait and retry.')
             # Identity still comes only from the Auth-verified bearer.
             with self._span('auth.scope'):
-                scoped = self.repository.for_learner(learner_id)
+                scoped = await self.offload.run(self.repository.for_learner, learner_id)
             token = self.request_repository.current.set(scoped)
             await self.app(scope, receive, send)
         except AccountUnavailable:
@@ -159,4 +166,4 @@ class LearnerAuthentication:
             if lease is not None:
                 if lease_key is not None:
                     turntrace.lease_released(lease_key)
-                lease.close()
+                await self.offload.release(lease)

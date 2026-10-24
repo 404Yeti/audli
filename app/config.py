@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     db_state_only_transitions: bool = False
     # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
     db_read_autocommit: bool = False
+    # AUD-87: run the synchronous database sections of the hot turn routes and the lease middleware in worker threads. Off = previous behaviour.
+    db_offload: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

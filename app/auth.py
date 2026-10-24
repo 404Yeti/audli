@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 
 from app.storage.repository import AccountUnavailable
 from app import turntrace
+from app.offload import Offload
 from app.dbtiming import span, instrument_engine
 from app.telemetry import aggregator
 
@@ -82,8 +83,9 @@ def lease_exempt(method: str, path: str) -> bool:
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository, timing=False, lease_pool=False, pool_size=2, pool_overflow=6):
+    def __init__(self, app, identity, repository, request_repository, timing=False, lease_pool=False, pool_size=2, pool_overflow=6, offload=None):
         self.app, self.identity = app, identity
+        self.offload = offload or Offload(False)
         self.lease_pool = bool(lease_pool and repository.engine.dialect.name == 'postgresql')
         self.repository, self.request_repository = repository, request_repository
         self.timing = timing  # AUD-82: numeric-only stage timings (AUDLI_LATENCY_AGGREGATES); no behaviour change.
@@ -167,7 +169,7 @@ class LearnerAuthentication:
                 with self._span('auth.lease', 'lease_ms'):
                     for _ in range(100):
                         attempts += 1
-                        candidate, acquired = self._take_lease(key)
+                        candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
                         if acquired:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])
@@ -185,7 +187,7 @@ class LearnerAuthentication:
                     raise HTTPException(409, 'Your account is saving another step. Wait and retry.')
             # Identity still comes only from the Auth-verified bearer.
             with self._span('auth.scope'):
-                scoped = self.repository.for_learner(learner_id)
+                scoped = await self.offload.run(self.repository.for_learner, learner_id)
             token = self.request_repository.current.set(scoped)
             await self.app(scope, receive, send)
         except AccountUnavailable:
@@ -199,4 +201,4 @@ class LearnerAuthentication:
             if lease is not None:
                 if lease_key is not None:
                     turntrace.lease_released(lease_key)
-                lease.close()
+                await self.offload.release(lease)

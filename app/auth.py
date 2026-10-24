@@ -134,7 +134,7 @@ class LearnerAuthentication:
                 with self._span('auth.lease', 'lease_ms'):
                     for _ in range(100):
                         attempts += 1
-                        candidate, acquired = await self.offload.run(self._take_lease, key)
+                        candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
                         if acquired:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])

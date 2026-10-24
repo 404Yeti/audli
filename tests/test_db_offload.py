@@ -133,3 +133,148 @@ def test_with_the_flag_off_the_call_is_inline():
     async def run():
         return await Offload(False).run(lambda: threading.current_thread() is threading.main_thread())
     assert asyncio.run(run()) is True
+
+
+# ----------------------------------------------------------------------------------------------- cancellation, cleanup, thread safety
+def test_a_cancelled_request_waits_for_the_running_section_and_hands_back_its_result():
+    order, received = [], []
+
+    def section():
+        time.sleep(.3)
+        order.append('section finished')
+        return 'result'
+
+    async def run():
+        task = asyncio.create_task(Offload(True).run(section, on_cancel=received.append))
+        await asyncio.sleep(.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        order.append('cancellation delivered')
+    asyncio.run(run())
+    assert order == ['section finished', 'cancellation delivered'] and received == ['result']      # never released under a running section
+
+
+def test_repeated_cancellation_and_failing_sections_leave_nothing_behind(recwarn):
+    def failing():
+        time.sleep(.1)
+        raise RuntimeError('database down')
+
+    async def run():
+        task = asyncio.create_task(Offload(True).run(failing))
+        await asyncio.sleep(.02)
+        task.cancel(); await asyncio.sleep(.01); task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        with pytest.raises(RuntimeError):
+            await Offload(True).run(failing)
+    asyncio.run(run())
+    import gc; gc.collect()
+    assert not [w for w in recwarn if 'never retrieved' in str(w.message)]
+
+
+def test_no_repository_call_ever_holds_one_connection_while_taking_another(make_repo, tmp_path, audio_bytes, monkeypatch):
+    """Offloaded sections run concurrently; a call that checked out a second connection while holding the first could exhaust the
+    small pool (3 connections, no overflow) and deadlock. Prove the depth never exceeds one in a whole lesson, per thread."""
+    from sqlalchemy import event
+    for flag in (False, True):
+        deterministic_ids(monkeypatch)
+        repo = make_repo(f'nested-{flag}')
+        depth, worst, held = threading.local(), [0], [0]
+
+        @event.listens_for(repo.engine, 'checkout')
+        def checked_out(dbapi_connection, record, proxy):
+            depth.value = getattr(depth, 'value', 0) + 1
+            worst[0] = max(worst[0], depth.value)
+
+        @event.listens_for(repo.engine, 'checkin')
+        def checked_in(dbapi_connection, record):
+            depth.value = getattr(depth, 'value', 1) - 1
+        _, client = app_for(repo, tmp_path, flag, audio_bytes)
+        run_lesson(client, audio_bytes)
+        assert worst[0] == 1, (flag, worst[0])
+        pool = repo.engine.pool
+        if hasattr(pool, 'checkedout'):
+            assert pool.checkedout() == 0                      # every connection went back
+
+
+def test_concurrent_accounts_stay_consistent_and_isolated(tmp_path, repository_factory, audio_bytes):
+    import httpx
+    from test_auth import USER_A, USER_B, auth_response, settings_for
+    from test_auth_lease_exemption import client_for
+    from test_conversation import assessment
+    repo = repository_factory(None)
+    provider = FakeProvider()
+
+    async def speak(text, speech_rate=.9):
+        return audio_bytes
+    provider.speak = speak
+
+    async def assess(content, turns):
+        await asyncio.sleep(.2)
+        return assessment(content, turns, {'inference': 'insufficient_evidence'} if len(turns) == 1 else {})
+    provider.assess = assess
+    http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
+    app = create_app(settings_for(tmp_path, db_offload=True), provider, repository=repo, auth_client=http)
+
+    async def learner(client, token):
+        headers = {'Authorization': 'Bearer ' + token}
+        exercise = (await client.post('/api/exercises', headers=headers)).json()
+        await client.post(f"/api/exercises/{exercise['id']}/conversation/listened", headers=headers)
+        followup, outcomes = None, []
+        for _ in range(2):
+            up = await client.post(f"/api/exercises/{exercise['id']}/attempts", files={'audio': ('r.wav', audio_bytes, 'audio/wav')}, headers=headers)
+            result = await client.post(f"/api/attempts/{up.json()['id']}/assess", headers=headers,
+                                       json={'text': up.json()['transcription']['text'], 'confirmed': True, 'followup_id': followup['id'] if followup else None})
+            outcomes.append((up.status_code, result.status_code))
+            followup = result.json().get('active_followup')
+        return exercise['id'], outcomes, (await client.get(f"/api/exercises/{exercise['id']}/conversation", headers=headers)).json()
+
+    async def run():
+        async with client_for(app) as client:
+            return await asyncio.gather(learner(client, 'valid-a'), learner(client, 'valid-b'))
+    (id_a, out_a, state_a), (id_b, out_b, state_b) = asyncio.run(run())
+    assert id_a != id_b and out_a == out_b == [(200, 200), (200, 200)]
+    assert state_a['state'] == state_b['state'] == 'GIVING_FEEDBACK' and state_a['result'] and state_b['result']
+    assert repo.for_learner(USER_A).completed(id_a) and repo.for_learner(USER_B).completed(id_b)
+    assert repo.for_learner(USER_A).exercise(id_b) is None and repo.for_learner(USER_B).exercise(id_a) is None      # no cross-account leakage
+    repo.close(); asyncio.run(http.aclose())
+
+
+def test_a_cancelled_request_keeps_the_account_lease_until_its_section_finished(tmp_path, repository_factory, monkeypatch):
+    """The safety property of the offload: cancelling a request must not release the lease under a section still writing."""
+    import httpx
+    from sqlalchemy import text
+    from test_auth import auth_response, settings_for
+    from test_auth_lease_exemption import HEADERS, lease_key
+    repo = repository_factory(None)
+    if repo.engine.dialect.name != 'postgresql':
+        pytest.skip('The account lease exists only on PostgreSQL.')
+    original = SQLProgressRepository.exercise
+
+    def slow(self, exercise_id):
+        time.sleep(.6)
+        return original(self, exercise_id)
+    monkeypatch.setattr(SQLProgressRepository, 'exercise', slow)
+    http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
+    app = create_app(settings_for(tmp_path, db_offload=True), FakeProvider(), repository=repo, auth_client=http)
+    held = []
+
+    def lease_is_free():
+        with repo.engine.connect() as probe:
+            return probe.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': lease_key()}).scalar_one()
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://t') as client:
+            request = asyncio.create_task(client.post('/api/exercises/00000000-0000-4000-8000-000000000042/conversation/listened', headers=HEADERS))
+            await asyncio.sleep(.35)                              # inside the section (lease held, section sleeping)
+            request.cancel()
+            await asyncio.sleep(.05)
+            held.append(not await asyncio.to_thread(lease_is_free))     # cancelled, yet the lease is still held
+            await asyncio.sleep(.8)
+            held.append(await asyncio.to_thread(lease_is_free))          # released once the section is over
+            with pytest.raises(asyncio.CancelledError):
+                await request
+    asyncio.run(run())
+    assert held == [True, True]
+    repo.close(); asyncio.run(http.aclose())

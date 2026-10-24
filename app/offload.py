@@ -6,6 +6,11 @@ even though they are independent. With the flag on, those sections run in a work
 loop keeps serving other requests. The request's context (verified learner scope, per-request accumulators) is copied into the
 thread; sections stay strictly sequential within a request, so ordering, locks and transactions are exactly as before.
 With the flag off ``run`` calls the function inline: identical to the previous code path.
+
+Cancellation: a synchronous section that has started cannot be interrupted, and before this change a cancelled request therefore
+always finished the section it was in. ``run`` keeps that guarantee: when the awaiting request is cancelled it WAITS for the running
+section to finish and only then lets the cancellation continue, so the per-learner lock and the account lease are never released
+underneath a section that is still writing.
 """
 import asyncio
 
@@ -14,10 +19,27 @@ class Offload:
     def __init__(self, enabled: bool = False):
         self.enabled = bool(enabled)
 
-    async def run(self, function, *args):
+    async def run(self, function, *args, on_cancel=None):
+        """Await ``function(*args)`` in a worker thread. ``on_cancel(result)`` receives the result if the request was cancelled
+        while the section ran (so a resource it created, such as a held lease connection, can be released)."""
         if not self.enabled:
             return function(*args)
-        return await asyncio.to_thread(function, *args)
+        task = asyncio.ensure_future(asyncio.to_thread(function, *args))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            while not task.done():                      # the section is running and cannot be interrupted: let it finish first
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            if not task.cancelled() and task.exception() is None and on_cancel is not None:
+                on_cancel(task.result())
+            elif not task.cancelled():
+                task.exception()                        # retrieved: nobody is left to receive it
+            raise
 
     async def release(self, connection):
         """Close a held lease connection (one rollback round trip) even if the request is cancelled meanwhile."""

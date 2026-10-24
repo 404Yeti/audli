@@ -120,7 +120,8 @@ def drive(make_repo, tmp_path, audio_bytes, monkeypatch, flag):
 
 
 def test_flag_is_off_by_default():
-    assert Settings(_env_file=None).db_state_only_transitions is False
+    # The declared default, so the test also holds in a CI leg that sets AUDLI_DB_STATE_ONLY_TRANSITIONS=true for the whole suite.
+    assert Settings.model_fields['db_state_only_transitions'].default is False
 
 
 def test_persistent_state_and_responses_are_identical_with_the_flag_on(make_repo, tmp_path, audio_bytes, monkeypatch):

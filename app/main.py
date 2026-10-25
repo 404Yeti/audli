@@ -7,13 +7,14 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, UploadFile, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import Field
 from app.adaptive import adapt
 from app.audio import validate_upload, sanitize_generated_audio
 from app.config import Settings
 from app.diagnostics import operation, report_failure, timed_lock, request_timings
 from app.telemetry import aggregator, loop_lag_loop, summary_loop
+from app.upload_idempotency import attempt_id_for, upload_id_from
 from app.telemetry_api import register_telemetry_routes
 from time import perf_counter
 from app.evaluation import score_judgments
@@ -235,7 +236,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'db_read_autocommit': {'requested': read_autocommit['requested'], 'effective': read_autocommit['effective']},
                 'db_state_only_transitions': settings.db_state_only_transitions,
                 'db_offload': settings.db_offload, 'db_lazy_ping': settings.db_lazy_ping,
-                'db_state_only_checkpoints': settings.db_state_only_checkpoints}
+                'db_state_only_checkpoints': settings.db_state_only_checkpoints,
+                'upload_idempotency': settings.upload_idempotency}
 
     @app.get('/api/auth/config')
     async def auth_config():
@@ -349,8 +351,39 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return FileResponse(path, media_type='audio/wav' if path.suffix == '.wav' else 'audio/mpeg', filename='audli-listening'+path.suffix)
 
     @app.post('/api/exercises/{exercise_id}/attempts')
-    async def transcribe(exercise_id: str, audio: UploadFile):
+    async def transcribe(exercise_id: str, audio: UploadFile, request: Request, response: Response):
+        # AUD-89 P1 (flag): a recording sent again under the same upload id returns its first attempt. Without a valid header,
+        # or with the flag off, attempt_key is None and every line below behaves exactly as it always has.
+        upload = upload_id_from(request.headers) if settings.upload_idempotency else None
+        attempt_key = attempt_id_for(repo.learner_id, exercise_id, upload) if upload else None
+
+        def mark_pending(conversation, attempt_id):
+            conversation.pending_attempt_id, conversation.pending_text = attempt_id, None
+            conversation.state = 'AWAITING_FOLLOWUP' if conversation.active_followup else 'AWAITING_SUMMARY'
+            if settings.db_state_only_checkpoints:
+                repo.save_conversation_checkpoint(conversation)
+            else:
+                repo.save_conversation(conversation)
+
+        def replay():
+            """The first attempt of this upload, or None. Read-only except that a pending marker the first request never got to
+            write (it failed between the attempt and the marker) is completed, exactly as the first request would have."""
+            row = repo.attempt(attempt_key)
+            if not row or row['exercise_id'] != exercise_id:
+                return None
+            conversation = repo.conversation(exercise_id)
+            if (conversation and conversation.pending_attempt_id is None
+                    and not any(turn.attempt_id == attempt_key for turn in conversation.turns)):
+                mark_pending(conversation, attempt_key)
+            return {'id': attempt_key, 'transcription': Transcription.model_validate_json(row['transcription'])}
         async with timed_lock(settings, lock, 'turn.upload'):
+            if attempt_key:
+                first = await offload.run(replay)
+                if first is not None:
+                    await audio.close()
+                    response.headers['X-Audli-Replayed'] = 'true'
+                    aggregator.record('upload.replayed', 0)
+                    return first
             def admit():
                 lesson = repo.lesson()
                 if lesson and (lesson.status != 'active' or lesson.phase != 'EXERCISE' or lesson.exercise_id != exercise_id):
@@ -378,15 +411,17 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             finally:
                 await audio.close()
             def persist():
-                attempt_id = repo.add_attempt(exercise_id, transcription)
+                if attempt_key:
+                    attempt_id, created = repo.add_attempt_once(exercise_id, transcription, attempt_key)
+                else:
+                    attempt_id, created = repo.add_attempt(exercise_id, transcription), True
+                if not created:
+                    # Only reachable when another request of the same upload won the insert between the check above and here
+                    # (the lease and the lock make that unlikely; the primary key makes it impossible to duplicate).
+                    return replay() or {'id': attempt_id, 'transcription': transcription}
                 conversation = repo.conversation(exercise_id)
                 if conversation:
-                    conversation.pending_attempt_id, conversation.pending_text = attempt_id, None
-                    conversation.state = 'AWAITING_FOLLOWUP' if conversation.active_followup else 'AWAITING_SUMMARY'
-                    if settings.db_state_only_checkpoints:
-                        repo.save_conversation_checkpoint(conversation)
-                    else:
-                        repo.save_conversation(conversation)
+                    mark_pending(conversation, attempt_id)
                 return {'id': attempt_id, 'transcription': transcription}
             return await offload.run(persist)
 

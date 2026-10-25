@@ -335,6 +335,24 @@ class SQLProgressRepository:
                 status='transcribed', created_at=utcnow()))
         return attempt_id
 
+    def add_attempt_once(self, exercise_id, transcription: Transcription, attempt_id: str):
+        """AUD-89 P1: insert the attempt under a caller-derived id. Returns (id, created); an id that already exists is a replay and
+        changes nothing. The primary key arbitrates concurrent inserts (ON CONFLICT DO NOTHING waits for the other transaction)."""
+        insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
+        with self.transaction() as db:
+            self.owned_exercise(db, exercise_id)
+            result = db.execute(insert(s.attempts).values(id=attempt_id, exercise_id=exercise_id,
+                transcription=transcription.model_dump(mode='json'), recognized_text=transcription.text,
+                confidence=transcription.confidence, transcription_source=transcription.source,
+                status='transcribed', created_at=utcnow()).on_conflict_do_nothing(index_elements=['id']).returning(s.attempts.c.id))
+            if result.first() is not None:          # RETURNING, not rowcount: the PostgreSQL driver reports -1 for this statement
+                return attempt_id, True
+            existing = db.execute(select(s.attempts.c.id).where(and_(s.attempts.c.id == attempt_id,
+                s.attempts.c.exercise_id == exercise_id))).first()
+            if existing is None:
+                raise ValueError('Attempt id belongs to another exercise')
+            return attempt_id, False
+
     def attempt(self, attempt_id):
         with self.read() as db:
             row = db.execute(select(s.attempts).join(s.exercises).where(and_(s.attempts.c.id == attempt_id,

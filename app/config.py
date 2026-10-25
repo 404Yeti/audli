@@ -86,6 +86,8 @@ class Settings(BaseSettings):
     db_lazy_ping_seconds: float = Field(default=5, ge=1, le=300)
     # AUD-87: run the synchronous database sections of the hot turn routes and the lease middleware in worker threads. Off = previous behaviour.
     db_offload: bool = False
+    # AUD-89 P1: a recording sent again (same X-Audli-Upload-Id) returns its first attempt instead of creating a second one. Off = every upload is a new attempt (previous behaviour).
+    upload_idempotency: bool = False
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)

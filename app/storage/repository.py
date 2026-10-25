@@ -869,8 +869,19 @@ class SQLProgressRepository:
                 s.lessons.c.status == 'active')).values(revision=lesson.revision, data=lesson.model_dump(mode='json')))
             if result.rowcount != 1:
                 raise ValueError('Lesson changed.')
-            db.execute(s.lesson_exercises.insert().values(lesson_id=lesson.id,
-                exercise_id=exercise_id, user_id=self.learner_id))
+            # An exercise belongs to ONE lesson (exercise_id is the primary key). The learner's unfinished exercise may still be
+            # linked to a lesson that has since ended or expired (2026-10-24 incident: every retry failed on the duplicate key).
+            # Resuming it in the new lesson moves the link; it is never taken from a lesson that is still open.
+            owner = db.execute(select(s.lesson_exercises.c.lesson_id).where(and_(s.lesson_exercises.c.exercise_id == exercise_id,
+                s.lesson_exercises.c.user_id == self.learner_id))).scalar_one_or_none()
+            if owner is None:
+                db.execute(s.lesson_exercises.insert().values(lesson_id=lesson.id, exercise_id=exercise_id, user_id=self.learner_id))
+            elif owner != lesson.id:
+                status = db.execute(select(s.lessons.c.status).where(and_(s.lessons.c.id == owner, s.lessons.c.user_id == self.learner_id))).scalar_one_or_none()
+                if status in s.OPEN_LESSON_STATUSES:
+                    raise ValueError('Exercise belongs to another open lesson.')
+                db.execute(update(s.lesson_exercises).where(and_(s.lesson_exercises.c.exercise_id == exercise_id,
+                    s.lesson_exercises.c.user_id == self.learner_id)).values(lesson_id=lesson.id))
 
     def previous_lesson(self):
         from app.lesson import previous_copy

@@ -24,8 +24,8 @@ from test_state_only_ready import OWNER, OTHER, dump, make_repo  # noqa: F401  (
 UPLOAD = '0123456789abcdef'
 ROOT = Path(__file__).resolve().parents[1]
 # Computed independently with uuid.uuid5 and the literal namespace; never regenerate these from the code under test.
-KNOWN = [
-    (OWNER, 'ex-1', UPLOAD, '456bc3b9-6889-52e0-93ec-91a6be7d2130'),
+KNOWN = [   # literal inputs too: this contract must not move if a shared test constant is ever edited
+    ('00000000-0000-4000-8000-0000000000aa', 'ex-1', UPLOAD, '456bc3b9-6889-52e0-93ec-91a6be7d2130'),
 ]
 
 

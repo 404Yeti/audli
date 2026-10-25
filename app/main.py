@@ -27,6 +27,7 @@ from app.lesson_api import register_lesson_routes
 from app.review_api import register_review_routes
 from app.onboarding import application_destination
 from app.security import LocalRequestGuard
+from app.uploadtrace import UploadTrace
 from app.limits import LessonLimits
 from app.lesson_limit import LimitRefused
 from app.auth import RequestRepository, SupabaseIdentity, LearnerAuthentication
@@ -171,6 +172,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
+
+    # AUD-89: outermost, so it sees the upload exactly as the proxy delivered it (before the guard reads the body).
+    app.add_middleware(UploadTrace)
 
     @app.exception_handler(LimitRefused)
     async def lesson_limit_refused(request, exc):

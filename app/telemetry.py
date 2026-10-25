@@ -97,10 +97,10 @@ class LatencyAggregator:
         else:
             self.record('client.' + stage, value_ms)
 
-    def record_client_trace(self, turn, requests, stages) -> None:
+    def record_client_trace(self, turn, requests, stages, deliveries=()) -> None:
         """Log the browser's per-turn spans keyed by the random turn id. No-op unless tracing is on."""
-        if turn and turntrace.enabled:
-            turntrace.log_client(turn, [item.model_dump() for item in requests], stages)
+        if (turn or deliveries) and turntrace.enabled:
+            turntrace.log_client(turn, [item.model_dump() for item in requests], stages, [item.model_dump() for item in deliveries])
 
     def record_route(self, name: str, queries: int, checkouts: int, transactions: int) -> None:
         """Database work of one request, keyed by route template (never a concrete path). Bounded; overflow joins 'other'."""

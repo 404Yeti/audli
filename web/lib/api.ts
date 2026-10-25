@@ -1,3 +1,4 @@
+import { markApiActivity, startDelivery } from './upload-delivery.ts';
 let accessToken: (() => Promise<string | null>) | null = null;
 /** AUD-85, build-time opt-in diagnostics, installed by turn-reporting: the random per-turn id and request spans. */
 export type RequestTraceHooks = { turnId(): string | null; kindOf(path: string): string | null; record(kind: never, start: number, token: number, ttfb: number): void };
@@ -108,7 +109,14 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   if (traceTurn && url !== '/api/telemetry/turn' && resolveApiUrl(url) === url) headers.set('X-Audli-Turn', traceTurn);   // same-origin only: no CORS change
   const logTurn = telemetry && (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUDLI_LATENCY_TELEMETRY === '1');
   if (logTurn) console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
-  const response = await fetch(resolveApiUrl(url), { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' });
+  // AUD-89 P0 (same opt-in as turn tracing): observe each send of a recording; the id follows the recording, not the request.
+  const delivery = traceHooks ? startDelivery(url, init?.body) : null;
+  if (delivery && resolveApiUrl(url) === url) headers.set('X-Audli-Upload-Id', delivery.id);   // same-origin only: no CORS change
+  let response: Response;
+  try { response = await fetch(resolveApiUrl(url), { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' }); }
+  catch (error) { delivery?.fail(error); if (traceHooks) markApiActivity(); throw error; }
+  delivery?.done(response.status);
+  if (traceHooks && url !== '/api/telemetry/turn') markApiActivity();
   if (logTurn) console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
   if (kind) traceHooks!.record(kind as never, requestStart, tokenMs, performance.now() - submittedAt);
   operation?.assertCurrent();

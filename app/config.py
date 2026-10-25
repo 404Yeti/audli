@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     db_offload: bool = False
     # AUD-89 P1: a recording sent again (same X-Audli-Upload-Id) returns its first attempt instead of creating a second one. Off = every upload is a new attempt (previous behaviour).
     upload_idempotency: bool = False
+    # AUD-89 P2: server-delivered recording-upload retry policy for the browser (GET /api/upload-policy). Anything but a clear 'true' is OFF.
+    upload_retry: bool = False
+    upload_retry_policy: str = Field(default='', max_length=2000)    # optional JSON overrides of the defaults in app/upload_policy.py
     # AUD-82: let the browser call this API directly (exact AUDLI_ALLOWED_ORIGINS only, no cookies). Default off.
     cors_enabled: bool = False
     tutor_tts_timeout_seconds: float = Field(default=15, gt=0, le=60)
@@ -100,6 +103,12 @@ class Settings(BaseSettings):
     max_audio_bytes: int = 12 * 1024 * 1024
     max_recording_seconds: int = 120
     max_feedback_words: int = Field(default=50, ge=30, le=50)
+
+    @field_validator('upload_retry', mode='before')
+    @classmethod
+    def lenient_upload_retry(cls, value):
+        from app.upload_policy import flag_value
+        return flag_value(value)         # a typo must not crash the service, and must not turn retries on
 
     @field_validator('database_url', 'learner_id', mode='before')
     @classmethod

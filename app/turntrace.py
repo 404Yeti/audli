@@ -128,10 +128,13 @@ def finish(trace: Trace, method: str, route: str | None, status: int, total_ms: 
     _logger.info('Turn trace %s', json.dumps(record, separators=(',', ':')))
 
 
-def log_client(turn: str, requests: list, stages: dict) -> None:
-    """The browser's side of one turn: its own request spans (token wait, time to first byte) and stage timings."""
-    _logger.info('Turn trace %s', json.dumps({'v': 1, 'kind': 'client', 'turn': turn, 'end_ms': now_ms(),
-                                              'requests': requests, 'stages': stages}, separators=(',', ':')))
+def log_client(turn: str | None, requests: list, stages: dict, deliveries: list | None = None) -> None:
+    """The browser's side of one turn: its own request spans (token wait, time to first byte) and stage timings.
+    AUD-89: ``deliveries`` are the browser's per-send upload records (bounded, numeric/enum fields only)."""
+    record = {'v': 1, 'kind': 'client', 'turn': turn, 'end_ms': now_ms(), 'requests': requests, 'stages': stages}
+    if deliveries:
+        record['deliveries'] = deliveries
+    _logger.info('Turn trace %s', json.dumps(record, separators=(',', ':')))
 
 
 def report_stall(lag_ms: float) -> None:

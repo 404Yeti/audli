@@ -1,3 +1,5 @@
+import { rememberRecordingLength, tagUpload } from './upload-delivery.ts';
+
 /** Opt-in metadata diagnostics. Never pass audio, device labels or transcripts. */
 export function recordingDiagnostic(event: string, metadata: Record<string, string | number | boolean> = {}) {
   if (process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_AUDLI_RECORDING_DIAGNOSTICS !== '1') return;
@@ -19,7 +21,7 @@ export function recordingUpload(blob: Blob): FormData {
   const form = new FormData();
   // Send the original Blob, not its preview URL. Do not set multipart Content-Type manually.
   form.append('audio', blob, `response.${extension}`);
-  return form;
+  return tagUpload(form, blob);   // AUD-89: a random id that stays with this recording if it is sent again
 }
 
 export function recordingPreview(blob: Blob, urls: Pick<typeof URL, 'createObjectURL' | 'revokeObjectURL'> = URL) {
@@ -100,6 +102,7 @@ export function captureRecording(
     // The final dataavailable precedes stop. Build only after all chunks have arrived.
     const mimeType = active.mimeType || chunks.find(chunk => chunk.type)?.type || '';
     const blob = new Blob(chunks, { type: mimeType });
+    rememberRecordingLength(blob, performance.now() - startedAt);
     recordingDiagnostic('recorder_stopped', { chunkCount: chunks.length, blobSize: blob.size, mimeType: blob.type, durationMs: Math.round(performance.now() - startedAt) });
     detach();
     if (failed) return;

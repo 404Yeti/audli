@@ -484,13 +484,36 @@ class SQLProgressRepository:
                     return
         self.save_conversation(conversation)
 
+    def update_conversation_checkpoint(self, db, conversation) -> bool:
+        """AUD-88: write a conversation whose follow-ups, turns and assessment are unchanged since it was loaded (only its state and
+        pending attempt moved) as ONE UPDATE of the conversations row, inside the caller's transaction. The row gets exactly the
+        values ``write_conversation`` gives it; the child rows are already stored as it would rewrite them. Ownership of the
+        exercise, and that the pending attempt belongs to this exercise, are checked in the same statement. Returns False (nothing
+        written) when exactly one row was not updated, so the caller falls back to the full save and its errors."""
+        owned = exists().where(and_(s.exercises.c.id == conversation.exercise_id, s.exercises.c.user_id == self.learner_id))
+        conditions = [s.conversations.c.exercise_id == conversation.exercise_id, owned]
+        if conversation.pending_attempt_id:
+            conditions.append(exists().where(and_(s.attempts.c.id == conversation.pending_attempt_id,
+                                                  s.attempts.c.exercise_id == conversation.exercise_id)))
+        updated = db.execute(update(s.conversations).where(and_(*conditions)).values(
+            data=conversation.model_dump(mode='json'), state=conversation.state, pending_attempt_id=conversation.pending_attempt_id,
+            active_followup_id=conversation.active_followup.id if conversation.active_followup else None, updated_at=utcnow()))
+        return updated.rowcount == 1
+
+    def save_conversation_checkpoint(self, conversation):
+        """AUD-88: the upload's pending-attempt marker as one UPDATE (see ``update_conversation_checkpoint``); else the full save."""
+        with self.transaction() as db:
+            if not self.update_conversation_checkpoint(db, conversation):
+                self.write_conversation(db, conversation)
+
     def confirm_text(self, attempt_id, text):
         with self.transaction() as db:
             self.owned_attempt(db, attempt_id)
             db.execute(update(s.attempts).where(s.attempts.c.id == attempt_id).values(confirmed_text=text))
 
-    def prepare_assessment(self, attempt_id: str, text: str, conversation: Conversation):
-        """Durably save recognition confirmation and retry checkpoint together."""
+    def prepare_assessment(self, attempt_id: str, text: str, conversation: Conversation, checkpoint_only: bool = False):
+        """Durably save recognition confirmation and retry checkpoint together. ``checkpoint_only`` (AUD-88): write the conversation as one
+        row UPDATE when nothing but its state and pending attempt changed; the attempt update and the conversation write stay in one transaction."""
         with self.transaction() as db:
             attempt = self.owned_attempt(db, attempt_id)
             if (attempt['exercise_id'] != conversation.exercise_id
@@ -498,7 +521,8 @@ class SQLProgressRepository:
                     or conversation.pending_text != text):
                 raise ValueError('Assessment checkpoint does not match the confirmed attempt')
             db.execute(update(s.attempts).where(s.attempts.c.id == attempt_id).values(confirmed_text=text))
-            self.write_conversation(db, conversation)
+            if not (checkpoint_only and self.update_conversation_checkpoint(db, conversation)):
+                self.write_conversation(db, conversation)
 
     def coach_audio(self, exercise_id, cue_id):
         with self.read() as db:

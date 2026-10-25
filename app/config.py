@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     tutor_audio_fast_sanitize: bool = False
     # AUD-84 P5: /conversation/ready updates only the conversation row instead of rewriting its children (default off).
     db_state_only_transitions: bool = False
+    # AUD-88: the upload's pending-attempt marker and the assessment checkpoint update only the conversation row (extends the P5 technique). Off = full conversation rewrite.
+    db_state_only_checkpoints: bool = False
     # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
     db_read_autocommit: bool = False
     # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.

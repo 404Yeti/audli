@@ -44,7 +44,7 @@ export function boundedTask<T>(task: (signal: AbortSignal) => Promise<T>, ms: nu
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
     let settled = false;
-    let timer: unknown;
+    let timer: unknown = undefined;
     const end = (error: unknown, value?: T) => {
       if (settled) return;
       settled = true; env.clearTimeout(timer); cancelled?.removeEventListener('abort', cancel);

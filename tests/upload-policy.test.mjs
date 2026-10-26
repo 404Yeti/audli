@@ -69,3 +69,18 @@ test('a policy read that returns nonsense, not JSON or an error is disabled and 
     assert.deepEqual(await loader.get(), DISABLED);
   }
 });
+
+
+test('a reset prevents an older enabled response from defeating the kill switch', async () => {
+  let oldRead, reads = 0;
+  const loader = createPolicyLoader(() => ++reads === 1 ? new Promise(resolve => oldRead = resolve) : Promise.resolve({ enabled: false }));
+  const old = loader.get(); loader.reset();
+  assert.deepEqual(await loader.get(), DISABLED);
+  oldRead(document({})); assert.deepEqual(await old, DISABLED);
+  assert.deepEqual(await loader.get(), DISABLED); assert.equal(reads, 2);
+});
+
+test('the final send cap applies after growth for large recordings', () => {
+  const p = parseUploadPolicy(document({}));
+  assert.deepEqual([0,1,2].map(i => sendTimeoutMs(p, 2e6, i)), [30000,30000,30000]);
+});

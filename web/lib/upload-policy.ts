@@ -42,19 +42,21 @@ export function sendTimeoutMs(policy: PolicyNumbers, bytes: number, sendIndex: n
 export function createPolicyLoader(read: () => Promise<unknown>, clock: () => number = () => Date.now(), enabledTtlMs = 60_000, disabledTtlMs = 300_000, failedTtlMs = 30_000) {
   let cached: { policy: UploadPolicy; until: number } | null = null;
   let pending: Promise<UploadPolicy> | null = null;
+  let generation = 0;
   return {
     get(): Promise<UploadPolicy> {
       if (cached && clock() < cached.until) return Promise.resolve(cached.policy);
-      pending ??= (async () => {
-        try {
-          const policy = parseUploadPolicy(await read());
-          cached = { policy, until: clock() + (policy.enabled ? enabledTtlMs : disabledTtlMs) };
-        } catch { cached = { policy: DISABLED, until: clock() + failedTtlMs }; }
-        finally { pending = null; }
-        return cached!.policy;
+      if (pending) return pending;
+      const current = generation;
+      pending = (async () => {
+        let policy: UploadPolicy, ttl: number;
+        try { policy = parseUploadPolicy(await read()); ttl = policy.enabled ? enabledTtlMs : disabledTtlMs; }
+        catch { policy = DISABLED; ttl = failedTtlMs; }
+        if (current === generation) { cached = { policy, until: clock() + ttl }; pending = null; }
+        return current === generation ? policy : DISABLED;
       })();
       return pending;
     },
-    reset() { cached = null; pending = null; },
+    reset() { generation++; cached = null; pending = null; },
   };
 }

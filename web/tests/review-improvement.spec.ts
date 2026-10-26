@@ -21,7 +21,7 @@ const report = (improvement: ImprovementState | null | undefined): LessonReport 
   transcript_url: '/api/exercises/exercise-one/transcript', audio_url: null, ...(improvement === undefined ? {} : { improvement }) }] });
 
 type Reply = { status: number; json: unknown; delay?: number };
-async function setup(page: Page, initial: ImprovementState | null | undefined, replies: Reply[] = []) {
+async function setup(page: Page, initial: ImprovementState | null | undefined, replies: Reply[] = [], holdReportFocus = false) {
   await installVoice(page);
   const posts: string[] = [], writes: string[] = [], bodies: unknown[] = [];
   await page.route('**/api/**', async route => {
@@ -43,6 +43,7 @@ async function setup(page: Page, initial: ImprovementState | null | undefined, r
     return route.fulfill({ status: 404, json: { detail: 'Unexpected request' } });
   });
   await page.goto('/'); await page.getByRole('button', { name: 'Review', exact: true }).click();
+  if (holdReportFocus) await page.evaluate(() => { (window as unknown as { holdReviewFrames: boolean }).holdReviewFrames = true; });
   await page.getByRole('button', { name: /A change to the Monday meeting/ }).click();
   return { posts, writes, bodies };
 }
@@ -208,10 +209,69 @@ test('leaving Review while a request is running discards its result without erro
 });
 
 test('keyboard operation and labeled landmarks', async ({ page }) => {
-  await setup(page, available);
+  const fixture = await setup(page, available);
+  await expect(page.getByRole('heading', { level: 1, name: lesson.title })).toBeFocused();
   const button = heard(page).getByRole('button', { name: 'Show an improved version' });
   await button.focus(); await page.keyboard.press('Enter');
   await expect(heard(page).getByRole('heading', { name: 'Why' })).toBeVisible();
+  expect(fixture.posts).toHaveLength(1);
+  expect(fixture.writes).toEqual(['POST /api/exercises/exercise-one/review/improvement']);
+});
+
+/** Hold actual navigation frames until the test chooses the focus/activation order. */
+async function holdNavigationFrames(page: Page) {
+  await page.addInitScript(() => {
+    const native = window.requestAnimationFrame.bind(window);
+    const held: Array<() => void> = [];
+    const state = window as unknown as { holdReviewFrames: boolean; releaseReviewFrames(): void; heldReviewFrames(): number };
+    state.holdReviewFrames = false;
+    state.heldReviewFrames = () => held.length;
+    state.releaseReviewFrames = () => {
+      state.holdReviewFrames = false;
+      for (const callback of held.splice(0)) callback();
+    };
+    window.requestAnimationFrame = callback => native(time => {
+      if (state.holdReviewFrames) held.push(() => callback(time));
+      else callback(time);
+    });
+  });
+}
+async function releaseNavigationFrames(page: Page) {
+  await expect.poll(() => page.evaluate(() => (window as unknown as { heldReviewFrames(): number }).heldReviewFrames())).toBeGreaterThan(0);
+  await page.evaluate(() => (window as unknown as { releaseReviewFrames(): void }).releaseReviewFrames());
+}
+
+test('delayed report heading focus preserves keyboard activation and submits once', async ({ page }) => {
+  await holdNavigationFrames(page);
+  const fixture = await setup(page, available, [], true);
+  const button = heard(page).getByRole('button', { name: 'Show an improved version' });
+  await button.focus();
+  await expect(button).toBeFocused();
+  await releaseNavigationFrames(page);
+  await expect(button).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(heard(page).getByRole('heading', { name: 'Why' })).toBeVisible();
+  expect(fixture.posts).toHaveLength(1);
+  expect(fixture.writes).toEqual(['POST /api/exercises/exercise-one/review/improvement']);
+});
+
+test('delayed report navigation still focuses its heading without intervening interaction', async ({ page }) => {
+  await holdNavigationFrames(page);
+  const fixture = await setup(page, available, [], true);
+  await expect(heard(page).getByRole('button', { name: 'Show an improved version' })).toBeVisible();
+  await releaseNavigationFrames(page);
+  await expect(page.getByRole('heading', { level: 1, name: lesson.title })).toBeFocused();
+  expect(fixture.posts).toHaveLength(0);
+});
+
+test('a stale report focus frame cannot override Back navigation', async ({ page }) => {
+  await holdNavigationFrames(page);
+  const fixture = await setup(page, available, [], true);
+  await expect(heard(page).getByRole('button', { name: 'Show an improved version' })).toBeVisible();
+  await page.getByRole('button', { name: '‹ Back to Review' }).click();
+  await releaseNavigationFrames(page);
+  await expect(page.getByRole('button', { name: /A change to the Monday meeting/ })).toBeFocused();
+  expect(fixture.posts).toHaveLength(0);
 });
 
 for (const width of [320, 390, 1280]) {

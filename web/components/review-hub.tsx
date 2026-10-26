@@ -25,6 +25,25 @@ export function ReviewHub() {
   const container = useRef<HTMLElement | null>(null);
   const cursor = useRef<string | null>(null);
   const zone = useRef<string | null>(null);
+  const focusInteraction = useRef(0);
+  const focusNavigation = useRef(0);
+
+  useEffect(() => {
+    const interacted = () => { focusInteraction.current++; };
+    // A delayed navigation focus must not override a subsequent keyboard,
+    // pointer or focus change, including while the report request is pending.
+    for (const event of ['keydown', 'pointerdown', 'focusin']) document.addEventListener(event, interacted, true);
+    return () => {
+      for (const event of ['keydown', 'pointerdown', 'focusin']) document.removeEventListener(event, interacted, true);
+    };
+  }, []);
+
+  function navigationFocus(focus: () => void) {
+    const navigation = ++focusNavigation.current, interaction = focusInteraction.current;
+    return () => requestAnimationFrame(() => {
+      if (owner.current?.current && navigation === focusNavigation.current && interaction === focusInteraction.current) focus();
+    });
+  }
 
   useEffect(() => {
     const lifetime = new LessonLifetime(); owner.current = lifetime;
@@ -60,19 +79,20 @@ export function ReviewHub() {
   async function open(item: ReviewLesson, button?: HTMLButtonElement) {
     if (button) returnFocus.current = `${item.kind}:${item.id}`;
     const request = operation(); if (!request) return;
+    const focusReport = navigationFocus(() => { if (request.current && pending.current === request) heading.current?.focus(); });
     setSelected(item); setReport(null); setPatterns(false);
     try {
       const data = await request.api<LessonReport>(`/review/${item.kind}/${encodeURIComponent(item.id)}`);
       request.assertCurrent(); setReport(data);
     } catch (e) { if (request.current) setError((e as Error).message); }
-    finally { if (request.current) setLoading(false); request.release(); requestAnimationFrame(() => heading.current?.focus()); }
+    finally { if (request.current) { setLoading(false); focusReport(); } request.release(); }
   }
   function back() {
     pending.current?.cancel(); setSelected(null); setReport(null); setPatterns(false); setLoading(false); setError('');
-    requestAnimationFrame(() => {
+    navigationFocus(() => {
       const button = Array.from(container.current?.querySelectorAll<HTMLButtonElement>('[data-review-focus]') ?? []).find(element => element.dataset.reviewFocus === returnFocus.current);
       (button ?? heading.current)?.focus();
-    });
+    })();
   }
   const timezone = dashboard?.summary.timezone_used ?? 'UTC';
   return <section ref={container} className="shell-view review-hub" aria-label="Listening review">
@@ -103,7 +123,7 @@ export function ReviewHub() {
         </details>
       </div>
       {!dashboard.summary.completed_lessons && <div className="review-card"><h2>Your journey starts here</h2><p>Complete a listening lesson to see your first review.</p></div>}
-      <div className="review-card review-insight"><h2>What your responses show</h2><p>{dashboard.insight}</p><button className="text-button" data-review-focus="patterns" onClick={() => { returnFocus.current = 'patterns'; setPatterns(true); requestAnimationFrame(() => heading.current?.focus()); }}>Explore listening patterns <span aria-hidden="true">›</span></button></div>
+      <div className="review-card review-insight"><h2>What your responses show</h2><p>{dashboard.insight}</p><button className="text-button" data-review-focus="patterns" onClick={() => { returnFocus.current = 'patterns'; const focusPatterns = navigationFocus(() => heading.current?.focus()); setPatterns(true); focusPatterns(); }}>Explore listening patterns <span aria-hidden="true">›</span></button></div>
       {dashboard.lessons.length > 0 && <section aria-labelledby="review-history-title"><h2 id="review-history-title">Completed lessons</h2><p className="review-caption">Newest first. Passages vary in difficulty, so this history does not combine scores into a progress percentage.</p><LessonList items={dashboard.lessons} timezone={timezone} open={open}/>
         {dashboard.next_cursor && <button className="secondary" disabled={loading} onClick={() => void load(true)}>Show older lessons</button>}
       </section>}

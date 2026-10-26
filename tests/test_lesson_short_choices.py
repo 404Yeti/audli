@@ -58,6 +58,7 @@ def test_empty_unknown_and_mixed_answers_are_not_closed_choices(text):
 
 
 @pytest.mark.parametrize('change', ['missing', 'resolved', 'discovery', 'topic', 'mismatched',
+                                   'topic_with_old_target', 'missing_clarification_target',
                                    'accepted', 'expired', 'consumed', 'paused', 'completed', 'old', 'future'])
 def test_no_missing_expired_or_stale_offer_exception(change):
     lesson, at = offer_pending()
@@ -68,6 +69,11 @@ def test_no_missing_expired_or_stale_offer_exception(change):
     if change == 'mismatched':
         lesson.phase = 'REVIEW'; lesson.accent_confirmation = True
         lesson.accent_consent.accent = 'british'
+    if change == 'topic_with_old_target':
+        lesson.phase = 'REVIEW'; lesson.accent_resolved = True
+        lesson.accent_consent.accent = 'australian'
+    if change == 'missing_clarification_target':
+        lesson.phase = 'REVIEW'; lesson.accent_resolved = True; lesson.accent_confirmation = True
     if change in ('accepted', 'expired', 'consumed'): lesson.accent_consent.state = change
     if change in ('paused', 'completed'): lesson.status = change
     if change == 'old': at += timedelta(seconds=CONSENT_SECONDS)
@@ -91,11 +97,12 @@ def test_last_valid_instant_and_bounded_clarification():
     assert pending_recognition(lesson, .65, at + timedelta(seconds=CONSENT_SECONDS)) == 'uncertain'
 
 
-def prepared(repository_factory, tmp_path, text, probability=.95):
+def prepared(repository_factory, tmp_path, text, probability=.95, initial_offer='australian'):
     repo = repository_factory()
     client, provider, settings = setup(repo, tmp_path)
     profile = repo.profile()
-    profile.accent_preferences = AccentPreferences(status='preferred', accents=['australian'])
+    profile.accent_preferences = AccentPreferences(status='preferred' if initial_offer else 'no_preference',
+                                                  accents=[initial_offer] if initial_offer else [])
     repo.save_profile(profile)
     # Execute OpenAIProvider's real classification, mocking only its SDK transport.
     stt = provider_returning(text, .95 if probability is None else probability)
@@ -182,6 +189,82 @@ def test_server_rechecks_offer_after_verdict_and_rejects_forgery(repository_fact
     revision = lesson['revision'] if change == 'revision' else stored.revision
     assert client.post(path, json={'revision': revision}).status_code == (409 if change == 'revision' else 422)
     assert repo.lesson().model_dump() == before and repo.profile().model_dump() == profile
+
+
+@pytest.mark.parametrize('initial_offer', [None, 'british'])
+@pytest.mark.parametrize('text, consent', [('Yes, please.', 'accepted'), ('Sure.', 'accepted'),
+                                        ('Okay.', 'accepted'), ('No, thanks.', 'declined')])
+def test_short_reply_answers_the_actual_clarification_not_the_historical_offer(
+        repository_factory, tmp_path, audio_bytes, initial_offer, text, consent):
+    repo, client, _, _ = prepared(repository_factory, tmp_path, 'Maybe practice Australian English.',
+                                  initial_offer=initial_offer)
+    lesson = action(client, upload(client, start(client), audio_bytes), 'answer')
+    assert lesson['phase'] == 'REVIEW' and 'Would you like Australian English' in lesson['prompt']
+    assert repo.lesson().accent_offered == initial_offer
+    assert repo.lesson().accent_resolved and repo.lesson().accent_confirmation
+    assert repo.lesson().accent_consent.accent == 'australian'
+    client.provider.transcribe = provider_returning(text).transcribe
+    lesson = upload(client, lesson, audio_bytes)
+    assert lesson['pending_recognition'] == 'accepted'
+    lesson = action(client, lesson, 'answer')
+    assert lesson['phase'] == 'REVIEW_ACK'
+    assert repo.lesson().accent_consent.state == consent
+    assert authorized_accent(repo.lesson()) == ('australian' if consent == 'accepted' else None)
+
+
+def test_short_offer_expiring_during_availability_read_cannot_commit(
+        repository_factory, tmp_path, audio_bytes, monkeypatch):
+    repo, client, _, _ = prepared(repository_factory, tmp_path, 'Yes, please.')
+    lesson = upload(client, start(client), audio_bytes)
+    at = repo.lesson().started_at + timedelta(seconds=CONSENT_SECONDS - .001)
+    monkeypatch.setattr('app.lesson_api.now', lambda: at)
+    original = client.app.state.accent_controls.voices
+    async def cross_expiry():
+        nonlocal at
+        available = await original()
+        at += timedelta(seconds=.001)
+        return available
+    monkeypatch.setattr(client.app.state.accent_controls, 'voices', cross_expiry)
+    before, profile = repo.lesson().model_dump(), repo.profile().model_dump()
+    response = client.post(f"/api/lessons/{lesson['id']}/answer", json={'revision': lesson['revision']})
+    assert response.status_code == 422
+    assert repo.lesson().model_dump() == before and repo.profile().model_dump() == profile
+
+
+def test_question_changed_during_availability_read_preserves_the_new_checkpoint(
+        repository_factory, tmp_path, audio_bytes, monkeypatch):
+    repo, client, _, _ = prepared(repository_factory, tmp_path, 'Yes, please.')
+    lesson = upload(client, start(client), audio_bytes)
+    original = client.app.state.accent_controls.voices
+    checkpoint = None
+    async def another_writer():
+        nonlocal checkpoint
+        available = await original()
+        changed = repo.lesson()
+        changed.phase = 'REVIEW'; changed.accent_resolved = True
+        changed.accent_confirmation = False; changed.pending = None
+        repo.save_lesson(changed, changed.revision)
+        checkpoint = repo.lesson().model_dump()
+        return available
+    monkeypatch.setattr(client.app.state.accent_controls, 'voices', another_writer)
+    profile = repo.profile().model_dump()
+    response = client.post(f"/api/lessons/{lesson['id']}/answer", json={'revision': lesson['revision']})
+    assert response.status_code == 409
+    assert repo.lesson().model_dump() == checkpoint and repo.profile().model_dump() == profile
+    assert repo.lesson().accent_consent.state == 'none'
+
+
+@pytest.mark.parametrize('probability, accepted', [(.64, False), (.65, True), (.66, True)])
+def test_sdk_confidence_boundary_through_the_full_answer_route(
+        repository_factory, tmp_path, audio_bytes, probability, accepted):
+    repo, client, _, _ = prepared(repository_factory, tmp_path, 'Sure.', probability)
+    lesson = upload(client, start(client), audio_bytes)
+    assert (lesson['pending_recognition'] == 'accepted') is accepted
+    before = repo.lesson().model_dump()
+    response = client.post(f"/api/lessons/{lesson['id']}/answer", json={'revision': lesson['revision']})
+    assert response.status_code == (200 if accepted else 422)
+    if not accepted:
+        assert repo.lesson().model_dump() == before
 
 
 @pytest.mark.parametrize('text', ['Yes, please.', 'Sure.', 'Okay.', 'No, thanks.'])

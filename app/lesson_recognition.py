@@ -39,7 +39,10 @@ def pending_recognition(lesson: Lesson, minimum: float, at: datetime) -> Pending
         context = lesson.accent_offered
     elif lesson.phase == 'REVIEW' and lesson.accent_confirmation:
         context = lesson.accent_consent.accent
-        if context != lesson.accent_offered:
+        # A bounded clarification asks about this target, which can differ from
+        # the original offer (or follow a spontaneous request with no offer).
+        # Before clarification, the queued offer and confirmation must agree.
+        if not lesson.accent_resolved and context != lesson.accent_offered:
             return 'uncertain'
     else:
         return 'uncertain'

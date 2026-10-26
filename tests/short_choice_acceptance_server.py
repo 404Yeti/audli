@@ -11,6 +11,7 @@ import tempfile
 import wave
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal
 
 _workspace = tempfile.TemporaryDirectory(prefix='aud91-short-choice-')
 os.environ.update(AUDLI_ENVIRONMENT='development', AUDLI_PERSISTENCE='sqlite',
@@ -40,6 +41,8 @@ class Choice(StrictModel):
     text: str = Field(default='Yes, please.', max_length=100)
     confidence: float = Field(default=.95, ge=0, le=1)
     offered: bool = True
+    initial_accent: Literal['australian', 'british'] = 'australian'
+    clarify: bool = False
 
 
 class ChoiceProvider(DemoProvider):
@@ -51,7 +54,8 @@ class ChoiceProvider(DemoProvider):
         async def create(**kwargs):
             assert kwargs['file'][1] and kwargs['include'] == ['logprobs']
             self.calls += 1
-            return SimpleNamespace(text=choice.text,
+            text = 'Maybe practice Australian English.' if choice.clarify and self.calls == 1 else choice.text
+            return SimpleNamespace(text=text,
                 logprobs=[SimpleNamespace(logprob=math.log(max(choice.confidence, 1e-10)))])
         self.client = SimpleNamespace(audio=SimpleNamespace(transcriptions=SimpleNamespace(create=create)))
 
@@ -77,13 +81,13 @@ async def reset(choice: Choice):
     profile = repo.profile()
     profile.name = 'Listener'; profile.onboarding_status = 'complete'
     profile.accent_preferences = AccentPreferences(status='preferred' if choice.offered else 'no_preference',
-                                                  accents=['australian'] if choice.offered else [])
+                                                  accents=[choice.initial_accent] if choice.offered else [])
     repo.save_profile(profile)
     settings = Settings(provider='demo', data_dir=directory, _env_file=None)
     provider = ChoiceProvider(choice, settings)
     current = create_app(settings, provider, repo)
     async def voices():
-        return {'australian': object()}  # Only the offer/intent paths run; no passage provider.
+        return {'australian': object(), 'british': object()}  # Offer/intent only; no passage provider.
     current.state.accent_controls.voices = voices
     mounted.app = current
     app.state.provider = provider

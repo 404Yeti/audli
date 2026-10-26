@@ -347,6 +347,11 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             text = lesson.pending.text
             available_voices = await passage_limits.voices()
+            # The asynchronous availability read can cross the offer deadline.
+            # Recheck before interpreting/consuming short consent, without an
+            # extra database/provider call or changing normal evidence rules.
+            if pending_recognition(lesson, settings.min_transcription_confidence, now()) != 'accepted':
+                raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             discovering = (lesson.accent_discovery and not lesson.accent_discovery_resolved
                            and not lesson.accent_confirmation)
             context = (lesson.accent_consent.accent if lesson.accent_confirmation

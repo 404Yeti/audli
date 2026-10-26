@@ -8,7 +8,8 @@ short-choice exception; comprehension evidence must stay strict.
 `app/lesson_recognition.py` now computes an `accepted` / `uncertain` verdict for
 the pending check-in. Only a full affirmative/refusal matching the current
 unresolved WELCOME offer or explicit REVIEW confirmation may ignore **only** the
-length warning. The offer target must be known and consistent, consent must still
+length warning. The target must match the server's actual question (including a
+bounded clarification about a new target), consent must still
 be ungranted, and the lesson must be active within its original ten-minute wall
 window (future timestamps fail closed). Resolved/missing/expired/consumed grants,
 open topic questions, mixed decisions and all other uncertainty stay blocked.
@@ -23,7 +24,8 @@ that server verdict. Missing fields from an older backend use the existing stric
 gate. The `/answer` endpoint accepts only a revision and recomputes under the
 current checkpoint; posting a forged verdict is rejected. Stale revisions fail
 before state mutation. Resume/read responses also recompute, so an expired verdict
-cannot authorize a later action.
+cannot authorize a later action. The handler also rechecks after its asynchronous
+availability read so crossing the deadline cannot consume short consent.
 
 No recording duration/VAD, confidence threshold, comprehension gate, upload retry
 setting or transport logic changes. Bare “Okay” is not a topic or global consent.
@@ -34,7 +36,8 @@ No added audio/transcript logs, provider calls, schema migration or feature flag
 * Python: valid synthetic WAV -> decoder -> actual OpenAI transcription
   classification with mocked SDK -> saved pending warning/verdict -> intent and
   consent. WELCOME/REVIEW affirmatives/refusal, duplicate actions, stale/missing/
-  expired offers, empty/missing/low confidence, ambiguity, other warnings,
+  expired offers, expiry during availability, concurrent checkpoint changes,
+  retargeted/spontaneous clarification, empty/missing/low confidence, ambiguity, other warnings,
   .64/.65/.66 boundary and configured thresholds, unchanged comprehension state.
 * Chromium and iPhone WebKit: synthetic microphone/MediaRecorder bytes go through
   actual browser capture/finalization/VAD/upload and real local API/SQLite. Only

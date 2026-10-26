@@ -54,3 +54,32 @@ for (const choice of [{ text: 'Yes, please.', confidence: .64 }, { text: 'Yes, n
     expect(await metrics.json()).toMatchObject({ transcriptions: 3, phase: 'WELCOME', consent: 'none' });
   });
 }
+
+for (const [choice, consent] of [
+  [{ text: 'Sure.', offered: false, clarify: true }, 'accepted'],
+  [{ text: 'No, thanks.', initial_accent: 'british', clarify: true }, 'declined'],
+] as const) {
+  test(`short reply follows the actual clarification: ${JSON.stringify(choice)}`, async ({ page, request }) => {
+    await request.post('http://127.0.0.1:8103/__fixture/reset', { data: choice });
+    const recording = promptWav();
+    for (let i = 0; i < 5600; i++) recording.writeInt16LE(Math.round(3000 * Math.sin(2 * Math.PI * 220 * i / 8000)), 44 + i * 2);
+    await installVoice(page, { autoPlayback: true, recordingWav: [...recording] });
+    const answers: LessonCheckpoint[] = [];
+    let retries = 0;
+    page.on('request', r => { if (r.url().endsWith('/recognition/retry-audio')) retries++; });
+    page.on('response', async response => {
+      if (response.ok() && /\/lessons\/[^/]+\/answer$/.test(response.url())) answers.push(await response.json());
+    });
+    await page.route('**/api/lessons/*/heard', route => route.fulfill({ status: 409, json: { detail: 'End of isolated check-in fixture' } }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Start today’s session' }).click();
+    await expect.poll(() => answers.length, { timeout: 15000 }).toBe(2);
+    expect(answers[0].phase).toBe('REVIEW');
+    expect(answers[0].prompt).toContain('Would you like Australian English');
+    expect(answers[1].phase).toBe('REVIEW_ACK');
+    expect(retries).toBe(0);
+    expect((await probe(page)).recorders).toBe(2);
+    const metrics = await request.get('http://127.0.0.1:8103/__fixture/metrics');
+    expect(await metrics.json()).toMatchObject({ transcriptions: 2, consent });
+  });
+}

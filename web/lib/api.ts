@@ -1,12 +1,9 @@
-import { markApiActivity, startDelivery, uploadIdOf } from './upload-delivery.ts';
+import { markApiActivity, startDelivery, retryUploadIdOf } from './upload-delivery.ts';
 let accessToken: (() => Promise<string | null>) | null = null;
 /** AUD-85, build-time opt-in diagnostics, installed by turn-reporting: the random per-turn id and request spans. */
 export type RequestTraceHooks = { turnId(): string | null; kindOf(path: string): string | null; record(kind: never, start: number, token: number, ttfb: number): void };
 let traceHooks: RequestTraceHooks | null = null;
 export function installRequestTrace(hooks: RequestTraceHooks | null) { traceHooks = hooks; }
-/** AUD-89 P2: set when the server's upload policy is enabled; the recording's upload id then rides along on its uploads (same-origin only). */
-let uploadIdHeader = false;
-export function setUploadIdHeader(on: boolean) { uploadIdHeader = on; }
 let authRevision = 0;
 const pendingOperations = new Set<AbortController>();
 export function currentAuthRevision() { return authRevision; }
@@ -127,7 +124,7 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   if (logTurn) console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
   // AUD-89 P0 (same opt-in as turn tracing): observe each send of a recording; the id follows the recording, not the request.
   const delivery = traceHooks ? startDelivery(url, init?.body) : null;
-  const uploadId = delivery?.id ?? (uploadIdHeader ? uploadIdOf(init?.body) : null);
+  const uploadId = delivery?.id ?? retryUploadIdOf(init?.body);
   if (uploadId && resolveApiUrl(url) === url) headers.set('X-Audli-Upload-Id', uploadId);   // same-origin only: no CORS change
   let response: Response;
   try { response = await fetch(resolveApiUrl(url), { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' }); }

@@ -3,10 +3,11 @@
  * With the policy disabled (the default, and the answer to any failure to read it) every function here does exactly what the page did
  * before: one request through `sendRecording`. With it enabled, the recording is sent with bounded retries (web/lib/upload-sender.ts).
  * The recording itself is the caller's: it is never cleared here except by a definitive rejection (413/415/422), as before. */
-import { ApiError, UnreachableError, authenticatedFetch, resolveApiUrl, setUploadIdHeader, type LessonOperation } from './api.ts';
+import { ApiError, UnreachableError, authenticatedFetch, resolveApiUrl, type LessonOperation } from './api.ts';
 import { decideCheckin, type Known } from './checkin-reconcile.ts';
 import type { Recognition } from './hands-free.ts';
 import type { LessonCheckpoint } from './lesson-lifecycle.ts';
+import { retainUploadId } from './upload-delivery.ts';
 import { recordingUpload, sendRecording } from './recording.ts';
 import { createPolicyLoader, DISABLED, type UploadPolicy } from './upload-policy.ts';
 import { deliver, boundedTask, browserEnv, DeliveryFailed, type DeliveryState, type SenderEnv } from './upload-sender.ts';
@@ -19,14 +20,13 @@ export const uploadPolicy = createPolicyLoader(async () => {
   }, 1500);
 });
 
-/** The current policy; any failure to read it is DISABLED. Also switches the recording id header on only while the policy is enabled. */
+/** The current policy; any failure to read it is DISABLED. Recording identity is owned by the recording, independently of the current policy. */
 export async function currentPolicy(signal?: AbortSignal, force = false): Promise<UploadPolicy> {
   let policy: UploadPolicy = DISABLED;
   // The existing experimental cross-origin path does not send upload IDs. Do not retry it or change CORS.
-  if (resolveApiUrl('/api/upload-policy') !== '/api/upload-policy') { setUploadIdHeader(false); return DISABLED; }
+  if (resolveApiUrl('/api/upload-policy') !== '/api/upload-policy') return DISABLED;
   if (force) uploadPolicy.reset();
   try { policy = await boundedTask(() => uploadPolicy.get(), 1500, signal); } catch { signal?.throwIfAborted(); policy = DISABLED; }
-  setUploadIdHeader(policy.enabled);
   return policy;
 }
 
@@ -42,6 +42,7 @@ export async function deliverExercise(operation: LessonOperation, exerciseId: st
   const policy = await currentPolicy(operation.signal);
   operation.signal.throwIfAborted();
   if (!policy.enabled) return sendRecording(() => operation.api<Attempt>(url, { method: 'POST', body: recordingUpload(blob) }), invalid);
+  retainUploadId(blob);
   try {
     // The same recording keeps the same upload id on every send, so the server answers a repeat with the first attempt (P1).
     const delivered = await deliver<Attempt>({ policy: { ...policy, deadlineMs: policy.deadlineMs - ((extras.env ?? browserEnv).now() - started) }, bytes: blob.size, ...extras, cancelled: operation.signal,
@@ -78,6 +79,7 @@ export async function deliverCheckin(operation: LessonOperation, lesson: LessonC
   operation.signal.throwIfAborted();
   const previous = original;
   if (!policy.enabled) return { value: await sendRecording(() => send(previous?.revision ?? lesson.revision), invalid), via: 'sent' };
+  retainUploadId(blob);
   const known: Known = previous ?? { lessonId: lesson.id, revision: lesson.revision, phase: lesson.phase, pending: serverPending };
   const reconcile = async (signal: AbortSignal) => {
     const server = await operation.apiWith<LessonCheckpoint>(`/lessons/${known.lessonId}`, undefined, signal);

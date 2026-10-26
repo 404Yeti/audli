@@ -104,3 +104,33 @@ test('an existing direct-origin opt-in fails closed instead of retrying without 
     else process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN=previous;
   }
 });
+
+
+test('manual Send again after the kill switch keeps the prior exercise identity with telemetry off', async () => {
+  const c=fakeEnv(), blob=audio(), ids=[], attempts=new Map();let stt=0;
+  globalThis.fetch=async(url,init)=>{
+    if(url==='/api/upload-policy')return Response.json(enabled ? {enabled:true,...defaults,max_sends:1} : {enabled:false});
+    const id=init.headers.get('X-Audli-Upload-Id');ids.push(id);
+    if(!attempts.has(id)){stt++;attempts.set(id,{id:'first',transcription:{text:'meaning'}});throw new TypeError('lost response');}
+    return Response.json(attempts.get(id));
+  };
+  const lifetime=new LessonLifetime(),operation=lifetime.begin();
+  const first=await run(c,deliverExercise(operation,'e',blob,()=>{},{env:c.env}));
+  assert.equal(first.error.name,'DeliveryFailed');
+  enabled=false;uploadPolicy.reset();
+  const second=await run(c,deliverExercise(operation,'e',blob,()=>{},{env:c.env}));
+  assert.equal(second.result.id,'first');assert.match(ids[0],/^[a-f0-9]{16}$/);
+  assert.deepEqual(ids,[ids[0],ids[0]]);assert.equal(stt,1);lifetime.close();
+});
+
+test('a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior', async () => {
+  enabled=false;let posts=0;
+  globalThis.fetch=async(url,init)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:false});
+    posts++;assert.equal(init.headers.has('X-Audli-Upload-Id'),false);
+    return Response.json({id:'legacy',transcription:{text:'meaning'}});
+  };
+  const lifetime=new LessonLifetime(),operation=lifetime.begin();
+  assert.equal((await deliverExercise(operation,'e',audio(),()=>{})).id,'legacy');
+  assert.equal(posts,1);lifetime.close();
+});

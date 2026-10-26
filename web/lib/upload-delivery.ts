@@ -18,10 +18,17 @@ export type DeliveryRecord = {
 /** Set by `recordingUpload` on the FormData it builds, so the id (and the recording's own length) follow the recording, not
  * the request. FormData stores a copy of the Blob, so they cannot be looked up from the file inside it. */
 export const UPLOAD_ID: unique symbol = Symbol('audli.uploadId');
+const RETRY_ID: unique symbol = Symbol('audli.retryUploadId');
 export const UPLOAD_REC: unique symbol = Symbol('audli.recordingMs');
-type UploadForm = FormData & { [UPLOAD_ID]?: string; [UPLOAD_REC]?: number };
+type UploadForm = FormData & { [UPLOAD_ID]?: string; [UPLOAD_REC]?: number; [RETRY_ID]?: boolean };
 
 const ids = new WeakMap<Blob, string>();
+const retryRecordings = new WeakSet<Blob>();
+/** Once a recording enters P2, manual sends retain its ID even after the kill switch is off. */
+export function retainUploadId(blob: Blob) { retryRecordings.add(blob); }
+export function retryUploadIdOf(body: BodyInit | null | undefined): string | null {
+  return typeof FormData !== "undefined" && body instanceof FormData && (body as UploadForm)[RETRY_ID] ? uploadIdOf(body) : null;
+}
 const lengths = new WeakMap<Blob, number>();
 const sends = new Map<string, number>();
 const MAX_QUEUE = 16;
@@ -46,6 +53,7 @@ export function rememberRecordingLength(blob: Blob, ms: number) { lengths.set(bl
 export function tagUpload(form: FormData, blob: Blob): FormData {
   const tagged = form as UploadForm;
   tagged[UPLOAD_ID] = uploadIdFor(blob);
+  if (retryRecordings.has(blob)) tagged[RETRY_ID] = true;
   const length = lengths.get(blob);
   if (length != null) tagged[UPLOAD_REC] = length;
   return form;

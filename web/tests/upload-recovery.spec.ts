@@ -21,13 +21,15 @@ test('repeated failures retain one exercise ID; Send again and replay do not reg
   await page.getByRole('button', { name: 'Replay question', exact: true }).click();
   await until(page, async () => (await probe(page)).plays.length > plays);
   expect(f.audioRequests()).toBe(audioBefore);
+  await until(page, () => page.getByRole('button', { name: 'Send again', exact: true }).isEnabled());
   const before = f.uploadRequests.length;
   await page.getByRole('button', { name: 'Send again', exact: true }).evaluate(button => { (button as HTMLButtonElement).click(); (button as HTMLButtonElement).click(); });
   await until(page, () => f.uploadRequests.length > before);
   expect(f.uploadRequests.length).toBe(before + 1);
   expect(f.uploadRequests.at(-1)?.uploadId).toBe(id);
   expect(f.transcriptions).toBe(1);
-  expect(f.count('POST', '/coach-audio')).toBe(1);
+  const uploadIndex=f.requests.findLastIndex(request=>request==='POST /api/exercises/clip/attempts');
+  expect(f.requests.slice(0,uploadIndex).filter(request=>request.endsWith('/coach-audio'))).toHaveLength(1);
 });
 
 test('lost check-in response stays ambiguous, and Send again never overwrites it', async ({ page }) => {

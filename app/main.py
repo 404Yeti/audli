@@ -15,6 +15,7 @@ from app.config import Settings
 from app.diagnostics import operation, report_failure, timed_lock, request_timings
 from app.telemetry import aggregator, loop_lag_loop, summary_loop
 from app.upload_idempotency import attempt_id_for, upload_id_from
+from app.upload_policy import register_upload_policy_routes, resolve_policy
 from app.telemetry_api import register_telemetry_routes
 from time import perf_counter
 from app.evaluation import score_judgments
@@ -136,6 +137,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return provider
 
     turntrace.enabled = bool(settings.turn_trace and settings.latency_aggregates)
+    upload_policy = resolve_policy(settings.upload_retry and settings.upload_idempotency, settings.upload_retry_policy)   # AUD-89 P2: computed once; invalid = disabled
 
     @app.middleware('http')
     async def privacy_headers(request: Request, call_next):
@@ -237,7 +239,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'db_state_only_transitions': settings.db_state_only_transitions,
                 'db_offload': settings.db_offload, 'db_lazy_ping': settings.db_lazy_ping,
                 'db_state_only_checkpoints': settings.db_state_only_checkpoints,
-                'upload_idempotency': settings.upload_idempotency}
+                'upload_idempotency': settings.upload_idempotency, 'upload_retry': upload_policy['enabled']}
 
     @app.get('/api/auth/config')
     async def auth_config():
@@ -481,6 +483,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     from app.tutor_voice_api import register_tutor_voice_routes
     register_tutor_voice_routes(app, repo, lock, settings, new_lock)
     register_telemetry_routes(app, settings)
+    register_upload_policy_routes(app, upload_policy)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
     from app.account import register_account_routes

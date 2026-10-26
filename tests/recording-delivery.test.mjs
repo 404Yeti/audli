@@ -77,3 +77,17 @@ test('unavailable and malformed policy fail closed',async()=>{
     assert.equal((await currentPolicy()).enabled,false);
   }
 });
+
+
+test('a retained check-in cannot be redirected to another lesson at a coincident revision', async () => {
+  const c=fakeEnv(), server=checkinServer(), blob=audio(), paths=[];
+  const operation=fakeOperation({apiWith:async(path,init)=>{
+    paths.push(path);
+    if(!init)return server.checkpoint();
+    throw new TypeError('offline');
+  }});
+  await run(c,deliverCheckin(operation,server.checkpoint(),blob,()=>{},null,{env:c.env}));
+  paths.length=0;
+  const r=await run(c,deliverCheckin(operation,{...server.checkpoint(),id:'different-lesson'},blob,()=>{},null,{env:c.env}));
+  assert.equal(r.error.reason,'ambiguous'); assert.deepEqual(paths,[]);
+});

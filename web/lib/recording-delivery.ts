@@ -3,7 +3,7 @@
  * With the policy disabled (the default, and the answer to any failure to read it) every function here does exactly what the page did
  * before: one request through `sendRecording`. With it enabled, the recording is sent with bounded retries (web/lib/upload-sender.ts).
  * The recording itself is the caller's: it is never cleared here except by a definitive rejection (413/415/422), as before. */
-import { ApiError, authenticatedFetch, setUploadIdHeader, type LessonOperation } from './api.ts';
+import { ApiError, UnreachableError, authenticatedFetch, setUploadIdHeader, type LessonOperation } from './api.ts';
 import { decideCheckin, type Known } from './checkin-reconcile.ts';
 import type { Recognition } from './hands-free.ts';
 import type { LessonCheckpoint } from './lesson-lifecycle.ts';
@@ -59,16 +59,22 @@ export type CheckinResult = { value: LessonCheckpoint; via: 'sent' | 'adopted' |
  * (the page may be hiding it locally after an unreliable answer). */
 export async function deliverCheckin(operation: LessonOperation, lesson: LessonCheckpoint, blob: Blob, invalid: () => void,
   serverPending: Recognition | null = lesson.pending, extras: DeliveryExtras = {}): Promise<CheckinResult> {
+  const original = checkinRecordings.get(blob);
+  if (original && original.lessonId !== lesson.id) {
+    extras.onState?.({ kind: 'failed', reason: 'ambiguous', sends: 0 });
+    throw new DeliveryFailed('ambiguous', 0);
+  }
+  const lessonId = original?.lessonId ?? lesson.id;
   const send = (revision: number, signal?: AbortSignal) => {
     const form = recordingUpload(blob); form.append('revision', String(revision));
     const init = { method: 'POST', body: form };
-    return signal ? operation.apiWith<LessonCheckpoint>(`/lessons/${lesson.id}/attempts`, init, signal) : operation.api<LessonCheckpoint>(`/lessons/${lesson.id}/attempts`, init);
+    return signal ? operation.apiWith<LessonCheckpoint>(`/lessons/${lessonId}/attempts`, init, signal) : operation.api<LessonCheckpoint>(`/lessons/${lessonId}/attempts`, init);
   };
   const env = extras.env ?? browserEnv;
   const started = env.now();
   const policy = await currentPolicy(operation.signal);
   operation.signal.throwIfAborted();
-  const previous = checkinRecordings.get(blob);
+  const previous = original;
   if (!policy.enabled) return { value: await sendRecording(() => send(previous?.revision ?? lesson.revision), invalid), via: 'sent' };
   const known: Known = previous ?? { lessonId: lesson.id, revision: lesson.revision, phase: lesson.phase, pending: serverPending };
   const reconcile = async (signal: AbortSignal) => {
@@ -90,7 +96,7 @@ export async function deliverCheckin(operation: LessonOperation, lesson: LessonC
     return { value: delivered.value, via: delivered.via };
   } catch (error) {
     if (error instanceof ApiError && DEFINITIVE.has(error.status)) invalid();
-    if (!(error instanceof ApiError) && !(error instanceof DeliveryFailed) && !operation.signal.aborted) {
+    if ((error instanceof TypeError || error instanceof UnreachableError) && !operation.signal.aborted) {
       extras.onState?.({ kind: 'failed', reason: 'ambiguous', sends: 0 });
       throw new DeliveryFailed('ambiguous', 0);
     }

@@ -158,9 +158,11 @@ async def scenario(base, tokens, turns_per_learner, wav, cached_ack=False, struc
                 turns.extend(await learner.exercise(wav, ack_after=1000 if cached_ack else 1.2, structured=structured))
                 done += 2
         started = perf_counter()
-        await asyncio.gather(*(run(learner) for learner in learners))
-        wall = perf_counter() - started
-        stop.set(); await watcher
+        try:
+            await asyncio.gather(*(run(learner) for learner in learners))
+            wall = perf_counter() - started
+        finally:
+            stop.set(); await watcher
     by_route = {}
     for row in rows:
         by_route.setdefault(row['route'], []).append(row['ms'])
@@ -241,6 +243,17 @@ async def run_config(args, index, name, flags):
         result['sequential'] = await scenario(base, tokens[:1], args.sequential_turns, audio, args.cached_ack, args.structured)
         if args.learners > 1:
             result['concurrent'] = await scenario(base, tokens, args.turns_per_learner, audio, args.cached_ack, args.structured)
+        def audit():
+            with psycopg.connect(direct, autocommit=True) as db:
+                counts = {table: db.execute('SELECT count(*) FROM ' + table).fetchone()[0] for table in
+                    ('attempts', 'turn_assessments', 'conversation_turns', 'evaluation_results', 'adaptation_events', 'lesson_exercises')}
+                counts['conversations'] = dict(db.execute('SELECT state, count(*) FROM conversations GROUP BY state').fetchall())
+                counts['lesson_phases'] = dict(db.execute("SELECT data->>'phase', count(*) FROM lesson_lifecycles GROUP BY data->>'phase'").fetchall())
+                counts['completed_sessions'] = db.execute("SELECT count(*) FROM training_sessions WHERE status='completed'").fetchone()[0]
+                counts['advisory_locks'] = db.execute("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database())").fetchone()[0]
+                counts['idle_transactions'] = db.execute("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction'").fetchone()[0]
+                return counts
+        result['persistence'] = await asyncio.to_thread(audit)
     finally:
         server.send_signal(signal.SIGTERM)
         try:

@@ -107,3 +107,17 @@ test('another writer at exactly R+1 is never treated as our check-in commit', as
   expect(f.uploadRequests).toHaveLength(1);expect(f.transcriptions).toBe(0);
   expect(f.count('POST','/answer')).toBe(0);
 });
+
+
+test('manual Send again after the kill switch keeps identity and clears the recovery notice', async ({ page }) => {
+  const policy={...FAST_POLICY};
+  const f=await setupDelivery(page,'exercise',['down','down','down','ok'],{policy});
+  await begin(page);await until(page,()=>failure(page).isVisible());
+  const id=f.uploadRequests[0].uploadId;
+  policy.enabled=false;
+  await page.clock.runFor(61000);
+  await page.getByRole('button',{name:'Send again',exact:true}).click();
+  await until(page,()=>f.uploadRequests.length===4);
+  await expect(failure(page)).toHaveCount(0);
+  expect(f.uploadRequests.at(-1)?.uploadId).toBe(id);expect(f.transcriptions).toBe(1);
+});

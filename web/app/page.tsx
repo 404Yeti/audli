@@ -131,7 +131,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const retained = useRef<{ exercise: string; blob: Blob } | null>(null);
   const personalCapture = useRef<Blob | null>(null);
   // AUD-89 P2: delivery states for the learner. A failed delivery keeps the recording (retained / personalCapture) and offers Send again /
-  // Record again; neither replays the greeting or question unasked (deliveryAction tells the flow to skip that one replay).
+  // Record again; recovery uses the held checkpoint directly without restarting question playback.
   const [notice, setNotice] = useState<Notice | null>(null);
 
   function reportDelivery(kind: UnsentKind, id: string) {
@@ -451,7 +451,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       } else {
         throw new DeliveryFailed('ambiguous', 0);
       }
-      operation.assertCurrent(); lesson.current = value;
+      operation.assertCurrent(); lesson.current = value; setNotice(null); clearUnsent(account.scope);
       await runWithLimitRecovery(operation, value, false);
     } catch (cause) {
       if (operation.current) {

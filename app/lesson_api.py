@@ -132,7 +132,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
 
     @app.post('/api/lessons/{lesson_id}/farewell-audio')
     async def farewell_audio(lesson_id: str):
-        lesson = owned(lesson_id)
+        lesson = await offload.run(owned, lesson_id)
         if lesson.status != 'completed':
             raise HTTPException(409, 'Finish your lesson first.')
         return await speech('Your lesson is saved. Thanks for listening with me. See you next class.', 'lesson-farewell-v1', 'wrapup', lesson)
@@ -140,41 +140,41 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     @app.get('/api/eligibility')
     async def eligibility():
         # Server time only. Read-only, provider-free and available during cooldown.
-        return repo.eligibility(settings.lesson_limit_mode, now())
+        return await offload.run(lambda: repo.eligibility(settings.lesson_limit_mode, now()))
 
     @app.get('/api/lessons/current')
     async def current():
-        lesson = settle(repo.lesson())
-        return public(lesson) if lesson and lesson.status in ('active', 'paused') else None
+        lesson = await offload.run(lambda: settle(repo.lesson()))
+        return await offload.run(public, lesson) if lesson and lesson.status in ('active', 'paused') else None
 
     @app.get('/api/lessons/{lesson_id}')
     async def get_lesson(lesson_id: str):
-        return public(owned(lesson_id))
+        return await offload.run(lambda: public(owned(lesson_id)))
 
     @app.post('/api/lessons/start')
     async def start():
         async with lock:
-            existing = settle(repo.lesson())
+            existing = await offload.run(lambda: settle(repo.lesson()))
             if existing and existing.status in ('active', 'paused'):
-                return public(existing)
+                return await offload.run(public, existing)
             if settings.lesson_limit_mode == 'enforce':
                 # Refuse before any preparation work; the ledger claim below stays the atomic authority.
-                until = repo.cooldown_until(now())
+                until = await offload.run(lambda: repo.cooldown_until(now()))
                 if until is not None:
                     raise LimitRefused('lesson_cooldown', now(), until)
-            profile = repo.profile()
+            profile = await offload.run(repo.profile)
             if profile.onboarding_status != 'complete':
                 raise HTTPException(409, 'Complete your spoken onboarding first.')
-            roadmap = repo.optional_roadmap() if settings.planner_enabled else None
+            roadmap = await offload.run(repo.optional_roadmap) if settings.planner_enabled else None
             planned = roadmap.upcoming[0] if roadmap else None
             at = now()
             lesson = Lesson(id=str(uuid4()), started_at=at, active_since=at,
                 topic_review_due=False,
                 name=profile.name, focus=planned.focus if planned else profile.focus,
                 plan_topic=planned.topic if planned else next((label for item in profile.interests if (label := safe_label(item)) and len(label) <= 100), None), plan_number=planned.number if planned else None,
-                previous=repo.previous_lesson())
+                previous=await offload.run(repo.previous_lesson))
             available_voices = await passage_limits.voices()
-            history = repo.accent_lesson_history()
+            history = await offload.run(repo.accent_lesson_history)
             lesson.accent_discovery = discover(profile.accent_preferences, history, available_voices)
             if not lesson.accent_discovery:
                 lesson.accent_offered = offer(profile.accent_preferences, history, available_voices)
@@ -182,28 +182,28 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 'offered' if lesson.accent_offered else 'voices_unavailable' if not available_voices
                 else 'no_saved_preference' if profile.accent_preferences.status != 'preferred' else 'cadence')
             try:
-                repo.create_lesson(lesson, remember_only=not bool(available_voices), limit_mode=settings.lesson_limit_mode)
+                await offload.run(lambda: repo.create_lesson(lesson, remember_only=not bool(available_voices), limit_mode=settings.lesson_limit_mode))
             except LessonCooldown as refused:
                 raise LimitRefused('lesson_cooldown', now(), refused.next_eligible_at) from None
             except ValueError:
-                return public(repo.lesson())
-            return public(lesson)
+                return await offload.run(lambda: public(repo.lesson()))
+            return await offload.run(public, lesson)
 
     @app.post('/api/lessons/{lesson_id}/resume')
     async def resume(lesson_id: str):
         async with lock:
-            lesson = owned(lesson_id)
+            lesson = await offload.run(owned, lesson_id)
             if lesson.status == 'paused':
                 revision = lesson.revision
                 lesson.status = 'active'
                 lesson.active_since = now()
-                save(lesson, revision)
-            return public(lesson)
+                await offload.run(save, lesson, revision)
+            return await offload.run(public, lesson)
 
     @app.post('/api/lessons/{lesson_id}/end')
     async def end(lesson_id: str):
         # Do not wait for a provider lock: invalidate delayed checkpoint writes now.
-        lesson = owned(lesson_id)
+        lesson = await offload.run(owned, lesson_id)
         if lesson.status == 'active':
             revision = lesson.revision
             lesson.elapsed_seconds = elapsed(lesson, now())
@@ -211,12 +211,12 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             expire(lesson)
             lesson.accent_topic_review_pending = False
             lesson.status = 'paused'
-            save(lesson, revision)
-        return public(lesson)
+            await offload.run(save, lesson, revision)
+        return await offload.run(public, lesson)
 
     @app.post('/api/lessons/{lesson_id}/audio')
     async def audio(lesson_id: str, body: LessonRevision):
-        lesson = check(lesson_id, body.revision)
+        lesson = await offload.run(check, lesson_id, body.revision)
         text = prompt(lesson)
         if text is None:
             raise HTTPException(409, 'This phase has no lesson speech.')
@@ -228,11 +228,11 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             raise
         except Exception:
             if first:
-                repo.note_first_speech(lesson.id, False)
+                await offload.run(lambda: repo.note_first_speech(lesson.id, False))
             raise
         if first:
-            repo.note_first_speech(lesson.id, True)
-        check(lesson_id, body.revision)  # A delayed body cannot continue an ended phase.
+            await offload.run(lambda: repo.note_first_speech(lesson.id, True))
+        await offload.run(check, lesson_id, body.revision)  # A delayed body cannot continue an ended phase.
         return response
 
     ack_cache = AckCache()
@@ -242,11 +242,11 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         """AUD-87 (AUDLI_ACK_LEASE_EXEMPT): read-only. One profile read picks the voice; the audio comes from a learner-independent
         memory cache. The learner's allowance is consulted exactly where it was before: on the first cue this learner is served (the
         old per-learner cache miss), whether or not another learner already warmed the shared audio; saved replays stay free."""
-        tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'classroom')
+        tutor = TutorSpeech(settings, ai(), (await offload.run(repo.profile)).tutor_voice, 'classroom')
         text = ACKNOWLEDGMENTS[cue]
         who = (str(repo.learner_id), tutor.signature, cue)
         if who not in ack_served:
-            limits.admit('practice', 'lesson.speech:acknowledgment')      # may refuse (429/409) before any audio is served or generated
+            await offload.run(lambda: limits.admit('practice', 'lesson.speech:acknowledgment'))      # may refuse (429/409) before any audio is served or generated
 
         async def generate():
             with operation(settings, 'lesson.tts_provider'):
@@ -271,8 +271,8 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
     @app.post('/api/lessons/{lesson_id}/introduction-audio')
     async def introduction_audio(lesson_id: str, body: LessonRevision):
         async with lock:
-            lesson = check(lesson_id, body.revision)
-            if not public(lesson)['introduction_pending']:
+            lesson = await offload.run(check, lesson_id, body.revision)
+            if not (await offload.run(public, lesson))['introduction_pending']:
                 raise HTTPException(409, 'Continue from your current exercise checkpoint.')
             text = introduction(lesson)
         try:
@@ -280,25 +280,25 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
         except LimitRefused:
             raise
         except Exception as exc:
-            check(lesson_id, body.revision)
+            await offload.run(check, lesson_id, body.revision)
             report_failure(settings, 'Lesson introduction speech', exc)
             raise HTTPException(503, 'I couldn’t get that introduction ready. Choose Retry conversation; your listening progress is saved.') from None
-        check(lesson_id, body.revision)
+        await offload.run(check, lesson_id, body.revision)
         return response
 
     @app.post('/api/lessons/{lesson_id}/introduction-heard')
     async def introduction_heard(lesson_id: str, body: LessonRevision):
         async with lock:
-            lesson = check(lesson_id, body.revision)
-            if not public(lesson)['introduction_pending']:
+            lesson = await offload.run(check, lesson_id, body.revision)
+            if not (await offload.run(public, lesson))['introduction_pending']:
                 raise HTTPException(409, 'Continue from your current exercise checkpoint.')
             lesson.introduced_exercise_id = lesson.exercise_id
-            return public(save(lesson, body.revision))
+            return await offload.run(lambda: public(save(lesson, body.revision)))
 
     @app.post('/api/lessons/{lesson_id}/heard')
     async def finished_speech(lesson_id: str, body: LessonRevision):
         async with lock:
-            lesson = check(lesson_id, body.revision)
+            lesson = await offload.run(check, lesson_id, body.revision)
             try:
                 updated = heard(lesson, now())
             except ValueError as exc:
@@ -308,22 +308,22 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
             if (lesson.phase in ('WELCOME_ACK', 'REVIEW_ACK')
                     and not lesson.accent_discovery and not lesson.accent_offered
                     and not lesson.accent_confirmation and not lesson.accent_resolved
-                    and discover(repo.profile().accent_preferences,
-                                 [item for item in repo.accent_lesson_history() if item.id != lesson.id],
+                    and discover((await offload.run(repo.profile)).accent_preferences,
+                                 [item for item in await offload.run(repo.accent_lesson_history) if item.id != lesson.id],
                                  await passage_limits.voices())):
                 updated.accent_discovery = True
                 updated.phase = 'REVIEW'
                 updated.accent_topic_review_pending = lesson.phase == 'WELCOME_ACK' and bool(lesson.previous)
-            return public(save(updated, body.revision))
+            return await offload.run(lambda: public(save(updated, body.revision)))
 
     @app.post('/api/lessons/{lesson_id}/attempts')
     async def attempt(lesson_id: str, audio: UploadFile, revision: int = Form(ge=0)):
         try:
             async with timed_lock(settings, lock, 'lesson.upload'):
-                lesson = check(lesson_id, revision)
+                lesson = await offload.run(check, lesson_id, revision)
                 if lesson.phase not in ('WELCOME', 'REVIEW'):
                     raise HTTPException(409, 'This phase does not request a personal response.')
-                limits.admit('practice', 'lesson.attempt', lesson)
+                await offload.run(lambda: limits.admit('practice', 'lesson.attempt', lesson))
                 with operation(settings, 'lesson.upload_validation'):
                     data, filename = await validate_upload(audio, settings)
                 with operation(settings, 'lesson.transcription'):
@@ -332,17 +332,17 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     except Exception:
                         raise HTTPException(503, 'I had trouble transcribing your recording. Please try again.') from None
                 with operation(settings, 'lesson.pending_persistence'):
-                    return public(save(lesson, revision))
+                    return await offload.run(lambda: public(save(lesson, revision)))
         finally:
             await audio.close()
 
     @app.post('/api/lessons/{lesson_id}/answer')
     async def answer(lesson_id: str, body: LessonRevision):
         async with timed_lock(settings, lock, 'lesson.answer'):
-            lesson = check(lesson_id, body.revision)
+            lesson = await offload.run(check, lesson_id, body.revision)
             if lesson.phase not in ('WELCOME', 'REVIEW') or lesson.pending is None:
                 raise HTTPException(409, 'Record a response to the current question first.')
-            limits.admit('practice', 'lesson.answer', lesson)
+            await offload.run(lambda: limits.admit('practice', 'lesson.answer', lesson))
             if pending_recognition(lesson, settings.min_transcription_confidence, now()) != 'accepted':
                 raise HTTPException(422, 'Recognition is uncertain. Please record again.')
             text = lesson.pending.text
@@ -369,7 +369,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                                 extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
                             interests = extracted.interests
                         except Exception as exc:
-                            check(lesson_id, body.revision)
+                            await offload.run(check, lesson_id, body.revision)
                             if accent_preferences is None:
                                 if isinstance(exc, ValidationError):
                                     raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '
@@ -418,7 +418,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                         lesson.welcome_response = accent_acknowledgment(accent_preferences)
                 lesson.pending = None
                 with operation(settings, 'lesson.answer_persistence'):
-                    return public(save(lesson, body.revision, interests, accent_preferences))
+                    return await offload.run(lambda: public(save(lesson, body.revision, interests, accent_preferences)))
             interests = None
             accent_preferences = parsed.preferences
             if parsed.topic_text:
@@ -431,7 +431,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     if interest:
                         lesson.plan_topic = preferred_topic(interest, lesson.plan_topic)
                 except Exception as exc:
-                    check(lesson_id, body.revision)
+                    await offload.run(check, lesson_id, body.revision)
                     if parsed.kind == 'topic':
                         raise
                     report_failure(settings, 'Lesson topic preference', exc)
@@ -461,10 +461,10 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     lesson.accent_topic_review_pending = bool(lesson.previous)
                 lesson.phase = 'REVIEW'
                 lesson.pending = None
-                return public(save(lesson, body.revision, interests, accent_preferences))
+                return await offload.run(lambda: public(save(lesson, body.revision, interests, accent_preferences)))
             if accent_reply and lesson.accent_consent.state == 'accepted':
-                current = repo.current_exercise()
-                if current and not repo.completed(current['id']):
+                current = await offload.run(repo.current_exercise)
+                if current and not await offload.run(lambda: repo.completed(current['id'])):
                     accent_reply += ' We’ll finish your saved recording first.'
             if offer_after_preference(lesson, accent_preferences, available_voices):
                 if lesson.phase == 'REVIEW':
@@ -473,7 +473,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                     if not (lesson.accent_discovery_resolved and lesson.reflection is not None):
                         lesson.accent_topic_review_pending = True
                     lesson.pending = None
-                    return public(save(lesson, body.revision, interests, accent_preferences))
+                    return await offload.run(lambda: public(save(lesson, body.revision, interests, accent_preferences)))
                 accent_reply = 'Got it! I’ll remember that accent preference.'
             if accent_reply:
                 if lesson.phase == 'REVIEW':
@@ -489,7 +489,7 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                         if not parsed.topic_text:
                             extracted = ProfileExtraction.model_validate(await ai().extract_profile('interests', text))
                 except ValidationError:
-                    check(lesson_id, body.revision)
+                    await offload.run(check, lesson_id, body.revision)
                     raise HTTPException(422, 'I couldn’t pick out a topic preference. Choose Retry conversation; '
                                         'your lesson and saved preferences are unchanged.') from None
                 interests = extracted.interests  # Never replace goals, identity, scores or difficulty.
@@ -515,46 +515,46 @@ def register_lesson_routes(app, repo, ai, lock, settings, prepare_exercise, publ
                 lesson.phase = 'WELCOME_ACK'
             lesson.pending = None
             with operation(settings, 'lesson.answer_persistence'):
-                return public(save(lesson, body.revision, interests, accent_preferences))
+                return await offload.run(lambda: public(save(lesson, body.revision, interests, accent_preferences)))
 
     @app.post('/api/lessons/{lesson_id}/exercise')
     async def exercise(lesson_id: str, body: LessonRevision):
         async with lock:
-            lesson = check(lesson_id, body.revision)
+            lesson = await offload.run(check, lesson_id, body.revision)
             if lesson.phase != 'EXERCISE':
                 raise HTTPException(409, 'Exercises are unavailable in this lesson phase.')
             if lesson.exercise_id:
-                return public(lesson)
+                return await offload.run(public, lesson)
             if not closing_due(lesson, now(), repo.wall_clock):
-                limits.admit('practice', 'lesson.exercise', lesson)  # Generation is billable: only inside the 10 minutes.
+                await offload.run(lambda: limits.admit('practice', 'lesson.exercise', lesson))  # Generation is billable: only inside the 10 minutes.
             if closing_due(lesson, now()):
-                close(lesson)
-                return public(save(lesson, body.revision))
+                await offload.run(close, lesson)
+                return await offload.run(lambda: public(save(lesson, body.revision)))
             try:
                 await prepare_exercise(lesson)
             except HTTPException:
                 raise
             except Exception as exc:
-                latest = check(lesson_id, body.revision)
+                latest = await offload.run(check, lesson_id, body.revision)
                 report_failure(settings, 'Lesson exercise generation', exc)
                 if closing_due(latest, now()):
-                    close(latest)
-                    return public(save(latest, body.revision))
+                    await offload.run(close, latest)
+                    return await offload.run(lambda: public(save(latest, body.revision)))
                 raise HTTPException(503, 'I couldn’t get the next listening passage ready. '
                                     'Choose Retry conversation to continue; your lesson progress is saved.') from None
-            return public(owned(lesson_id))
+            return await offload.run(lambda: public(owned(lesson_id)))
 
     @app.post('/api/lessons/{lesson_id}/advance')
     async def advance(lesson_id: str, body: LessonRevision):
         async with lock:
-            lesson = check(lesson_id, body.revision)
-            if lesson.phase != 'EXERCISE' or not lesson.exercise_id or not repo.completed(lesson.exercise_id):
+            lesson = await offload.run(check, lesson_id, body.revision)
+            if lesson.phase != 'EXERCISE' or not lesson.exercise_id or not await offload.run(lambda: repo.completed(lesson.exercise_id)):
                 raise HTTPException(409, 'Finish the active exercise first.')
-            conversation = repo.conversation(lesson.exercise_id)
+            conversation = await offload.run(lambda: repo.conversation(lesson.exercise_id))
             if conversation and conversation.state != 'READY_FOR_NEXT':
                 raise HTTPException(409, 'Finish the spoken coaching first.')
-            lesson.exercises_completed = len(repo.lesson_work(lesson.id))
+            lesson.exercises_completed = len(await offload.run(lambda: repo.lesson_work(lesson.id)))
             lesson.exercise_id = None
             if closing_due(lesson, now()):
-                close(lesson)
-            return public(save(lesson, body.revision))
+                await offload.run(close, lesson)
+            return await offload.run(lambda: public(save(lesson, body.revision)))

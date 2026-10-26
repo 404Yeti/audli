@@ -27,8 +27,8 @@ export function useVoiceLifecycle() {
   const acknowledgedTurns = useRef(new Set<string>());
   const coaching = useRef(new WeakMap<LessonOperation, Map<string, { audio: PreparedAudio; background: boolean }>>());
   const disposeRecording = useRef<(() => void) | null>(null);
-  const replayUrl = useRef<string | null>(null);
-  function clearReplay() { if (replayUrl.current) URL.revokeObjectURL(replayUrl.current); replayUrl.current = null; }
+  const replayBlob = useRef<Blob | null>(null);
+  function clearReplay() { replayBlob.current = null; }
   const playback = useRef<{ operation: LessonOperation; failed: () => void } | null>(null);
   useEffect(() => {
     const notice = () => setBackupVoice(true);
@@ -51,7 +51,6 @@ export function useVoiceLifecycle() {
     operation.assertCurrent(() => URL.revokeObjectURL(url));
     const element = audio.current;
     if (!element) { URL.revokeObjectURL(url); throw new Error('Voice playback is unavailable.'); }
-    if (kind === 'meaningful' && replayUrl.current !== url) { clearReplay(); replayUrl.current = url; }
     try {
       await operation.wait(() => new Promise<void>((resolve, reject) => {
         let settled = false;
@@ -84,7 +83,7 @@ export function useVoiceLifecycle() {
     } finally {
       // A cancelled old prompt must not clear a newer clip on this shared player.
       if (element.getAttribute('src') === url) { element.pause(); element.removeAttribute('src'); }
-      if (replayUrl.current !== url) URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
       if (operation.current) { setActivity(false); setState('Idle'); }
     }
   }
@@ -122,6 +121,7 @@ export function useVoiceLifecycle() {
     const entry = coachingPreparation(operation, exerciseId, cueId, checkpoint);
     await entry.audio.play(async body => {
       if (entry.background) turnTiming('coaching_wait_after_ack', started);
+      replayBlob.current = body;
       await speak(operation, URL.createObjectURL(body));
     }, async () => {
       if (!entry.background || !checkpoint) return;
@@ -142,6 +142,7 @@ export function useVoiceLifecycle() {
       return operation.wait(() => measuredAudioBody(response));
     });
     operation.assertCurrent();
+    replayBlob.current = body;
     await speak(operation, URL.createObjectURL(body));
   }
   async function prepareAcknowledgment(operation: LessonOperation, cue: AcknowledgmentCue = 'assessment') {
@@ -283,7 +284,7 @@ export function useVoiceLifecycle() {
     if (element.paused) void current.operation.wait(() => element.play(), () => element.pause()).catch(() => { if (current.operation.current) current.failed(); });
   }
   async function replayQuestion(operation: LessonOperation) {
-    if (replayUrl.current) await speak(operation, replayUrl.current);
+    if (replayBlob.current) await speak(operation, URL.createObjectURL(replayBlob.current));
   }
   return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, replayQuestion, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
 }

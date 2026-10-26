@@ -5,8 +5,7 @@ No model instructions, URL assignment, assessment or learner-state mutation.
 import re
 from app.homework import Decision
 from app.models import Transcription
-
-SHORT_ASSESSMENT_WARNING = 'Too little recognized speech to evaluate reliably.'
+from app.recognition import SHORT_ASSESSMENT_WARNING
 
 
 def reliable_choice(transcription: Transcription, minimum: float) -> bool:

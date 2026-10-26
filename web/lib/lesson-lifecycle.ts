@@ -5,6 +5,7 @@ export type LessonCheckpoint = {
   id: string; revision: number; status: 'active' | 'paused' | 'completed' | 'expired';
   phase: 'WELCOME' | 'WELCOME_ACK' | 'REVIEW' | 'REVIEW_ACK' | 'TRANSITION' | 'EXERCISE' | 'CLOSING' | 'COMPLETED';
   prompt: string | null; pending: Recognition | null;
+  pending_recognition?: 'accepted' | 'uncertain' | null;
   exercise: { id: string; audio_url: string; completed_attempt_id: string | null; topic?: string | null } | null;
   introduction_pending?: boolean;
   introduction_prompt?: string | null;

@@ -7,7 +7,7 @@ export function promptWav() {
   wav.writeUInt32LE(8000,24); wav.writeUInt32LE(16000,28); wav.writeUInt16LE(2,32); wav.writeUInt16LE(16,34);
   wav.write('data',36); wav.writeUInt32LE(wav.length - 44,40); return wav;
 }
-export async function installVoice(page: Page, options: { denied?: boolean; unavailable?: boolean; empty?: boolean; delayMedia?: number; delayBody?: string; realPlayback?: boolean; autoPlayback?: boolean; continuousVoice?: boolean; delayContext?: boolean; delayRecorder?: boolean } = {}) {
+export async function installVoice(page: Page, options: { denied?: boolean; unavailable?: boolean; empty?: boolean; delayMedia?: number; delayBody?: string; realPlayback?: boolean; autoPlayback?: boolean; continuousVoice?: boolean; delayContext?: boolean; delayRecorder?: boolean; recordingWav?: number[] } = {}) {
   await page.addInitScript(options => {
     const probe: Probe = {fixtureReady:false,plays:[],pauses:[],urls:[],revoked:[],tracks:0,recorders:0,mediaCalls:0,bodyPending:false,clicks:0,overlaps:0};
     (window as unknown as { voiceProbe: Probe }).voiceProbe = probe;
@@ -27,11 +27,11 @@ export async function installVoice(page: Page, options: { denied?: boolean; unav
     }}});
     let recording = false;
     class Recorder {
-      static isTypeSupported(){return true;} state='inactive'; mimeType='audio/webm';
+      static isTypeSupported(){return true;} state='inactive'; mimeType=options.recordingWav ? 'audio/wav' : 'audio/webm';
       ondataavailable: ((value:{data:Blob})=>void)|null=null; onstop:(()=>void)|null=null; onerror:(()=>void)|null=null; onstart:(()=>void)|null=null;
       constructor(){probe.recorders++;(window as unknown as {stopRecorder:()=>void}).stopRecorder=()=>this.stop();}
       start(){recording=true;if([...document.querySelectorAll('audio')].some(element=>!element.paused))probe.overlaps++;this.state='recording';if(options.delayRecorder)(window as unknown as {releaseRecorder:()=>void}).releaseRecorder=()=>this.onstart?.();else queueMicrotask(()=>this.onstart?.());}
-      stop(){recording=false;this.state='inactive';queueMicrotask(()=>{this.ondataavailable?.({data:new Blob(options.empty?[]:['spoken answer'],{type:this.mimeType})});this.onstop?.();});}
+      stop(){recording=false;this.state='inactive';queueMicrotask(()=>{this.ondataavailable?.({data:new Blob(options.empty?[]:options.recordingWav?[new Uint8Array(options.recordingWav)]:['spoken answer'],{type:this.mimeType})});this.onstop?.();});}
     }
     Object.defineProperty(window,'MediaRecorder',{value:Recorder});
     class Context {

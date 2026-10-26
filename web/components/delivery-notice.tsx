@@ -8,7 +8,7 @@ export function DeliveryNotice({ notice, prompt, onSendAgain, onRecordAgain, onC
   notice: Notice; prompt: string; onSendAgain: () => void; onRecordAgain: () => void; onContinue: () => void; onReplay: () => void; disabled: boolean;
 }) {
   const first = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => { if (notice.kind === 'failed' || notice.kind === 'unsent') first.current?.focus(); }, [notice.kind]);
+  useEffect(() => { if (!disabled && (notice.kind === 'failed' || notice.kind === 'unsent')) first.current?.focus(); }, [notice.kind, disabled]);
   if (notice.kind === 'failed') return (
     <div role="alert" className="session-error delivery-notice" data-delivery="failed">{notice.text}
       <button ref={first} className="secondary" disabled={disabled} onClick={onSendAgain}>Send again</button>

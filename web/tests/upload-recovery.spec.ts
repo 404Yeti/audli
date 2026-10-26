@@ -12,6 +12,7 @@ test('repeated failures retain one exercise ID; Send again and replay do not reg
   const f = await setupDelivery(page, 'exercise', ['down','down','down','ok']);
   await begin(page);
   await until(page, () => failure(page).isVisible());
+  await expect(page.getByRole('button', { name: 'Send again', exact: true })).toBeFocused();
   expect(f.uploadRequests).toHaveLength(3);
   const id = f.uploadRequests[0].uploadId;
   expect(id).toMatch(/^[a-f0-9]{16}$/);
@@ -43,6 +44,7 @@ test('lost check-in response stays ambiguous, and Send again never overwrites it
   await until(page, () => failure(page).isVisible());
   expect(f.uploadRequests).toHaveLength(1); expect(f.transcriptions).toBe(1); expect(f.audioRequests()).toBe(audioBefore);
   expect(f.count('POST','/answer')).toBe(0);
+  await expect(page.getByRole('button', { name: 'Send again', exact: true })).toBeFocused();
 });
 
 test('Record again starts a new capture without replaying the check-in question', async ({ page }) => {

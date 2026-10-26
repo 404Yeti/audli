@@ -27,6 +27,8 @@ export function useVoiceLifecycle() {
   const acknowledgedTurns = useRef(new Set<string>());
   const coaching = useRef(new WeakMap<LessonOperation, Map<string, { audio: PreparedAudio; background: boolean }>>());
   const disposeRecording = useRef<(() => void) | null>(null);
+  const replayBlob = useRef<Blob | null>(null);
+  function clearReplay() { replayBlob.current = null; }
   const playback = useRef<{ operation: LessonOperation; failed: () => void } | null>(null);
   useEffect(() => {
     const notice = () => setBackupVoice(true);
@@ -34,14 +36,14 @@ export function useVoiceLifecycle() {
     const lifetime = new LessonLifetime(); owner.current = lifetime;
     // End may replace the lifetime; unmount must close its latest resources too.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    return () => { window.removeEventListener('audli-backup-voice', notice); lifetime.close(); owner.current?.close(); disposeRecording.current?.(); audio.current?.pause(); };
+    return () => { window.removeEventListener('audli-backup-voice', notice); lifetime.close(); owner.current?.close(); clearReplay(); disposeRecording.current?.(); audio.current?.pause(); };
   }, []);
   function begin() {
     if (auth.current !== currentAuthRevision() || !owner.current) throw new DOMException('Account changed.', 'AbortError');
     return owner.current.begin();
   }
   function stop() {
-    owner.current?.close(); disposeRecording.current?.(); audio.current?.pause();
+    owner.current?.close(); clearReplay(); disposeRecording.current?.(); audio.current?.pause();
     if (auth.current === currentAuthRevision()) owner.current = new LessonLifetime();
     latency.current.reset(); setState('Idle'); setActivity(false); setBackupVoice(false);
   }
@@ -119,6 +121,7 @@ export function useVoiceLifecycle() {
     const entry = coachingPreparation(operation, exerciseId, cueId, checkpoint);
     await entry.audio.play(async body => {
       if (entry.background) turnTiming('coaching_wait_after_ack', started);
+      replayBlob.current = body;
       await speak(operation, URL.createObjectURL(body));
     }, async () => {
       if (!entry.background || !checkpoint) return;
@@ -139,6 +142,7 @@ export function useVoiceLifecycle() {
       return operation.wait(() => measuredAudioBody(response));
     });
     operation.assertCurrent();
+    replayBlob.current = body;
     await speak(operation, URL.createObjectURL(body));
   }
   async function prepareAcknowledgment(operation: LessonOperation, cue: AcknowledgmentCue = 'assessment') {
@@ -279,5 +283,8 @@ export function useVoiceLifecycle() {
     element.currentTime = 0;
     if (element.paused) void current.operation.wait(() => element.play(), () => element.pause()).catch(() => { if (current.operation.current) current.failed(); });
   }
-  return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
+  async function replayQuestion(operation: LessonOperation) {
+    if (replayBlob.current) await speak(operation, URL.createObjectURL(replayBlob.current));
+  }
+  return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, replayQuestion, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
 }

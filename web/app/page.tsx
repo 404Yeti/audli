@@ -27,6 +27,10 @@ import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
 import { InterruptedRecording } from '../lib/recording';
 import { deliverCheckin, deliverExercise } from '../lib/recording-delivery';
+import { DeliveryFailed, boundedTask, type DeliveryState } from '../lib/upload-sender';
+import { noticeFor, NOTICE_TEXT, type Notice } from '../lib/delivery-notice';
+import { clearUnsent, markUnsent, readUnsent, type UnsentKind } from '../lib/unsent-marker';
+import { DeliveryNotice } from '../components/delivery-notice';
 import { conversationIntent } from '../lib/conversation-intent';
 import { measureTurn } from '../lib/turn-timing';
 import { microphonePermission } from '../lib/session';
@@ -126,6 +130,17 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   const running = useRef(false);
   const retained = useRef<{ exercise: string; blob: Blob } | null>(null);
   const personalCapture = useRef<Blob | null>(null);
+  // AUD-89 P2: delivery states for the learner. A failed delivery keeps the recording (retained / personalCapture) and offers Send again /
+  // Record again; neither replays the greeting or question unasked (deliveryAction tells the flow to skip that one replay).
+  const [notice, setNotice] = useState<Notice | null>(null);
+
+  function reportDelivery(kind: UnsentKind, id: string) {
+    return (state: DeliveryState) => {
+      if (state.kind === 'sending') markUnsent(account.scope, kind, id);
+      else if (state.kind === 'delivered' || state.kind === 'moved') clearUnsent(account.scope);
+      setNotice(noticeFor(state));
+    };
+  }
   const storageKey = 'audli-session:' + account.scope;
   const intent = conversationIntent(account.scope, 'lesson');
   async function refresh(operation: LessonOperation) {
@@ -144,7 +159,11 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     await refresh(operation);
     const checkpoint = await operation.api<LessonCheckpoint | null>('/lessons/current');
     operation.assertCurrent(); lesson.current = checkpoint; setBusy(false);
-    if (checkpoint?.status === 'active' && !intent.ended()) { void start(false); return; }
+    if (checkpoint?.status === 'active' && !intent.ended()) {
+      // An upload was in flight when the page went away and the recording is gone: say so first, and wait for the learner before replaying anything.
+      if (readUnsent(account.scope)) { setActive(true); setNotice({ kind: 'unsent', text: NOTICE_TEXT.unsent }); return; }
+      void start(false); return;
+    }
     try {
       const completedId = sessionStorage.getItem(storageKey);
       if (!checkpoint && completedId) {
@@ -180,7 +199,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       operation.assertCurrent(); retained.current = { exercise: exercise.id, blob };
     }
     voice.thinking();
-    const attempt = await measureTurn('upload_transcription', () => deliverExercise(operation, exercise.id, blob!, () => { retained.current = null; }));
+    const attempt = await measureTurn('upload_transcription', () => deliverExercise(operation, exercise.id, blob!, () => { retained.current = null; clearUnsent(account.scope); }, { onState: reportDelivery('exercise', exercise.id) }));
     operation.assertCurrent(); retained.current = null; return attempt;
   }
   async function exerciseConversation(operation: LessonOperation, exercise: Exercise, intentionalRestart = false) {
@@ -207,7 +226,10 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       } else if (['AWAITING_SUMMARY','AWAITING_FOLLOWUP','ASSESSING','ASSESSING_FOLLOWUP'].includes(state.state)) {
         let attempt = state.pending_attempt;
         if (attempt) retained.current = null; // A lost upload response must not reuse its audio for a follow-up.
-        if (!attempt) { await playCue(operation, exercise, state); attempt = await captureAnswer(operation, exercise); }
+        if (!attempt) {
+          await playCue(operation, exercise, state);
+          attempt = await captureAnswer(operation, exercise);
+        }
         while (operation.current) {
           // A correction explicitly confirmed before AUD-17 is already a server checkpoint.
           const confirmed = attempt.confirmed_text?.trim();
@@ -288,7 +310,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       setEligibleExercise(null);
       if (value.phase === 'WELCOME' || value.phase === 'REVIEW') {
         let retries = 0;
-        let serverPending = value.pending;   // what the server holds, even while the retry prompt hides it locally
+        let serverPending = value.pending; // what the server holds before another recording
         if (value.pending) personalCapture.current = null;
         if (!value.pending) await voice.lessonSpeech(operation, value.id, value.revision);
         while (operation.current) {
@@ -297,7 +319,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
               try { personalCapture.current = await voice.listen(operation); }
               catch (error) { if (operation.current && error instanceof InterruptedRecording) personalCapture.current = error.blob; throw error; }
             }
-            const sent = await measureTurn('upload_transcription', () => deliverCheckin(operation, value, personalCapture.current!, () => { personalCapture.current = null; }, serverPending));
+            const sent = await measureTurn('upload_transcription', () => deliverCheckin(operation, value, personalCapture.current!, () => { personalCapture.current = null; clearUnsent(account.scope); }, serverPending, { onState: reportDelivery('checkin', value.id) }));
             operation.assertCurrent(); personalCapture.current = null; value = sent.value; lesson.current = value; serverPending = value.pending;
             if (sent.via === 'moved') break;   // the server moved on without this recording: continue from its checkpoint
           }
@@ -388,16 +410,72 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       await runWithLimitRecovery(operation, value, intentionalRestart);
     } catch (error) {
       if (operation.current && isLimitError(error)) limitEnded(lesson.current?.id ?? null, error.message);
+      else if (operation.current && error instanceof DeliveryFailed) { voice.idle(); setBusy(false); }   // the notice already offers Send again / Record again
       else if (operation.current) { voice.idle(); setError((error as Error).message); setBusy(false); if (!microphoneReady) setActive(false); }
     }
     finally { if (operation.current) running.current = false; operation.release(); }
+  }
+  async function recoverDelivery(action: 'send' | 'record' | 'replay') {
+    if (running.current || !lesson.current) return;
+    running.current = true; setBusy(true); setError('');
+    const operation = voice.begin();
+    try {
+      if (action === 'replay') { await voice.replayQuestion(operation); return; }
+      let value = lesson.current;
+      if (action === 'record') {
+        // Discard only after the learner explicitly chooses Record again; read before replacing any evidence.
+        const saved = await boundedTask(signal => operation.apiWith<LessonCheckpoint>(`/lessons/${value.id}`, undefined, signal), 10000, operation.signal);
+        if (saved.id !== value.id || saved.status !== 'active' || saved.phase !== value.phase
+          || saved.exercise?.id !== value.exercise?.id) throw new DeliveryFailed('ambiguous', 0);
+        retained.current = null; personalCapture.current = null; clearUnsent(account.scope);
+        setNotice({ kind: 'recordAgain', text: NOTICE_TEXT.recordAgain });
+        setPrompt(saved.prompt ?? prompt);
+        if (saved.phase === 'WELCOME' || saved.phase === 'REVIEW') {
+          try { personalCapture.current = await voice.listen(operation); }
+          catch (cause) {
+            if (cause instanceof InterruptedRecording) { personalCapture.current = cause.blob; throw new DeliveryFailed('background', 0); }
+            throw cause;
+          }
+          const sent = await deliverCheckin(operation, saved, personalCapture.current, () => { personalCapture.current = null; clearUnsent(account.scope); },
+            saved.pending, { onState: reportDelivery('checkin', saved.id) });
+          operation.assertCurrent(); personalCapture.current = null; value = sent.value;
+        } else if (saved.phase === 'EXERCISE' && saved.exercise) {
+          await captureAnswer(operation, saved.exercise); value = saved;
+        } else throw new DeliveryFailed('ambiguous', 0);
+      } else if (personalCapture.current && (value.phase === 'WELCOME' || value.phase === 'REVIEW')) {
+        const sent = await deliverCheckin(operation, value, personalCapture.current, () => { personalCapture.current = null; clearUnsent(account.scope); },
+          value.pending, { onState: reportDelivery('checkin', value.id) });
+        operation.assertCurrent(); personalCapture.current = null; value = sent.value;
+      } else if (retained.current && value.exercise?.id === retained.current.exercise) {
+        await captureAnswer(operation, value.exercise);
+      } else {
+        throw new DeliveryFailed('ambiguous', 0);
+      }
+      operation.assertCurrent(); lesson.current = value;
+      await runWithLimitRecovery(operation, value, false);
+    } catch (cause) {
+      if (operation.current) {
+        if (cause instanceof DeliveryFailed) setNotice(noticeFor({ kind: 'failed', reason: cause.reason, sends: cause.sends }));
+        else setError((cause as Error).message);
+      }
+    } finally {
+      if (operation.current) { voice.idle(); setBusy(false); running.current = false; }
+      operation.release();
+    }
+  }
+  function sendAgain() { void recoverDelivery('send'); }
+  function recordAgain() { void recoverDelivery('record'); }
+  function replayQuestion() { void recoverDelivery('replay'); }
+  function continueAfterReload() {
+    if (running.current) return;
+    retained.current = null; personalCapture.current = null; clearUnsent(account.scope); setNotice(null); void start(false);
   }
   function leaveSetup() { topicDone.current?.(); topicDone.current = null; setTopicPlan(null); }
   function end() {
     // Ask now, before End's own request: Home must show the open lesson, and nothing new may be requested after End settles.
     void eligibility.refresh(true);
     reviewDone.current?.(); reviewDone.current = null; setReviewLesson(null); leaveSetup(); send({ type: 'home' });
-    voice.stop(); running.current = false; retained.current = null; personalCapture.current = null; setTopic(null);
+    voice.stop(); running.current = false; retained.current = null; personalCapture.current = null; setTopic(null); setNotice(null); clearUnsent(account.scope);
     intent.end(); setActive(false); setBusy(false); setError(''); setPrompt(''); setDestination('Home');
     const value = lesson.current;
     if (value) {
@@ -411,7 +489,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   function cancelForOnboarding() {
     cancelPendingOperations();
     document.querySelectorAll('audio').forEach(player => player.pause());
-    voice.stop(); running.current = false; retained.current = null; personalCapture.current = null;
+    voice.stop(); running.current = false; retained.current = null; personalCapture.current = null; setNotice(null); clearUnsent(account.scope);
     intent.end(); lesson.current = null; current.current = null; ending.current = null; leaveSetup(); send({ type: 'home' });
     setActive(false); setBusy(false); setCompletion(null); setTranscript(null); setEligibleExercise(null);
     setTopic(null); setPrompt(''); setError('');
@@ -440,7 +518,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   }
   /** Return Home is the only way out of Success. */
   function returnHome() {
-    voice.stop(); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null; farewellDue.current = false;
+    voice.stop(); setHomeworkVoice(false); send({ type: 'home' }); setCompletion(null); lesson.current = null; farewellDue.current = false; setNotice(null); clearUnsent(account.scope);
     void eligibility.refresh(true).then(() => eligibility.announce());
     try { sessionStorage.removeItem(storageKey); } catch { /* Optional presentation memory. */ }
     refreshQuietly();
@@ -473,7 +551,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   if (active) return <><SessionShell windowNote={eligibility.snapshot?.value.enforced === true} backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} layout={reviewLesson ? 'interaction' : lifecycle.phase === 'TOPIC_SETUP' ? classroomLayout : undefined} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     {lifecycle.phase === 'TOPIC_SETUP' && topicPlan && <LessonTopicCheckin initial={topicPlan} autoVoice voice={voice} onLayout={setClassroomLayout} onFinished={() => topicDone.current?.()}/>}
     {reviewLesson && <HomeworkReview key={reviewLesson} lessonId={reviewLesson} voice={voice} onFinished={() => { reviewDone.current?.(); reviewDone.current = null; }}/>}
-    <p className="sr-only">{prompt}</p>{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
+    <p className="sr-only">{prompt}</p>{notice && <DeliveryNotice notice={notice} prompt={prompt} onSendAgain={sendAgain} onRecordAgain={recordAgain} onContinue={continueAfterReload} onReplay={replayQuestion} disabled={busy}/>}{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
   if (completion && lifecycle.phase === 'SUCCESS' && lifecycle.lessonId === completion.id) return <LessonSuccess lesson={completion} scope={account.scope} reducedMotion={reducedMotion} voice={voice} audio={voice.audio} onHome={returnHome}/>;

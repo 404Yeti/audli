@@ -214,6 +214,9 @@ jobs:
           name: classroom-webkit-screenshots
           path: docs/screenshots/AUD-62-*.png
           retention-days: 7
+      - name: Recording recovery in Chromium and iPhone WebKit (mocked providers)
+        run: npx playwright test --config=upload-recovery.playwright.config.ts --workers=1
+        working-directory: web
       - name: Mocked browser regressions
         run: npm run test:browser -- --workers=1
         working-directory: web

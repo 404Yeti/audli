@@ -33,8 +33,8 @@ The revision check is the arbiter: `POST /api/lessons/{id}/attempts` refuses a s
 
 | Server state (C) | Decision |
 |---|---|
-| active, same phase, `C.revision > R`, `C.pending` present and **different from `P0`** | our upload committed: adopt `C`; no resend, no new recording |
-| active, same phase, anything else (revision unchanged, or `pending` null, or `pending` identical to `P0`) | not proven delivered: resend with `C.revision` (a second transcription is the worst case; state stays correct) |
+| active, same phase, `C.revision == R + 1` **exactly**, `C.pending` present and **different from `P0`** | our upload committed: adopt `C`; no resend, no new recording |
+| active, same phase, anything else (revision unchanged, a jump larger than one, `pending` null, or `pending` identical to `P0`) | not proven delivered: resend with `C.revision` (a second transcription is the worst case; state stays correct) |
 | status or phase moved, or a different lesson state | adopt the server checkpoint and continue from it |
 | read failed | resend with the revision already held; the server's 409 corrects a stale one, then reconcile again |
 

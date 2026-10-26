@@ -25,7 +25,8 @@ import { useEligibility } from '../lib/use-eligibility';
 import { homeView } from '../lib/eligibility';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
-import { recordingUpload, sendRecording, InterruptedRecording } from '../lib/recording';
+import { InterruptedRecording } from '../lib/recording';
+import { deliverCheckin, deliverExercise } from '../lib/recording-delivery';
 import { conversationIntent } from '../lib/conversation-intent';
 import { measureTurn } from '../lib/turn-timing';
 import { microphonePermission } from '../lib/session';
@@ -179,7 +180,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       operation.assertCurrent(); retained.current = { exercise: exercise.id, blob };
     }
     voice.thinking();
-    const attempt = await measureTurn('upload_transcription', () => sendRecording(() => operation.api<Attempt>(`/exercises/${exercise.id}/attempts`, { method: 'POST', body: recordingUpload(blob!) }), () => { retained.current = null; }));
+    const attempt = await measureTurn('upload_transcription', () => deliverExercise(operation, exercise.id, blob!, () => { retained.current = null; }));
     operation.assertCurrent(); retained.current = null; return attempt;
   }
   async function exerciseConversation(operation: LessonOperation, exercise: Exercise, intentionalRestart = false) {
@@ -287,6 +288,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       setEligibleExercise(null);
       if (value.phase === 'WELCOME' || value.phase === 'REVIEW') {
         let retries = 0;
+        let serverPending = value.pending;   // what the server holds, even while the retry prompt hides it locally
         if (value.pending) personalCapture.current = null;
         if (!value.pending) await voice.lessonSpeech(operation, value.id, value.revision);
         while (operation.current) {
@@ -295,9 +297,9 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
               try { personalCapture.current = await voice.listen(operation); }
               catch (error) { if (operation.current && error instanceof InterruptedRecording) personalCapture.current = error.blob; throw error; }
             }
-            const form = recordingUpload(personalCapture.current); form.append('revision', String(value.revision));
-            value = await measureTurn('upload_transcription', () => sendRecording(() => operation.api<LessonCheckpoint>(`/lessons/${value.id}/attempts`, { method: 'POST', body: form }), () => { personalCapture.current = null; }));
-            operation.assertCurrent(); personalCapture.current = null; lesson.current = value;
+            const sent = await measureTurn('upload_transcription', () => deliverCheckin(operation, value, personalCapture.current!, () => { personalCapture.current = null; }, serverPending));
+            operation.assertCurrent(); personalCapture.current = null; value = sent.value; lesson.current = value; serverPending = value.pending;
+            if (sent.via === 'moved') break;   // the server moved on without this recording: continue from its checkpoint
           }
           if (!value.pending || !reliableRecognition(value.pending, minimum.current)) {
             if (++retries > 2) throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');

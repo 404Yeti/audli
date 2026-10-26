@@ -91,3 +91,16 @@ test('a retained check-in cannot be redirected to another lesson at a coincident
   const r=await run(c,deliverCheckin(operation,{...server.checkpoint(),id:'different-lesson'},blob,()=>{},null,{env:c.env}));
   assert.equal(r.error.reason,'ambiguous'); assert.deepEqual(paths,[]);
 });
+
+
+test('an existing direct-origin opt-in fails closed instead of retrying without an idempotency header', async () => {
+  const previous=process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN;
+  let requests=0;globalThis.fetch=async()=>{requests++;throw new Error('must not fetch policy');};
+  try {
+    process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN='https://example.test';
+    assert.equal((await currentPolicy()).enabled,false);assert.equal(requests,0);
+  } finally {
+    if(previous===undefined)delete process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN;
+    else process.env.NEXT_PUBLIC_AUDLI_API_ORIGIN=previous;
+  }
+});

@@ -3,7 +3,7 @@
  * With the policy disabled (the default, and the answer to any failure to read it) every function here does exactly what the page did
  * before: one request through `sendRecording`. With it enabled, the recording is sent with bounded retries (web/lib/upload-sender.ts).
  * The recording itself is the caller's: it is never cleared here except by a definitive rejection (413/415/422), as before. */
-import { ApiError, UnreachableError, authenticatedFetch, setUploadIdHeader, type LessonOperation } from './api.ts';
+import { ApiError, UnreachableError, authenticatedFetch, resolveApiUrl, setUploadIdHeader, type LessonOperation } from './api.ts';
 import { decideCheckin, type Known } from './checkin-reconcile.ts';
 import type { Recognition } from './hands-free.ts';
 import type { LessonCheckpoint } from './lesson-lifecycle.ts';
@@ -22,6 +22,8 @@ export const uploadPolicy = createPolicyLoader(async () => {
 /** The current policy; any failure to read it is DISABLED. Also switches the recording id header on only while the policy is enabled. */
 export async function currentPolicy(signal?: AbortSignal, force = false): Promise<UploadPolicy> {
   let policy: UploadPolicy = DISABLED;
+  // The existing experimental cross-origin path does not send upload IDs. Do not retry it or change CORS.
+  if (resolveApiUrl('/api/upload-policy') !== '/api/upload-policy') { setUploadIdHeader(false); return DISABLED; }
   if (force) uploadPolicy.reset();
   try { policy = await boundedTask(() => uploadPolicy.get(), 1500, signal); } catch { signal?.throwIfAborted(); policy = DISABLED; }
   setUploadIdHeader(policy.enabled);

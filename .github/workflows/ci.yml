@@ -220,6 +220,12 @@ jobs:
       - name: Mocked browser regressions
         run: npm run test:browser -- --workers=1
         working-directory: web
+      - name: Short spoken choices through real HTTP and mocked STT in Chromium and WebKit
+        env:
+          AUDLI_SHORT_CHOICE_TEST: '1'
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: npx playwright test --config=short-choice.playwright.config.ts
+        working-directory: web
       - name: Native HTTP/audio acceptance with synthetic evidence and local espeak
         env:
           AUDLI_INTEGRATED_LESSON: '1'

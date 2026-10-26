@@ -323,7 +323,10 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
             operation.assertCurrent(); personalCapture.current = null; value = sent.value; lesson.current = value; serverPending = value.pending;
             if (sent.via === 'moved') break;   // the server moved on without this recording: continue from its checkpoint
           }
-          if (!value.pending || !reliableRecognition(value.pending, minimum.current)) {
+          // Only the server knows which closed question is active. Older servers
+          // omit the verdict and retain the strict recognition behavior.
+          if (!value.pending || !(value.pending_recognition === 'accepted'
+            || (value.pending_recognition === undefined && reliableRecognition(value.pending, minimum.current)))) {
             if (++retries > 2) throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');
             await voice.retrySpeech(operation); value = { ...value, pending: null }; continue;
           }

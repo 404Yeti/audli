@@ -67,6 +67,12 @@ def _bare_choice(text):
     return not re.search(r'[a-z0-9]', remaining)
 
 
+def is_closed_offer_reply(text: str) -> bool:
+    """A whole affirmative/refusal, never a compound request or mixed decision."""
+    answer = ' '.join(re.sub(r'[,!.?;]', ' ', text.lower().replace('’', "'")).split())
+    return bool(_ACCEPT.fullmatch(answer) or _DECLINE.fullmatch(answer))
+
+
 def interpret(text: str, *, offered: str | None = None, discovering: bool = False,
               practice_question: bool = False) -> AccentInterpretation:
     """Context disambiguates bare replies; never overrides an explicit request.

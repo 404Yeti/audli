@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 from pydantic import Field, create_model
 from app.config import Settings
 from app.diagnostics import operation
+from app.recognition import SHORT_ASSESSMENT_WARNING
 from app.evaluation import expected_units
 from app.models import ExerciseContent, EvaluationJudgments, LearnerProfile, Transcription, Text, StrictModel, EvidenceAssessment
 
@@ -304,7 +305,7 @@ Use a different scenario each exercise. The topic must be a short, specific scen
         elif confidence < self.settings.min_transcription_confidence:
             uncertainty.append('Speech recognition was uncertain; please verify or record again.')
         if len(result.text.strip().split()) < 3:
-            uncertainty.append('Too little recognized speech to evaluate reliably.')
+            uncertainty.append(SHORT_ASSESSMENT_WARNING)
         return Transcription(text=result.text, confidence=confidence, uncertainty=uncertainty)
 
     async def evaluate(self, exercise: ExerciseContent, transcript: str) -> EvaluationJudgments:

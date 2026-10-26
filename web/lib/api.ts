@@ -1,9 +1,12 @@
-import { markApiActivity, startDelivery } from './upload-delivery.ts';
+import { markApiActivity, startDelivery, uploadIdOf } from './upload-delivery.ts';
 let accessToken: (() => Promise<string | null>) | null = null;
 /** AUD-85, build-time opt-in diagnostics, installed by turn-reporting: the random per-turn id and request spans. */
 export type RequestTraceHooks = { turnId(): string | null; kindOf(path: string): string | null; record(kind: never, start: number, token: number, ttfb: number): void };
 let traceHooks: RequestTraceHooks | null = null;
 export function installRequestTrace(hooks: RequestTraceHooks | null) { traceHooks = hooks; }
+/** AUD-89 P2: set when the server's upload policy is enabled; the recording's upload id then rides along on its uploads (same-origin only). */
+let uploadIdHeader = false;
+export function setUploadIdHeader(on: boolean) { uploadIdHeader = on; }
 let authRevision = 0;
 const pendingOperations = new Set<AbortController>();
 export function currentAuthRevision() { return authRevision; }
@@ -68,6 +71,17 @@ export class LessonOperation {
     this.assertCurrent();
     return this.wait(() => api<T>(url, { ...init, signal: this.signal }, onResponse, this));
   }
+  /** Like `api`, but this one request can also be aborted by `extra` (a per-send timeout); leaving the lesson still aborts it too. */
+  apiWith<T>(url: string, init: RequestInit | undefined, extra: AbortSignal): Promise<T> {
+    this.assertCurrent();
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (this.signal.aborted || extra.aborted) abort();
+    this.signal.addEventListener('abort', abort, { once: true });
+    extra.addEventListener('abort', abort, { once: true });
+    return this.wait(() => api<T>(url, { ...init, signal: controller.signal }, undefined, this))
+      .finally(() => { this.signal.removeEventListener('abort', abort); extra.removeEventListener('abort', abort); });
+  }
   audio(url: string): Promise<string> {
     this.assertCurrent();
     return this.wait(() => audioBlobUrl(url, this.signal, this), URL.revokeObjectURL);
@@ -88,6 +102,7 @@ export function resolveApiUrl(url: string, origin: string | undefined = process.
 /** `telemetry: false` keeps background requests (e.g. eligibility revalidation) out of the per-turn latency logs. */
 export async function authenticatedFetch(url: string, init?: RequestInit, operation?: LessonOperation, telemetry = true): Promise<Response> {
   operation?.assertCurrent();
+  init?.signal?.throwIfAborted();
   if (!url.startsWith('/api/') || url.includes('\\')) throw new Error('Invalid Audli API path.');
   const revision = authRevision;
   let requestToken: string | null = null;
@@ -98,6 +113,7 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   const requestStart = performance.now();
   if (accessToken) {
     const token = await accessToken();
+    init?.signal?.throwIfAborted();
     operation?.assertCurrent();
     if (!token) throw new Error('Please sign in to continue.');
     if (revision !== authRevision) throw new Error('Your account changed. Please retry.');
@@ -111,10 +127,12 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   if (logTurn) console.debug('[Audli turn]', { stage: 'request_submission', elapsedMs: 0 });
   // AUD-89 P0 (same opt-in as turn tracing): observe each send of a recording; the id follows the recording, not the request.
   const delivery = traceHooks ? startDelivery(url, init?.body) : null;
-  if (delivery && resolveApiUrl(url) === url) headers.set('X-Audli-Upload-Id', delivery.id);   // same-origin only: no CORS change
+  const uploadId = delivery?.id ?? (uploadIdHeader ? uploadIdOf(init?.body) : null);
+  if (uploadId && resolveApiUrl(url) === url) headers.set('X-Audli-Upload-Id', uploadId);   // same-origin only: no CORS change
   let response: Response;
   try { response = await fetch(resolveApiUrl(url), { ...init, headers, cache: 'no-store', credentials: 'omit', redirect: 'error' }); }
   catch (error) { delivery?.fail(error); if (traceHooks) markApiActivity(); throw error; }
+  init?.signal?.throwIfAborted();
   delivery?.done(response.status);
   if (traceHooks && url !== '/api/telemetry/turn') markApiActivity();
   if (logTurn) console.debug('[Audli turn]', { stage: 'response_headers', elapsedMs: Math.round(performance.now() - submittedAt) });
@@ -136,6 +154,11 @@ export async function audioBlobUrl(url: string, signal?: AbortSignal, operation?
   const blob = await response.blob();
   operation?.assertCurrent();
   return URL.createObjectURL(blob);
+}
+
+/** The proxy answered with something that is not the API's JSON (an HTML gateway page): the request did not reach the API. */
+export class UnreachableError extends Error {
+  constructor() { super('Audli could not reach the server. Check that FastAPI is running and try again.'); this.name = 'UnreachableError'; }
 }
 
 /** Structured daily-limit refusal (HTTP 429): a stable code, never a generic failure. */
@@ -171,9 +194,12 @@ export async function api<T>(url: string, init?: RequestInit, onResponse?: (stat
   let data: unknown;
   try {
     data = await response.json();
+    init?.signal?.throwIfAborted();
   } catch {
+    init?.signal?.throwIfAborted();
+    operation?.assertCurrent();
     // The Next.js proxy can return HTML/plain text when FastAPI is unreachable.
-    throw new Error('Audli could not reach the server. Check that FastAPI is running and try again.');
+    throw new UnreachableError();
   }
   operation?.assertCurrent();
   if (!response.ok) {

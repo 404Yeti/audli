@@ -51,6 +51,11 @@ export function tagUpload(form: FormData, blob: Blob): FormData {
   return form;
 }
 
+/** The upload id a recording's form was tagged with, or null for anything else. */
+export function uploadIdOf(body: BodyInit | null | undefined): string | null {
+  return typeof FormData !== 'undefined' && body instanceof FormData ? ((body as UploadForm)[UPLOAD_ID] ?? null) : null;
+}
+
 const KINDS: readonly [RegExp, DeliveryKind][] = [
   [/^\/api\/exercises\/[^/]+\/attempts$/, 'exercise'], [/^\/api\/lessons\/[^/]+\/attempts$/, 'lesson'],
   [/^\/api\/plan\/checkin\/attempts$/, 'plan'], [/^\/api\/onboarding\/attempts$/, 'onboarding'],

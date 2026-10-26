@@ -137,7 +137,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return provider
 
     turntrace.enabled = bool(settings.turn_trace and settings.latency_aggregates)
-    upload_policy = resolve_policy(settings.upload_retry, settings.upload_retry_policy)   # AUD-89 P2: computed once; invalid = disabled
+    upload_policy = resolve_policy(settings.upload_retry and settings.upload_idempotency, settings.upload_retry_policy)   # AUD-89 P2: computed once; invalid = disabled
 
     @app.middleware('http')
     async def privacy_headers(request: Request, call_next):

@@ -1,283 +1,299 @@
 {
- "defaults": {
-  "base_ms": 8000,
-  "bytes_per_second": 64000,
-  "min_ms": 9000,
-  "max_ms": 30000,
-  "growth": [
-   1.0,
-   1.25,
-   1.5
-  ],
-  "max_sends": 3,
-  "deadline_ms": 50000,
-  "backoff_ms": [
-   300,
-   900
-  ],
-  "hidden_grace_sends": 1,
-  "slow_hint_ms": 3000
- },
- "cases": [
-  {
-   "name": "defaults",
-   "overrides": {},
-   "valid": true
-  },
-  {
-   "name": "fewer sends",
-   "overrides": {
-    "max_sends": 2,
+  "defaults": {
+    "base_ms": 8000,
+    "bytes_per_second": 64000,
+    "min_ms": 9000,
+    "max_ms": 30000,
     "growth": [
-     1,
-     2
-    ]
-   },
-   "valid": true
-  },
-  {
-   "name": "no backoff",
-   "overrides": {
-    "backoff_ms": []
-   },
-   "valid": true
-  },
-  {
-   "name": "widest",
-   "overrides": {
-    "max_ms": 120000,
-    "deadline_ms": 300000,
-    "max_sends": 5,
-    "growth": [
-     3,
-     3,
-     3,
-     3,
-     3
+      1.0,
+      1.25,
+      1.5
     ],
+    "max_sends": 3,
+    "deadline_ms": 50000,
     "backoff_ms": [
-     10000,
-     10000,
-     10000,
-     10000
+      300,
+      900
     ],
-    "base_ms": 60000
-   },
-   "valid": true
+    "slow_hint_ms": 3000
   },
-  {
-   "name": "tightest",
-   "overrides": {
-    "base_ms": 1000,
-    "bytes_per_second": 8000,
-    "min_ms": 2000,
-    "max_ms": 2000,
-    "deadline_ms": 5000,
-    "max_sends": 1,
-    "hidden_grace_sends": 0,
-    "slow_hint_ms": 500,
-    "growth": [
-     1
-    ]
-   },
-   "valid": true
-  },
-  {
-   "name": "base too small",
-   "overrides": {
-    "base_ms": 999
-   },
-   "valid": false
-  },
-  {
-   "name": "base too large",
-   "overrides": {
-    "base_ms": 60001
-   },
-   "valid": false
-  },
-  {
-   "name": "base a string",
-   "overrides": {
-    "base_ms": "8000"
-   },
-   "valid": false
-  },
-  {
-   "name": "base a float",
-   "overrides": {
-    "base_ms": 8000.5
-   },
-   "valid": false
-  },
-  {
-   "name": "base a bool",
-   "overrides": {
-    "base_ms": true
-   },
-   "valid": false
-  },
-  {
-   "name": "rate too small",
-   "overrides": {
-    "bytes_per_second": 7999
-   },
-   "valid": false
-  },
-  {
-   "name": "rate too large",
-   "overrides": {
-    "bytes_per_second": 2000001
-   },
-   "valid": false
-  },
-  {
-   "name": "min above max",
-   "overrides": {
-    "min_ms": 40000,
-    "max_ms": 20000
-   },
-   "valid": false
-  },
-  {
-   "name": "deadline below min",
-   "overrides": {
-    "deadline_ms": 8999
-   },
-   "valid": false
-  },
-  {
-   "name": "deadline too large",
-   "overrides": {
-    "deadline_ms": 300001
-   },
-   "valid": false
-  },
-  {
-   "name": "sends zero",
-   "overrides": {
-    "max_sends": 0
-   },
-   "valid": false
-  },
-  {
-   "name": "sends six",
-   "overrides": {
-    "max_sends": 6
-   },
-   "valid": false
-  },
-  {
-   "name": "growth empty",
-   "overrides": {
-    "growth": []
-   },
-   "valid": false
-  },
-  {
-   "name": "growth below one",
-   "overrides": {
-    "growth": [
-     0.99
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "growth above three",
-   "overrides": {
-    "growth": [
-     3.01
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "growth too long",
-   "overrides": {
-    "growth": [
-     1,
-     1,
-     1,
-     1,
-     1,
-     1
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "growth not a list",
-   "overrides": {
-    "growth": "1"
-   },
-   "valid": false
-  },
-  {
-   "name": "backoff negative",
-   "overrides": {
-    "backoff_ms": [
-     -1
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "backoff too large",
-   "overrides": {
-    "backoff_ms": [
-     10001
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "backoff too long",
-   "overrides": {
-    "backoff_ms": [
-     1,
-     2,
-     3,
-     4,
-     5
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "grace four",
-   "overrides": {
-    "hidden_grace_sends": 4
-   },
-   "valid": false
-  },
-  {
-   "name": "slow hint tiny",
-   "overrides": {
-    "slow_hint_ms": 499
-   },
-   "valid": false
-  },
-  {
-   "name": "slow hint huge",
-   "overrides": {
-    "slow_hint_ms": 30001
-   },
-   "valid": false
-  },
-  {
-   "name": "null value",
-   "overrides": {
-    "base_ms": null
-   },
-   "valid": false
-  },
-  {
-   "name": "unknown key",
-   "overrides": {
-    "unknown": 1
-   },
-   "valid": false
-  }
- ]
+  "cases": [
+    {
+      "name": "defaults",
+      "overrides": {},
+      "valid": true
+    },
+    {
+      "name": "fewer sends",
+      "overrides": {
+        "max_sends": 2,
+        "growth": [
+          1,
+          2
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "no backoff",
+      "overrides": {
+        "backoff_ms": []
+      },
+      "valid": true
+    },
+    {
+      "name": "widest",
+      "overrides": {
+        "max_ms": 120000,
+        "deadline_ms": 300000,
+        "max_sends": 5,
+        "growth": [
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "backoff_ms": [
+          10000,
+          10000,
+          10000,
+          10000
+        ],
+        "base_ms": 60000
+      },
+      "valid": true
+    },
+    {
+      "name": "tightest",
+      "overrides": {
+        "base_ms": 1000,
+        "bytes_per_second": 8000,
+        "min_ms": 2000,
+        "max_ms": 2000,
+        "deadline_ms": 5000,
+        "max_sends": 1,
+        "slow_hint_ms": 500,
+        "growth": [
+          1
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "base too small",
+      "overrides": {
+        "base_ms": 999
+      },
+      "valid": false
+    },
+    {
+      "name": "base too large",
+      "overrides": {
+        "base_ms": 60001
+      },
+      "valid": false
+    },
+    {
+      "name": "base a string",
+      "overrides": {
+        "base_ms": "8000"
+      },
+      "valid": false
+    },
+    {
+      "name": "base a float",
+      "overrides": {
+        "base_ms": 8000.5
+      },
+      "valid": false
+    },
+    {
+      "name": "base a bool",
+      "overrides": {
+        "base_ms": true
+      },
+      "valid": false
+    },
+    {
+      "name": "rate too small",
+      "overrides": {
+        "bytes_per_second": 7999
+      },
+      "valid": false
+    },
+    {
+      "name": "rate too large",
+      "overrides": {
+        "bytes_per_second": 2000001
+      },
+      "valid": false
+    },
+    {
+      "name": "min above max",
+      "overrides": {
+        "min_ms": 40000,
+        "max_ms": 20000
+      },
+      "valid": false
+    },
+    {
+      "name": "deadline below min",
+      "overrides": {
+        "deadline_ms": 8999
+      },
+      "valid": false
+    },
+    {
+      "name": "deadline too large",
+      "overrides": {
+        "deadline_ms": 300001
+      },
+      "valid": false
+    },
+    {
+      "name": "sends zero",
+      "overrides": {
+        "max_sends": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "sends six",
+      "overrides": {
+        "max_sends": 6
+      },
+      "valid": false
+    },
+    {
+      "name": "growth empty",
+      "overrides": {
+        "growth": []
+      },
+      "valid": false
+    },
+    {
+      "name": "growth below one",
+      "overrides": {
+        "growth": [
+          0.99
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "growth above three",
+      "overrides": {
+        "growth": [
+          3.01
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "growth too long",
+      "overrides": {
+        "growth": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "growth not a list",
+      "overrides": {
+        "growth": "1"
+      },
+      "valid": false
+    },
+    {
+      "name": "backoff negative",
+      "overrides": {
+        "backoff_ms": [
+          -1
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "backoff too large",
+      "overrides": {
+        "backoff_ms": [
+          10001
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "backoff too long",
+      "overrides": {
+        "backoff_ms": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "grace four",
+      "overrides": {
+        "hidden_grace_sends": 4
+      },
+      "valid": false
+    },
+    {
+      "name": "slow hint tiny",
+      "overrides": {
+        "slow_hint_ms": 499
+      },
+      "valid": false
+    },
+    {
+      "name": "slow hint huge",
+      "overrides": {
+        "slow_hint_ms": 30001
+      },
+      "valid": false
+    },
+    {
+      "name": "null value",
+      "overrides": {
+        "base_ms": null
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown key",
+      "overrides": {
+        "unknown": 1
+      },
+      "valid": false
+    },
+    {
+      "name": "growth bool",
+      "overrides": {
+        "growth": [
+          true
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "growth string item",
+      "overrides": {
+        "growth": [
+          "1"
+        ]
+      },
+      "valid": false
+    }
+  ]
 }

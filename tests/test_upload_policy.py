@@ -19,6 +19,7 @@ OWNER = '00000000-0000-4000-8000-000000000001'
 
 
 def app_for(tmp_path, **settings):
+    settings.setdefault("upload_idempotency", True)
     repo = ProgressRepository(tmp_path / 'x.sqlite3', OWNER)
     return create_app(Settings(data_dir=tmp_path, _env_file=None, **settings), FakeProvider(), repo), repo
 
@@ -51,7 +52,7 @@ def test_turning_it_on_serves_the_reviewed_defaults(tmp_path):
     body, app = policy_of(tmp_path, upload_retry=True)
     assert body == {'enabled': True, **UploadPolicy().model_dump()}
     assert (body['base_ms'], body['bytes_per_second'], body['min_ms'], body['max_ms']) == (8000, 64000, 9000, 30000)
-    assert (body['growth'], body['max_sends'], body['deadline_ms'], body['backoff_ms'], body['hidden_grace_sends']) == ([1.0, 1.25, 1.5], 3, 50000, [300, 900], 1)
+    assert (body['growth'], body['max_sends'], body['deadline_ms'], body['backoff_ms']) == ([1.0, 1.25, 1.5], 3, 50000, [300, 900])
 
 
 def test_the_kill_switch_is_immediate_and_needs_no_other_change(tmp_path):
@@ -117,7 +118,7 @@ def test_the_schema_bounds_every_value_so_no_policy_can_make_a_send_or_a_wait_un
 def test_the_document_contains_nothing_but_policy_numbers(tmp_path):
     body, _ = policy_of(tmp_path, upload_retry=True)
     assert set(body) == {'enabled', 'base_ms', 'bytes_per_second', 'min_ms', 'max_ms', 'growth', 'max_sends', 'deadline_ms', 'backoff_ms',
-                         'hidden_grace_sends', 'slow_hint_ms'}
+                         'slow_hint_ms'}
     raw = json.dumps(body)
     assert OWNER not in raw and 'sb_' not in raw and 'http' not in raw
 
@@ -126,7 +127,7 @@ def test_the_document_contains_nothing_but_policy_numbers(tmp_path):
 def test_it_is_authenticated_like_every_api_route_and_changes_no_learner_state(tmp_path, repository_factory):
     repo = repository_factory(None)
     http = httpx.AsyncClient(transport=httpx.MockTransport(auth_response))
-    app = create_app(settings_for(tmp_path, upload_retry=True), FakeProvider(), repository=repo, auth_client=http)
+    app = create_app(settings_for(tmp_path, upload_retry=True, upload_idempotency=True), FakeProvider(), repository=repo, auth_client=http)
 
     async def run():
         async with client_for(app) as client:
@@ -161,3 +162,8 @@ def test_the_shared_cases_agree_with_the_server_and_the_documented_defaults():
         assert resolved['enabled'] is case['valid'], case['name']
         if case['valid']:
             assert {key: value for key, value in resolved.items() if key != 'enabled'} == UploadPolicy.model_validate(case['overrides']).model_dump(), case['name']
+
+
+def test_retry_cannot_be_enabled_without_exercise_idempotency(tmp_path):
+    body, _ = policy_of(tmp_path, upload_retry=True, upload_idempotency=False)
+    assert body == {'enabled': False}

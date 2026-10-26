@@ -1,7 +1,7 @@
 """AUD-89 P2: the recording-upload retry policy is decided by the server (AUDLI_UPLOAD_RETRY, default OFF).
 
 The browser asks `GET /api/upload-policy` and retries a recording that did not arrive only when the answer says ``enabled``. The
-policy therefore has an instant production kill switch (unset the variable; no browser rebuild) and every failure mode is safe:
+policy therefore has an production kill switch (unset the variable; no browser rebuild) and every failure mode is safe:
 
 * ``AUDLI_UPLOAD_RETRY`` unset, false, or anything that is not clearly true  -> ``{"enabled": false}``;
 * ``AUDLI_UPLOAD_RETRY_POLICY`` (optional JSON overrides) malformed, unknown keys, wrong types, out of range -> ``{"enabled": false}``
@@ -28,16 +28,15 @@ def flag_value(value) -> bool:
 
 class UploadPolicy(StrictModel):
     model_config = ConfigDict(extra='forbid', strict=True)        # "8000" or true are mistakes, not numbers: they disable retries
-    # Per-send timeout = clamp(base_ms + bytes / bytes_per_second, min_ms, max_ms) * growth[send index] (the last growth repeats).
+    # Final per-send cap applies AFTER growth; deadline_ms bounds the entire operation in wall-clock time.
     base_ms: int = Field(default=8000, ge=1000, le=60000)               # time allowed for the server's own work (auth, STT, database)
     bytes_per_second: int = Field(default=64000, ge=8000, le=2_000_000)  # slowest link the timeout still tolerates (about 512 kbps)
     min_ms: int = Field(default=9000, ge=2000, le=60000)
     max_ms: int = Field(default=30000, ge=2000, le=120000)
     growth: list[float] = Field(default_factory=lambda: [1.0, 1.25, 1.5], min_length=1, max_length=5)
     max_sends: int = Field(default=3, ge=1, le=5)                        # total sends of one recording, including the first
-    deadline_ms: int = Field(default=50000, ge=5000, le=300000)          # total visible time before the learner is told
+    deadline_ms: int = Field(default=50000, ge=5000, le=300000)          # total wall-clock time before the learner is told
     backoff_ms: list[int] = Field(default_factory=lambda: [300, 900], max_length=4)
-    hidden_grace_sends: int = Field(default=1, ge=0, le=3)               # extra sends allowed after the page was hidden mid-send
     slow_hint_ms: int = Field(default=3000, ge=500, le=30000)            # when "Sending your answer..." appears
 
     @field_validator('growth')

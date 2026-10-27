@@ -378,3 +378,16 @@ def test_single_pass_header_iterables_preserve_wire_headers(media_type):
         await gate.release_to_client()
         assert messages[0]['headers'] == expected and messages[1]['body'] == b'{}'
     asyncio.run(run())
+
+
+
+def test_cleanup_submission_failure_quarantines_the_still_open_connection(monkeypatch):
+    async def run():
+        gate = admission_module.LeaseAdmission(True, 1)
+        permit = gate.try_acquire(); connection = Connection()
+        def unavailable(*args): raise RuntimeError('synthetic executor unavailable')
+        monkeypatch.setattr(asyncio.get_running_loop(), 'run_in_executor', unavailable)
+        with pytest.raises(RuntimeError): await admission_module.close_admitted(connection, permit)
+        permit.release()
+        assert not connection.closed and gate.in_use == gate.quarantined == 1
+    asyncio.run(run())

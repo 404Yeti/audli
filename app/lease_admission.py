@@ -103,7 +103,13 @@ async def finish_cleanup(awaitable: Awaitable[object], permit: Permit) -> None:
 async def close_admitted(connection, permit: Permit) -> None:
     # Even with general DB offload disabled, a synchronous close must not freeze
     # the event loop and prevent the acknowledgment deadline from firing.
-    await finish_cleanup(asyncio.get_running_loop().run_in_executor(None, connection.close), permit)
+    try:
+        closing = asyncio.get_running_loop().run_in_executor(None, connection.close)
+    except BaseException:
+        # Submission itself can fail during executor shutdown; no close was confirmed.
+        permit.quarantine()
+        raise
+    await finish_cleanup(closing, permit)
 
 
 async def take_admitted(function, key, permit: Permit):

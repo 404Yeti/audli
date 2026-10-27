@@ -181,7 +181,7 @@ class LearnerAuthentication:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])
                             break
-                        candidate.close()
+                        await self.offload.release(candidate)
                         if attempts == 1:
                             turntrace.lease_contended(key, trace)
                         with self._span('auth.lease_wait_sleep'):

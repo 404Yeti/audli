@@ -66,21 +66,45 @@ class Learner:
         self.rows.append({'route': route_name(method, path), 'ms': (ended - started) * 1000, 'status': response.status_code})
         return response, started, ended
 
-    async def exercise(self, wav, ack_after=1.2):
+    async def exercise(self, wav, ack_after=1.2, structured=False):
         """One exercise = two turns (summary, then one follow-up). Returns the turn records."""
-        response, *_ = await self.call('POST', '/api/exercises')
-        exercise = response.json()
+        lesson = None
+        if structured:
+            response, *_ = await self.call('POST', '/api/lessons/start')
+            response.raise_for_status(); lesson = response.json()
+            if lesson['status'] == 'paused':
+                response, *_ = await self.call('POST', f"/api/lessons/{lesson['id']}/resume")
+                response.raise_for_status(); lesson = response.json()
+            for _ in range(8):
+                if lesson['phase'] == 'EXERCISE':
+                    break
+                path = f"/api/lessons/{lesson['id']}"
+                if lesson['phase'] in ('WELCOME', 'REVIEW'):
+                    response, *_ = await self.call('POST', path + '/attempts', data={'revision': lesson['revision']},
+                        files={'audio': ('response.wav', wav, 'audio/wav')}, headers={'X-Audli-Upload-Id': uuid.uuid4().hex[:16]})
+                    response.raise_for_status(); lesson = response.json()
+                    response, *_ = await self.call('POST', path + '/answer', json={'revision': lesson['revision']})
+                else:
+                    response, *_ = await self.call('POST', path + '/heard', json={'revision': lesson['revision']})
+                response.raise_for_status(); lesson = response.json()
+            assert lesson['phase'] == 'EXERCISE', 'synthetic lesson did not reach the exercise phase'
+            response, *_ = await self.call('POST', f"/api/lessons/{lesson['id']}/exercise", json={'revision': lesson['revision']})
+            response.raise_for_status(); lesson = response.json(); exercise = lesson['exercise']
+        else:
+            response, *_ = await self.call('POST', '/api/exercises')
+            response.raise_for_status(); exercise = response.json()
         await self.call('POST', f"/api/exercises/{exercise['id']}/conversation/listened")
         turns, followup = [], None
         for index in range(2):
             turn = {}
             t0 = perf_counter()
-            upload, started, ended = await self.call('POST', f"/api/exercises/{exercise['id']}/attempts", files={'audio': ('response.wav', wav, 'audio/wav')})
+            upload, started, ended = await self.call('POST', f"/api/exercises/{exercise['id']}/attempts", files={'audio': ('response.wav', wav, 'audio/wav')}, headers={'X-Audli-Upload-Id': uuid.uuid4().hex[:16]})
+            upload.raise_for_status()
             attempt = upload.json()
             turn['upload_ms'] = (ended - started) * 1000
             assess_started = perf_counter()
             assess = asyncio.create_task(self.call('POST', f"/api/attempts/{attempt['id']}/assess", json={
-                'text': attempt['transcription']['text'], 'confirmed': True, 'followup_id': followup['id'] if followup else None}))
+                'text': attempt['transcription']['text'], 'confirmed': True, 'hands_free': True, 'followup_id': followup['id'] if followup else None}))
             ack = None
             done, _ = await asyncio.wait({assess}, timeout=ack_after)
             if not done:
@@ -103,6 +127,9 @@ class Learner:
             turns.append(turn)
             followup = result.get('active_followup')
         await self.call('POST', f"/api/exercises/{exercise['id']}/conversation/ready")
+        if lesson is not None:
+            response, *_ = await self.call('POST', f"/api/lessons/{lesson['id']}/advance", json={'revision': lesson['revision']})
+            response.raise_for_status()
         return turns
 
 
@@ -118,7 +145,7 @@ async def probe(client, stop, samples):
         await asyncio.sleep(.1)
 
 
-async def scenario(base, tokens, turns_per_learner, wav):
+async def scenario(base, tokens, turns_per_learner, wav, cached_ack=False, structured=False):
     rows, turns, samples, stop = [], [], [], asyncio.Event()
     limits = httpx.Limits(max_connections=200)
     async with httpx.AsyncClient(base_url=base, timeout=180, limits=limits) as client, httpx.AsyncClient(base_url=base, timeout=60) as health:
@@ -128,12 +155,14 @@ async def scenario(base, tokens, turns_per_learner, wav):
         async def run(learner):
             done = 0
             while done < turns_per_learner:
-                turns.extend(await learner.exercise(wav))
+                turns.extend(await learner.exercise(wav, ack_after=1000 if cached_ack else 1.2, structured=structured))
                 done += 2
         started = perf_counter()
-        await asyncio.gather(*(run(learner) for learner in learners))
-        wall = perf_counter() - started
-        stop.set(); await watcher
+        try:
+            await asyncio.gather(*(run(learner) for learner in learners))
+            wall = perf_counter() - started
+        finally:
+            stop.set(); await watcher
     by_route = {}
     for row in rows:
         by_route.setdefault(row['route'], []).append(row['ms'])
@@ -199,7 +228,7 @@ async def run_config(args, index, name, flags):
     target = make_url(args.admin_url).port or 5432
     proxy = subprocess.Popen([sys.executable, str(ROOT / 'scripts' / 'pg_delay_proxy.py'), '--listen', str(proxy_port), '--target', str(target),
                               '--one-way-ms', str(args.proxy_ms / 2)])
-    env = {**os.environ, **flags, 'PYTHONPATH': f'{args.app_root}:{ROOT / "scripts"}',
+    env = {**os.environ, **flags, 'PYTHONPATH': f'{args.app_root / "ci"}:{args.app_root}:{ROOT / "scripts"}',
            'AUDLI_BENCH_DATABASE_URL': make_url(direct).set(port=proxy_port).render_as_string(hide_password=False)}
     log = tempfile.NamedTemporaryFile('w+', suffix='.log', delete=False)
     server = subprocess.Popen([sys.executable, '-m', 'uvicorn', '--factory', '--app-dir', str(ROOT / 'scripts'), 'bench_app:build',
@@ -210,10 +239,21 @@ async def run_config(args, index, name, flags):
         base = f'http://127.0.0.1:{server_port}'
         audio = wav()
         # Warm-up so first-use costs (connections, imports) are not counted.
-        await scenario(base, tokens[:1], 2, audio)
-        result['sequential'] = await scenario(base, tokens[:1], args.sequential_turns, audio)
+        await scenario(base, tokens[:1], 2, audio, args.cached_ack, args.structured)
+        result['sequential'] = await scenario(base, tokens[:1], args.sequential_turns, audio, args.cached_ack, args.structured)
         if args.learners > 1:
-            result['concurrent'] = await scenario(base, tokens, args.turns_per_learner, audio)
+            result['concurrent'] = await scenario(base, tokens, args.turns_per_learner, audio, args.cached_ack, args.structured)
+        def audit():
+            with psycopg.connect(direct, autocommit=True) as db:
+                counts = {table: db.execute('SELECT count(*) FROM ' + table).fetchone()[0] for table in
+                    ('attempts', 'turn_assessments', 'conversation_turns', 'evaluation_results', 'adaptation_events', 'lesson_exercises')}
+                counts['conversations'] = dict(db.execute('SELECT state, count(*) FROM conversations GROUP BY state').fetchall())
+                counts['lesson_phases'] = dict(db.execute("SELECT data->>'phase', count(*) FROM lesson_lifecycles GROUP BY data->>'phase'").fetchall())
+                counts['completed_sessions'] = db.execute("SELECT count(*) FROM training_sessions WHERE status='completed'").fetchone()[0]
+                counts['advisory_locks'] = db.execute("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database())").fetchone()[0]
+                counts['idle_transactions'] = db.execute("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction'").fetchone()[0]
+                return counts
+        result['persistence'] = await asyncio.to_thread(audit)
     finally:
         server.send_signal(signal.SIGTERM)
         try:
@@ -222,6 +262,8 @@ async def run_config(args, index, name, flags):
             server.kill()
         proxy.terminate()
         log.seek(0); text = log.read(); log.close(); os.unlink(log.name)
+        if args.out:
+            args.out.with_name(args.out.stem + '-' + name + '.log').write_text(text)
         with psycopg.connect(args.admin_url, autocommit=True) as admin:
             admin.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(db_name)))
     result['server'] = server_summary(text)
@@ -270,8 +312,13 @@ async def main():
     parser.add_argument('--port-base', type=int, default=8700)
     parser.add_argument('--parallel', type=int, default=2, help='configurations run at the same time')
     parser.add_argument('--app-root', type=Path, default=ROOT, help='checkout whose app/ the server runs (to compare branches)')
+    parser.add_argument('--cached-ack', action='store_true', help='model the warm cached acknowledgment path without a cue HTTP call')
+    parser.add_argument('--structured', action='store_true', help='include lesson check-in, phase persistence/projection and exercise advancement')
     parser.add_argument('--out', type=Path)
     args = parser.parse_args()
+    from urllib.parse import urlsplit
+    if urlsplit(args.admin_url).hostname not in ('127.0.0.1', 'localhost', '::1'):
+        parser.error('benchmarks require a disposable loopback PostgreSQL server')
     configs = []
     for spec in args.config:
         name, _, flags = spec.partition(':')

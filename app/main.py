@@ -282,15 +282,15 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         return public_exercise(row) if row else None
 
     async def prepare_exercise(lesson=None):
-        profile = repo.profile()
+        profile = await offload.run(repo.profile)
         if profile.onboarding.revision > 0 and profile.onboarding_status != 'complete':
             raise HTTPException(409, 'Complete your spoken onboarding first.')
-        current = repo.current_exercise()
-        if current and not repo.completed(current['id']):
+        current = await offload.run(repo.current_exercise)
+        if current and not await offload.run(repo.completed, current['id']):
             if lesson is not None:
-                repo.attach_lesson_exercise(lesson, current['id'])
-            return public_exercise(current)
-        profile = repo.profile()
+                await offload.run(repo.attach_lesson_exercise, lesson, current['id'])
+            return await offload.run(public_exercise, current)
+        profile = await offload.run(repo.profile)
         if lesson and lesson.plan_topic:
             profile = profile.model_copy(deep=True)
             profile.interests = [lesson.plan_topic]
@@ -323,25 +323,29 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             # a kill-switch race). The introduction must describe this audio.
             content.passage_voice.fallback = True
         audio_name = exercise_id + '.' + kind
-        path = audio_dir / audio_name
-        path.write_bytes(audio)
-        try:
-            repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio, lesson=lesson, onboarding_revision=profile.onboarding.revision)
-        except Exception:
-            path.unlink(missing_ok=True)
-            raise
-        return public_exercise(repo.exercise(exercise_id))
+        def persist():
+            # Keep file cleanup, the complete existing transaction and projection
+            # in one worker section. Cancellation waits for its commit/rollback.
+            path = audio_dir / audio_name
+            try:
+                path.write_bytes(audio)
+                repo.save_exercise(exercise_id, content, profile.difficulty, audio_name, audio=audio, lesson=lesson, onboarding_revision=profile.onboarding.revision)
+            except Exception:
+                path.unlink(missing_ok=True)
+                raise
+            return public_exercise(repo.exercise(exercise_id))
+        return await offload.run(persist)
 
 
     @app.post('/api/exercises')
     async def generate():
         async with lock:
-            lesson = repo.lesson()
+            lesson = await offload.run(repo.lesson)
             if lesson:
                 if lesson.status == 'active' and lesson.phase == 'EXERCISE' and lesson.exercise_id:
-                    return public_exercise(exercise_or_404(lesson.exercise_id))
+                    return await offload.run(lambda: public_exercise(exercise_or_404(lesson.exercise_id)))
                 raise HTTPException(409, 'Continue the structured lesson before preparing an exercise.')
-            app.state.limits.admit_legacy('exercises.generate')  # Lesson-free generation is a billable bypass.
+            await offload.run(app.state.limits.admit_legacy, 'exercises.generate')  # Lesson-free generation is a billable bypass.
             return await prepare_exercise()
 
     @app.get('/api/exercises/{exercise_id}/audio')

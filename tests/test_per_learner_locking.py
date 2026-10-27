@@ -244,22 +244,75 @@ def test_duplicate_assessment_for_one_learner_runs_the_evaluator_and_adaptation_
 
 
 @pytest.mark.parametrize('per_learner', [False, True])
-def test_cancelled_waiter_and_cancelled_holder_do_not_wedge_the_learner(repository_factory, per_learner):
+def test_cancelled_waiter_and_cancelled_holder_do_not_wedge_the_learner(repository_factory, per_learner, monkeypatch):
+    from app.auth import LearnerAuthentication
+    from app.storage import schema as tables
+    from sqlalchemy import select, func
+
     async def run():
         app, client, auth, provider, ex = await two_learner_app(repository_factory(None), per_learner, delay=.4)
-        holder = asyncio.create_task(upload(client, 'valid-a', ex['valid-a']))
-        await asyncio.sleep(.05)
-        waiter = asyncio.create_task(upload(client, 'valid-a', ex['valid-a']))
-        await asyncio.sleep(.05)
-        waiter.cancel(); await asyncio.gather(waiter, return_exceptions=True)
-        holder.cancel(); await asyncio.gather(holder, return_exceptions=True)      # cancelled mid-provider-call
-        started = perf_counter()
-        seconds, _ = await asyncio.wait_for(upload(client, 'valid-a', ex['valid-a']), 5)   # next request proceeds promptly
-        remaining = app.state.locks.active_keys()
-        await client.aclose(); await auth.aclose(); app.state.repository.close()
-        return perf_counter() - started, remaining
-    elapsed, remaining = asyncio.run(run())
-    assert elapsed < 1.0 and remaining == 0, (elapsed, remaining)
+        entered, blocked, cancelled = (asyncio.Event() for _ in range(3))
+        loop = asyncio.get_running_loop()
+        calls = []
+        transcribe = provider.transcribe
+
+        async def controlled(audio, filename):
+            calls.append(len(calls) + 1)
+            if len(calls) == 1:
+                entered.set()
+                try:
+                    await asyncio.Future()  # only cancellation ends the holder
+                except asyncio.CancelledError:
+                    cancelled.set()
+                    raise
+            return await transcribe(audio, filename)
+        provider.transcribe = controlled
+
+        # SQLite waits at the application lock. PostgreSQL waits earlier at the
+        # account lease. Observe the real blocking boundary in either backend.
+        acquire = LearnerLocks.acquire
+        async def observed_acquire(lock):
+            if lock.locked():
+                blocked.set()
+            return await acquire(lock)
+        monkeypatch.setattr(LearnerLocks, 'acquire', observed_acquire)
+        take_lease = LearnerAuthentication._take_lease
+        def observed_lease(middleware, key):
+            result = take_lease(middleware, key)
+            if not result[1]:
+                loop.call_soon_threadsafe(blocked.set)
+            return result
+        monkeypatch.setattr(LearnerAuthentication, '_take_lease', observed_lease)
+
+        tasks = []
+        try:
+            # Keep the existing five-second watchdog, now covering the entire
+            # cancellation sequence. Cleanup/runner speed is not a lock verdict.
+            async with asyncio.timeout(5):
+                holder = asyncio.create_task(upload(client, 'valid-a', ex['valid-a'])); tasks.append(holder)
+                await entered.wait()
+                waiter = asyncio.create_task(upload(client, 'valid-a', ex['valid-a'])); tasks.append(waiter)
+                await blocked.wait()
+                assert not waiter.done() and calls == [1]
+                waiter.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await waiter
+                holder.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await holder
+                assert cancelled.is_set()
+                _, accepted = await upload(client, 'valid-a', ex['valid-a'])
+                assert calls == [1, 2] and app.state.locks.active_keys() == 0
+                with app.state.repository.engine.connect() as db:
+                    count = db.execute(select(func.count()).select_from(tables.attempts).where(
+                        tables.attempts.c.exercise_id == ex['valid-a'])).scalar_one()
+                assert count == 1 and accepted['id']
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await client.aclose(); await auth.aclose(); app.state.repository.close()
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize('per_learner', [False, True])

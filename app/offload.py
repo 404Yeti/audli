@@ -36,7 +36,15 @@ class Offload:
                 except Exception:
                     break
             if not task.cancelled() and task.exception() is None and on_cancel is not None:
-                on_cancel(task.result())
+                cleanup = asyncio.ensure_future(asyncio.to_thread(on_cancel, task.result()))
+                # Cancellation cleanup can itself roll back a DB transaction.
+                # Keep it off the loop and wait even through repeated cancellation.
+                while not cleanup.done():
+                    try:
+                        await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        continue
+                cleanup.result()
             elif not task.cancelled():
                 task.exception()                        # retrieved: nobody is left to receive it
             raise

@@ -141,12 +141,14 @@ class JSONAcknowledgment:
 
     async def __call__(self, message):
         if message['type'] == 'http.response.start':
-            headers = {key.lower(): value for key, value in message.get('headers', ())}
+            raw_headers = list(message.get('headers', ()))
+            message = {**message, 'headers': raw_headers}
+            headers = {key.lower(): value for key, value in raw_headers}
             length = headers.get(b'content-length', b'')
             if (200 <= message['status'] < 300 and not message.get('trailers')
                     and headers.get(b'content-type', b'').split(b';')[0].strip().lower() == b'application/json'
                     and len(length) <= 8 and length.isdigit() and int(length) <= MAX_JSON_ACK_BYTES):
-                self.start = {**message, 'headers': list(message.get('headers', ()))}
+                self.start = message
                 self.length = int(length)
                 return
         elif self.start is not None and message['type'] == 'http.response.body':

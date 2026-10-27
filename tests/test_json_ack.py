@@ -361,3 +361,20 @@ def test_buffered_message_envelopes_cannot_be_mutated_after_send_returns():
         assert messages[0]['status'] == 200 and len(messages[0]['headers']) == 2
         assert messages[1]['body'] == b'{}'
     asyncio.run(run())
+
+
+
+@pytest.mark.parametrize('media_type', [b'application/json', b'audio/wav'])
+def test_single_pass_header_iterables_preserve_wire_headers(media_type):
+    async def run():
+        messages = []
+        async def send(message): messages.append(message)
+        gate = JSONAcknowledgment(send)
+        expected = [(b'content-type', media_type), (b'content-length', b'2'), (b'x-test', b'preserved')]
+        await gate({'type': 'http.response.start', 'status': 200, 'headers': iter(expected)})
+        await gate({'type': 'http.response.body', 'body': b'{}'})
+        if media_type == b'application/json': assert not messages
+        else: assert len(messages) == 2
+        await gate.release_to_client()
+        assert messages[0]['headers'] == expected and messages[1]['body'] == b'{}'
+    asyncio.run(run())

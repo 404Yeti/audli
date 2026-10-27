@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     # AUD-84 P2: read-only database operations run in AUTOCOMMIT on Postgres (default off; ignored unless the server is READ COMMITTED).
     db_read_autocommit: bool = False
     # AUD-87: take the account lease from a small pool of kept connections with ONE statement instead of a new connection and two statements per request. Same lock, same key. Off = previous behaviour.
+    # AUD-92: no-queue per-worker admission before any account lease connection.
+    lease_admission: bool = False
+    lease_admission_limit: int = Field(default=1, ge=1, le=16, strict=True)
     lease_pool: bool = False
     lease_pool_size: int = Field(default=2, ge=1, le=16)       # connections kept open for leases
     lease_pool_overflow: int = Field(default=6, ge=0, le=64)   # extra connections under load, closed again afterwards
@@ -103,6 +106,14 @@ class Settings(BaseSettings):
     max_audio_bytes: int = 12 * 1024 * 1024
     max_recording_seconds: int = 120
     max_feedback_words: int = Field(default=50, ge=30, le=50)
+
+    @field_validator('lease_admission_limit', mode='before')
+    @classmethod
+    def admission_limit_from_environment(cls, value):
+        # Env values are strings; accept only plain decimal integers, never bool/float coercion.
+        if isinstance(value, str) and value.isascii() and value.isdecimal():
+            return int(value)
+        return value
 
     @field_validator('upload_retry', mode='before')
     @classmethod

@@ -109,10 +109,13 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             elif hasattr(provider, 'client'):
                 await provider.client.close()
 
+    from app.lease_admission import LeaseAdmission
+    admission = LeaseAdmission(settings.lease_admission, settings.lease_admission_limit)
     app = FastAPI(title='Audli', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     if identity is not None:
         app.add_middleware(LearnerAuthentication, identity=identity, repository=database, request_repository=repo,
-            timing=settings.latency_aggregates, ack_exempt=settings.ack_lease_exempt, lease_pool=settings.lease_pool, pool_size=settings.lease_pool_size, pool_overflow=settings.lease_pool_overflow, offload=offload)
+            timing=settings.latency_aggregates, ack_exempt=settings.ack_lease_exempt, lease_pool=settings.lease_pool, pool_size=settings.lease_pool_size, pool_overflow=settings.lease_pool_overflow, offload=offload,
+            admission=admission)
     app.add_middleware(LocalRequestGuard, max_audio_bytes=settings.max_audio_bytes, allowed_origins=settings.browser_origins)
     app.state.accent_controls = passage_limits
     app.state.repository = database
@@ -239,7 +242,8 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                 'db_state_only_transitions': settings.db_state_only_transitions,
                 'db_offload': settings.db_offload, 'db_lazy_ping': settings.db_lazy_ping,
                 'db_state_only_checkpoints': settings.db_state_only_checkpoints,
-                'upload_idempotency': settings.upload_idempotency, 'upload_retry': upload_policy['enabled']}
+                'upload_idempotency': settings.upload_idempotency, 'upload_retry': upload_policy['enabled'],
+                'lease_admission': admission.snapshot()}
 
     @app.get('/api/auth/config')
     async def auth_config():

@@ -25,7 +25,7 @@ def test_small_json_is_held_until_explicit_release_without_copying_body():
                  'headers': [(b'Content-Type', b'Application/JSON; charset=utf-8'), (b'Content-Length', b'2')]}
         body = {'type': 'http.response.body', 'body': b'{}'}
         await gate(start); await gate(body)
-        assert not messages and gate.body is body
+        assert not messages and gate.body is not body and gate.body['body'] is body['body']
         await gate.release_to_client()
         assert messages == [start, body]
     asyncio.run(run())
@@ -343,3 +343,21 @@ def test_cancelled_json_close_can_finish_without_quarantine_or_success_headers()
         assert not messages and auth.admission.in_use == auth.admission.quarantined == 0
         assert not auth.admission.cleanup_tasks
     asyncio.run(asyncio.wait_for(run(), 5))
+
+
+
+def test_buffered_message_envelopes_cannot_be_mutated_after_send_returns():
+    async def run():
+        messages = []
+        async def send(message): messages.append(message)
+        gate = JSONAcknowledgment(send)
+        headers = [(b'content-type', b'application/json'), (b'content-length', b'2')]
+        start = {'type': 'http.response.start', 'status': 200, 'headers': headers}
+        body = {'type': 'http.response.body', 'body': b'{}'}
+        await gate(start); await gate(body)
+        start['status'] = 201; headers.append((b'x-late', b'mutation'))
+        body['body'] = b'{"changed":true}'
+        await gate.release_to_client()
+        assert messages[0]['status'] == 200 and len(messages[0]['headers']) == 2
+        assert messages[1]['body'] == b'{}'
+    asyncio.run(run())

@@ -146,13 +146,13 @@ class JSONAcknowledgment:
             if (200 <= message['status'] < 300 and not message.get('trailers')
                     and headers.get(b'content-type', b'').split(b';')[0].strip().lower() == b'application/json'
                     and len(length) <= 8 and length.isdigit() and int(length) <= MAX_JSON_ACK_BYTES):
-                self.start = message
+                self.start = {**message, 'headers': list(message.get('headers', ()))}
                 self.length = int(length)
                 return
         elif self.start is not None and message['type'] == 'http.response.body':
             if (not message.get('more_body', False) and self.body is None
                     and len(message.get('body', b'')) == self.length):
-                self.body = message
+                self.body = dict(message)  # freeze the envelope; retain immutable JSON bytes
                 return
         # An unexpected stream/extension is not converted into a buffered response.
         await self.flush()

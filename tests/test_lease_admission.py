@@ -434,7 +434,7 @@ def test_http_response_can_precede_cleanup_and_next_send_is_safely_rejected():
         sock = socket.socket()
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
-        server = uvicorn.Server(uvicorn.Config(auth, lifespan='off', log_level='critical'))
+        server = uvicorn.Server(uvicorn.Config(auth, lifespan='off', log_config=None, log_level=None))
         server_task = asyncio.create_task(server.serve(sockets=[sock]))
         try:
             while not server.started:

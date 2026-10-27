@@ -16,7 +16,7 @@ from starlette.responses import JSONResponse
 from app.storage.repository import AccountUnavailable
 from app import turntrace
 from app.offload import Offload
-from app.lease_admission import LeaseAdmission, finish_cleanup
+from app.lease_admission import LeaseAdmission, close_admitted, take_admitted, JSONAcknowledgment
 from app.dbtiming import span, instrument_engine
 from app.telemetry import aggregator
 
@@ -178,6 +178,7 @@ class LearnerAuthentication:
             headers = {'WWW-Authenticate': 'Bearer'} if error.status_code == 401 else {}
             return await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=headers)(scope, receive, send)
         permit = None
+        acknowledgment = None
         lease = None
         token = None
         lease_key = None
@@ -204,20 +205,7 @@ class LearnerAuthentication:
                         if permit is None:
                             candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
                         else:
-                            cancellation_cleaned = False
-                            def close_cancelled_candidate(result):
-                                nonlocal cancellation_cleaned
-                                self._close_candidate(result[0], permit)
-                                cancellation_cleaned = True
-                            try:
-                                candidate, acquired = await self.offload.run(self._take_lease, key, permit,
-                                    on_cancel=close_cancelled_candidate)
-                            except asyncio.CancelledError:
-                                # If the offload task itself was cancelled (e.g. shutdown),
-                                # its thread may still be opening a socket without a result.
-                                if not cancellation_cleaned:
-                                    permit.quarantine()
-                                raise
+                            candidate, acquired = await take_admitted(self._take_lease, key, permit)
                         if acquired:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])
@@ -225,7 +213,7 @@ class LearnerAuthentication:
                         if permit is None:
                             candidate.close()
                         else:
-                            await finish_cleanup(self.offload.release(candidate), permit)
+                            await close_admitted(candidate, permit)
                         if attempts == 1:
                             turntrace.lease_contended(key, trace)
                         with self._span('auth.lease_wait_sleep'):
@@ -240,11 +228,14 @@ class LearnerAuthentication:
             with self._span('auth.scope'):
                 scoped = await self.offload.run(self.repository.for_learner, learner_id)
             token = self.request_repository.current.set(scoped)
-            await self.app(scope, receive, send)
+            acknowledgment = JSONAcknowledgment(send) if permit is not None else None
+            await self.app(scope, receive, acknowledgment or send)
         except AccountUnavailable:
+            acknowledgment = None
             await JSONResponse({'detail': 'Your account is no longer available. Please sign in again.'}, status_code=401,
                                headers={'WWW-Authenticate': 'Bearer'})(scope, receive, send)
         except HTTPException as error:
+            acknowledgment = None
             await JSONResponse({'detail': error.detail}, status_code=error.status_code)(scope, receive, send)
         finally:
             if token is not None:
@@ -257,10 +248,14 @@ class LearnerAuthentication:
                         await self.offload.release(lease)
                     else:
                         try:
-                            await finish_cleanup(self.offload.release(lease), permit)
+                            await close_admitted(lease, permit)
                         finally:
                             if lease_key is not None and not permit.failed:
                                 turntrace.lease_released(lease_key)
             finally:
                 if permit is not None:
                     permit.release()
+        if acknowledgment is not None:
+            # This point is reached only after the app and confirmed cleanup have
+            # returned, the account scope reset and the admission permit released.
+            await acknowledgment.release_to_client()

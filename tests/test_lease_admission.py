@@ -420,7 +420,7 @@ def test_acquisition_query_failure_only_recycles_confirmed_cleanup(cleanup_fails
     asyncio.run(asyncio.wait_for(run(), 10))
 
 
-def test_http_response_can_precede_cleanup_and_next_send_is_safely_rejected():
+def test_low_auth_http_success_waits_for_cleanup_and_fast_following_posts_succeed():
     """A real socket catches the response/cleanup race hidden by ASGITransport."""
     import socket
     import uvicorn
@@ -434,22 +434,34 @@ def test_http_response_can_precede_cleanup_and_next_send_is_safely_rejected():
         sock = socket.socket()
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
-        server = uvicorn.Server(uvicorn.Config(auth, lifespan='off', log_config=None, log_level=None))
+        quotas_at_success = []
+        async def audited(scope, receive, send):
+            async def checked(message):
+                if message['type'] == 'http.response.start' and message['status'] == 200:
+                    quotas_at_success.append(auth.admission.in_use)
+                await send(message)
+            await auth(scope, receive, checked)
+        server = uvicorn.Server(uvicorn.Config(audited, lifespan='off', log_config=None, log_level=None))
         server_task = asyncio.create_task(server.serve(sockets=[sock]))
         try:
             while not server.started:
                 await asyncio.sleep(.001)
             async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{port}') as client:
-                assert (await client.post('/api/test')).status_code == 200
+                first = asyncio.create_task(client.post('/api/test'))
                 assert await asyncio.to_thread(closing.wait, 5)
+                assert not quotas_at_success and not first.done()
                 assert (await client.post('/api/test')).status_code == 503
                 assert auth.admission.in_use == 1
                 finish.set()
+                assert (await first).status_code == 200
+                assert auth.admission.in_use == 0
                 # Wait for confirmed cleanup rather than a timing assumption.
                 while auth.admission.in_use:
                     await asyncio.sleep(0)
                 auth._take_lease = lambda key, permit=None: (Connection(), True)
-                assert (await client.post('/api/test')).status_code == 200
+                for _ in range(12):
+                    assert (await client.post('/api/test')).status_code == 200
+                assert quotas_at_success == [0] * 13
         finally:
             finish.set()
             server.should_exit = True
@@ -514,12 +526,10 @@ def test_real_advisory_lock_across_two_admitted_workers(tmp_path, repository_fac
 def test_cancelled_acquisition_without_cleanup_confirmation_does_not_return_capacity():
     async def run():
         auth, request, _ = harness()
-        class InterruptedOffload:
-            async def run(self, *args, **kwargs):
-                # An underlying to_thread task cancelled during shutdown cannot
-                # confirm whether its still-running thread acquired a connection.
-                raise asyncio.CancelledError
-        auth.offload = InterruptedOffload()
+        def interrupted(key, permit=None):
+            # A cancelled underlying acquisition has no confirmed cleanup result.
+            raise asyncio.CancelledError
+        auth._take_lease = interrupted
         with pytest.raises(asyncio.CancelledError):
             await request()
         assert auth.admission.in_use == auth.admission.quarantined == 1

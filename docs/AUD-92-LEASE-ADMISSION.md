@@ -29,23 +29,29 @@ codec, retry policy, routing or CORS change is authorized here.
 
 ## Cancellation and failures
 
-During acquisition the existing offload runner waits for its synchronous
-section, including closing any returned candidate after cancellation. Internal
-acquisition cleanup failures quarantine the permit. Cancellation without a confirmed
-acquisition-cleanup callback also quarantines it (a cancelled offload task can
-leave its underlying thread running, for example during shutdown). For an admitted request,
-failed-candidate/final close runs as a separate shielded task; repeated outer
-cancellation cannot return the permit while that cleanup is still running.
-The original cancellation is re-raised after confirmed cleanup. Synchronous
-DB sections retain their existing ownership context and transaction boundaries.
+With admission enabled, lease acquisition runs in a worker thread with the same
+account key and statements. Cancellation drains acquisition and any returned
+connection through a tracked task: no route/provider work starts for that cancelled
+operation. Confirmed close returns the permit; failure or an unconfirmed result
+quarantines it. Acquisition/close are threaded even if general DB offload is OFF,
+so synchronous socket cleanup cannot prevent the response deadline from firing.
+Admission disabled retains the legacy path.
 
-A close/invalidation failure is not proof of connection release. Its permit
-is permanently quarantined in that worker, emits the constant-only error
-`lease_admission_cleanup_failed; permit quarantined`, and remains in `in_use`.
-At limit one the worker then rejects further lease operations. This intentionally
-sacrifices availability rather than opening replacements alongside an uncertain
-socket. A stuck close similarly holds capacity; investigate/recycle the worker.
-There is no automatic reset that could hide an outstanding transaction.
+Admitted cleanup and cancellation-drain have a fixed **two-second response-wait
+deadline**, measured with a monotonic clock and never reset by repeated cancellation.
+On expiry the operation continues in a tracked background future, the permit stays
+permanently quarantined, and an unsent successful JSON acknowledgment is discarded.
+The outer application reports503; a cancelled request instead propagates cancellation.
+This bounds the wait for cleanup, not the underlying synchronous DB operation or
+provider/transaction work. A stuck thread cannot be interrupted safely; the worker
+may need a forced recycle. There is no automatic reset when a late close finishes.
+
+A close/invalidation failure emits only the constant
+`lease_admission_cleanup_failed; permit quarantined`; no private error details.
+With limit one, that worker refuses further lease operations. The health endpoint
+remains usable. Tracked cleanup futures observe late exceptions without logging
+payloads and are removed on completion; pending cleanup is bounded by admitted
+capacity. Ownership and transaction boundaries remain unchanged.
 
 ## Exhaustion and current browser behavior
 
@@ -66,15 +72,30 @@ error and require existing manual recovery. Optional ACK failure is caught by
 `prepareAcknowledgment` without failing a completed assessment. A cap is not a
 throughput improvement and has no fairness guarantee under a retry storm.
 
-**Response boundary limitation:** response bytes can reach the browser before
-middleware lease rollback/close completes. A fast following POST can therefore
-receive 503 even in a single-learner flow. The real-loopback HTTP regression test
-holds cleanup after the first response and proves this rejection and subsequent
-recovery. ASGITransport waits for middleware completion and would conceal this
-case. Do not infer transparent physical-browser behavior from synthetic sequential
-results. Enabling requires explicit acceptance of this behavior or a separately
-reviewed response/cleanup-order safeguard; this PR does not buffer audio responses
-or change retry behavior to hide it.
+**JSON acknowledgment ordering (owner-approved follow-up):** for an admitted
+request, retain a successful2xx `application/json` response only when it declares
+Content-Length<=64KiB and supplies exactly one complete matching body. Keep its
+existing messages by reference. Wait for the entire application to return, reset
+request ownership, close the lease and return the permit, then send the headers/body.
+This preserves late application work and does not unlock at response.start. Failed
+cleanup/cancellation does not flush retained success. Already-committed attempts
+remain authoritative and recover through unchanged idempotency/reconciliation.
+
+Audio, streaming/chunked/oversized/undeclared-length/trailer/path-send responses
+pass through with original backpressure and lease lifetime. Error responses also
+keep their original behavior. This is deliberately not a blanket response buffer;
+unsupported responses may retain the original fast-following race. The guarantee
+applies to the small complete JSON acknowledgments above. Incomplete retained JSON
+is not acknowledged as success. No queue, increased admission limit, extra DB
+operation, altered upload ID or retry-policy change is introduced.
+
+A real-loopback HTTP test with zero-delay authentication holds close behind a
+barrier and asserts no200 headers are emitted while the permit is occupied; all
+12 immediate following POSTs succeed. Additional tests cover cancellation/disconnect,
+late/hung/failed cleanup, missing bodies, stream/audio pass-through, canonical upload
+replay, rollback and identical database query/checkout/connect/rollback counts.
+Reproduce paired before/after measurements with `scripts/bench_json_ack.py` and a
+local72ms DB delay proxy; final measurements and CI are recorded in the PR body.
 
 ## Capacity with verified production lease pooling OFF
 
@@ -112,7 +133,8 @@ numeric aggregates. PostgreSQL 17.10, Python 3.12.13, SQLAlchemy 2.1.6, psycopg
 3.3.6 locally; production snapshot is Python 3.12.16. Auth 300 ms and STT 1100 ms
 are mocks; DB RTT is local, per-learner locks enabled, ASGI transport, no Safari,
 upload bandwidth, provider variation or production-network measurement.
-Results in `docs/benchmarks/AUD-92-lease-admission.json`:
+Historical admission-only measurements before JSON ordering, in
+`docs/benchmarks/AUD-92-lease-admission.json`:
 
 | Workload | Admission off | Admission on (K=1) |
 | --- | --- | --- |
@@ -125,13 +147,13 @@ Single-stream difference +2.2 ms (~0.15%) is noise-scale, not a production
 latency claim. Rejections cost about 308–310 ms including mocked authentication.
 Across all cases accepted count equals STT calls and persisted attempts; rejected
 sends invoke neither. These measurements demonstrate the availability tradeoff,
-not a higher-throughput result or acceptance of the response-boundary limitation.
+not a higher-throughput result or production acceptance of the ordering change.
 
 Tests cover no-queue storms, configured/disabled behavior, read exemptions,
 repeated cancellation during acquisition/holding/contender cleanup, failed cleanup
 quarantine, query errors, rollback, verified account isolation, real PostgreSQL
 same-upload/assessment replay, cross-worker advisory locks, identical complete
-lesson rows with flag on/off, and the real HTTP response/cleanup race. Browser
+lesson rows with flag on/off, and JSON-after-cleanup ordering over real HTTP. Browser
 library regressions cover retained IDs, exhausted retries/manual Send again and
 check-in reconciliation; no transport implementation changes.
 
@@ -154,8 +176,10 @@ monitoring must collect each worker; a load-balanced health read is not a census
 - Track actual sends, rejected sends, manual recoveries, exhaustion and canonical
   attempts; never learner IDs, transcript/audio or bearer/session values.
 
-Before any deployment, explicitly review the response-boundary risk and old-worker
-transition, verify current/peak pool usage with reserve, and obtain owner approval.
+Before any deployment, review the scoped-response fallbacks, bounded-cleanup
+quarantine/worker recovery and old-worker transition, verify current/peak pool usage
+with reserve, and obtain owner approval. JSON ordering fixes normal fast-following
+acknowledgments; it does not solve four-learner contention at admission limit one.
 If #110 later regresses, roll back **#110 code to the reviewed safeguard-only
 revision**, retaining approved admission/production flags. If the safeguard itself
 regresses, stop the canary and follow an explicitly approved code rollback/drain

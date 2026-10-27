@@ -12,7 +12,8 @@ from .service import process
 from .store import Store, Conflict, claims_only_allowed
 
 
-def install(app, settings, provider, *, mode='claims', old_workers=0):
+def install(app, settings, provider, *, mode='claims', old_workers=0, store_type=None):
+    store_type = store_type or Store
     if mode not in ('bridge', 'claims'):
         raise ValueError('Unknown protocol')
     if mode == 'claims':
@@ -40,7 +41,7 @@ def install(app, settings, provider, *, mode='claims', old_workers=0):
             if key is None:
                 raise HTTPException(422, 'A stable recording ID is required by this local experiment')
             data, filename = await validate_upload(audio, settings)
-            store = Store(repo_proxy.current.get())
+            store = store_type(repo_proxy.current.get())
             kind, result = await process(store, exercise_id, key, data, filename, provider)
             if kind == 'replay':
                 response.headers['X-Audli-Replayed'] = 'true'
@@ -59,7 +60,7 @@ def install(app, settings, provider, *, mode='claims', old_workers=0):
     async def status(exercise_id: str, key: str):
         from .service import database_call
         try:
-            result = await database_call(Store(repo_proxy.current.get()).status, exercise_id, key)
+            result = await database_call(store_type(repo_proxy.current.get()).status, exercise_id, key)
             return result if result else JSONResponse({'processing': True}, status_code=202)
         except Conflict:
             raise HTTPException(409, 'No recoverable operation') from None

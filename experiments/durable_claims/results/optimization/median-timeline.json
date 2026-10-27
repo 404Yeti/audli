@@ -1,0 +1,38 @@
+{
+  "claims": {
+    "client_wall_ms": 17430.887331500002,
+    "observed_window_ms": 17360.471964499993,
+    "covered_ms": 17285.770496499936,
+    "overlap_ms": 1729.684421499769,
+    "unclassified_ms": 74.7014680000575,
+    "components_ms": {
+      "cursor_ms": 3363.481476002562,
+      "do_commit_ms": 231.0352885001521,
+      "provider_ms": 1100.9211740001774,
+      "executor_queue_ms": 1.0307239999747253,
+      "pool_wait_ms": 13086.817939500179,
+      "checkout_ms": 3622.7991109994946,
+      "auth_ms": 1203.8859694998791,
+      "do_rollback_ms": 0.1427455008524703
+    },
+    "sql_server_exec_ms_entire_wave": 40.361
+  },
+  "optimized": {
+    "client_wall_ms": 3732.33537,
+    "observed_window_ms": 3701.718765500118,
+    "covered_ms": 3659.724564499811,
+    "overlap_ms": 0.0,
+    "unclassified_ms": 41.99420100030693,
+    "components_ms": {
+      "provider_ms": 1100.386827499733,
+      "do_rollback_ms": 0.052819000757153844,
+      "checkout_ms": 755.445086499094,
+      "cursor_ms": 599.0427474998796,
+      "pool_wait_ms": 1199.632479000229,
+      "auth_ms": 603.6290505007855,
+      "executor_queue_ms": 0.6311209999694256,
+      "do_commit_ms": 152.3227370003042
+    },
+    "sql_server_exec_ms_entire_wave": 63.439
+  }
+}

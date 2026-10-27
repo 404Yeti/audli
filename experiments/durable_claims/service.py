@@ -1,9 +1,10 @@
 """Request-bound mocked-STT processor. No durable audio and no background job queue."""
 import asyncio
 from hashlib import sha256
-from time import monotonic
+from time import monotonic, perf_counter
 
 from .store import Store
+from . import metrics
 
 
 async def database_call(function, *args):
@@ -12,7 +13,18 @@ async def database_call(function, *args):
     A two-second cancellation wait is bounded. If outcome remains unknown the operation
     stays fenced and the retry reads it; the worker thread is NOT assumed cancelled.
     """
-    task = asyncio.create_task(asyncio.to_thread(function, *args))
+    queued=perf_counter()
+    label=function.__name__
+    def run():
+        token=metrics.stage.set(label)
+        meter=metrics.active_meter
+        if meter:meter.duration('executor_queue_ms',(perf_counter()-queued)*1000)
+        started=perf_counter()
+        try:return function(*args)
+        finally:
+            if meter:meter.duration(label+'_ms',(perf_counter()-started)*1000)
+            metrics.stage.reset(token)
+    task = asyncio.create_task(asyncio.to_thread(run))
     try:
         return await asyncio.shield(task)
     except asyncio.CancelledError:

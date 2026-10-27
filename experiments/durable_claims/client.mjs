@@ -8,9 +8,9 @@ const { deliver } = await import(pathToFileURL(`${spec.root}/web/lib/upload-send
 const { parseUploadPolicy } = await import(pathToFileURL(`${spec.root}/web/lib/upload-policy.ts`));
 const { ApiError } = await import(pathToFileURL(`${spec.root}/web/lib/api.ts`));
 const bytes = await readFile(spec.audio);
-const rows = await Promise.all(spec.learners.map(async row => {
+const rows = await Promise.all(spec.learners.map(async (row,index) => {
   let sends = 0, polls = 0, replay = false;
-  const headers = { Authorization: `Bearer ${row.token}` };
+  const headers = { 'X-Poc-Index':String(index), Authorization: `Bearer ${row.token}` };
   const started = performance.now();
   const policy = parseUploadPolicy(await (await fetch(`${spec.base}/api/upload-policy`, { headers })).json());
   if (!policy.enabled) throw new Error('Local retry policy unavailable');

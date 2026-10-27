@@ -1,5 +1,7 @@
 # AUD-94 — Local durable upload claims proof of concept
 
+Optimization follow-up: see [OPTIMIZATION-RESULTS.md](OPTIMIZATION-RESULTS.md), [OPTIMIZATION.md](OPTIMIZATION.md) and [TTL-POLICY.md](TTL-POLICY.md). The original RESULTS.md and results files are historical baseline evidence; new comparisons are in results/optimization/.
+
 **Review only. Not wired into application startup, not a production migration, and not ready to deploy.**
 The original working tree and PRs #110/#111 are untouched. No provider SDK calls, production database access, flags, infrastructure, merges or deployments are involved.
 

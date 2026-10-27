@@ -13,18 +13,26 @@ from app.storage import schema as s
 from .local import database, seed
 from .store import Store, Conflict, Claim, create_schema, operations, slots, claims_only_allowed
 from .service import process, database_call
+from .optimized_store import OptimizedStore, install_functions
 
 T = Transcription(text='Synthetic local answer.', confidence=.99, uncertainty=[])
 KEY = '0123456789abcdef'
 FINGERPRINT = sha256(b'synthetic').hexdigest()
 
 
-@pytest.fixture
-def fixture():
+@pytest.fixture(params=[Store, OptimizedStore], ids=["original", "optimized"])
+def fixture(request, monkeypatch):
+    import sys
+    from . import routes
+    store_type = request.param
+    monkeypatch.setattr(sys.modules[__name__], "Store", store_type)
+    monkeypatch.setattr(routes, "Store", store_type)
     with database() as url:
         repo, exercise = seed(url, 'bench-a')
         other, other_exercise = seed(url, 'bench-b')
         create_schema(repo.engine)
+        if store_type is OptimizedStore:
+            install_functions(repo.engine)
         now = [datetime(2026, 10, 27, tzinfo=timezone.utc)]
         store = Store(repo, clock=lambda: now[0])
         yield store, exercise, other, other_exercise, now
@@ -506,3 +514,117 @@ def test_real_route_processing_replay_ownership_and_confidence_gate(fixture,tmp_
             while not isinstance(auth,LearnerAuthentication):auth=auth.app
             auth.lease_engine.dispose();app.state.accent_controls.close()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+@pytest.mark.parametrize('original_first',[True,False])
+def test_original_optimized_claim_records_are_bidirectionally_compatible(fixture,original_first):
+    from .store import Store as BaseStore
+    st,ex,_,_,now=fixture
+    original=BaseStore(st.repo,clock=lambda:now[0])
+    first,second=(original,st) if original_first else (st,original)
+    old=first.claim(ex,KEY,FINGERPRINT)
+    assert second.claim(ex,KEY,FINGERPRINT).kind=='processing'
+    now[0]+=timedelta(seconds=61)
+    fresh=second.claim(ex,KEY,FINGERPRINT)
+    assert fresh.fence>old.fence
+    with pytest.raises(Conflict):first.finalize(old,ex,T)
+    second.finalize(fresh,ex,T)
+    assert first.claim(ex,KEY,FINGERPRINT).kind=='replay'
+    assert counts(st)==(1,0,0)
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+def test_expired_other_recording_is_cancelled_atomically(fixture):
+    st,ex,_,_,now=fixture
+    old=st.claim(ex,KEY,FINGERPRINT)
+    now[0]+=timedelta(seconds=61)
+    fresh=st.claim(ex,'1111111111111111',FINGERPRINT)
+    with st.repo.read() as db:
+        assert db.execute(select(operations.c.status).where(operations.c.id==old.operation)).scalar_one()=='cancelled'
+    with pytest.raises(Conflict):st.finalize(old,ex,T)
+    st.finalize(fresh,ex,T)
+    assert counts(st)==(1,0,0)
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+def test_finalization_participant_failure_rolls_everything_back(fixture,monkeypatch):
+    import experiments.durable_claims.optimized_store as optimized
+    st,ex,_,_,_=fixture
+    claim=st.claim(ex,KEY,FINGERPRINT)
+    broken=text(optimized.FINAL_WRITE.text.replace('AND fence=:fence','AND fence=:fence+1'))
+    monkeypatch.setattr(optimized,'FINAL_WRITE',broken)
+    with pytest.raises(Conflict,match='every participant'):st.finalize(claim,ex,T)
+    assert counts(st)==(0,0,0)
+    assert st.repo.conversation(ex).pending_attempt_id is None
+    assert st.claim(ex,KEY,FINGERPRINT).kind=='processing'
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+def test_projection_mismatch_cannot_hide_existing_pending_evidence(fixture):
+    st,ex,_,_,_=fixture
+    c=st.repo.conversation(ex)
+    data=c.model_dump(mode='json');data['pending_attempt_id']=str(uuid.uuid4())
+    with st.repo.transaction() as db:
+        db.execute(update(s.conversations).where(s.conversations.c.exercise_id==ex).values(data=data))
+    with pytest.raises(Conflict,match='projections'):st.claim(ex,KEY,FINGERPRINT)
+    assert counts(st)==(0,0,0)
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+def test_function_invoker_permissions_and_transaction_locking(fixture):
+    st,ex,_,_,_=fixture
+    with st.repo.read() as db:
+        row=db.execute(text("SELECT p.prosecdef,p.proconfig,NOT EXISTS(SELECT 1 FROM aclexplode(p.proacl) a WHERE a.grantee=0 AND a.privilege_type='EXECUTE') FROM pg_proc p JOIN pg_namespace n ON p.pronamespace=n.oid WHERE p.proname='poc_upload_read' AND n.nspname='public'" )).one()
+        assert row[0] is False and 'search_path=pg_catalog, public' in row[1] and row[2] is True
+    key=dict(owner=st.owner,exercise=ex,id=str(uuid.uuid4()))
+    with st.repo.engine.connect() as first,st.repo.engine.connect() as second:
+        first.execute(text('SELECT public.poc_upload_read(CAST(:owner AS uuid),CAST(:exercise AS uuid),CAST(:id AS uuid))'),key)
+        second.execute(text("SET LOCAL lock_timeout='10ms'"))
+        from sqlalchemy.exc import OperationalError
+        with pytest.raises(OperationalError):
+            second.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==st.owner).with_for_update())
+        second.rollback();first.rollback()
+        assert second.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==st.owner).with_for_update()).scalar_one()==st.owner
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+def test_client_deadline_does_not_expire_server_claim(fixture):
+    st,ex,_,_,now=fixture
+    initial=st.claim(ex,KEY,FINGERPRINT)
+    now[0]+=timedelta(seconds=50)
+    assert st.claim(ex,KEY,FINGERPRINT).kind=='processing'
+    now[0]+=timedelta(seconds=9,milliseconds=999)
+    assert st.claim(ex,KEY,FINGERPRINT).kind=='processing'
+    now[0]+=timedelta(milliseconds=1)
+    replacement=st.claim(ex,KEY,FINGERPRINT)
+    assert replacement.kind=='owned' and replacement.fence>initial.fence
+    with pytest.raises(Conflict):st.finalize(initial,ex,T)
+    st.finalize(replacement,ex,T)
+    assert counts(st)==(1,0,0)
+
+
+@pytest.mark.parametrize('fixture',[OptimizedStore],indirect=True)
+def test_followup_upload_preserves_issued_turns_and_evidence(fixture):
+    from app.models import Followup,ConversationTurn,EvidenceAssessment
+    st,ex,_,_,_=fixture
+    prior=st.repo.add_attempt(ex,T)
+    question=Followup(id=str(uuid.uuid4()),dimension='inference',index=0,question='Synthetic local follow-up?')
+    conversation=st.repo.conversation(ex)
+    conversation.state='AWAITING_FOLLOWUP'
+    conversation.turns=[ConversationTurn(attempt_id=prior,text=T.text)]
+    conversation.followups=[question];conversation.active_followup=question
+    conversation.assessment=EvidenceAssessment(units=[dict(dimension='inference',index=0,status='insufficient_evidence',evidence='',question=question.question)],feedback='Synthetic local feedback.',transcription_concern=False,concern_reason='')
+    st.repo.save_conversation(conversation)
+    def snapshot():
+        with st.repo.read() as db:
+            return [list(db.execute(select(table).order_by(*table.primary_key.columns)).mappings())
+                    for table in (s.followups,s.turns,s.assessments,s.evidence)]
+    before=snapshot()
+    claim=st.claim(ex,KEY,FINGERPRINT)
+    st.finalize(claim,ex,T)
+    assert snapshot()==before
+    saved=st.repo.conversation(ex)
+    assert saved.active_followup==question and saved.turns==conversation.turns
+    assert saved.pending_attempt_id==claim.operation and saved.pending_text is None
+    assert counts(st)==(2,0,0)

@@ -19,7 +19,8 @@ from time import perf_counter
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--root', type=Path, required=True)
-parser.add_argument('--mode', choices=['current','combined','claims','bridge'], required=True)
+parser.add_argument('--mode', choices=['current','combined','claims','bridge','optimized'], required=True)
+parser.add_argument('--claims-root',type=Path)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--repetitions',type=int,default=2)
 parser.add_argument('--levels',default='1,2,4,8,16')
@@ -44,7 +45,9 @@ from app.auth import LearnerAuthentication
 from app.storage import schema as s
 from bench_app import BenchProvider, learner_uuid, wav
 from bench_turns import describe
-from experiments.durable_claims.local import database, seed
+from experiments.durable_claims.local import database, seed, ADMIN
+from experiments.durable_claims.server_profile import ServerProfile
+from experiments.durable_claims import metrics as metric_module
 from experiments.durable_claims.metrics import Meter, RequestContext, recording_key
 
 
@@ -60,14 +63,20 @@ async def run():
         for token in tokens:
             repo, exercise = await asyncio.to_thread(seed, direct, token)
             repo.close(); exercises.append(exercise)
-        if args.mode in ('claims','bridge'):
+        if args.mode in ('claims','bridge','optimized'):
             from experiments.durable_claims.store import create_schema
             admin_repo = PostgresRepository(direct, None)
-            create_schema(admin_repo.engine); admin_repo.close()
+            create_schema(admin_repo.engine)
+            if args.mode=='optimized':
+                from experiments.durable_claims.optimized_store import install_functions
+                install_functions(admin_repo.engine)
+            admin_repo.close()
         url = make_url(direct).set(port=args.db_port).render_as_string(hide_password=False)
         repository = PostgresRepository(url, None)
         async def identity(request):
+            started=perf_counter()
             await asyncio.sleep(.300)
+            meter.duration('auth_ms',(perf_counter()-started)*1000)
             token = request.headers.get('authorization','').removeprefix('Bearer ')
             if token not in tokens: return httpx.Response(401)
             return httpx.Response(200,json={'id':learner_uuid(token),'email_confirmed_at':'synthetic','is_anonymous':False})
@@ -75,13 +84,17 @@ async def run():
         class Provider(BenchProvider):
             calls = 0
             calls_by_recording = {}
+            active = 0
             async def transcribe(self,*unused):
                 self.calls += 1
                 key = recording_key.get()
                 self.calls_by_recording[key] = self.calls_by_recording.get(key,0) + 1
-                meter.stt()
-                await asyncio.sleep(1.100)
-                meter.stt()
+                self.active+=1;started=perf_counter()
+                try:
+                    meter.stt();await asyncio.sleep(1.100);meter.stt()
+                finally:
+                    self.active-=1
+                    meter.duration('provider_ms',(perf_counter()-started)*1000)
                 return Transcription(text='Synthetic local recording response.',confidence=.99,uncertainty=[])
         provider = Provider()
         settings_args = dict(data_dir=Path(directory),provider='demo',persistence='postgres',database_url=url,
@@ -91,9 +104,20 @@ async def run():
         if args.mode == 'combined': settings_args.update(lease_admission=True,lease_admission_limit=1)
         settings = Settings(**settings_args)
         app = create_app(settings,provider,repository,auth_client=auth_client)
-        if args.mode in ('claims','bridge'):
+        if args.mode in ('claims','bridge','optimized'):
             from experiments.durable_claims.routes import install
-            install(app,settings,provider,mode=args.mode)
+            from experiments.durable_claims.store import Store
+            store_type=Store
+            if args.claims_root:
+                from importlib import util
+                path=args.claims_root/'experiments/durable_claims/store.py'
+                spec=util.spec_from_file_location('poc_original_store',path)
+                module=util.module_from_spec(spec);sys.modules[spec.name]=module;spec.loader.exec_module(module)
+                store_type=module.Store
+            if args.mode=='optimized':
+                from experiments.durable_claims.optimized_store import OptimizedStore
+                store_type=OptimizedStore
+            install(app,settings,provider,mode='bridge' if args.mode=='bridge' else 'claims',store_type=store_type)
         if app.middleware_stack is None: app.middleware_stack = app.build_middleware_stack()
         auth = app.middleware_stack
         while not isinstance(auth,LearnerAuthentication): auth = auth.app
@@ -101,6 +125,8 @@ async def run():
         # Include any startup sessions in steady-state accounting by reconnecting them under instrumentation.
         for engine in engines: engine.dispose()
         meter = Meter(engines)
+        metric_module.active_meter=meter
+        server_profile=ServerProfile(ADMIN,make_url(direct).database)
         outer = RequestContext(app)
         sock = socket.socket(); sock.bind(('127.0.0.1',0)); port = sock.getsockname()[1]
         server = uvicorn.Server(uvicorn.Config(outer,lifespan='off',log_config=None,log_level='error',access_log=False))
@@ -109,9 +135,11 @@ async def run():
             if server_task.done(): await server_task
             await asyncio.sleep(.005)
         audio = Path(directory)/'synthetic.wav'; audio.write_bytes(wav())
-        result = dict(source_hashes={str(p.relative_to(POC)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (POC/'experiments/durable_claims').glob('*.py')},
+        result = dict(source_hashes={str(p.relative_to(POC)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (POC/'experiments/durable_claims').glob('*') if p.suffix in ('.py','.sql','.mjs')},
             packages={p:importlib.metadata.version(p) for p in ('SQLAlchemy','psycopg','fastapi','httpx','pydantic','openai','uvicorn')},python=sys.version.split()[0],
             mode=args.mode,root_revision=subprocess.check_output(['git','-C',str(args.root),'rev-parse','HEAD'],text=True).strip(),
+            claims_store_sha256=hashlib.sha256((args.claims_root/'experiments/durable_claims/store.py').read_bytes()).hexdigest() if args.claims_root else None,
+            claims_source_revision=subprocess.check_output(['git','-C',str(args.claims_root),'rev-parse','HEAD'],text=True).strip() if args.claims_root else None,
             database_rtt_ms=72,auth_ms=300,stt_ms=1100,per_learner_locks=True,
             repetitions=args.repetitions,measure='upload start including policy read through complete JSON acknowledgment',waves=[])
         async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{port}',timeout=90) as client:
@@ -126,10 +154,10 @@ async def run():
                             c = repo.conversation(exercise); c.pending_attempt_id = c.pending_text = None
                             repo.save_conversation(c); repo.close()
                         await asyncio.to_thread(clear)
-                    meter.reset(); before_calls = provider.calls
+                    meter.reset(); server_profile.start(); before_calls = provider.calls
                     provider.calls_by_recording.clear()
                     wave = len(result['waves']) + 1
-                    spec = dict(root=str(args.root),mode=args.mode,base=f'http://127.0.0.1:{port}',audio=str(audio),learners=[
+                    spec = dict(root=str(args.root),mode='claims' if args.mode=='optimized' else args.mode,base=f'http://127.0.0.1:{port}',audio=str(audio),learners=[
                         dict(token=t,exercise=e,key=f'{wave:08x}{i:08x}') for i,(t,e) in enumerate(zip(tokens[:level],exercises[:level]))])
                     spec_file = Path(directory)/'wave.json'; spec_file.write_text(json.dumps(spec))
                     started = perf_counter()
@@ -141,9 +169,10 @@ async def run():
                     rows = json.loads(stdout)
                     # A browser timeout does not cancel server work. Observe all admitted work before counting writes.
                     deadline = perf_counter() + 30
-                    while meter.held and perf_counter() < deadline: await asyncio.sleep(.01)
-                    if meter.held: raise RuntimeError('Unsettled connections after bounded observation')
+                    while (meter.held or outer.active or provider.active) and perf_counter() < deadline: await asyncio.sleep(.01)
+                    if meter.held or outer.active or provider.active: raise RuntimeError('Unsettled connections after bounded observation')
                     metrics = meter.summary()
+                    metrics['server']=server_profile.finish()
                     calls = provider.calls-before_calls
                     completed = sum(row['ok'] for row in rows)
                     metrics.update(learners=level,repetition=repetition,automatic=completed,manual=level-completed,
@@ -161,6 +190,7 @@ async def run():
                     result['waves'].append(metrics)
                     args.output.parent.mkdir(parents=True,exist_ok=True); args.output.write_text(json.dumps(result,indent=2)+'\n')
                     print(json.dumps({k:metrics[k] for k in ('learners','repetition','automatic','manual','latency_ms','peak_physical_sessions','connection_seconds','provider_calls')}),flush=True)
+        server_profile.close(); metric_module.active_meter=None
         server.should_exit=True; await server_task
         auth.lease_engine.dispose(); app.state.accent_controls.close(); repository.close(); await auth_client.aclose()
     bootstrap.cleanup()

@@ -98,7 +98,7 @@ def test_storm_rejected_before_connections_or_body_and_read_routes_still_work():
         assert auth.admission.snapshot() == dict(enabled=True, limit=1, in_use=0, quarantined=0, rejected=100)
         assert all(c.closed for c in connections)
         assert (await request(b'next'))[0] == 200  # no starvation after release
-    asyncio.run(run())
+    asyncio.run(asyncio.wait_for(run(), 10))
 
 
 @pytest.mark.parametrize('enabled,limit,expected', [(False, 1, 4), (True, 2, 2)])
@@ -116,7 +116,7 @@ def test_disabled_legacy_and_configured_limit(enabled, limit, expected):
         assert sum(status == 200 for status, _ in responses) == expected
         assert len(connections) == expected
         assert auth.admission.in_use == 0
-    asyncio.run(run())
+    asyncio.run(asyncio.wait_for(run(), 10))
 
 
 @pytest.mark.parametrize('phase', ['acquire', 'holder', 'contender'])
@@ -164,7 +164,7 @@ def test_repeated_cancellation_keeps_permit_through_cleanup(phase):
         auth._take_lease = lambda key, permit=None: (Connection(), True)
         auth.app = handler_app
         assert (await request())[0] == 200
-    asyncio.run(run())
+    asyncio.run(asyncio.wait_for(run(), 10))
 
 
 @pytest.mark.parametrize('contended', [False, True])
@@ -179,7 +179,7 @@ def test_cleanup_failure_quarantines_capacity(contended, caplog):
         assert auth.admission.in_use == auth.admission.quarantined == 1
         assert (await request())[0] == 503
         assert 'private connection detail' not in caplog.text
-    asyncio.run(run())
+    asyncio.run(asyncio.wait_for(run(), 10))
 
 
 def test_two_workers_have_independent_caps_not_a_global_cap():
@@ -196,7 +196,7 @@ def test_two_workers_have_independent_caps_not_a_global_cap():
             assert auth.admission.in_use == len(connections) == 1
         finish.set()
         assert [r[0] for r in await asyncio.gather(*holders)] == [200, 200]
-    asyncio.run(run())
+    asyncio.run(asyncio.wait_for(run(), 10))
 
 # Real PostgreSQL: HTTP rejection, account isolation, stable IDs and persisted state.
 from app.main import create_app
@@ -417,7 +417,7 @@ def test_acquisition_query_failure_only_recycles_confirmed_cleanup(cleanup_fails
             await request()
         assert auth.admission.in_use == auth.admission.quarantined == int(cleanup_fails)
         assert connection.closed is not cleanup_fails
-    asyncio.run(run())
+    asyncio.run(asyncio.wait_for(run(), 10))
 
 
 def test_http_response_can_precede_cleanup_and_next_send_is_safely_rejected():
@@ -508,3 +508,20 @@ def test_real_advisory_lock_across_two_admitted_workers(tmp_path, repository_fac
                 assert calls == attempts(repo) == 1
                 assert all(g.admission.in_use == 0 for g in guards)
     asyncio.run(asyncio.wait_for(run(), 20))
+
+
+
+def test_cancelled_acquisition_without_cleanup_confirmation_does_not_return_capacity():
+    async def run():
+        auth, request, _ = harness()
+        class InterruptedOffload:
+            async def run(self, *args, **kwargs):
+                # An underlying to_thread task cancelled during shutdown cannot
+                # confirm whether its still-running thread acquired a connection.
+                raise asyncio.CancelledError
+        auth.offload = InterruptedOffload()
+        with pytest.raises(asyncio.CancelledError):
+            await request()
+        assert auth.admission.in_use == auth.admission.quarantined == 1
+        assert (await request())[0] == 503
+    asyncio.run(asyncio.wait_for(run(), 10))

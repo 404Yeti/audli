@@ -31,7 +31,9 @@ codec, retry policy, routing or CORS change is authorized here.
 
 During acquisition the existing offload runner waits for its synchronous
 section, including closing any returned candidate after cancellation. Internal
-acquisition cleanup failures quarantine the permit. For an admitted request,
+acquisition cleanup failures quarantine the permit. Cancellation without a confirmed
+acquisition-cleanup callback also quarantines it (a cancelled offload task can
+leave its underlying thread running, for example during shutdown). For an admitted request,
 failed-candidate/final close runs as a separate shielded task; repeated outer
 cancellation cannot return the permit while that cleanup is still running.
 The original cancellation is re-raised after confirmed cleanup. Synchronous

@@ -204,8 +204,20 @@ class LearnerAuthentication:
                         if permit is None:
                             candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
                         else:
-                            candidate, acquired = await self.offload.run(self._take_lease, key, permit,
-                                on_cancel=lambda result: self._close_candidate(result[0], permit))
+                            cancellation_cleaned = False
+                            def close_cancelled_candidate(result):
+                                nonlocal cancellation_cleaned
+                                self._close_candidate(result[0], permit)
+                                cancellation_cleaned = True
+                            try:
+                                candidate, acquired = await self.offload.run(self._take_lease, key, permit,
+                                    on_cancel=close_cancelled_candidate)
+                            except asyncio.CancelledError:
+                                # If the offload task itself was cancelled (e.g. shutdown),
+                                # its thread may still be opening a socket without a result.
+                                if not cancellation_cleaned:
+                                    permit.quarantine()
+                                raise
                         if acquired:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])

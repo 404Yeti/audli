@@ -1,0 +1,259 @@
+{
+  "mock_auth_ms": 300,
+  "mock_stt_ms": 1100,
+  "database_rtt": "local; not production",
+  "cases": [
+    {
+      "enabled": false,
+      "retry": false,
+      "sequential": true,
+      "recordings": 6,
+      "accepted": 6,
+      "failed_retained": 0,
+      "rejected_requests": 0,
+      "accepted_delivery_ms": {
+        "n": 6,
+        "mean": 1463.8,
+        "p50": 1462.6,
+        "p95": 1471.2,
+        "max": 1471.7
+      },
+      "failed_delivery_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "rejection_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "actual_sends": 6,
+      "lease_checkouts": 6,
+      "peak_lease_connections": 1,
+      "stt_calls": 6,
+      "persisted_attempts": 6,
+      "permits": {
+        "enabled": false,
+        "limit": 1,
+        "in_use": 0,
+        "quarantined": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "enabled": true,
+      "retry": false,
+      "sequential": true,
+      "recordings": 6,
+      "accepted": 6,
+      "failed_retained": 0,
+      "rejected_requests": 0,
+      "accepted_delivery_ms": {
+        "n": 6,
+        "mean": 1464.8,
+        "p50": 1464.8,
+        "p95": 1470.2,
+        "max": 1471.3
+      },
+      "failed_delivery_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "rejection_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "actual_sends": 6,
+      "lease_checkouts": 6,
+      "peak_lease_connections": 1,
+      "stt_calls": 6,
+      "persisted_attempts": 6,
+      "permits": {
+        "enabled": true,
+        "limit": 1,
+        "in_use": 0,
+        "quarantined": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "enabled": false,
+      "retry": false,
+      "sequential": false,
+      "recordings": 4,
+      "accepted": 4,
+      "failed_retained": 0,
+      "rejected_requests": 0,
+      "accepted_delivery_ms": {
+        "n": 4,
+        "mean": 1536.7,
+        "p50": 1536.9,
+        "p95": 1543.7,
+        "max": 1544.8
+      },
+      "failed_delivery_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "rejection_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "actual_sends": 4,
+      "lease_checkouts": 4,
+      "peak_lease_connections": 4,
+      "stt_calls": 4,
+      "persisted_attempts": 4,
+      "permits": {
+        "enabled": false,
+        "limit": 1,
+        "in_use": 0,
+        "quarantined": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "enabled": true,
+      "retry": false,
+      "sequential": false,
+      "recordings": 4,
+      "accepted": 1,
+      "failed_retained": 3,
+      "rejected_requests": 3,
+      "accepted_delivery_ms": {
+        "n": 1,
+        "mean": 1470.2,
+        "p50": 1470.2,
+        "p95": 1470.2,
+        "max": 1470.2
+      },
+      "failed_delivery_ms": {
+        "n": 3,
+        "mean": 610.1,
+        "p50": 610.1,
+        "p95": 610.6,
+        "max": 610.6
+      },
+      "rejection_ms": {
+        "n": 3,
+        "mean": 309.3,
+        "p50": 309.4,
+        "p95": 309.7,
+        "max": 309.7
+      },
+      "actual_sends": 4,
+      "lease_checkouts": 1,
+      "peak_lease_connections": 1,
+      "stt_calls": 1,
+      "persisted_attempts": 1,
+      "permits": {
+        "enabled": true,
+        "limit": 1,
+        "in_use": 0,
+        "quarantined": 0,
+        "rejected": 3
+      }
+    },
+    {
+      "enabled": false,
+      "retry": true,
+      "sequential": false,
+      "recordings": 4,
+      "accepted": 4,
+      "failed_retained": 0,
+      "rejected_requests": 0,
+      "accepted_delivery_ms": {
+        "n": 4,
+        "mean": 1647.1,
+        "p50": 1646.8,
+        "p95": 1654.4,
+        "max": 1655.7
+      },
+      "failed_delivery_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "rejection_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "actual_sends": 4,
+      "lease_checkouts": 4,
+      "peak_lease_connections": 4,
+      "stt_calls": 4,
+      "persisted_attempts": 4,
+      "permits": {
+        "enabled": false,
+        "limit": 1,
+        "in_use": 0,
+        "quarantined": 0,
+        "rejected": 0
+      }
+    },
+    {
+      "enabled": true,
+      "retry": true,
+      "sequential": false,
+      "recordings": 4,
+      "accepted": 2,
+      "failed_retained": 2,
+      "rejected_requests": 8,
+      "accepted_delivery_ms": {
+        "n": 2,
+        "mean": 2383.4,
+        "p50": 2383.4,
+        "p95": 3197.6,
+        "max": 3288.1
+      },
+      "failed_delivery_ms": {
+        "n": 2,
+        "mean": 2132.7,
+        "p50": 2132.7,
+        "p95": 2132.8,
+        "max": 2132.8
+      },
+      "rejection_ms": {
+        "n": 8,
+        "mean": 309.5,
+        "p50": 309.0,
+        "p95": 311.4,
+        "max": 311.6
+      },
+      "actual_sends": 10,
+      "lease_checkouts": 2,
+      "peak_lease_connections": 1,
+      "stt_calls": 2,
+      "persisted_attempts": 2,
+      "permits": {
+        "enabled": true,
+        "limit": 1,
+        "in_use": 0,
+        "quarantined": 0,
+        "rejected": 8
+      }
+    }
+  ]
+}

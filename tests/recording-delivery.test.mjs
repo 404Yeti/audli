@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { deliverCheckin, deliverExercise, uploadPolicy, currentPolicy } from '../web/lib/recording-delivery.ts';
-import { LessonLifetime, setAccessTokenProvider, installRequestTrace } from '../web/lib/api.ts';
+import { ApiError, LessonLifetime, setAccessTokenProvider, installRequestTrace } from '../web/lib/api.ts';
 import { fakeEnv, fakeOperation, checkinServer } from './upload-fakes.mjs';
 const defaults = JSON.parse(readFileSync(new URL('./fixtures/upload_policy_cases.json',import.meta.url))).defaults;
 let enabled;
@@ -133,4 +133,47 @@ test('a fresh recording first sent while disabled keeps the legacy no-telemetry 
   const lifetime=new LessonLifetime(),operation=lifetime.begin();
   assert.equal((await deliverExercise(operation,'e',audio(),()=>{})).id,'legacy');
   assert.equal(posts,1);lifetime.close();
+});
+
+
+test('AUD-92 admission rejection retries the retained recording with its original upload ID', async () => {
+  const { retryUploadIdOf } = await import('../web/lib/upload-delivery.ts');
+  const c = fakeEnv(), blob = audio(), ids = []; let invalidated = 0;
+  const operation = fakeOperation({ apiWith: async (url, init) => {
+    ids.push(retryUploadIdOf(init.body));
+    if (ids.length < 3) throw new ApiError('Service busy', 503);
+    return { id: 'canonical-attempt' };
+  }});
+  const r = await run(c, deliverExercise(operation, 'exercise', blob, () => invalidated++, {env: c.env}));
+  assert.equal(r.result.id, 'canonical-attempt'); assert.equal(ids.length, 3);
+  assert.ok(ids[0]); assert.equal(new Set(ids).size, 1); assert.equal(invalidated, 0);
+});
+
+test('AUD-92 exhausted admission retries retain audio for explicit Send again', async () => {
+  const { retryUploadIdOf } = await import('../web/lib/upload-delivery.ts');
+  const c = fakeEnv(), blob = audio(), ids = []; let available = false, invalidated = 0;
+  const operation = fakeOperation({ apiWith: async (url, init) => {
+    ids.push(retryUploadIdOf(init.body));
+    if (!available) throw new ApiError('Service busy', 503);
+    return {id: 'canonical-attempt'};
+  }});
+  const r = await run(c, deliverExercise(operation, 'exercise', blob, () => invalidated++, {env:c.env}));
+  assert.ok(r.error); assert.equal(ids.length, 3); assert.equal(invalidated, 0);
+  available = true;
+  const next = await run(c, deliverExercise(operation, 'exercise', blob, () => invalidated++, {env:c.env}));
+  assert.equal(next.result.id, 'canonical-attempt'); assert.equal(ids.length, 4);
+  assert.equal(new Set(ids).size, 1); assert.equal(invalidated, 0);
+});
+
+test('AUD-92 check-in admission rejection reconciles before another send', async () => {
+  const c = fakeEnv(), server = checkinServer(), initial = server.checkpoint(); const calls = [];
+  const operation = fakeOperation({ apiWith: async (url, init) => {
+    if (!init) { calls.push('read'); return server.checkpoint(); }
+    calls.push('send');
+    if (calls.length === 1) throw new ApiError('Service busy', 503);
+    return server.upload(Number(init.body.get('revision')));
+  }});
+  const r = await run(c, deliverCheckin(operation, initial, audio(), () => {}, null, {env:c.env}));
+  assert.ok(r.result); assert.deepEqual(calls, ['send','read','send']);
+  assert.equal(server.transcriptions, 1); assert.equal(server.commits, 1);
 });

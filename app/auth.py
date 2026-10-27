@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse
 from app.storage.repository import AccountUnavailable
 from app import turntrace
 from app.offload import Offload
+from app.lease_admission import LeaseAdmission, close_admitted, take_admitted, JSONAcknowledgment
 from app.dbtiming import span, instrument_engine
 from app.telemetry import aggregator
 
@@ -88,8 +89,9 @@ def lease_exempt(method: str, path: str) -> bool:
 
 
 class LearnerAuthentication:
-    def __init__(self, app, identity, repository, request_repository, timing=False, ack_exempt=False, lease_pool=False, pool_size=2, pool_overflow=6, offload=None):
+    def __init__(self, app, identity, repository, request_repository, timing=False, ack_exempt=False, lease_pool=False, pool_size=2, pool_overflow=6, offload=None, admission=False, admission_limit=1):
         self.app, self.identity = app, identity
+        self.admission = admission if isinstance(admission, LeaseAdmission) else LeaseAdmission(admission, admission_limit)
         self.ack_exempt = ack_exempt
         self.offload = offload or Offload(False)
         self.lease_pool = bool(lease_pool and repository.engine.dialect.name == 'postgresql')
@@ -117,7 +119,15 @@ class LearnerAuthentication:
     def _span(self, name, accumulate=None):
         return span(name, accumulate) if self.timing else nullcontext()
 
-    def _take_lease(self, key):
+    def _close_candidate(self, candidate, permit):
+        try:
+            candidate.close()
+        except BaseException:
+            if permit is not None:
+                permit.quarantine()
+            raise
+
+    def _take_lease(self, key, permit=None):
         """One attempt at the account lease: returns (connection, acquired). The connection stays open (and the lock held) only when acquired."""
         if not self.lease_pool:
             with self._span('auth.lease_connect'):
@@ -127,7 +137,7 @@ class LearnerAuthentication:
                     candidate.execute(text("SELECT set_config('idle_in_transaction_session_timeout', '0', true)"))
                     acquired = candidate.execute(text('SELECT pg_try_advisory_xact_lock(:key)'), {'key': key}).scalar_one()
             except BaseException:
-                candidate.close()
+                self._close_candidate(candidate, permit)
                 raise
             return candidate, acquired
         for fresh in (False, True):
@@ -142,13 +152,18 @@ class LearnerAuthentication:
                     acquired = candidate.execute(text("SELECT pg_try_advisory_xact_lock(:key), set_config('idle_in_transaction_session_timeout', '0', true)"),
                                                  {'key': key}).first()[0]
             except (OperationalError, InterfaceError, DBAPIError) as error:
-                candidate.invalidate()           # discard the dead connection, never return it to the pool
-                candidate.close()
+                try:
+                    candidate.invalidate()       # discard dead pooled connection
+                    self._close_candidate(candidate, permit)
+                except BaseException:
+                    if permit is not None:
+                        permit.quarantine()
+                    raise
                 if fresh or not (isinstance(error, (OperationalError, InterfaceError)) or error.connection_invalidated):
                     raise
                 continue                         # a kept connection went stale: retry once on a new one
             except BaseException:
-                candidate.close()
+                self._close_candidate(candidate, permit)
                 raise
             return candidate, acquired
 
@@ -162,6 +177,8 @@ class LearnerAuthentication:
         except HTTPException as error:
             headers = {'WWW-Authenticate': 'Bearer'} if error.status_code == 401 else {}
             return await JSONResponse({'detail': error.detail}, status_code=error.status_code, headers=headers)(scope, receive, send)
+        permit = None
+        acknowledgment = None
         lease = None
         token = None
         lease_key = None
@@ -170,18 +187,33 @@ class LearnerAuthentication:
             if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
                     and not lease_exempt(scope['method'], scope['path'])
                     and not (self.ack_exempt and (scope['method'], scope['path']) == ACK_ROUTE)):
+                permit = self.admission.try_acquire()
+                if self.admission.enabled and permit is None:
+                    if self.timing:
+                        aggregator.record('auth.admission_rejected', 0)
+                    return await JSONResponse(
+                        {'detail': 'The service is busy saving an answer. Please try sending again shortly.'},
+                        status_code=503, headers={'Retry-After': '1'})(scope, receive, send)
+                if permit is not None and self.timing:
+                    aggregator.record_gauge('auth.admission_in_use', self.admission.in_use)
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
                 lease_key = key
                 attempts = 0
                 with self._span('auth.lease', 'lease_ms'):
                     for _ in range(100):
                         attempts += 1
-                        candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
+                        if permit is None:
+                            candidate, acquired = await self.offload.run(self._take_lease, key, on_cancel=lambda result: result[0].close())
+                        else:
+                            candidate, acquired = await take_admitted(self._take_lease, key, permit)
                         if acquired:
                             lease = candidate
                             turntrace.lease_acquired(key, trace, scope['method'], scope['path'])
                             break
-                        candidate.close()
+                        if permit is None:
+                            candidate.close()
+                        else:
+                            await close_admitted(candidate, permit)
                         if attempts == 1:
                             turntrace.lease_contended(key, trace)
                         with self._span('auth.lease_wait_sleep'):
@@ -196,16 +228,34 @@ class LearnerAuthentication:
             with self._span('auth.scope'):
                 scoped = await self.offload.run(self.repository.for_learner, learner_id)
             token = self.request_repository.current.set(scoped)
-            await self.app(scope, receive, send)
+            acknowledgment = JSONAcknowledgment(send) if permit is not None else None
+            await self.app(scope, receive, acknowledgment or send)
         except AccountUnavailable:
+            acknowledgment = None
             await JSONResponse({'detail': 'Your account is no longer available. Please sign in again.'}, status_code=401,
                                headers={'WWW-Authenticate': 'Bearer'})(scope, receive, send)
         except HTTPException as error:
+            acknowledgment = None
             await JSONResponse({'detail': error.detail}, status_code=error.status_code)(scope, receive, send)
         finally:
             if token is not None:
                 self.request_repository.current.reset(token)
-            if lease is not None:
-                if lease_key is not None:
-                    turntrace.lease_released(lease_key)
-                await self.offload.release(lease)
+            try:
+                if lease is not None:
+                    if permit is None:
+                        if lease_key is not None:
+                            turntrace.lease_released(lease_key)
+                        await self.offload.release(lease)
+                    else:
+                        try:
+                            await close_admitted(lease, permit)
+                        finally:
+                            if lease_key is not None and not permit.failed:
+                                turntrace.lease_released(lease_key)
+            finally:
+                if permit is not None:
+                    permit.release()
+        if acknowledgment is not None:
+            # This point is reached only after the app and confirmed cleanup have
+            # returned, the account scope reset and the admission permit released.
+            await acknowledgment.release_to_client()

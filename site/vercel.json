@@ -17,7 +17,8 @@
       "feat/AUD-62-voice-classroom-polish": false,
       "fix/AUD-63-lesson-lifecycle": false,
       "feat/rive-success-homework-investigation": false,
-      "codex/AUD-94-migration-safety": false
+      "codex/AUD-94-migration-safety": false,
+      "codex/AUD-94-p0-remediation": false
     }
   }
 }

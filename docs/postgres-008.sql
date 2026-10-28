@@ -17,59 +17,59 @@ DO $$ BEGIN
 END $$;
 
 CREATE TABLE poc_account_slots (
-	owner UUID NOT NULL, 
-	fence INTEGER NOT NULL, 
-	active UUID, 
-	PRIMARY KEY (owner), 
-	CHECK (fence >= 0), 
+	owner UUID NOT NULL,
+	fence INTEGER NOT NULL,
+	active UUID,
+	PRIMARY KEY (owner),
+	CHECK (fence >= 0),
 	FOREIGN KEY(owner) REFERENCES users (id)
 );
 
 CREATE TABLE poc_upload_operations (
-	owner UUID NOT NULL, 
-	id UUID NOT NULL, 
-	exercise UUID NOT NULL, 
-	upload_key VARCHAR(16) NOT NULL, 
-	fingerprint VARCHAR(64) NOT NULL, 
-	checkpoint VARCHAR(64) NOT NULL, 
-	fence INTEGER NOT NULL, 
-	status VARCHAR(16) NOT NULL, 
-	expires TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (owner, id), 
-	CHECK (status IN ('running','complete','cancelled','invalidated')), 
-	FOREIGN KEY(owner) REFERENCES users (id), 
+	owner UUID NOT NULL,
+	id UUID NOT NULL,
+	exercise UUID NOT NULL,
+	upload_key VARCHAR(16) NOT NULL,
+	fingerprint VARCHAR(64) NOT NULL,
+	checkpoint VARCHAR(64) NOT NULL,
+	fence INTEGER NOT NULL,
+	status VARCHAR(16) NOT NULL,
+	expires TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (owner, id),
+	CHECK (status IN ('running','complete','cancelled','invalidated')),
+	FOREIGN KEY(owner) REFERENCES users (id),
 	FOREIGN KEY(exercise) REFERENCES exercises (id)
 );
 
 CREATE TABLE poc_stage_operations (
-	owner UUID NOT NULL, 
-	id UUID NOT NULL, 
-	exercise UUID NOT NULL, 
-	kind VARCHAR(20) NOT NULL, 
-	fingerprint VARCHAR(64) NOT NULL, 
-	fence INTEGER NOT NULL, 
-	status VARCHAR(16) NOT NULL, 
-	expires TIMESTAMP WITH TIME ZONE NOT NULL, 
-	snapshot JSONB NOT NULL, 
-	input JSONB NOT NULL, 
-	PRIMARY KEY (owner, id), 
-	CHECK (kind IN ('upload','assess','ready','advance','request')), 
-	CHECK (status IN ('running','complete','cancelled','invalidated') AND fence>0), 
+	owner UUID NOT NULL,
+	id UUID NOT NULL,
+	exercise UUID NOT NULL,
+	kind VARCHAR(20) NOT NULL,
+	fingerprint VARCHAR(64) NOT NULL,
+	fence INTEGER NOT NULL,
+	status VARCHAR(16) NOT NULL,
+	expires TIMESTAMP WITH TIME ZONE NOT NULL,
+	snapshot JSONB NOT NULL,
+	input JSONB NOT NULL,
+	PRIMARY KEY (owner, id),
+	CHECK (kind IN ('upload','assess','ready','advance','request')),
+	CHECK (status IN ('running','complete','cancelled','invalidated') AND fence>0),
 	FOREIGN KEY(owner) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE TABLE poc_recovery_audit (
-	id UUID NOT NULL, 
-	owner UUID NOT NULL, 
-	operation UUID NOT NULL, 
-	actor VARCHAR(63) NOT NULL, 
-	session_actor VARCHAR(63) NOT NULL, 
-	fence_before INTEGER NOT NULL, 
-	fence_after INTEGER NOT NULL, 
-	checkpoint VARCHAR(64) NOT NULL, 
-	reason VARCHAR(40) NOT NULL, 
-	at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	PRIMARY KEY (id), 
+	id UUID NOT NULL,
+	owner UUID NOT NULL,
+	operation UUID NOT NULL,
+	actor VARCHAR(63) NOT NULL,
+	session_actor VARCHAR(63) NOT NULL,
+	fence_before INTEGER NOT NULL,
+	fence_after INTEGER NOT NULL,
+	checkpoint VARCHAR(64) NOT NULL,
+	reason VARCHAR(40) NOT NULL,
+	at TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
 	FOREIGN KEY(owner) REFERENCES users (id) ON DELETE CASCADE
 );
 
@@ -252,7 +252,7 @@ BEGIN
  PERFORM set_config('audli.claim_owner',p_owner::text,true),set_config('audli.claim_id',p_id::text,true),set_config('audli.claim_fence',p_fence::text,true);
  FOR v_batch IN SELECT value FROM jsonb_array_elements(p_rows) LOOP
   FOR v_row IN SELECT value FROM jsonb_array_elements(v_batch->'rows') LOOP
-   CASE v_batch->>'table' 
+   CASE v_batch->>'table'
 WHEN 'learner_profiles' THEN INSERT INTO public."learner_profiles" ("user_id","data","name","target_language","goal","interests","target_situations","onboarding_status","initial_listening_profile","overall","main_idea","details","vocabulary","inference","natural_speed","speech_rate","duration_seconds","vocabulary_level","information_density","speaker_count","accent_complexity","background_noise","focus","completed_attempts","updated_at") SELECT "user_id","data","name","target_language","goal","interests","target_situations","onboarding_status","initial_listening_profile","overall","main_idea","details","vocabulary","inference","natural_speed","speech_rate","duration_seconds","vocabulary_level","information_density","speaker_count","accent_complexity","background_noise","focus","completed_attempts","updated_at" FROM jsonb_populate_record(NULL::public."learner_profiles",v_row) ON CONFLICT ("user_id") DO UPDATE SET "data"=EXCLUDED."data","name"=EXCLUDED."name","target_language"=EXCLUDED."target_language","goal"=EXCLUDED."goal","interests"=EXCLUDED."interests","target_situations"=EXCLUDED."target_situations","onboarding_status"=EXCLUDED."onboarding_status","initial_listening_profile"=EXCLUDED."initial_listening_profile","overall"=EXCLUDED."overall","main_idea"=EXCLUDED."main_idea","details"=EXCLUDED."details","vocabulary"=EXCLUDED."vocabulary","inference"=EXCLUDED."inference","natural_speed"=EXCLUDED."natural_speed","speech_rate"=EXCLUDED."speech_rate","duration_seconds"=EXCLUDED."duration_seconds","vocabulary_level"=EXCLUDED."vocabulary_level","information_density"=EXCLUDED."information_density","speaker_count"=EXCLUDED."speaker_count","accent_complexity"=EXCLUDED."accent_complexity","background_noise"=EXCLUDED."background_noise","focus"=EXCLUDED."focus","completed_attempts"=EXCLUDED."completed_attempts","updated_at"=EXCLUDED."updated_at";
 WHEN 'training_sessions' THEN INSERT INTO public."training_sessions" ("id","user_id","status","started_at","completed_at","starting_difficulty") SELECT "id","user_id","status","started_at","completed_at","starting_difficulty" FROM jsonb_populate_record(NULL::public."training_sessions",v_row) ON CONFLICT ("id") DO UPDATE SET "user_id"=EXCLUDED."user_id","status"=EXCLUDED."status","started_at"=EXCLUDED."started_at","completed_at"=EXCLUDED."completed_at","starting_difficulty"=EXCLUDED."starting_difficulty";
 WHEN 'attempts' THEN INSERT INTO public."attempts" ("id","exercise_id","transcription","recognized_text","confidence","transcription_source","confirmed_text","status","created_at") SELECT "id","exercise_id","transcription","recognized_text","confidence","transcription_source","confirmed_text","status","created_at" FROM jsonb_populate_record(NULL::public."attempts",v_row) ON CONFLICT ("id") DO UPDATE SET "exercise_id"=EXCLUDED."exercise_id","transcription"=EXCLUDED."transcription","recognized_text"=EXCLUDED."recognized_text","confidence"=EXCLUDED."confidence","transcription_source"=EXCLUDED."transcription_source","confirmed_text"=EXCLUDED."confirmed_text","status"=EXCLUDED."status","created_at"=EXCLUDED."created_at";

@@ -20,7 +20,7 @@ def build():
                 assert not parameters
                 captured.append(statement.strip().rstrip(';')+';')
         apply_candidate(owner,client_roles=('audli_audit_anon','audli_audit_authenticated','audli_audit_service'))
-    source='\n\n'.join(captured)
+    source='\n'.join(line.rstrip() for line in '\n\n'.join(captured).splitlines())
     for before,after in [('audli_audit_anon','anon'),('audli_audit_authenticated','authenticated'),('audli_audit_service','service_role')]:
         source=source.replace('"'+before+'"','"'+after+'"')
     return """-- AUD-94 migration008 review candidate. NEVER run at application startup.

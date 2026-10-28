@@ -13,9 +13,9 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     while not isinstance(auth,LearnerAuthentication):auth=auth.app
     from .routes import UUID
     import re
-    specialized=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/(listened|ready))|attempts/{UUID}/assess|lessons/{UUID}/advance|operations/{UUID}/record-again|onboarding/restart)')
+    specialized=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/ready)|attempts/{UUID}/assess|lessons/{UUID}/advance|operations/{UUID}/record-again|onboarding/restart)')
     # Original complete lesson response, heard/closing, reset and expiry semantics.
-    restore={'/api/lessons/{lesson_id}','/api/lessons/{lesson_id}/end','/api/onboarding/restart'}
+    restore={'/api/lessons/{lesson_id}','/api/lessons/{lesson_id}/end','/api/onboarding/restart','/api/exercises/{exercise_id}/conversation/listened','/api/exercises/{exercise_id}/conversation'}
     app.router.routes[:]=[r for r in app.router.routes if getattr(r,'path',None) not in restore]
     app.router.routes.extend(original[p] for p in restore)
     app.router.routes[:]=[r for r in app.router.routes if getattr(r,'path',None)!='/api/onboarding/restart']

@@ -5,7 +5,7 @@ on:
     branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [main, codex/AUD-94-migration-safety]
+    branches: [main]
 
 permissions:
   contents: read

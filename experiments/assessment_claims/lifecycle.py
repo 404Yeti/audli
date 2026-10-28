@@ -23,6 +23,8 @@ def reset(repo,settings,revision):
     from app.limits import LessonLimits
     st=StageStore(repo,settings)
     with repo.transaction() as db:
+        from .bridge import advisory
+        advisory(db,repo.learner_id)
         db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==repo.learner_id).with_for_update()).one()
         bound=st.repo_bound(db)
         LessonLimits(bound,settings).block_onboarding_restart()
@@ -35,6 +37,8 @@ def settle(repo,settings,lesson_id=None):
     if settings.lesson_limit_mode!='enforce':return
     st=StageStore(repo,settings)
     with repo.transaction() as db:
+        from .bridge import advisory
+        advisory(db,repo.learner_id)
         db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==repo.learner_id).with_for_update()).one()
         bound=st.repo_bound(db);lesson=bound.lesson(lesson_id)
         if not lesson or lesson.status not in ('active','paused'):return
@@ -55,10 +59,12 @@ def record_again(repo,settings,identifier,kind):
     from app.models import Conversation
     st=StageStore(repo,settings)
     with repo.transaction() as db:
+        from .bridge import advisory
+        advisory(db,repo.learner_id)
         db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==repo.learner_id).with_for_update()).one()
         slot=db.execute(select(slots).where(slots.c.owner==repo.learner_id).with_for_update()).mappings().first()
         op=db.execute(select(operations).where(operations.c.owner==repo.learner_id,operations.c.id==identifier,operations.c.kind==kind)).mappings().first()
-        if not op or not slot or slot['active'] not in (None,identifier):raise Conflict('Recording ownership changed')
+        if not op or op['status'] not in ('running','complete') or not slot or slot['active'] not in (None,identifier):raise Conflict('Recording ownership changed')
         bound=st.repo_bound(db)
         if kind=='upload':
             row=bound.conversation(op['exercise'])

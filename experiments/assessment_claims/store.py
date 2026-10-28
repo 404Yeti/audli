@@ -95,9 +95,22 @@ class StageStore:
             followups_asked=len(c.followups) if c else 0,pending_attempt=pending,result=result,topic=public_topic(r['exercise']['content']))
 
     def lesson_view(self,r):
-        l=Lesson.model_validate(r['lesson']['data'])
-        return dict(id=l.id,revision=l.revision,status=l.status,phase=l.phase,exercise_id=l.exercise_id,
-                    exercise={'id':l.exercise_id} if l.exercise_id else None,exercises_completed=l.exercises_completed)
+        from app.lesson import prompt,elapsed,TARGET_SECONDS,introduction
+        from app.lesson_recognition import pending_recognition
+        l=Lesson.model_validate(r['lesson']['data']);at=r['now'];exercise=None
+        c=Conversation.model_validate(r['conversation']['data']) if r['conversation'] else None
+        if l.exercise_id:
+            if l.exercise_id!=r['exercise']['id']:raise Conflict('Lesson moved to another exercise; read its current checkpoint')
+            row=r['exercise'];content=row['content']
+            exercise=dict(id=row['id'],difficulty=row['difficulty'],topic=public_topic(content),passage_voice=content.get('passage_voice'),
+                audio_url=f"/api/exercises/{row['id']}/audio",completed_attempt_id=next((a['id'] for a in r['attempts'] if a['status']=='evaluated'),None))
+        intro=bool(l.phase=='EXERCISE' and l.exercise_id and l.introduced_exercise_id!=l.exercise_id and (not c or c.state=='LISTENING') and not r['result'])
+        spent=elapsed(l,at,self.repo.wall_clock)
+        return dict(id=l.id,revision=l.revision,status=l.status,phase=l.phase,prompt=prompt(l),pending=l.pending.model_dump(mode='json') if l.pending else None,
+            pending_recognition=pending_recognition(l,self.settings.min_transcription_confidence,at),exercise_id=l.exercise_id,exercise=exercise,
+            introduction_pending=intro,introduction_prompt=introduction(l) if intro else None,elapsed_seconds=spent,remaining_seconds=max(0,TARGET_SECONDS-spent),
+            server_time=at.isoformat(),focus=l.focus,exercises_completed=l.exercises_completed,strength=l.strength,improvement_focus=l.improvement_focus,
+            encouragement=f'Thanks for making time to listen, {l.name}.')
 
     def question(self,r,allow_closing=False):
         if r['current']!=r['exercise']['id'] or r['result']:raise Conflict('Exercise no longer active')
@@ -138,6 +151,7 @@ class StageStore:
             elif kind=='advance' and op and op['status']=='complete':return 'done',self.lesson_view(r),None
             if slot['active']:
                 if not r['active']:raise Conflict('Unknown ownership protocol; drain required')
+                if r['active']['kind']=='request':raise Conflict('Compatibility outcome requires explicit recovery')
                 if r['active']['status']=='running' and datetime.fromisoformat(r['active']['expires'])>r['now']:
                     if r['active']['id']==identifier and r['active']['kind']==kind:
                         return 'processing',{'operation_id':identifier,'kind':kind},None

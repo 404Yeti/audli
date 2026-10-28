@@ -213,3 +213,100 @@ def test_non_owner_backend_role_executes_fenced_claim_and_finalize(fixture):
         finally:writer.reset(token)
         assert store.status(ref['operation_id'])['result']=={'saved':True}
     finally:engine.dispose()
+
+
+def test_native_claim_cannot_steal_expired_compatibility_outcome(fixture):
+    from .test_stage import T
+    from hashlib import sha256
+    st,ex,*_=fixture
+    store=BridgeStore(st.repo);_,ref,_=store.claim('ambiguous-legacy','a'*64)
+    with st.repo.engine.begin() as db:
+        db.execute(update(operations).where(operations.c.owner==st.owner).values(expires=func.clock_timestamp()-text("interval '1 second'")))
+    with pytest.raises(Conflict):st.claim(ex,'upload',{'upload_id':'0123456789abcdef','bytes_hash':sha256(b'synthetic').hexdigest()})
+    assert store.status(ref['operation_id'])['status']=='uncertain'
+
+
+def test_old_record_again_receipt_cannot_clear_newer_checkin(fixture):
+    from .lifecycle import record_again
+    st,ex,*_=fixture;lesson=st.repo.lesson();lesson.phase='WELCOME';st.repo.save_lesson(lesson,lesson.revision)
+    store=BridgeStore(st.repo)
+    _,ref,context=store.claim('first','a'*64,{'path':f'/api/lessons/{lesson.id}/attempts'})
+    assert record_again(st.repo,st.settings,ref['operation_id'],'request')['record_again']
+    # Reusing an invalidated receipt must not discard a later pending answer.
+    from .test_stage import T
+    lesson=st.repo.lesson();lesson.pending=T;st.repo.save_lesson(lesson,lesson.revision)
+    with pytest.raises(Conflict):record_again(st.repo,st.settings,ref['operation_id'],'request')
+    assert st.repo.lesson().pending is not None
+
+
+def test_drain_refuses_unknown_active_and_expired_claims_then_accepts_explicit_recovery(fixture):
+    from .recovery import drain_report,require_drained
+    from .lifecycle import reset
+    from uuid import uuid4
+    st,*_=fixture
+    assert not any(require_drained(st.repo.engine,target_protocol='guard-aware-v1').values())
+    with pytest.raises(Conflict):require_drained(st.repo.engine,target_protocol='unaware')
+    _,_,old=BridgeStore(st.repo).claim('crashed-worker','a'*64)
+    assert drain_report(st.repo.engine)['processing']==1
+    with pytest.raises(Conflict):require_drained(st.repo.engine,target_protocol='guard-aware-v1')
+    with st.repo.engine.begin() as db:
+        db.execute(update(operations).where(operations.c.owner==st.owner).values(expires=func.clock_timestamp()-text("interval '1 second'")))
+    assert drain_report(st.repo.engine)['unresolved']==1
+    with pytest.raises(Conflict):require_drained(st.repo.engine,target_protocol='guard-aware-v1')
+    reset(st.repo,st.settings,st.repo.profile().onboarding.revision)
+    assert not any(require_drained(st.repo.engine,target_protocol='guard-aware-v1').values())
+    with pytest.raises(Conflict):BridgeStore(st.repo).finish(old,{'status':200,'body':{}})
+    with st.repo.engine.begin() as db:
+        db.execute(update(slots).where(slots.c.owner==st.owner).values(active=str(uuid4())))
+    assert drain_report(st.repo.engine)['unknown']==1
+    with pytest.raises(Conflict):require_drained(st.repo.engine,target_protocol='guard-aware-v1')
+
+
+def test_real_http_generation_listening_upload_assessment_and_closing(fixture,tmp_path,monkeypatch):
+    from .test_stage import body,T
+    from app.services.demo import DemoProvider
+    st,ex,*_=fixture
+    complete(st,ex)
+    _,_,ready=st.claim(ex,'ready',{});st.finish(ready)
+    _,_,advance=st.claim(ex,'advance',{'revision':st.repo.lesson().revision});st.finish(advance)
+    async def run():
+        class Provider(BenchProvider):
+            calls={'generate':0,'speak':0,'transcribe':0,'assess':0}
+            async def generate(self,profile):
+                assert st.repo.engine.pool.checkedout()==0;self.calls['generate']+=1
+                return await DemoProvider.generate(self,profile)
+            async def speak(self,*args,**kwargs):
+                assert st.repo.engine.pool.checkedout()==0;self.calls['speak']+=1;return wav()
+            async def transcribe(self,*args):
+                assert st.repo.engine.pool.checkedout()==0;self.calls['transcribe']+=1;return T
+            async def assess(self,content,turns):
+                assert st.repo.engine.pool.checkedout()==0;self.calls['assess']+=1
+                # Reuse the baseline fixture's grounded evidence logic without sleep.
+                from app.evaluation import expected_units
+                from app.models import EvidenceAssessment
+                return EvidenceAssessment(units=[dict(dimension=d,index=i,status='demonstrated',evidence=T.text,question='')
+                    for d,units in expected_units(content).items() for i in range(len(units))],feedback='Synthetic feedback.',transcription_concern=False,concern_reason='')
+        p=Provider();app,auth=await http_app(st,tmp_path,monkeypatch,p,full=True)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://local',headers={'Authorization':'Bearer local'}) as client:
+            lesson=st.repo.lesson()
+            response=await client.post(f'/api/lessons/{lesson.id}/exercise',json={'revision':lesson.revision},headers={'X-Audli-Operation-Id':'generate-once'})
+            assert response.status_code==200,response.text
+            generated=response.json();new_ex=generated['exercise']['id']
+            response=await client.post(f'/api/exercises/{new_ex}/conversation/listened',headers={'X-Audli-Operation-Id':'listened-once'})
+            assert response.status_code==200 and response.json()['state']=='AWAITING_SUMMARY',response.text
+            response=await client.post(f'/api/exercises/{new_ex}/attempts',files={'audio':('answer.wav',wav(),'audio/wav')},headers={'X-Audli-Upload-Id':'1111111111111111'})
+            assert response.status_code==200,response.text
+            attempt=response.json()['id']
+            response=await client.post(f'/api/attempts/{attempt}/assess',json=dict(confirmed=True,text=T.text,hands_free=True,followup_id=None))
+            assert response.status_code==200 and response.json()['state']=='GIVING_FEEDBACK',response.text
+            response=await client.post(f'/api/exercises/{new_ex}/conversation/ready');assert response.status_code==200,response.text
+            lesson=st.repo.lesson();lesson.elapsed_seconds=600;lesson.active_since=None;st.repo.save_lesson(lesson,lesson.revision)
+            response=await client.post(f'/api/lessons/{lesson.id}/advance',json={'revision':lesson.revision})
+            assert response.status_code==200 and response.json()['phase']=='CLOSING',response.text
+            assert response.json()['prompt'] and 'remaining_seconds' in response.json()
+            response=await client.post(f'/api/lessons/{lesson.id}/heard',json={'revision':response.json()['revision']},headers={'X-Audli-Operation-Id':'closing-once'})
+            assert response.status_code==200 and response.json()['status']=='completed',response.text
+            assert p.calls=={'generate':1,'speak':1,'transcribe':1,'assess':1}
+            assert st.repo.profile().completed_attempts==2
+        await auth.aclose()
+    asyncio.run(run())

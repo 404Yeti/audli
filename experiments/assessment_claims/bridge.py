@@ -143,6 +143,13 @@ class Bridge:
         path=scope.get('path','');method=scope.get('method','GET')
         if scope['type']!='http' or not path.startswith('/api/') or path=='/api/telemetry/turn':
             return await self.app(scope,receive,send)
+        response_started=False
+        response_finished=False
+        async def emit(message):
+            nonlocal response_started,response_finished
+            if message['type']=='http.response.start':response_started=True
+            if message['type']=='http.response.body' and not message.get('more_body'):response_finished=True
+            await send(message)
         legacy=legacy_lease.set(self.mode=='bridge' and method not in ('GET','HEAD','OPTIONS'))
         try:
             if method=='GET' and (path.startswith('/api/lessons/') or path=='/api/eligibility'):
@@ -196,9 +203,9 @@ class Bridge:
                     start=message
                     content=dict(message.get('headers',[])).get(b'content-type',b'')
                     stream=b'application/json' not in content
-                    if stream:await send(message)
+                    if stream:await emit(message)
                     return
-                if stream:return await send(message)
+                if stream:return await emit(message)
                 chunks.append(message.get('body',b''))
                 if sum(map(len,chunks))>1024*1024:raise Conflict('JSON acknowledgment too large')
             token=writer.set(context)
@@ -212,8 +219,11 @@ class Bridge:
                 elif start and not context.wrote and not context.provider_started:
                     await database_call(store.reject,context)
                 if not stream and start:
-                    await send(start);await send({'type':'http.response.body','body':b''.join(chunks)})
+                    await emit(start);await emit({'type':'http.response.body','body':b''.join(chunks)})
             finally:writer.reset(token)
         except (Conflict,UnicodeError,TimeoutError,DBAPIError):
+            if response_started:
+                if not response_finished:await emit({'type':'http.response.body','body':b''})
+                return
             await JSONResponse({'detail':'Operation remains unconfirmed. Keep your recording and check saved progress.'},status_code=409)(scope,receive,send)
         finally:legacy_lease.reset(legacy)

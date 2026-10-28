@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { deliverCheckin, deliverExercise, uploadPolicy, currentPolicy } from '../web/lib/recording-delivery.ts';
-import { LessonLifetime, setAccessTokenProvider, installRequestTrace } from '../web/lib/api.ts';
+import { api, LessonLifetime, setAccessTokenProvider, installRequestTrace } from '../web/lib/api.ts';
 import { fakeEnv, fakeOperation, checkinServer } from './upload-fakes.mjs';
 const defaults = JSON.parse(readFileSync(new URL('./fixtures/upload_policy_cases.json',import.meta.url))).defaults;
 let enabled;
@@ -209,4 +209,22 @@ test('repeated uncertain status keeps recovery controls and processing indicatio
     assert.ok(states.includes('processing'));assert.equal(states.at(-1),'failed');
   }
   assert.equal(posts,1);assert.equal(discarded,0);lifetime.close();
+});
+
+
+test('legacy Review coaching 202 keeps its existing pending contract',async()=>{
+  let requests=0;
+  globalThis.fetch=async()=>{requests++;return Response.json({improvement:{state:'pending'}},{status:202});};
+  const value=await api('/exercises/example/review/improvement',{method:'POST'});
+  assert.deepEqual(value,{improvement:{state:'pending'}});assert.equal(requests,1);
+});
+
+test('a non-durable 202 cannot be mistaken for an uploaded recording',async()=>{
+  const c=fakeEnv(),lifetime=new LessonLifetime();let posts=0,discarded=0;
+  globalThis.fetch=async(url)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:true,...defaults});
+    posts++;return Response.json({improvement:{state:'pending'}},{status:202});
+  };
+  const r=await run(c,deliverExercise(lifetime.begin(),'e',audio(),()=>discarded++,{env:c.env}));
+  assert.ok(r.error);assert.equal(r.result,undefined);assert.equal(posts,1);assert.equal(discarded,0);lifetime.close();
 });

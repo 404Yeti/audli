@@ -1,274 +1,286 @@
 TAP version 13
-# (node:270877) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-migration-safety/web/lib/delivery-notice.ts is not specified and it doesn't parse as CommonJS.
+# (node:294519) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-migration-safety/web/lib/delivery-notice.ts is not specified and it doesn't parse as CommonJS.
 # Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
 # To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-migration-safety/web/package.json.
 # (Use `node --trace-warnings ...` to show where the warning was created)
 # Subtest: the learner-facing wording is fixed (the design document quotes it)
 ok 1 - the learner-facing wording is fixed (the design document quotes it)
   ---
-  duration_ms: 2.920539
+  duration_ms: 3.713275
   type: 'test'
   ...
 # Subtest: a send that is going normally shows nothing; slow, retrying, failed and moved each have a notice; delivered clears it
 ok 2 - a send that is going normally shows nothing; slow, retrying, failed and moved each have a notice; delivered clears it
   ---
-  duration_ms: 2.014747
+  duration_ms: 2.925438
   type: 'test'
   ...
 # Subtest: the unsent marker round-trips, is per account, expires, and holds no audio or text
 ok 3 - the unsent marker round-trips, is per account, expires, and holds no audio or text
   ---
-  duration_ms: 1.344464
+  duration_ms: 2.255235
   type: 'test'
   ...
 # Subtest: a corrupt, future-dated or hostile marker is ignored and removed; a storage that throws never matters
 ok 4 - a corrupt, future-dated or hostile marker is ignored and removed; a storage that throws never matters
   ---
-  duration_ms: 1.339505
+  duration_ms: 2.147029
   type: 'test'
   ...
 # Subtest: processing has polite text without requesting another recording or audio
 ok 5 - processing has polite text without requesting another recording or audio
   ---
-  duration_ms: 1.209548
+  duration_ms: 1.492565
   type: 'test'
   ...
-# (node:270878) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-migration-safety/web/lib/recording-delivery.ts is not specified and it doesn't parse as CommonJS.
+# (node:294525) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-migration-safety/web/lib/recording-delivery.ts is not specified and it doesn't parse as CommonJS.
 # Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
 # To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-migration-safety/web/package.json.
 # (Use `node --trace-warnings ...` to show where the warning was created)
 # Subtest: disabled policy retains legacy one-send behavior
 ok 6 - disabled policy retains legacy one-send behavior
   ---
-  duration_ms: 52.059561
+  duration_ms: 70.84316
   type: 'test'
   ...
 # Subtest: a lost check-in response stops, and Send again never overwrites ambiguous pending
 ok 7 - a lost check-in response stops, and Send again never overwrites ambiguous pending
   ---
-  duration_ms: 17.346175
+  duration_ms: 17.508606
   type: 'test'
   ...
 # Subtest: unchanged check-in resends only original revision, with one accepted STT
 ok 8 - unchanged check-in resends only original revision, with one accepted STT
   ---
-  duration_ms: 6.936158
+  duration_ms: 9.586637
   type: 'test'
   ...
 # Subtest: failed reconciliation retains audio without an extra send
 ok 9 - failed reconciliation retains audio without an extra send
   ---
-  duration_ms: 2.546117
+  duration_ms: 2.899198
   type: 'test'
   ...
 # Subtest: stable exercise ID is sent without telemetry; a lost response replays without a second STT
 ok 10 - stable exercise ID is sent without telemetry; a lost response replays without a second STT
   ---
-  duration_ms: 6.980932
+  duration_ms: 7.62702
   type: 'test'
   ...
 # Subtest: cancellation during token acquisition prevents late network submission
 ok 11 - cancellation during token acquisition prevents late network submission
   ---
-  duration_ms: 2.404439
+  duration_ms: 1.949444
   type: 'test'
   ...
 # Subtest: unavailable and malformed policy fail closed
 ok 12 - unavailable and malformed policy fail closed
   ---
-  duration_ms: 3.326009
+  duration_ms: 2.833002
   type: 'test'
   ...
 # Subtest: a retained check-in cannot be redirected to another lesson at a coincident revision
 ok 13 - a retained check-in cannot be redirected to another lesson at a coincident revision
   ---
-  duration_ms: 7.522101
+  duration_ms: 9.130983
   type: 'test'
   ...
 # Subtest: an existing direct-origin opt-in fails closed instead of retrying without an idempotency header
 ok 14 - an existing direct-origin opt-in fails closed instead of retrying without an idempotency header
   ---
-  duration_ms: 0.750606
+  duration_ms: 1.277877
   type: 'test'
   ...
 # Subtest: manual Send again after the kill switch keeps the prior exercise identity with telemetry off
 ok 15 - manual Send again after the kill switch keeps the prior exercise identity with telemetry off
   ---
-  duration_ms: 4.331379
+  duration_ms: 4.448937
   type: 'test'
   ...
 # Subtest: a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior
 ok 16 - a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior
   ---
-  duration_ms: 1.837311
+  duration_ms: 1.476846
   type: 'test'
   ...
 # Subtest: 202 processing polls exact operation without resending audio
 ok 17 - 202 processing polls exact operation without resending audio
   ---
-  duration_ms: 5.660114
+  duration_ms: 4.614096
   type: 'test'
   ...
 # Subtest: uncertain processing retains identity; Send again checks status without POST
 ok 18 - uncertain processing retains identity; Send again checks status without POST
   ---
-  duration_ms: 4.176485
+  duration_ms: 3.856487
   type: 'test'
   ...
 # Subtest: mismatched processing receipt cannot adopt another recording
 ok 19 - mismatched processing receipt cannot adopt another recording
   ---
-  duration_ms: 2.845636
+  duration_ms: 2.558271
   type: 'test'
   ...
 # Subtest: processing background retains audio and never resends
 ok 20 - processing background retains audio and never resends
   ---
-  duration_ms: 6.481654
+  duration_ms: 5.421886
   type: 'test'
   ...
 # Subtest: processing cancel retains audio and never resends
 ok 21 - processing cancel retains audio and never resends
   ---
-  duration_ms: 2.474041
+  duration_ms: 3.404508
   type: 'test'
   ...
 # Subtest: processing deadline retains audio and never resends
 ok 22 - processing deadline retains audio and never resends
   ---
-  duration_ms: 34.960375
+  duration_ms: 36.645499
   type: 'test'
   ...
 # Subtest: repeated uncertain status keeps recovery controls and processing indication without more sends
 ok 23 - repeated uncertain status keeps recovery controls and processing indication without more sends
   ---
-  duration_ms: 4.212037
+  duration_ms: 3.855134
   type: 'test'
   ...
-# (node:270884) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-migration-safety/web/lib/upload-sender.ts is not specified and it doesn't parse as CommonJS.
+# Subtest: legacy Review coaching 202 keeps its existing pending contract
+ok 24 - legacy Review coaching 202 keeps its existing pending contract
+  ---
+  duration_ms: 0.873029
+  type: 'test'
+  ...
+# Subtest: a non-durable 202 cannot be mistaken for an uploaded recording
+ok 25 - a non-durable 202 cannot be mistaken for an uploaded recording
+  ---
+  duration_ms: 3.359833
+  type: 'test'
+  ...
+# (node:294526) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-migration-safety/web/lib/upload-sender.ts is not specified and it doesn't parse as CommonJS.
 # Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
 # To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-migration-safety/web/package.json.
 # (Use `node --trace-warnings ...` to show where the warning was created)
 # Subtest: repeated lost sends stop at a hard cap even when fetch ignores abort
-ok 24 - repeated lost sends stop at a hard cap even when fetch ignores abort
+ok 26 - repeated lost sends stop at a hard cap even when fetch ignores abort
   ---
-  duration_ms: 14.219556
+  duration_ms: 14.404111
   type: 'test'
   ...
 # Subtest: the wall deadline caps large recordings before three full sends
-ok 25 - the wall deadline caps large recordings before three full sends
+ok 27 - the wall deadline caps large recordings before three full sends
   ---
-  duration_ms: 3.083517
+  duration_ms: 3.184871
   type: 'test'
   ...
 # Subtest: cancellation ends send even when a dependency ignores abort
-ok 26 - cancellation ends send even when a dependency ignores abort
+ok 28 - cancellation ends send even when a dependency ignores abort
   ---
-  duration_ms: 4.479196
+  duration_ms: 3.583819
   type: 'test'
   ...
 # Subtest: cancellation ends reconcile even when a dependency ignores abort
-ok 27 - cancellation ends reconcile even when a dependency ignores abort
+ok 29 - cancellation ends reconcile even when a dependency ignores abort
   ---
-  duration_ms: 2.00459
+  duration_ms: 1.454683
   type: 'test'
   ...
 # Subtest: cancellation ends policy even when a dependency ignores abort
-ok 28 - cancellation ends policy even when a dependency ignores abort
+ok 30 - cancellation ends policy even when a dependency ignores abort
   ---
-  duration_ms: 1.887025
+  duration_ms: 1.558631
   type: 'test'
   ...
 # Subtest: cancellation ends backoff even when a dependency ignores abort
-ok 29 - cancellation ends backoff even when a dependency ignores abort
+ok 31 - cancellation ends backoff even when a dependency ignores abort
   ---
-  duration_ms: 1.671916
+  duration_ms: 1.417152
   type: 'test'
   ...
 # Subtest: a hanging reconcile is bounded by the total wall deadline
-ok 30 - a hanging reconcile is bounded by the total wall deadline
+ok 32 - a hanging reconcile is bounded by the total wall deadline
   ---
-  duration_ms: 1.874504
+  duration_ms: 1.511632
   type: 'test'
   ...
 # Subtest: a hanging policy is bounded by the total wall deadline
-ok 31 - a hanging policy is bounded by the total wall deadline
+ok 33 - a hanging policy is bounded by the total wall deadline
   ---
-  duration_ms: 2.12146
+  duration_ms: 1.670414
   type: 'test'
   ...
 # Subtest: hidden pages stop immediately, never gain free sends, and expire in wall time
-ok 32 - hidden pages stop immediately, never gain free sends, and expire in wall time
+ok 34 - hidden pages stop immediately, never gain free sends, and expire in wall time
   ---
-  duration_ms: 2.762478
+  duration_ms: 1.59997
   type: 'test'
   ...
 # Subtest: starting hidden never sends
-ok 33 - starting hidden never sends
+ok 35 - starting hidden never sends
   ---
-  duration_ms: 1.945456
+  duration_ms: 2.396147
   type: 'test'
   ...
 # Subtest: a failed reconciliation or changed checkpoint stops without blind resend
-ok 34 - a failed reconciliation or changed checkpoint stops without blind resend
+ok 36 - a failed reconciliation or changed checkpoint stops without blind resend
   ---
-  duration_ms: 1.715169
+  duration_ms: 2.20507
   type: 'test'
   ...
 # Subtest: kill switch is checked before another automatic send
-ok 35 - kill switch is checked before another automatic send
+ok 37 - kill switch is checked before another automatic send
   ---
-  duration_ms: 1.416612
+  duration_ms: 2.195246
   type: 'test'
   ...
 # Subtest: HTTP 401 is final
-ok 36 - HTTP 401 is final
+ok 38 - HTTP 401 is final
   ---
-  duration_ms: 1.182516
+  duration_ms: 2.411511
   type: 'test'
   ...
 # Subtest: HTTP 403 is final
-ok 37 - HTTP 403 is final
+ok 39 - HTTP 403 is final
   ---
-  duration_ms: 1.332201
+  duration_ms: 2.84242
   type: 'test'
   ...
 # Subtest: HTTP 413 is final
-ok 38 - HTTP 413 is final
+ok 40 - HTTP 413 is final
   ---
-  duration_ms: 1.922418
+  duration_ms: 1.620584
   type: 'test'
   ...
 # Subtest: HTTP 415 is final
-ok 39 - HTTP 415 is final
+ok 41 - HTTP 415 is final
   ---
-  duration_ms: 2.295873
+  duration_ms: 1.199479
   type: 'test'
   ...
 # Subtest: HTTP 422 is final
-ok 40 - HTTP 422 is final
+ok 42 - HTTP 422 is final
   ---
-  duration_ms: 3.246057
+  duration_ms: 3.470333
   type: 'test'
   ...
 # Subtest: HTTP 429 is final
-ok 41 - HTTP 429 is final
+ok 43 - HTTP 429 is final
   ---
-  duration_ms: 0.943622
+  duration_ms: 0.95765
   type: 'test'
   ...
 # Subtest: late results cannot resolve timed-out stages
-ok 42 - late results cannot resolve timed-out stages
+ok 44 - late results cannot resolve timed-out stages
   ---
-  duration_ms: 1.230608
+  duration_ms: 1.226089
   type: 'test'
   ...
-1..42
-# tests 42
+1..44
+# tests 44
 # suites 0
-# pass 42
+# pass 44
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 451.958132
+# duration_ms 544.619061

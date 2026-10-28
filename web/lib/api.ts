@@ -208,7 +208,9 @@ export async function api<T>(url: string, init?: RequestInit, onResponse?: (stat
     throw new ApiError(typeof detail === 'string' ? detail : 'Please check your input and try again.', response.status,
       !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true), response.status === 429 ? limitFrom(data) : undefined);
   }
-  if (response.status === 202) {
+  // Existing Review coaching has its own non-durable 202 contract. Upload
+  // callers defer processing explicitly, so malformed acknowledgments fail closed.
+  if (response.status === 202 && (deferProcessing || (data !== null && typeof data === 'object' && ('operation_id' in data || 'processing' in data)))) {
     const reference = operationReference(data);
     if (deferProcessing) throw new OperationProcessing(reference);
     const controller = new AbortController();

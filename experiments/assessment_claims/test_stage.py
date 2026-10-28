@@ -275,7 +275,7 @@ def test_owner_reassignment_and_lock_inversion_fail_closed(fixture):
             assert error.value.orig.sqlstate=='55P03'
 
 
-async def http_app(st,tmp_path,monkeypatch,provider,mode='claims',full=False):
+async def http_app(st,tmp_path,monkeypatch,provider,mode='claims',full=False,**overrides):
     import httpx
     import app.auth as auth_module
     from app.main import create_app
@@ -286,6 +286,7 @@ async def http_app(st,tmp_path,monkeypatch,provider,mode='claims',full=False):
         if request.headers.get('authorization')!='Bearer local':return httpx.Response(401)
         return httpx.Response(200,json={'id':st.owner,'email_confirmed_at':'yes','is_anonymous':False})
     config=Settings(provider='demo',data_dir=tmp_path,auth_mode='supabase',supabase_url='https://bench.invalid',supabase_publishable_key='sb_publishable_bench',persistence='postgres',database_url=st.repo.engine.url.render_as_string(hide_password=False),db_offload=True,db_lazy_ping=True,db_read_autocommit=True,db_state_only_transitions=True,per_learner_locks=True,upload_retry=True,upload_idempotency=True,_env_file=None)
+    config=config.model_copy(update=overrides)
     auth_client=httpx.AsyncClient(transport=httpx.MockTransport(identity))
     app=create_app(config,provider,st.repo,auth_client=auth_client)
     monkeypatch.setattr(auth_module,'lease_exempt',auth_module.lease_exempt)

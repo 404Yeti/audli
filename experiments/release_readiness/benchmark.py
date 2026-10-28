@@ -22,6 +22,7 @@ parser.add_argument('--root', type=Path, required=True)
 parser.add_argument('--mode', choices=['current','staged'], required=True)
 parser.add_argument('--claims-root',type=Path)
 parser.add_argument('--installer',choices=['native','integration'],default='integration')
+parser.add_argument('--schema',choices=['installed','migration8'],default='installed')
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--repetitions',type=int,default=2)
 parser.add_argument('--levels',default='1,2,4,8,16')
@@ -74,9 +75,31 @@ async def run():
         if args.mode=='staged':
             from experiments.assessment_claims.schema import install
             admin_repo=PostgresRepository(direct,None)
-            install(admin_repo.engine);admin_repo.close()
+            if args.schema=='migration8':
+                from experiments.release_readiness.rehearsal import prepare,ROLES
+                from experiments.release_readiness.migration import apply_candidate
+                from sqlalchemy import create_engine,event
+                prepare(admin_repo.engine) # reconstruct006 and inherited production ACLs
+                owner_engine=create_engine(direct)
+                @event.listens_for(owner_engine,'connect')
+                def migration_owner(dbapi,record):
+                    with dbapi.cursor() as cursor:cursor.execute('SET ROLE audli_audit_owner')
+                    dbapi.commit()
+                try:
+                    apply_candidate(owner_engine,include_review=True,
+                        client_roles=tuple(v for k,v in ROLES.items() if k!='postgres'),server_role='audli_audit_app')
+                finally:owner_engine.dispose()
+            else:install(admin_repo.engine)
+            admin_repo.close()
         url = make_url(direct).set(port=args.db_port).render_as_string(hide_password=False)
         repository = PostgresRepository(url, None)
+        if args.schema=='migration8':
+            from sqlalchemy import event
+            @event.listens_for(repository.engine,'connect')
+            def runtime_role(dbapi,record):
+                with dbapi.cursor() as cursor:cursor.execute('SET ROLE audli_audit_app')
+                dbapi.commit()
+            repository.engine.dispose()
         async def identity(request):
             started=perf_counter()
             await asyncio.sleep(.300)
@@ -142,9 +165,11 @@ async def run():
             if server_task.done(): await server_task
             await asyncio.sleep(.005)
         audio = Path(directory)/'synthetic.wav'; audio.write_bytes(wav())
-        result = dict(source_hashes={str(p.relative_to(POC)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (POC/'experiments/assessment_claims').glob('*') if p.suffix in ('.py','.sql','.mjs')},
+        result = dict(source_hashes={str(p.relative_to(args.root)):hashlib.sha256(p.read_bytes()).hexdigest() for folder in ('app','experiments/assessment_claims','experiments/release_readiness') for p in (args.root/folder).rglob('*') if p.suffix in ('.py','.sql','.mjs')},
             packages={p:importlib.metadata.version(p) for p in ('SQLAlchemy','psycopg','fastapi','httpx','pydantic','openai','uvicorn')},python=sys.version.split()[0],
-            installer=args.installer,application_source='exact approved PR112 source',mode=args.mode,root_revision=subprocess.check_output(['git','-C',str(args.root),'rev-parse','HEAD'],text=True).strip(),
+            installer=args.installer,schema_mode=args.schema,runtime_role='audli_audit_app (non-owner, RLS)' if args.schema=='migration8' else 'local lab owner',
+            application_source=str(args.root),source_tree_clean=subprocess.call(['git','-C',str(args.root),'diff','--quiet','HEAD','--','app','experiments'])==0,
+            mode=args.mode,root_revision=subprocess.check_output(['git','-C',str(args.root),'rev-parse','HEAD'],text=True).strip(),
             claims_store_sha256=hashlib.sha256((args.claims_root/'experiments/durable_claims/store.py').read_bytes()).hexdigest() if args.claims_root else None,
             claims_source_revision=subprocess.check_output(['git','-C',str(args.claims_root),'rev-parse','HEAD'],text=True).strip() if args.claims_root else None,
             database_rtt_ms=72,auth_ms=300,stt_ms=1100,assessment_ms=3500,per_learner_locks=True,

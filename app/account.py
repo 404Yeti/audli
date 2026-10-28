@@ -110,7 +110,7 @@ def require_live_session(repo, request):
             raise HTTPException(401, 'Sign in again before deleting your account.')
 
 
-def delete_account(repo, audio_dir):
+def delete_account(repo, audio_dir, *, prepare_claim_erasure=None):
     if repo.engine.dialect.name != 'postgresql':
         raise HTTPException(503, 'Account deletion requires the trusted PostgreSQL backend.')
     with repo.transaction() as db:
@@ -123,6 +123,12 @@ def delete_account(repo, audio_dir):
         # this row) while deleting.
         if not db.execute(text('SELECT id FROM auth.users WHERE id = :owner FOR UPDATE'), {'owner': owner}).first():
             raise HTTPException(401, 'Your account is no longer available. Please sign out.')
+        # Guard the mutation itself, not a particular HTTP method or middleware.
+        # The internal callback is installed only by the reviewed claims bridge.
+        if db.execute(text("SELECT to_regclass('public.poc_account_slots')")).scalar_one():
+            if prepare_claim_erasure is None:
+                raise HTTPException(409, 'Account deletion requires durable-operation admission.')
+            prepare_claim_erasure(db)
         names = db.execute(select(s.audio_assets.c.audio_name).where(s.audio_assets.c.user_id == owner)).scalars().all()
         names += db.execute(select(s.exercises.c.audio_name).where(s.exercises.c.user_id == owner)).scalars().all()
         names += db.execute(select(s.coach_audio.c.audio_name).join(s.exercises)

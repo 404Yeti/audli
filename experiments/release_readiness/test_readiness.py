@@ -121,7 +121,7 @@ def test_retention_minimizes_json_but_keeps_non_resurrectable_tombstones(fixture
     assert store.claim('legacy-receipt','a'*64)[0]=='uncertain'
 
 
-def test_populated_schema_cannot_be_destructively_rolled_back_and_old_startup_refuses_version8():
+def test_populated_schema_cannot_be_destructively_rolled_back_and_startup_accepts_complete_version8():
     from app.repository import PostgresRepository
     from sqlalchemy import create_engine,event
     from app.storage.repository import SQLProgressRepository
@@ -132,7 +132,7 @@ def test_populated_schema_cannot_be_destructively_rolled_back_and_old_startup_re
     with production_shaped() as (url,admin,owner):
         apply_candidate(owner,include_review=True,client_roles=tuple(v for k,v in ROLES.items() if k!='postgres'))
         grant_server(owner)
-        with pytest.raises(RuntimeError):PostgresRepository(url,learner_uuid('bench-a'))
+        verified=PostgresRepository(url,learner_uuid('bench-a'));verified.close()
         engine=create_engine(url)
         @event.listens_for(engine,'connect')
         def role(dbapi,record):

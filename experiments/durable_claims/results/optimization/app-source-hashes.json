@@ -1,0 +1,7 @@
+{
+  "app/auth.py": "388ba748999e8dfec92e835a9da2dea499e2f151e81100f1134c21d6d2c03228",
+  "app/main.py": "9102041a596e8dc523e5b18f267f116541e0c2162cc21d42efafac4c061662a6",
+  "app/lesson_api.py": "606d91af4f339a9ebf69b8f7725b975221997b9f78782eb30bbd6a7064a79890",
+  "app/offload.py": "5ee2a3134d4e5cf1a6f398e2f4c478ac679eabe708b3fd0b943a3dc18c3f3c47",
+  "app/storage/repository.py": "08fcbd8dea37e56a573dd541071e445762f304f3b60f56d57a0e3f18058fe681"
+}

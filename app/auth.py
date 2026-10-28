@@ -90,6 +90,7 @@ def lease_exempt(method: str, path: str) -> bool:
 class LearnerAuthentication:
     def __init__(self, app, identity, repository, request_repository, timing=False, ack_exempt=False, lease_pool=False, pool_size=2, pool_overflow=6, offload=None):
         self.app, self.identity = app, identity
+        self.lease_exempt = lease_exempt
         self.ack_exempt = ack_exempt
         self.offload = offload or Offload(False)
         self.lease_pool = bool(lease_pool and repository.engine.dialect.name == 'postgresql')
@@ -168,7 +169,7 @@ class LearnerAuthentication:
         trace = turntrace.request_trace.get()
         try:
             if (self.lease_engine is not None and scope['method'] not in ('GET', 'HEAD', 'OPTIONS')
-                    and not lease_exempt(scope['method'], scope['path'])
+                    and not self.lease_exempt(scope['method'], scope['path'])
                     and not (self.ack_exempt and (scope['method'], scope['path']) == ACK_ROUTE)):
                 key = int.from_bytes(sha256(('audli-account:' + learner_id).encode()).digest()[:8], 'big', signed=True)
                 lease_key = key

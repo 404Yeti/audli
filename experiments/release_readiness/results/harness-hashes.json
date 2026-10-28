@@ -1,0 +1,10 @@
+{
+  "experiments/release_readiness/benchmark.py": "cce59cc905de172285cc7aefcce0bb8f91351464e92756ab1d03174326d9e00c",
+  "experiments/release_readiness/quarantine.py": "469e53f9c6e587eb31c67a9cc66ec473b48096fba15e22eee39c7f4c90c19c3d",
+  "experiments/release_readiness/test_readiness.py": "dcdad9afa4b8a927cf08ac0962d98b9b0b3807874e47a10e8ee795eb6d8fac53",
+  "experiments/release_readiness/RELEASE_READINESS.md": "95e98538fe26d1e917a4382eb62c1c386457bab2a56ac3aac95f620caa1acccf",
+  "experiments/release_readiness/retention.py": "c9f444880863a8fca93ed27ab353f942bf09d905df885fc21736850678b977d4",
+  "experiments/release_readiness/__init__.py": "8ada88d872e27e5be0fa6f4db3641c98fe27a4d44f29fc3ad724282d8db7c56d",
+  "experiments/release_readiness/rehearsal.py": "313e92e7425496bb1568237fb512e557ce124e2101acbf29dfd28104beaaed5e",
+  "experiments/release_readiness/migration.py": "b1d5437da12e18ecd35fd61045613e9667734192123658432ba840019e4f0d1c"
+}

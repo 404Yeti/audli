@@ -1,0 +1,3527 @@
+{
+  "source_hashes": {
+    "experiments/assessment_claims/client.mjs": "b77e9d835a29805d300f9f744ea22bb10dc5abd593fdb71d894d3dbe17f0c505",
+    "experiments/assessment_claims/benchmark.py": "29b61805d2c7df2d2c3082abe515d8199b36dc9e17be948e31827807c39ab7fb",
+    "experiments/assessment_claims/store.py": "e90c5727605ac7846b22565770b0531b7628020b1fe2fed27d067e1a749452ce",
+    "experiments/assessment_claims/routes.py": "19a84bab53d7965b0ff0f884833ea6760e1e2940f9f54e6ef9cb65252134a124",
+    "experiments/assessment_claims/report.py": "e9c9c654168310af460e7785387d6851646db2bb051c7c1702a1c6d5766b01e1",
+    "experiments/assessment_claims/schema.py": "06717e5b5322ff078721edb788097ccec7823bc377891c945246f87df3ae026b",
+    "experiments/assessment_claims/recovery.py": "57c0ce9841ed3d4db056f3acc05d983576334834622f9a89532fb0c0b23b6acc",
+    "experiments/assessment_claims/functions.sql": "cbaa18b124bef54f2c14cad4e6f8e28afe739c69cf7f7e0a2efd0027ac786148",
+    "experiments/assessment_claims/test_additional.py": "3df96a21684dd911088832dabbb8b5f60b17b884fdf41109da311075d6c37ded",
+    "experiments/assessment_claims/lifecycle.py": "120e99121a72b23f7eb1b39eeccaec9e9c069fd25d7aeb1dfdc16a529abdca54",
+    "experiments/assessment_claims/security.py": "71b607eb165788cf448f4feb1625e867a2f60acb8ba1a2a242740e92c993edce",
+    "experiments/assessment_claims/__init__.py": "bd9759f52f17b0c5b78db14e632ec45c86d340312890262a12884d515aaeb899",
+    "experiments/assessment_claims/integration.py": "e5fa8b1fec1aedaf8d5bc1713407bddfd6256c3e0a87e54cf5ab7672934403be",
+    "experiments/assessment_claims/test_integration.py": "7e472e04a48109a51bdb1217cdcdb6f2286ba29a2a116df187154c7a785afefb",
+    "experiments/assessment_claims/test_stage.py": "a242a1e542549866ce5a62cde770bc6595ab7c3788ee204d5d70d5b94c5c10fe",
+    "experiments/assessment_claims/bridge.py": "05f453f462f27f0c0d5755a2c9899eaf4b0dfe9755aa47675e17b4ec806f75be"
+  },
+  "packages": {
+    "SQLAlchemy": "2.1.6",
+    "psycopg": "3.3.6",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1",
+    "openai": "2.54.0",
+    "uvicorn": "0.54.0"
+  },
+  "python": "3.12.13",
+  "installer": "integration",
+  "application_source": "exact approved PR112 source",
+  "mode": "staged",
+  "root_revision": "4d9988faee46c1c3cdede7d7034deffffeec5dfd",
+  "claims_store_sha256": "39f5b702e3b4bcdb7905d208d87c2a6f1ba201420fb0f02e6268c952d0947c69",
+  "claims_source_revision": "4d9988faee46c1c3cdede7d7034deffffeec5dfd",
+  "database_rtt_ms": 72,
+  "auth_ms": 300,
+  "stt_ms": 1100,
+  "assessment_ms": 3500,
+  "per_learner_locks": true,
+  "repetitions": 2,
+  "measure": "two P2 uploads, two assessments (one followup), readiness and persisted lesson advancement; no generation or TTS",
+  "waves": [
+    {
+      "connection_seconds": 6.637,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 1,
+      "queries": 59,
+      "new_connections": 0,
+      "checkouts": 23,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 607.1619340000325
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 12,
+          "cursor_ms": 1360.7373169979837
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 6,
+          "cursor_ms": 453.3380659922841
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 6,
+          "cursor_ms": 483.90213400125504
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 6,
+          "cursor_ms": 476.34876599840936
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 6,
+          "cursor_ms": 910.3257280003163
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 6,
+          "cursor_ms": 536.1692710066563
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 6,
+          "cursor_ms": 568.2351470022695
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.36471399839502
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.27651000075275
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2409.0116279912763,
+          "cursor_ms": 5624.859586998355,
+          "do_rollback_ms": 0.32659899807185866,
+          "checkout_ms": 6637.195479008369,
+          "executor_queue_ms": 4.677527002058923,
+          "do_commit_ms": 943.9714089930931,
+          "claim_ms": 3264.2323309992207,
+          "provider_ms": 2203.088956997817,
+          "finish_ms": 2524.8059349978575,
+          "lookup_ms": 235.1074759972107,
+          "assessment_provider_ms": 7002.807010998367
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 947,
+            "exec_ms": 144.247,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 104,
+            "exec_ms": 212.4,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1748,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 1,
+      "repetition": 0,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 18582.8,
+        "p50": 18582.8,
+        "p95": 18582.8,
+        "max": 18582.8
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 18582.8,
+        "p50": 18582.8,
+        "p95": 18582.8,
+        "max": 18582.8
+      },
+      "wall_ms": 19076.0,
+      "provider_calls": 2,
+      "assessment_calls": 2,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 18582.81707,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3067.773165,
+            2839.180394000001
+          ],
+          "assessment_ms": [
+            4950.301211000001,
+            4995.167394
+          ],
+          "progression_ms": 2730.3871709999985
+        }
+      ],
+      "persisted": {
+        "attempts": 2,
+        "evaluations": 1,
+        "events": 1,
+        "turns": 2
+      }
+    },
+    {
+      "connection_seconds": 6.444,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 1,
+      "queries": 59,
+      "new_connections": 0,
+      "checkouts": 23,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 609.078468001826
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 12,
+          "cursor_ms": 1358.7615819924395
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 6,
+          "cursor_ms": 452.97383399883984
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 6,
+          "cursor_ms": 462.9779550014064
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 6,
+          "cursor_ms": 467.59367699633003
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 6,
+          "cursor_ms": 906.8353549992025
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 6,
+          "cursor_ms": 471.6832529993553
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 6,
+          "cursor_ms": 502.4901290053094
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 151.64142399953562
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.0097099991981
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2407.656785002473,
+          "cursor_ms": 5460.045386993443,
+          "do_rollback_ms": 0.32827600080054253,
+          "checkout_ms": 6444.015284992929,
+          "executor_queue_ms": 3.728871000930667,
+          "do_commit_ms": 941.4463590037485,
+          "claim_ms": 3232.4767209975107,
+          "provider_ms": 2201.48888499898,
+          "finish_ms": 2367.2464860064792,
+          "lookup_ms": 230.9863709997444,
+          "assessment_provider_ms": 7001.538021999295
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 945,
+            "exec_ms": 68.599,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 104,
+            "exec_ms": 89.678,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1695,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 1,
+      "repetition": 1,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 18245.6,
+        "p50": 18245.6,
+        "p95": 18245.6,
+        "max": 18245.6
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 18245.6,
+        "p50": 18245.6,
+        "p95": 18245.6,
+        "max": 18245.6
+      },
+      "wall_ms": 18446.7,
+      "provider_calls": 2,
+      "assessment_calls": 2,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 18245.640383,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2903.136714,
+            2825.711818999999
+          ],
+          "assessment_ms": [
+            4904.836942,
+            4914.476479999999
+          ],
+          "progression_ms": 2697.4727369999982
+        }
+      ],
+      "persisted": {
+        "attempts": 2,
+        "evaluations": 1,
+        "events": 1,
+        "turns": 2
+      }
+    },
+    {
+      "connection_seconds": 12.744,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 2,
+      "queries": 118,
+      "new_connections": 0,
+      "checkouts": 46,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1210.5318539979635
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 24,
+          "cursor_ms": 2688.3982549989014
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 12,
+          "cursor_ms": 897.8526619976037
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 12,
+          "cursor_ms": 913.288168998406
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 12,
+          "cursor_ms": 923.2287499944505
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 12,
+          "cursor_ms": 1797.2851660051674
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 12,
+          "cursor_ms": 920.4822329957096
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 12,
+          "cursor_ms": 1004.2262050010322
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.5258930059208
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 150.0665019993903
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2405.795463000686,
+          "cursor_ms": 5397.642028001428,
+          "do_rollback_ms": 0.4010420052509289,
+          "checkout_ms": 6366.780944990751,
+          "executor_queue_ms": 4.431311994267162,
+          "do_commit_ms": 926.9179309994797,
+          "claim_ms": 3192.3442789920955,
+          "provider_ms": 2201.8658949964447,
+          "finish_ms": 2340.2308110053127,
+          "lookup_ms": 227.64732599898707,
+          "assessment_provider_ms": 7001.877490998595
+        },
+        {
+          "index": 1,
+          "auth_ms": 2406.916141993861,
+          "cursor_ms": 5407.243660993117,
+          "do_rollback_ms": 0.3285049933765549,
+          "checkout_ms": 6377.29267398754,
+          "executor_queue_ms": 4.403474995342549,
+          "do_commit_ms": 930.7918579943362,
+          "claim_ms": 3198.975176001113,
+          "provider_ms": 2201.3498389969754,
+          "finish_ms": 2336.3345099969592,
+          "lookup_ms": 228.95234400129993,
+          "assessment_provider_ms": 7001.472825999372
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 1892,
+            "exec_ms": 147.377,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 208,
+            "exec_ms": 165.327,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1698,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 2,
+      "repetition": 0,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 18206.6,
+        "p50": 18206.6,
+        "p95": 18263.6,
+        "max": 18270.0
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 18206.6,
+        "p50": 18206.6,
+        "p95": 18263.6,
+        "max": 18270.0
+      },
+      "wall_ms": 18449.5,
+      "provider_calls": 4,
+      "assessment_calls": 4,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 18269.965312,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2898.778162,
+            2851.2665079999997
+          ],
+          "assessment_ms": [
+            4909.399568999999,
+            4893.186006
+          ],
+          "progression_ms": 2717.3201979999994
+        },
+        {
+          "ok": true,
+          "ms": 18143.259431000002,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2848.5502690000003,
+            2815.184379999999
+          ],
+          "assessment_ms": [
+            4898.061969,
+            4903.604229999999
+          ],
+          "progression_ms": 2677.8629919999985
+        }
+      ],
+      "persisted": {
+        "attempts": 4,
+        "evaluations": 2,
+        "events": 2,
+        "turns": 4
+      }
+    },
+    {
+      "connection_seconds": 12.758,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 2,
+      "queries": 118,
+      "new_connections": 0,
+      "checkouts": 46,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1209.3392710048647
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 24,
+          "cursor_ms": 2696.9341749972955
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 12,
+          "cursor_ms": 901.269753005181
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 12,
+          "cursor_ms": 921.3065869989805
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 12,
+          "cursor_ms": 923.1454320070043
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 12,
+          "cursor_ms": 1798.2920839967846
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 12,
+          "cursor_ms": 923.5783400035871
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 12,
+          "cursor_ms": 975.0887720074388
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 301.7330940019747
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 149.3870619997324
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2406.370758999401,
+          "cursor_ms": 5392.653268016147,
+          "do_rollback_ms": 0.302143998851534,
+          "checkout_ms": 6380.716464009311,
+          "executor_queue_ms": 5.069791011919733,
+          "do_commit_ms": 944.577924987243,
+          "claim_ms": 3227.821500000573,
+          "provider_ms": 2202.991001002374,
+          "finish_ms": 2314.3775000062305,
+          "lookup_ms": 228.3972659970459,
+          "assessment_provider_ms": 7000.870809002663
+        },
+        {
+          "index": 1,
+          "auth_ms": 2408.2243440025195,
+          "cursor_ms": 5407.421302006696,
+          "do_rollback_ms": 0.3740620049939025,
+          "checkout_ms": 6376.945626994711,
+          "executor_queue_ms": 4.83190200975514,
+          "do_commit_ms": 927.8601559963136,
+          "claim_ms": 3201.772336004069,
+          "provider_ms": 2201.0895789971983,
+          "finish_ms": 2336.334731000534,
+          "lookup_ms": 230.416217000311,
+          "assessment_provider_ms": 7001.593151002453
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 1890,
+            "exec_ms": 121.792,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 208,
+            "exec_ms": 134.66,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1694,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 2,
+      "repetition": 1,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 18211.2,
+        "p50": 18211.2,
+        "p95": 18265.6,
+        "max": 18271.7
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 18211.2,
+        "p50": 18211.2,
+        "p95": 18265.6,
+        "max": 18271.7
+      },
+      "wall_ms": 18474.2,
+      "provider_calls": 4,
+      "assessment_calls": 4,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 18271.701524999997,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2899.605429,
+            2846.275085000001
+          ],
+          "assessment_ms": [
+            4909.70405,
+            4885.605886000001
+          ],
+          "progression_ms": 2730.492029000001
+        },
+        {
+          "ok": true,
+          "ms": 18150.605448,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2855.635605,
+            2816.3797620000005
+          ],
+          "assessment_ms": [
+            4904.413301999999,
+            4902.375923
+          ],
+          "progression_ms": 2671.79817
+        }
+      ],
+      "persisted": {
+        "attempts": 4,
+        "evaluations": 2,
+        "events": 2,
+        "turns": 4
+      }
+    },
+    {
+      "connection_seconds": 25.381,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 236,
+      "new_connections": 0,
+      "checkouts": 92,
+      "pool_wait_count": 19,
+      "pool_wait_ms": {
+        "n": 19,
+        "mean": 143.1,
+        "p50": 71.9,
+        "p95": 361.6,
+        "max": 459.0
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2404.64264498587
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 48,
+          "cursor_ms": 5366.954824010463
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 24,
+          "cursor_ms": 1783.5655309900176
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 24,
+          "cursor_ms": 1828.6174009990646
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 24,
+          "cursor_ms": 1832.5569830158202
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 24,
+          "cursor_ms": 3591.984565002349
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 24,
+          "cursor_ms": 1861.3375350068964
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 24,
+          "cursor_ms": 1953.444975999446
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.8441239977838
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 298.80903600133024
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2406.8510650031385,
+          "cursor_ms": 5384.9673339937,
+          "do_rollback_ms": 0.3350750121171586,
+          "checkout_ms": 6345.271410995338,
+          "executor_queue_ms": 5.157031999260653,
+          "do_commit_ms": 919.9900990024616,
+          "claim_ms": 3252.152553995984,
+          "provider_ms": 2200.7538029974967,
+          "finish_ms": 2644.11935100361,
+          "lookup_ms": 551.1305679974612,
+          "pool_wait_ms": 1038.9367019997735,
+          "assessment_provider_ms": 7003.362308998476
+        },
+        {
+          "index": 1,
+          "auth_ms": 2407.156565997866,
+          "cursor_ms": 5366.492310993635,
+          "do_rollback_ms": 0.2953930015792139,
+          "checkout_ms": 6322.852873006923,
+          "executor_queue_ms": 8.55018201036728,
+          "do_commit_ms": 919.6575640053197,
+          "claim_ms": 3165.5904289982573,
+          "provider_ms": 2200.5246839980828,
+          "finish_ms": 2361.0564549962874,
+          "pool_wait_ms": 108.05530399738927,
+          "lookup_ms": 298.2763910003996,
+          "assessment_provider_ms": 7000.891830997716
+        },
+        {
+          "index": 2,
+          "auth_ms": 2408.303492004052,
+          "cursor_ms": 5367.451719015662,
+          "do_rollback_ms": 0.4218420035613235,
+          "checkout_ms": 6329.814788001386,
+          "executor_queue_ms": 8.89442399784457,
+          "pool_wait_ms": 81.98835899747792,
+          "do_commit_ms": 923.1883119973645,
+          "claim_ms": 3194.108506999328,
+          "provider_ms": 2201.184336001461,
+          "finish_ms": 2343.810965998273,
+          "lookup_ms": 230.3770549951878,
+          "assessment_provider_ms": 7001.539330001833
+        },
+        {
+          "index": 3,
+          "auth_ms": 2408.829435993539,
+          "pool_wait_ms": 1489.6948309942672,
+          "cursor_ms": 5405.846256006043,
+          "do_rollback_ms": 0.3165640009683557,
+          "checkout_ms": 6383.1720640009735,
+          "executor_queue_ms": 4.130521992919967,
+          "do_commit_ms": 935.8979730059218,
+          "claim_ms": 3668.93752699616,
+          "provider_ms": 2201.4244369966036,
+          "finish_ms": 2713.949417004187,
+          "lookup_ms": 231.4685469973483,
+          "assessment_provider_ms": 7000.927149998461
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 3784,
+            "exec_ms": 240.197,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 416,
+            "exec_ms": 284.092,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1830,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 3
+      },
+      "learners": 4,
+      "repetition": 0,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 18846.6,
+        "p50": 18760.1,
+        "p95": 19592.3,
+        "max": 19652.5
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 18846.6,
+        "p50": 18760.1,
+        "p95": 19592.3,
+        "max": 19652.5
+      },
+      "wall_ms": 19915.1,
+      "provider_calls": 8,
+      "assessment_calls": 8,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 19251.048297,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2887.1939270000003,
+            2874.386915
+          ],
+          "assessment_ms": [
+            4977.574399000001,
+            4908.992016
+          ],
+          "progression_ms": 3602.696172
+        },
+        {
+          "ok": true,
+          "ms": 18269.121015999997,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2844.396944,
+            2806.585691
+          ],
+          "assessment_ms": [
+            4970.673795000001,
+            4949.579496999999
+          ],
+          "progression_ms": 2697.8648699999994
+        },
+        {
+          "ok": true,
+          "ms": 18213.894637,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2879.619469,
+            2802.7952190000005
+          ],
+          "assessment_ms": [
+            4936.016665000001,
+            4905.940805
+          ],
+          "progression_ms": 2689.5269769999977
+        },
+        {
+          "ok": true,
+          "ms": 19652.481782,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3380.406167,
+            3498.9910849999997
+          ],
+          "assessment_ms": [
+            5118.504156000001,
+            4914.386066000001
+          ],
+          "progression_ms": 2740.178036000001
+        }
+      ],
+      "persisted": {
+        "attempts": 8,
+        "evaluations": 4,
+        "events": 4,
+        "turns": 8
+      }
+    },
+    {
+      "connection_seconds": 25.306,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 236,
+      "new_connections": 0,
+      "checkouts": 92,
+      "pool_wait_count": 18,
+      "pool_wait_ms": {
+        "n": 18,
+        "mean": 154.4,
+        "p50": 70.7,
+        "p95": 372.8,
+        "max": 463.0
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2403.053459995135
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 48,
+          "cursor_ms": 5367.974260978372
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 24,
+          "cursor_ms": 1783.801728997787
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 24,
+          "cursor_ms": 1815.945874004683
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 24,
+          "cursor_ms": 1832.6418210090196
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 24,
+          "cursor_ms": 3588.676798000961
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 24,
+          "cursor_ms": 1840.5142909978167
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 24,
+          "cursor_ms": 1897.3320650002279
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.1592889956082
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 296.8170569947688
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2407.2719600044366,
+          "cursor_ms": 5339.056479988358,
+          "do_rollback_ms": 0.3261299862060696,
+          "checkout_ms": 6293.9915520000795,
+          "executor_queue_ms": 4.347793998022098,
+          "pool_wait_ms": 124.6987340018677,
+          "do_commit_ms": 913.4568699992087,
+          "claim_ms": 3200.1378480053972,
+          "provider_ms": 2201.672426999721,
+          "finish_ms": 2345.4901939949195,
+          "lookup_ms": 229.25249200125108,
+          "assessment_provider_ms": 7002.1847569987585
+        },
+        {
+          "index": 1,
+          "auth_ms": 2406.5507699961017,
+          "cursor_ms": 5356.532694997441,
+          "do_rollback_ms": 0.36886999805574305,
+          "checkout_ms": 6314.854362000915,
+          "executor_queue_ms": 9.850580983766122,
+          "do_commit_ms": 918.390881994128,
+          "claim_ms": 3174.793968999438,
+          "provider_ms": 2200.955887994496,
+          "finish_ms": 2585.5027889992925,
+          "pool_wait_ms": 1063.6895199968421,
+          "lookup_ms": 638.7536770016595,
+          "assessment_provider_ms": 7000.888345999556
+        },
+        {
+          "index": 2,
+          "auth_ms": 2405.9891359975154,
+          "cursor_ms": 5352.818391980691,
+          "do_rollback_ms": 0.33646800511633046,
+          "checkout_ms": 6331.013191000238,
+          "executor_queue_ms": 5.11686200479744,
+          "do_commit_ms": 932.8784929966787,
+          "claim_ms": 3247.3793959979957,
+          "provider_ms": 2201.3819480016537,
+          "finish_ms": 2345.837616998324,
+          "lookup_ms": 227.21318700132542,
+          "pool_wait_ms": 94.50382800059742,
+          "assessment_provider_ms": 7001.730062002025
+        },
+        {
+          "index": 3,
+          "auth_ms": 2409.9800089970813,
+          "pool_wait_ms": 1497.1198880011798,
+          "cursor_ms": 5380.50907800789,
+          "do_rollback_ms": 0.31238799783750437,
+          "checkout_ms": 6365.8255509981245,
+          "executor_queue_ms": 3.7083849965711124,
+          "do_commit_ms": 943.0019079991325,
+          "claim_ms": 3671.705700995517,
+          "provider_ms": 2201.600590000453,
+          "finish_ms": 2708.671372001845,
+          "lookup_ms": 229.4726649997756,
+          "assessment_provider_ms": 7001.387180000165
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 3780,
+            "exec_ms": 187.405,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 416,
+            "exec_ms": 209.505,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1828,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 4,
+      "repetition": 1,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 18837.4,
+        "p50": 18752.5,
+        "p95": 19568.0,
+        "max": 19632.5
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 18837.4,
+        "p50": 18752.5,
+        "p95": 19568.0,
+        "max": 19632.5
+      },
+      "wall_ms": 19881.7,
+      "provider_calls": 8,
+      "assessment_calls": 8,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 18302.34922,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2946.477989,
+            2848.573955
+          ],
+          "assessment_ms": [
+            4920.976944,
+            4884.389556
+          ],
+          "progression_ms": 2701.902081
+        },
+        {
+          "ok": true,
+          "ms": 19202.610778000002,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2860.050749,
+            2908.1808730000002
+          ],
+          "assessment_ms": [
+            4959.748810000001,
+            4881.395694000001
+          ],
+          "progression_ms": 3592.9734169999992
+        },
+        {
+          "ok": true,
+          "ms": 18212.022873,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2862.4422,
+            2805.109832000001
+          ],
+          "assessment_ms": [
+            4947.357334,
+            4889.728117999999
+          ],
+          "progression_ms": 2707.389056000002
+        },
+        {
+          "ok": true,
+          "ms": 19632.526255,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3393.8962720000004,
+            3485.880222
+          ],
+          "assessment_ms": [
+            5110.276075999999,
+            4923.563341999998
+          ],
+          "progression_ms": 2718.8944740000006
+        }
+      ],
+      "persisted": {
+        "attempts": 8,
+        "evaluations": 4,
+        "events": 4,
+        "turns": 8
+      }
+    },
+    {
+      "connection_seconds": 50.548,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 472,
+      "new_connections": 0,
+      "checkouts": 184,
+      "pool_wait_count": 136,
+      "pool_wait_ms": {
+        "n": 136,
+        "mean": 227.2,
+        "p50": 172.0,
+        "p95": 536.8,
+        "max": 601.7
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 64,
+          "cursor_ms": 4807.686751013534
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 96,
+          "cursor_ms": 10734.451654010627
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 48,
+          "cursor_ms": 3573.850737000612
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 48,
+          "cursor_ms": 3627.693886999623
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 48,
+          "cursor_ms": 3674.5377010047378
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 48,
+          "cursor_ms": 7173.621831017954
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 48,
+          "cursor_ms": 3666.9877889908093
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 48,
+          "cursor_ms": 3788.730479995138
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1203.8318509985402
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 598.2220890000463
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2406.894278999971,
+          "cursor_ms": 5366.162005011574,
+          "do_rollback_ms": 0.3514279960654676,
+          "checkout_ms": 6332.371475004038,
+          "executor_queue_ms": 5.126056999870343,
+          "pool_wait_ms": 1944.1965890109714,
+          "do_commit_ms": 919.5166519930353,
+          "claim_ms": 3567.9344610034605,
+          "provider_ms": 2202.672354000242,
+          "finish_ms": 2656.635016002838,
+          "lookup_ms": 638.9783010017709,
+          "assessment_provider_ms": 7001.099083001463
+        },
+        {
+          "index": 1,
+          "auth_ms": 2405.9454139969603,
+          "cursor_ms": 5368.737494001834,
+          "do_rollback_ms": 0.3201690014975611,
+          "checkout_ms": 6322.469311002351,
+          "executor_queue_ms": 5.011206998460693,
+          "pool_wait_ms": 2950.596028993459,
+          "do_commit_ms": 914.8444150087016,
+          "claim_ms": 4113.643698001397,
+          "provider_ms": 2201.5135509973334,
+          "finish_ms": 2849.057444000209,
+          "lookup_ms": 964.9474670004565,
+          "assessment_provider_ms": 7001.467407000746
+        },
+        {
+          "index": 2,
+          "auth_ms": 2407.5477039987163,
+          "cursor_ms": 5355.516572981287,
+          "do_rollback_ms": 0.30908700500731356,
+          "checkout_ms": 6310.5398189982225,
+          "executor_queue_ms": 3.793557993049035,
+          "pool_wait_ms": 3401.297546999558,
+          "do_commit_ms": 915.5240990039601,
+          "claim_ms": 4339.961551999295,
+          "provider_ms": 2201.991044999886,
+          "finish_ms": 2599.4599090045085,
+          "lookup_ms": 722.60038800232,
+          "assessment_provider_ms": 7002.711847999308
+        },
+        {
+          "index": 3,
+          "auth_ms": 2410.4114190013206,
+          "pool_wait_ms": 4293.854999006726,
+          "cursor_ms": 5345.912539010897,
+          "do_rollback_ms": 0.3582190074666869,
+          "checkout_ms": 6305.0769599976775,
+          "executor_queue_ms": 4.456868995475816,
+          "do_commit_ms": 917.7696549922985,
+          "claim_ms": 4630.653325999447,
+          "provider_ms": 2200.9852890005277,
+          "finish_ms": 3229.0620080057124,
+          "lookup_ms": 704.7378219976963,
+          "assessment_provider_ms": 7002.142311997886
+        },
+        {
+          "index": 4,
+          "auth_ms": 2407.454408999911,
+          "pool_wait_ms": 4024.9841029835807,
+          "cursor_ms": 5354.878369013022,
+          "do_rollback_ms": 0.36592399919754826,
+          "checkout_ms": 6315.7622539765725,
+          "executor_queue_ms": 4.332981992774876,
+          "do_commit_ms": 921.1646600051608,
+          "claim_ms": 4281.832063996262,
+          "provider_ms": 2201.1270920011157,
+          "finish_ms": 3041.0834639951645,
+          "lookup_ms": 472.8685790032614,
+          "assessment_provider_ms": 7002.057205998426
+        },
+        {
+          "index": 5,
+          "auth_ms": 2409.4136239982618,
+          "pool_wait_ms": 4435.4879570091725,
+          "cursor_ms": 5344.528416015237,
+          "do_rollback_ms": 0.29073200857965276,
+          "checkout_ms": 6311.258943987923,
+          "executor_queue_ms": 4.626568999810843,
+          "do_commit_ms": 926.5417339920532,
+          "claim_ms": 4601.716924003995,
+          "provider_ms": 2201.454772002762,
+          "finish_ms": 3070.286538997607,
+          "lookup_ms": 837.3815169979935,
+          "assessment_provider_ms": 7002.663432998816
+        },
+        {
+          "index": 6,
+          "auth_ms": 2409.922850009025,
+          "pool_wait_ms": 4718.368097997882,
+          "cursor_ms": 5352.855837994866,
+          "do_rollback_ms": 0.3516689866955858,
+          "checkout_ms": 6323.985166996863,
+          "executor_queue_ms": 4.173748999164673,
+          "do_commit_ms": 929.9631219946605,
+          "claim_ms": 4561.467244002415,
+          "provider_ms": 2202.335050002148,
+          "finish_ms": 3228.740831003961,
+          "lookup_ms": 798.7997160016675,
+          "assessment_provider_ms": 7001.3287929978105
+        },
+        {
+          "index": 7,
+          "auth_ms": 2407.276964997436,
+          "pool_wait_ms": 5132.53912399523,
+          "cursor_ms": 5361.023536002904,
+          "do_rollback_ms": 0.3342869931657333,
+          "checkout_ms": 6327.029382013279,
+          "executor_queue_ms": 3.7820410034328233,
+          "do_commit_ms": 924.6101119861123,
+          "claim_ms": 4330.530885996268,
+          "provider_ms": 2202.250038000784,
+          "finish_ms": 3270.2844359992014,
+          "lookup_ms": 562.2143789987604,
+          "assessment_provider_ms": 7001.472031002777
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 7568,
+            "exec_ms": 382.078,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 832,
+            "exec_ms": 416.908,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 2154,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 8,
+      "repetition": 0,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 21964.6,
+        "p50": 22246.1,
+        "p95": 23049.5,
+        "max": 23193.8
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 21964.6,
+        "p50": 22246.1,
+        "p95": 23049.5,
+        "max": 23193.8
+      },
+      "wall_ms": 23439.7,
+      "provider_calls": 16,
+      "assessment_calls": 16,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 16,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 20105.964526,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2941.467852,
+            3022.3077470000007
+          ],
+          "assessment_ms": [
+            5181.8026740000005,
+            4972.356478
+          ],
+          "progression_ms": 3988.0181429999993
+        },
+        {
+          "ok": true,
+          "ms": 21105.587421,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2896.396897,
+            3121.0403349999997
+          ],
+          "assessment_ms": [
+            5180.483998,
+            5339.723274000002
+          ],
+          "progression_ms": 4567.929602
+        },
+        {
+          "ok": true,
+          "ms": 21494.034387,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2921.323529,
+            3157.9482160000007
+          ],
+          "assessment_ms": [
+            5689.945518,
+            5205.262857
+          ],
+          "progression_ms": 4519.535661000002
+        },
+        {
+          "ok": true,
+          "ms": 22402.174677,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3497.24457,
+            3175.586756999999
+          ],
+          "assessment_ms": [
+            5556.157875000001,
+            5469.612234
+          ],
+          "progression_ms": 4703.559835
+        },
+        {
+          "ok": true,
+          "ms": 22090.024281,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3433.959075,
+            3178.7493269999995
+          ],
+          "assessment_ms": [
+            5490.945097,
+            5204.283566999999
+          ],
+          "progression_ms": 4782.075260999998
+        },
+        {
+          "ok": true,
+          "ms": 22543.886501,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3498.066713,
+            3369.436608
+          ],
+          "assessment_ms": [
+            5678.941862000001,
+            5287.596057000001
+          ],
+          "progression_ms": 4709.830544
+        },
+        {
+          "ok": true,
+          "ms": 22781.593532,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3967.414375,
+            3246.7296270000006
+          ],
+          "assessment_ms": [
+            5546.595313,
+            5325.593913999999
+          ],
+          "progression_ms": 4695.077766000002
+        },
+        {
+          "ok": true,
+          "ms": 23193.772777,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4348.595098,
+            3244.1932070000003
+          ],
+          "assessment_ms": [
+            5626.651171999999,
+            5277.046942999998
+          ],
+          "progression_ms": 4697.276570000002
+        }
+      ],
+      "persisted": {
+        "attempts": 16,
+        "evaluations": 8,
+        "events": 8,
+        "turns": 16
+      }
+    },
+    {
+      "connection_seconds": 50.809,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 472,
+      "new_connections": 0,
+      "checkouts": 184,
+      "pool_wait_count": 127,
+      "pool_wait_ms": {
+        "n": 127,
+        "mean": 235.5,
+        "p50": 199.8,
+        "p95": 568.1,
+        "max": 711.9
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 64,
+          "cursor_ms": 4802.315758017357
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 96,
+          "cursor_ms": 10733.171139021579
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 48,
+          "cursor_ms": 3582.5661960006983
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 48,
+          "cursor_ms": 3715.000993994181
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 48,
+          "cursor_ms": 3674.7300399911182
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 48,
+          "cursor_ms": 7163.619506976829
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 48,
+          "cursor_ms": 3723.635631991783
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 48,
+          "cursor_ms": 3796.802730001218
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1198.1371479996596
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 599.31364500153
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2406.376586000988,
+          "cursor_ms": 5380.640964998747,
+          "do_rollback_ms": 0.3180329986207653,
+          "checkout_ms": 6348.174268994626,
+          "executor_queue_ms": 4.0440429947921075,
+          "pool_wait_ms": 1934.642921001796,
+          "do_commit_ms": 924.6827979914087,
+          "claim_ms": 3742.6725740006077,
+          "provider_ms": 2201.802924999356,
+          "finish_ms": 3181.9631950020266,
+          "lookup_ms": 254.78560799820116,
+          "assessment_provider_ms": 7001.774065000063
+        },
+        {
+          "index": 1,
+          "auth_ms": 2406.168563007668,
+          "cursor_ms": 5385.4620480015,
+          "do_rollback_ms": 0.30815498757874593,
+          "checkout_ms": 6347.1369790131575,
+          "executor_queue_ms": 7.091337993188063,
+          "pool_wait_ms": 2086.991358995874,
+          "do_commit_ms": 922.1442799971555,
+          "claim_ms": 3820.2887250008644,
+          "provider_ms": 2201.0636890008755,
+          "finish_ms": 3049.1049439988274,
+          "lookup_ms": 534.4642069976544,
+          "assessment_provider_ms": 7002.709725999011
+        },
+        {
+          "index": 2,
+          "auth_ms": 2406.5567620018555,
+          "cursor_ms": 5370.344889997796,
+          "do_rollback_ms": 0.2930140108219348,
+          "checkout_ms": 6332.055354003387,
+          "executor_queue_ms": 6.776223999622744,
+          "pool_wait_ms": 3627.627421010402,
+          "do_commit_ms": 921.2406080005167,
+          "claim_ms": 4775.8264989934105,
+          "provider_ms": 2200.3210640032194,
+          "finish_ms": 2686.4986849977868,
+          "lookup_ms": 708.133476000512,
+          "assessment_provider_ms": 7003.107117998297
+        },
+        {
+          "index": 3,
+          "auth_ms": 2408.680745997117,
+          "pool_wait_ms": 3476.3582330015197,
+          "cursor_ms": 5376.9063990148425,
+          "do_rollback_ms": 0.313024011120433,
+          "checkout_ms": 6436.344421006652,
+          "executor_queue_ms": 4.37724500807235,
+          "do_commit_ms": 1017.3120600120455,
+          "claim_ms": 4196.268878004048,
+          "provider_ms": 2203.37252200261,
+          "finish_ms": 3052.1312759992725,
+          "lookup_ms": 375.5722860041715,
+          "assessment_provider_ms": 7001.0937889965135
+        },
+        {
+          "index": 4,
+          "auth_ms": 2405.065540002397,
+          "pool_wait_ms": 4507.063045995892,
+          "cursor_ms": 5352.00742600864,
+          "do_rollback_ms": 0.3248960019845981,
+          "checkout_ms": 6311.346497004706,
+          "executor_queue_ms": 5.168371000763727,
+          "do_commit_ms": 918.0995030001213,
+          "claim_ms": 4724.7665820032125,
+          "provider_ms": 2201.5595770026266,
+          "finish_ms": 3440.194172995689,
+          "lookup_ms": 492.07214399939403,
+          "assessment_provider_ms": 7001.7150340027
+        },
+        {
+          "index": 5,
+          "auth_ms": 2405.5209329999343,
+          "pool_wait_ms": 4428.284890000214,
+          "cursor_ms": 5363.590890981868,
+          "do_rollback_ms": 0.30963600511313416,
+          "checkout_ms": 6348.36307700607,
+          "executor_queue_ms": 5.93454200134147,
+          "do_commit_ms": 943.5647580030491,
+          "claim_ms": 4503.6179599992465,
+          "provider_ms": 2202.19063499826,
+          "finish_ms": 3183.051350999449,
+          "lookup_ms": 455.078973001946,
+          "assessment_provider_ms": 7001.23679799799
+        },
+        {
+          "index": 6,
+          "auth_ms": 2404.591806996905,
+          "pool_wait_ms": 4530.953727007727,
+          "cursor_ms": 5377.7088500028185,
+          "do_rollback_ms": 0.3287370018369984,
+          "checkout_ms": 6332.9363349985215,
+          "executor_queue_ms": 4.948190995492041,
+          "do_commit_ms": 914.866773004178,
+          "claim_ms": 5279.627505009557,
+          "provider_ms": 2202.7816899972095,
+          "finish_ms": 2995.336184005282,
+          "lookup_ms": 377.75669999973616,
+          "assessment_provider_ms": 7002.634931002831
+        },
+        {
+          "index": 7,
+          "auth_ms": 2408.7239090004005,
+          "pool_wait_ms": 5322.597651000251,
+          "cursor_ms": 5382.631319989741,
+          "do_rollback_ms": 0.2849320007953793,
+          "checkout_ms": 6353.030254995247,
+          "executor_queue_ms": 4.754744997626403,
+          "do_commit_ms": 928.7200540129561,
+          "claim_ms": 4968.847459003882,
+          "provider_ms": 2201.7681430043012,
+          "finish_ms": 3042.826369000977,
+          "lookup_ms": 345.2344970028207,
+          "assessment_provider_ms": 7000.939096000366
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 7560,
+            "exec_ms": 385.737,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 832,
+            "exec_ms": 563.514,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 2178,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 8,
+      "repetition": 1,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 21895.7,
+        "p50": 22144.6,
+        "p95": 23182.9,
+        "max": 23466.5
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 21895.7,
+        "p50": 22144.6,
+        "p95": 23182.9,
+        "max": 23466.5
+      },
+      "wall_ms": 23722.4,
+      "provider_calls": 16,
+      "assessment_calls": 16,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 16,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 20204.078146,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2954.20135,
+            3265.4344230000006
+          ],
+          "assessment_ms": [
+            5185.323359000001,
+            4891.9534889999995
+          ],
+          "progression_ms": 3907.1735289999997
+        },
+        {
+          "ok": true,
+          "ms": 20222.424332,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2911.823546,
+            3064.5642740000003
+          ],
+          "assessment_ms": [
+            5487.583605000001,
+            4903.364534
+          ],
+          "progression_ms": 3855.073734999998
+        },
+        {
+          "ok": true,
+          "ms": 21748.154264,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            2938.9244959999996,
+            3239.319883
+          ],
+          "assessment_ms": [
+            5537.420445,
+            5440.319295999998
+          ],
+          "progression_ms": 4592.1553859999985
+        },
+        {
+          "ok": true,
+          "ms": 21673.855333,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3441.883925,
+            3187.172448000001
+          ],
+          "assessment_ms": [
+            5656.702619,
+            5260.280710000001
+          ],
+          "progression_ms": 4127.800049999998
+        },
+        {
+          "ok": true,
+          "ms": 22656.102796,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3510.40052,
+            3391.6751890000014
+          ],
+          "assessment_ms": [
+            5846.588334,
+            5304.367515
+          ],
+          "progression_ms": 4603.054796
+        },
+        {
+          "ok": true,
+          "ms": 22541.137651,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3508.391924,
+            3628.9411720000007
+          ],
+          "assessment_ms": [
+            5589.843664,
+            5214.274836999999
+          ],
+          "progression_ms": 4599.67367
+        },
+        {
+          "ok": true,
+          "ms": 22653.525418,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            3969.237097,
+            3212.3802450000003
+          ],
+          "assessment_ms": [
+            5732.394156999999,
+            5143.733461
+          ],
+          "progression_ms": 4595.570749999999
+        },
+        {
+          "ok": true,
+          "ms": 23466.527212999998,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4044.0101320000003,
+            3324.0071960000005
+          ],
+          "assessment_ms": [
+            5967.442381,
+            5293.106519999999
+          ],
+          "progression_ms": 4837.949050000003
+        }
+      ],
+      "persisted": {
+        "attempts": 16,
+        "evaluations": 8,
+        "events": 8,
+        "turns": 16
+      }
+    },
+    {
+      "connection_seconds": 101.236,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 944,
+      "new_connections": 0,
+      "checkouts": 368,
+      "pool_wait_count": 341,
+      "pool_wait_ms": {
+        "n": 341,
+        "mean": 679.6,
+        "p50": 676.6,
+        "p95": 1247.3,
+        "max": 2138.0
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 128,
+          "cursor_ms": 9588.23209399634
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 192,
+          "cursor_ms": 21472.30410498014
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 96,
+          "cursor_ms": 7169.421825994505
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 96,
+          "cursor_ms": 7381.0221159874345
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 96,
+          "cursor_ms": 7352.918986998702
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 96,
+          "cursor_ms": 14304.47823400391
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 96,
+          "cursor_ms": 7445.476773995324
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 96,
+          "cursor_ms": 7539.368516008835
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2403.2819270032633
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1199.1015349994996
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2406.9671659999585,
+          "cursor_ms": 5370.802395973442,
+          "do_rollback_ms": 0.32591999479336664,
+          "checkout_ms": 6327.248961988516,
+          "executor_queue_ms": 3.95866400867817,
+          "pool_wait_ms": 8617.79091200151,
+          "do_commit_ms": 917.0674890046939,
+          "claim_ms": 5182.436707993475,
+          "provider_ms": 2200.855456998397,
+          "finish_ms": 5747.0217130030505,
+          "lookup_ms": 1965.156915008265,
+          "assessment_provider_ms": 7002.33336599922
+        },
+        {
+          "index": 1,
+          "auth_ms": 2407.0628350054903,
+          "cursor_ms": 5363.077771999087,
+          "do_rollback_ms": 0.29864999669371173,
+          "checkout_ms": 6320.0211619987385,
+          "executor_queue_ms": 8.376300997042563,
+          "pool_wait_ms": 14006.563408001966,
+          "do_commit_ms": 917.2200370048813,
+          "claim_ms": 7039.840081997681,
+          "provider_ms": 2201.034689998778,
+          "finish_ms": 5761.663100009173,
+          "lookup_ms": 2723.716782002157,
+          "assessment_provider_ms": 7001.138160001574
+        },
+        {
+          "index": 2,
+          "auth_ms": 2406.2839959951816,
+          "cursor_ms": 5382.9060069947445,
+          "do_rollback_ms": 0.36999200528953224,
+          "checkout_ms": 6364.438583001174,
+          "pool_wait_ms": 11757.048064002447,
+          "executor_queue_ms": 7.174811009463156,
+          "do_commit_ms": 934.9963529930392,
+          "claim_ms": 5721.046024998941,
+          "provider_ms": 2203.0907010012015,
+          "finish_ms": 5950.367138004367,
+          "lookup_ms": 2988.9935110040824,
+          "assessment_provider_ms": 7002.472404998116
+        },
+        {
+          "index": 3,
+          "auth_ms": 2406.027091001306,
+          "pool_wait_ms": 7435.637231999863,
+          "cursor_ms": 5361.431854988041,
+          "do_rollback_ms": 0.31152000155998394,
+          "checkout_ms": 6329.346361002536,
+          "executor_queue_ms": 6.485481004347093,
+          "do_commit_ms": 922.7518850020715,
+          "claim_ms": 4786.197530000209,
+          "provider_ms": 2202.9043570000795,
+          "finish_ms": 5331.672742002411,
+          "lookup_ms": 1578.492089996871,
+          "assessment_provider_ms": 7002.119101998687
+        },
+        {
+          "index": 4,
+          "auth_ms": 2406.1542830022518,
+          "pool_wait_ms": 11595.758750998357,
+          "cursor_ms": 5353.315347980242,
+          "do_rollback_ms": 0.30887400134815834,
+          "checkout_ms": 6311.163439997472,
+          "executor_queue_ms": 4.88651300111087,
+          "do_commit_ms": 918.6846069933381,
+          "claim_ms": 6731.716298003448,
+          "provider_ms": 2202.2845999963465,
+          "finish_ms": 5129.925334000291,
+          "lookup_ms": 2763.469425997755,
+          "assessment_provider_ms": 7001.559856002132
+        },
+        {
+          "index": 5,
+          "auth_ms": 2407.104765999975,
+          "pool_wait_ms": 14950.574948994472,
+          "cursor_ms": 5359.025850011676,
+          "do_rollback_ms": 0.367908003681805,
+          "checkout_ms": 6317.008483998507,
+          "executor_queue_ms": 4.227312987495679,
+          "do_commit_ms": 918.7319939919689,
+          "claim_ms": 7756.057103997591,
+          "provider_ms": 2201.452031000372,
+          "finish_ms": 5716.456402995391,
+          "lookup_ms": 3044.5286060021317,
+          "assessment_provider_ms": 7002.024375000474
+        },
+        {
+          "index": 6,
+          "auth_ms": 2406.882512004813,
+          "pool_wait_ms": 15195.242170004349,
+          "cursor_ms": 5366.274664993398,
+          "do_rollback_ms": 0.2849830016202759,
+          "checkout_ms": 6325.850019991776,
+          "executor_queue_ms": 4.252765989804175,
+          "do_commit_ms": 919.0959089974058,
+          "claim_ms": 8186.025514991343,
+          "provider_ms": 2201.9831749967125,
+          "finish_ms": 6224.319559001742,
+          "lookup_ms": 1972.5649849970068,
+          "assessment_provider_ms": 7001.653911000176
+        },
+        {
+          "index": 7,
+          "auth_ms": 2407.3818280012347,
+          "pool_wait_ms": 17202.249787995243,
+          "cursor_ms": 5354.02855600114,
+          "do_rollback_ms": 0.31479600511374883,
+          "checkout_ms": 6309.018487998401,
+          "executor_queue_ms": 4.944022999552544,
+          "do_commit_ms": 915.5571850023989,
+          "claim_ms": 8945.225780000328,
+          "provider_ms": 2202.286807998462,
+          "finish_ms": 6125.95440899895,
+          "lookup_ms": 2979.1188720009814,
+          "assessment_provider_ms": 7002.109762001055
+        },
+        {
+          "index": 8,
+          "auth_ms": 2406.8433479988016,
+          "pool_wait_ms": 15319.386076997034,
+          "cursor_ms": 5372.6392700118595,
+          "do_rollback_ms": 0.30068499472690746,
+          "checkout_ms": 6328.169598004024,
+          "executor_queue_ms": 4.576694002025761,
+          "do_commit_ms": 917.3137899961148,
+          "claim_ms": 8141.132425003889,
+          "provider_ms": 2202.211740997882,
+          "finish_ms": 5680.378118999215,
+          "lookup_ms": 1969.0192380039662,
+          "assessment_provider_ms": 7002.343343996472
+        },
+        {
+          "index": 9,
+          "auth_ms": 2416.574512004445,
+          "pool_wait_ms": 15829.438193999522,
+          "cursor_ms": 5372.081403987977,
+          "do_rollback_ms": 0.2919649959949311,
+          "checkout_ms": 6324.83992298512,
+          "executor_queue_ms": 5.074172990134684,
+          "do_commit_ms": 914.6517459994357,
+          "claim_ms": 7961.854391000088,
+          "provider_ms": 2201.333314002113,
+          "finish_ms": 6428.544331000012,
+          "lookup_ms": 1972.3547699977644,
+          "assessment_provider_ms": 7001.647406996199
+        },
+        {
+          "index": 10,
+          "auth_ms": 2415.6192709997413,
+          "pool_wait_ms": 15671.815697998682,
+          "cursor_ms": 5365.8075429921155,
+          "do_rollback_ms": 0.3231030023016501,
+          "checkout_ms": 6338.15946098548,
+          "executor_queue_ms": 5.642866995913209,
+          "do_commit_ms": 933.9124390062352,
+          "claim_ms": 7146.917695998127,
+          "provider_ms": 2201.3258910010336,
+          "finish_ms": 5951.426520001405,
+          "lookup_ms": 2791.368541002157,
+          "assessment_provider_ms": 7001.010813997709
+        },
+        {
+          "index": 11,
+          "auth_ms": 2416.8634390043735,
+          "pool_wait_ms": 16568.1036100068,
+          "cursor_ms": 5367.856783028401,
+          "do_rollback_ms": 0.3170320051140152,
+          "checkout_ms": 6322.769096001139,
+          "executor_queue_ms": 5.192817003262462,
+          "do_commit_ms": 915.577032003057,
+          "claim_ms": 7700.75658600399,
+          "provider_ms": 2201.3215139995737,
+          "finish_ms": 6223.005708001438,
+          "lookup_ms": 2715.242591999413,
+          "assessment_provider_ms": 7001.335815999482
+        },
+        {
+          "index": 12,
+          "auth_ms": 2418.827945995872,
+          "pool_wait_ms": 17276.536705005128,
+          "cursor_ms": 5379.064277996804,
+          "do_rollback_ms": 0.2787039957183879,
+          "checkout_ms": 6330.023332000565,
+          "executor_queue_ms": 3.714957994816359,
+          "do_commit_ms": 911.7364129997441,
+          "claim_ms": 8254.978531993402,
+          "provider_ms": 2201.3277509977343,
+          "finish_ms": 5837.441093000962,
+          "lookup_ms": 3575.1702710040263,
+          "assessment_provider_ms": 7001.78873799814
+        },
+        {
+          "index": 13,
+          "auth_ms": 2416.157088991895,
+          "pool_wait_ms": 16174.38450001282,
+          "cursor_ms": 5356.504037012201,
+          "do_rollback_ms": 0.2917609963333234,
+          "checkout_ms": 6330.453981001483,
+          "executor_queue_ms": 4.4788170052925125,
+          "do_commit_ms": 935.3654139995342,
+          "claim_ms": 7708.410818006087,
+          "provider_ms": 2201.983298000414,
+          "finish_ms": 6516.268416999083,
+          "lookup_ms": 2658.691439002723,
+          "assessment_provider_ms": 7001.144453999586
+        },
+        {
+          "index": 14,
+          "auth_ms": 2416.563884995412,
+          "pool_wait_ms": 16913.113793991215,
+          "cursor_ms": 5361.581220993685,
+          "do_rollback_ms": 0.2937960089184344,
+          "checkout_ms": 6319.3696870039275,
+          "executor_queue_ms": 3.0948989988246467,
+          "do_commit_ms": 919.668559989077,
+          "claim_ms": 8580.028786000184,
+          "provider_ms": 2201.4993760021753,
+          "finish_ms": 6105.4878870018,
+          "lookup_ms": 2430.822188998718,
+          "assessment_provider_ms": 7002.335400004085
+        },
+        {
+          "index": 15,
+          "auth_ms": 2417.3058880041935,
+          "pool_wait_ms": 17242.82261200642,
+          "cursor_ms": 5369.2091290031385,
+          "do_rollback_ms": 0.3535699979693163,
+          "checkout_ms": 6338.530216995423,
+          "executor_queue_ms": 5.054420998931164,
+          "do_commit_ms": 929.9181169953954,
+          "claim_ms": 8205.124652005907,
+          "provider_ms": 2202.949612001248,
+          "finish_ms": 5663.715523001883,
+          "lookup_ms": 2899.3922010049573,
+          "assessment_provider_ms": 7001.5823299982
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 15136,
+            "exec_ms": 738.053,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 1664,
+            "exec_ms": 1036.483,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 3271,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 16,
+      "repetition": 0,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 32611.9,
+        "p50": 33636.3,
+        "p95": 35376.7,
+        "max": 35418.0
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 32611.9,
+        "p50": 33636.3,
+        "p95": 35376.7,
+        "max": 35418.0
+      },
+      "wall_ms": 35669.4,
+      "provider_calls": 32,
+      "assessment_calls": 32,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 32,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 26773.243199,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4196.1064400000005,
+            3803.443622999999
+          ],
+          "assessment_ms": [
+            6798.206686,
+            7546.786529999999
+          ],
+          "progression_ms": 4428.681465999998
+        },
+        {
+          "ok": true,
+          "ms": 32158.160659,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4536.459177000001,
+            5129.138271
+          ],
+          "assessment_ms": [
+            7060.314345,
+            7122.083790000001
+          ],
+          "progression_ms": 8310.147833000003
+        },
+        {
+          "ok": true,
+          "ms": 29940.880481,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4440.252895,
+            4238.955634
+          ],
+          "assessment_ms": [
+            6800.556330000001,
+            7859.745502
+          ],
+          "progression_ms": 6601.355492999999
+        },
+        {
+          "ok": true,
+          "ms": 25566.533411,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4820.871714,
+            3508.530385
+          ],
+          "assessment_ms": [
+            6046.787733,
+            7658.92618
+          ],
+          "progression_ms": 3531.4214979999997
+        },
+        {
+          "ok": true,
+          "ms": 29722.406861,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4532.010304,
+            4040.3368870000013
+          ],
+          "assessment_ms": [
+            6860.835806,
+            7639.132809000001
+          ],
+          "progression_ms": 6650.075815
+        },
+        {
+          "ok": true,
+          "ms": 33071.100393,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4913.329359,
+            5022.784829
+          ],
+          "assessment_ms": [
+            7009.596921,
+            7369.192950000001
+          ],
+          "progression_ms": 8756.175112999998
+        },
+        {
+          "ok": true,
+          "ms": 33285.037597,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5201.164258,
+            5783.375699
+          ],
+          "assessment_ms": [
+            6875.902781,
+            6843.349376000002
+          ],
+          "progression_ms": 8580.903441999999
+        },
+        {
+          "ok": true,
+          "ms": 35362.971792000004,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4913.199243,
+            5891.105351000002
+          ],
+          "assessment_ms": [
+            8004.892121000001,
+            7544.011984000001
+          ],
+          "progression_ms": 9009.752824000003
+        },
+        {
+          "ok": true,
+          "ms": 33455.360488,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5297.67812,
+            5777.697833999999
+          ],
+          "assessment_ms": [
+            7162.480381,
+            6855.182031
+          ],
+          "progression_ms": 8362.309829000002
+        },
+        {
+          "ok": true,
+          "ms": 33914.153511,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5297.605452,
+            5548.338780999999
+          ],
+          "assessment_ms": [
+            7539.570616,
+            6794.453594999999
+          ],
+          "progression_ms": 8734.173365000002
+        },
+        {
+          "ok": true,
+          "ms": 33817.140365,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5582.369106,
+            5673.339620000001
+          ],
+          "assessment_ms": [
+            7406.053357000001,
+            7296.451226999998
+          ],
+          "progression_ms": 7858.914492
+        },
+        {
+          "ok": true,
+          "ms": 34654.939458,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5674.7178140000005,
+            5387.405008
+          ],
+          "assessment_ms": [
+            7701.958964,
+            7327.099700999999
+          ],
+          "progression_ms": 8563.744896
+        },
+        {
+          "ok": true,
+          "ms": 35417.989576,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            6117.4694660000005,
+            5930.347316000001
+          ],
+          "assessment_ms": [
+            7795.734953000001,
+            7362.764486
+          ],
+          "progression_ms": 8211.653516999999
+        },
+        {
+          "ok": true,
+          "ms": 34273.669707999994,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5755.260418000001,
+            5476.391317
+          ],
+          "assessment_ms": [
+            8076.656423999999,
+            7329.608924
+          ],
+          "progression_ms": 7635.737956999998
+        },
+        {
+          "ok": true,
+          "ms": 35036.088119,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            6134.541791000001,
+            5572.119052000002
+          ],
+          "assessment_ms": [
+            7825.57401,
+            7496.385043000002
+          ],
+          "progression_ms": 8007.449698999997
+        },
+        {
+          "ok": true,
+          "ms": 35341.002593,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            6362.2441739999995,
+            5932.837626999999
+          ],
+          "assessment_ms": [
+            8005.068216999999,
+            7200.243176
+          ],
+          "progression_ms": 7840.596775000002
+        }
+      ],
+      "persisted": {
+        "attempts": 32,
+        "evaluations": 16,
+        "events": 16,
+        "turns": 32
+      }
+    },
+    {
+      "connection_seconds": 101.881,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 944,
+      "new_connections": 0,
+      "checkouts": 368,
+      "pool_wait_count": 345,
+      "pool_wait_ms": {
+        "n": 345,
+        "mean": 673.8,
+        "p50": 649.1,
+        "p95": 1266.3,
+        "max": 2221.4
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 128,
+          "cursor_ms": 9571.728570997948
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 192,
+          "cursor_ms": 21476.994089971413
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT pg_advisory_xact_lock(%(key)s)",
+          "calls": 96,
+          "cursor_ms": 7156.1874720027845
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 96,
+          "cursor_ms": 7426.7764819996955
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_stage_claim(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),CAST(%(ex)s AS uuid),%(kind)s,%(hash)s,%(old)s,%(expires)s,CAST(%(snapshot)s AS jsonb),CAST(%(input)s AS jsonb),CAST(%(rows)s AS jsonb))",
+          "calls": 96,
+          "cursor_ms": 7341.50316000887
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT\n      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),\n      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)",
+          "calls": 96,
+          "cursor_ms": 14321.89490800738
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_read(CAST(%(owner)s AS uuid),CAST(%(ex)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 96,
+          "cursor_ms": 7466.251754005498
+        },
+        {
+          "stage": "finish",
+          "sql": "SELECT public.poc_stage_apply(CAST(%(owner)s AS uuid),CAST(%(id)s AS uuid),%(fence)s,CAST(%(rows)s AS jsonb),true,%(fail)s)",
+          "calls": 96,
+          "cursor_ms": 7589.659805998963
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2391.712098997232
+        },
+        {
+          "stage": "lookup",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.id = %(id_1)s::UUID ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1196.2549759991816
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 2407.3734229968977,
+          "cursor_ms": 5396.772606018203,
+          "do_rollback_ms": 0.3077929941355251,
+          "checkout_ms": 6357.940358000633,
+          "executor_queue_ms": 4.4703170024149586,
+          "pool_wait_ms": 9162.899046990788,
+          "do_commit_ms": 915.3091780062823,
+          "claim_ms": 5103.586584005825,
+          "provider_ms": 2201.9849329990393,
+          "finish_ms": 5947.6409620001505,
+          "lookup_ms": 1880.299650994857,
+          "assessment_provider_ms": 7001.5002859981905
+        },
+        {
+          "index": 1,
+          "auth_ms": 2404.324783001357,
+          "cursor_ms": 5369.363406996854,
+          "do_rollback_ms": 0.30600598984165117,
+          "checkout_ms": 6347.404554988316,
+          "executor_queue_ms": 4.845006995310541,
+          "pool_wait_ms": 9571.550871012732,
+          "do_commit_ms": 937.3184039868647,
+          "claim_ms": 5128.311151995149,
+          "provider_ms": 2201.253065999481,
+          "finish_ms": 5998.4136810016935,
+          "lookup_ms": 1622.8702520020306,
+          "assessment_provider_ms": 7001.412106998032
+        },
+        {
+          "index": 2,
+          "auth_ms": 2407.1760080041713,
+          "cursor_ms": 5376.2916369778395,
+          "do_rollback_ms": 0.3514180025376845,
+          "checkout_ms": 6344.387945999188,
+          "pool_wait_ms": 14068.391260007047,
+          "executor_queue_ms": 5.805208005767781,
+          "do_commit_ms": 924.077726998803,
+          "claim_ms": 6527.866668002389,
+          "provider_ms": 2201.67190400025,
+          "finish_ms": 6429.291655003908,
+          "lookup_ms": 2694.6895889996085,
+          "assessment_provider_ms": 7001.7093640017265
+        },
+        {
+          "index": 3,
+          "auth_ms": 2407.3055109984125,
+          "pool_wait_ms": 12301.035538006545,
+          "cursor_ms": 5370.481578996987,
+          "do_rollback_ms": 0.36508299672277644,
+          "checkout_ms": 6329.2976089978765,
+          "executor_queue_ms": 4.649938990041846,
+          "do_commit_ms": 915.8503860053315,
+          "claim_ms": 6925.677542003541,
+          "provider_ms": 2200.7541159982793,
+          "finish_ms": 5282.6406420026615,
+          "lookup_ms": 3185.0637399984407,
+          "assessment_provider_ms": 7001.523849001387
+        },
+        {
+          "index": 4,
+          "auth_ms": 2410.9468660062703,
+          "pool_wait_ms": 8264.216221996321,
+          "cursor_ms": 5374.468858983164,
+          "do_rollback_ms": 0.31770200439495966,
+          "checkout_ms": 6344.545785992523,
+          "executor_queue_ms": 6.750866999936989,
+          "do_commit_ms": 925.0588710056036,
+          "claim_ms": 5174.336159998347,
+          "provider_ms": 2200.6600559980143,
+          "finish_ms": 5359.6456719933485,
+          "lookup_ms": 1718.7574300005508,
+          "assessment_provider_ms": 7001.9567260023905
+        },
+        {
+          "index": 5,
+          "auth_ms": 2407.001271003537,
+          "pool_wait_ms": 14860.21099300342,
+          "cursor_ms": 5361.145714006852,
+          "do_rollback_ms": 0.362517010216834,
+          "checkout_ms": 6530.770506011322,
+          "executor_queue_ms": 5.9751629960373975,
+          "do_commit_ms": 1125.060589005443,
+          "claim_ms": 8152.508340008353,
+          "provider_ms": 2202.1038429993496,
+          "finish_ms": 6331.980081999063,
+          "lookup_ms": 2281.0450100005255,
+          "assessment_provider_ms": 7001.040896000632
+        },
+        {
+          "index": 6,
+          "auth_ms": 2406.731450002553,
+          "pool_wait_ms": 14375.897471996723,
+          "cursor_ms": 5356.796029998804,
+          "do_rollback_ms": 0.4052279946336057,
+          "checkout_ms": 6509.631775999878,
+          "executor_queue_ms": 7.2228469980473164,
+          "do_commit_ms": 1110.2963239936798,
+          "claim_ms": 8576.052557000367,
+          "provider_ms": 2202.0096390006074,
+          "finish_ms": 5340.759717000765,
+          "lookup_ms": 2016.7481630014663,
+          "assessment_provider_ms": 7000.8321440000145
+        },
+        {
+          "index": 7,
+          "auth_ms": 2408.8156949983386,
+          "pool_wait_ms": 15241.451495006913,
+          "cursor_ms": 5356.114064990834,
+          "do_rollback_ms": 0.3638119997049216,
+          "checkout_ms": 6410.003023007448,
+          "executor_queue_ms": 5.403658000432188,
+          "do_commit_ms": 1013.9949380027247,
+          "claim_ms": 8000.0344480031345,
+          "provider_ms": 2201.5478370012715,
+          "finish_ms": 6686.910124004498,
+          "lookup_ms": 2066.887275999761,
+          "assessment_provider_ms": 7001.683910002612
+        },
+        {
+          "index": 8,
+          "auth_ms": 2405.5744710021827,
+          "pool_wait_ms": 15590.574417004973,
+          "cursor_ms": 5365.402740972058,
+          "do_rollback_ms": 0.31852699612500146,
+          "checkout_ms": 6331.840998002008,
+          "executor_queue_ms": 4.409281009429833,
+          "do_commit_ms": 924.6330919922912,
+          "claim_ms": 9291.850646000967,
+          "provider_ms": 2201.9902460015146,
+          "finish_ms": 5680.745155001205,
+          "lookup_ms": 1985.3056860010838,
+          "assessment_provider_ms": 7002.327994003281
+        },
+        {
+          "index": 9,
+          "auth_ms": 2411.607174999517,
+          "pool_wait_ms": 16165.839963003236,
+          "cursor_ms": 5375.093031983852,
+          "do_rollback_ms": 0.3963899871450849,
+          "checkout_ms": 6327.771569005563,
+          "executor_queue_ms": 6.110535014158813,
+          "do_commit_ms": 913.3955959950981,
+          "claim_ms": 8919.6465740024,
+          "provider_ms": 2201.9710119966476,
+          "finish_ms": 5855.74575600549,
+          "lookup_ms": 1942.3096930004249,
+          "assessment_provider_ms": 7002.236447999167
+        },
+        {
+          "index": 10,
+          "auth_ms": 2413.5995600008755,
+          "pool_wait_ms": 17149.4095129965,
+          "cursor_ms": 5375.043411004299,
+          "do_rollback_ms": 0.36169599115964957,
+          "checkout_ms": 6337.050016994908,
+          "executor_queue_ms": 4.603084002155811,
+          "do_commit_ms": 918.6881969944807,
+          "claim_ms": 7694.484097999521,
+          "provider_ms": 2200.8592180027335,
+          "finish_ms": 6563.941086995328,
+          "lookup_ms": 2318.23166599861,
+          "assessment_provider_ms": 7002.403521000815
+        },
+        {
+          "index": 11,
+          "auth_ms": 2412.867022998398,
+          "pool_wait_ms": 17131.748480005626,
+          "cursor_ms": 5364.045375015849,
+          "do_rollback_ms": 0.2890700015996117,
+          "checkout_ms": 6330.108754995308,
+          "executor_queue_ms": 5.794995002361247,
+          "do_commit_ms": 919.5945750034298,
+          "claim_ms": 7388.417220001429,
+          "provider_ms": 2203.4464589960407,
+          "finish_ms": 6858.070697002404,
+          "lookup_ms": 2186.567640001158,
+          "assessment_provider_ms": 7002.148018000298
+        },
+        {
+          "index": 12,
+          "auth_ms": 2413.149282005179,
+          "pool_wait_ms": 16631.44749100684,
+          "cursor_ms": 5374.428486014949,
+          "do_rollback_ms": 0.33111700031440705,
+          "checkout_ms": 6346.670917995652,
+          "executor_queue_ms": 4.767250000440981,
+          "do_commit_ms": 931.1676970028202,
+          "claim_ms": 7407.813959998748,
+          "provider_ms": 2202.675313998043,
+          "finish_ms": 6568.369930999324,
+          "lookup_ms": 2731.577995000407,
+          "assessment_provider_ms": 7002.382606995525
+        },
+        {
+          "index": 13,
+          "auth_ms": 2412.2874200002116,
+          "pool_wait_ms": 17018.832223009667,
+          "cursor_ms": 5380.689819008694,
+          "do_rollback_ms": 0.3582039826142136,
+          "checkout_ms": 6344.391980001092,
+          "executor_queue_ms": 3.9150650081865024,
+          "do_commit_ms": 921.3217549950059,
+          "claim_ms": 7022.357695004757,
+          "provider_ms": 2201.3892020004278,
+          "finish_ms": 7320.86272799279,
+          "lookup_ms": 2563.329041997349,
+          "assessment_provider_ms": 7003.398800996365
+        },
+        {
+          "index": 14,
+          "auth_ms": 2413.964887004113,
+          "pool_wait_ms": 17426.912000988523,
+          "cursor_ms": 5378.031306005141,
+          "do_rollback_ms": 0.32801499037304893,
+          "checkout_ms": 6353.277910999168,
+          "executor_queue_ms": 4.514145988650853,
+          "do_commit_ms": 933.1323629994586,
+          "claim_ms": 8696.717643000738,
+          "provider_ms": 2200.887202001468,
+          "finish_ms": 6334.889122994355,
+          "lookup_ms": 2237.004672002513,
+          "assessment_provider_ms": 7001.06814499668
+        },
+        {
+          "index": 15,
+          "auth_ms": 2412.9823310067877,
+          "pool_wait_ms": 17498.21990401324,
+          "cursor_ms": 5364.795251014584,
+          "do_rollback_ms": 0.33006599551299587,
+          "checkout_ms": 6335.782481011847,
+          "executor_queue_ms": 5.579538006713847,
+          "do_commit_ms": 927.9760649915261,
+          "claim_ms": 8018.146662005165,
+          "provider_ms": 2202.267759003007,
+          "finish_ms": 6853.9354070017,
+          "lookup_ms": 1812.3560339990945,
+          "assessment_provider_ms": 7001.042527001118
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 15120,
+            "exec_ms": 799.598,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 1664,
+            "exec_ms": 1168.135,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 3281,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 3
+      },
+      "learners": 16,
+      "repetition": 1,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 32677.8,
+        "p50": 33549.1,
+        "p95": 35581.9,
+        "max": 35591.5
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 32677.8,
+        "p50": 33549.1,
+        "p95": 35581.9,
+        "max": 35591.5
+      },
+      "wall_ms": 35834.3,
+      "provider_calls": 32,
+      "assessment_calls": 32,
+      "duplicate_assessments": 0,
+      "extra_provider_calls": 0,
+      "sends": 32,
+      "max_sends_per_recording": 1,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 27343.61913,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4199.237322,
+            3641.4204740000005
+          ],
+          "assessment_ms": [
+            6786.540016,
+            7628.131995
+          ],
+          "progression_ms": 5088.270918000002
+        },
+        {
+          "ok": true,
+          "ms": 27691.556334,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4426.232436,
+            3912.805124999999
+          ],
+          "assessment_ms": [
+            6782.514879,
+            7561.010875
+          ],
+          "progression_ms": 5008.979292
+        },
+        {
+          "ok": true,
+          "ms": 32246.596377,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4536.860127999999,
+            4934.076605999999
+          ],
+          "assessment_ms": [
+            6978.581894,
+            7627.492662000001
+          ],
+          "progression_ms": 8169.563805000002
+        },
+        {
+          "ok": true,
+          "ms": 30396.903270000003,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4535.12366,
+            4105.694455999999
+          ],
+          "assessment_ms": [
+            6858.216841,
+            7671.289647999998
+          ],
+          "progression_ms": 7226.5610810000035
+        },
+        {
+          "ok": true,
+          "ms": 26381.205729,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4805.713532999999,
+            3449.6093010000004
+          ],
+          "assessment_ms": [
+            6059.243017,
+            7390.0355009999985
+          ],
+          "progression_ms": 4676.604266999999
+        },
+        {
+          "ok": true,
+          "ms": 33153.737946,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4911.307814,
+            5334.220215000001
+          ],
+          "assessment_ms": [
+            7258.778467,
+            7035.288776999998
+          ],
+          "progression_ms": 8614.130912
+        },
+        {
+          "ok": true,
+          "ms": 32693.246670999997,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            4914.65364,
+            5583.573731
+          ],
+          "assessment_ms": [
+            7733.008830000001,
+            6626.596052000001
+          ],
+          "progression_ms": 7835.396884999998
+        },
+        {
+          "ok": true,
+          "ms": 33413.838753,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5184.743144,
+            5402.015702999999
+          ],
+          "assessment_ms": [
+            7372.680911,
+            6664.711507
+          ],
+          "progression_ms": 8789.480254000002
+        },
+        {
+          "ok": true,
+          "ms": 33684.364652,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5292.529117,
+            5505.253167999999
+          ],
+          "assessment_ms": [
+            7618.967438,
+            6912.062943000001
+          ],
+          "progression_ms": 8355.529543
+        },
+        {
+          "ok": true,
+          "ms": 34332.585635999996,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5292.362831,
+            5805.913420000001
+          ],
+          "assessment_ms": [
+            7695.9668599999995,
+            6671.005676000001
+          ],
+          "progression_ms": 8867.323163000005
+        },
+        {
+          "ok": true,
+          "ms": 35244.626982999995,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5558.956594,
+            5760.741242999999
+          ],
+          "assessment_ms": [
+            7818.273051,
+            7124.663918000002
+          ],
+          "progression_ms": 8981.983231000002
+        },
+        {
+          "ok": true,
+          "ms": 35209.260511,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5670.285874,
+            5667.6836950000015
+          ],
+          "assessment_ms": [
+            8257.440168000001,
+            7666.441386999999
+          ],
+          "progression_ms": 7947.399147999997
+        },
+        {
+          "ok": true,
+          "ms": 34749.31055,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            5747.681511999999,
+            5739.117978999999
+          ],
+          "assessment_ms": [
+            7841.151193000001,
+            7140.670746
+          ],
+          "progression_ms": 8280.678137000003
+        },
+        {
+          "ok": true,
+          "ms": 35133.019043,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            6090.664723,
+            5554.13536
+          ],
+          "assessment_ms": [
+            7755.255957,
+            7542.479996000002
+          ],
+          "progression_ms": 8190.472028
+        },
+        {
+          "ok": true,
+          "ms": 35578.666131,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            6128.821012,
+            5556.8913809999995
+          ],
+          "assessment_ms": [
+            8255.276588,
+            7855.146483
+          ],
+          "progression_ms": 7782.519397
+        },
+        {
+          "ok": true,
+          "ms": 35591.525310000005,
+          "sends": 2,
+          "assessRequests": 2,
+          "sendsByRecording": [
+            1,
+            1
+          ],
+          "upload_ms": [
+            6357.214276,
+            6193.475454000001
+          ],
+          "assessment_ms": [
+            8336.360937000001,
+            7190.461234999999
+          ],
+          "progression_ms": 7514.002205999997
+        }
+      ],
+      "persisted": {
+        "attempts": 32,
+        "evaluations": 16,
+        "events": 16,
+        "turns": 32
+      }
+    }
+  ]
+}

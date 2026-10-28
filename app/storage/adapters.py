@@ -5,7 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import create_engine, event, inspect, select, update
+from sqlalchemy import create_engine, event, inspect, select, update, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.schema import CreateIndex
 
@@ -20,6 +20,8 @@ SCHEMA_VERSION = 7
 # starts against an unmigrated database exactly as before.
 ACCEPTED_SQLITE_VERSIONS = ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7])
 ACCEPTED_POSTGRES_VERSIONS = ([1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7])
+# Additive claims schema: startup compatibility only, never an activation switch.
+ACCEPTED_POSTGRES_VERSIONS += (list(range(1, 9)),)
 
 
 def initialize_accent_control(db):
@@ -202,12 +204,37 @@ class PostgresRepository(SQLProgressRepository):
             stage = 'database connection'
             with engine.connect() as db:
                 stage = 'schema version validation'
-                if sorted(db.execute(select(s.versions.c.version)).scalars().all()) not in ACCEPTED_POSTGRES_VERSIONS:
+                versions=sorted(db.execute(select(s.versions.c.version)).scalars().all())
+                if versions not in ACCEPTED_POSTGRES_VERSIONS:
                     detail = ('Expected migrations 001 through 005. Apply missing migrations with '
                               'python -m scripts.migrate_postgres as the backend database owner.')
                     raise ValueError('Schema version mismatch')
                 stage = 'required table and column validation'
                 inspector = inspect(db)
+                if 8 in versions:
+                    # A ledger row alone must not make an interrupted/partial install usable.
+                    required = {'poc_account_slots', 'poc_upload_operations', 'poc_stage_operations', 'poc_recovery_audit', 'review_improvements'}
+                    if not required.issubset(inspector.get_table_names(schema='public')):
+                        raise ValueError('Incomplete durable ownership migration')
+                    columns={
+                        'poc_account_slots':{'owner','fence','active'},
+                        'poc_upload_operations':{'owner','id','exercise','upload_key','fingerprint','checkpoint','fence','status','expires'},
+                        'poc_stage_operations':{'owner','id','exercise','kind','fingerprint','fence','status','expires','snapshot','input'},
+                        'poc_recovery_audit':{'id','owner','operation','actor','session_actor','fence_before','fence_after','checkpoint','reason','at'},
+                        'review_improvements':set(s.review_improvements.columns.keys()),
+                    }
+                    for name,expected_columns in columns.items():
+                        if not expected_columns.issubset({c['name'] for c in inspector.get_columns(name,schema='public')}):
+                            raise ValueError('Incomplete durable ownership columns')
+                    guarded = set(db.execute(text("SELECT c.relname FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND t.tgname='poc_claim_guard' AND t.tgenabled='O'")).scalars())
+                    expected = {t.name for t in s.metadata.sorted_tables if t is s.users or {'user_id','exercise_id','attempt_id'} & set(t.c.keys())}
+                    if not expected.issubset(guarded):
+                        raise ValueError('Missing durable ownership guards')
+                    functions=dict(db.execute(text("SELECT proname,prosecdef FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('poc_stage_claim','poc_stage_apply','poc_stage_read','poc_claim_guard','poc_checkpoint_parent_guard')")).all())
+                    if set(functions)!={'poc_stage_claim','poc_stage_apply','poc_stage_read','poc_claim_guard','poc_checkpoint_parent_guard'} or any(functions.values()):
+                        raise ValueError('Missing or privileged durable ownership functions')
+                    parent_guard=db.execute(text("SELECT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.conversations'::regclass AND tgname='poc_checkpoint_parent_guard' AND tgenabled='O' AND tgdeferrable AND tginitdeferred)")).scalar_one()
+                    if not parent_guard:raise ValueError('Missing deferred checkpoint guard')
                 for table in s.metadata.sorted_tables:
                     if table in s.HOMEWORK_TABLES or table in s.LIMIT_TABLES or table in s.REVIEW_TABLES:
                         continue  # Optional features validate these only when enabled (mode=off starts on schema 5).

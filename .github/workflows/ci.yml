@@ -2,7 +2,7 @@ name: Audli CI
 
 on:
   pull_request:
-    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b]
+    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
@@ -86,7 +86,7 @@ jobs:
         run: |
           python -m pytest -q ci/test_safety.py
           python -m pytest -q
-          python -m pytest -q experiments/assessment_claims/test_stage.py experiments/assessment_claims/test_additional.py experiments/assessment_claims/test_integration.py
+          python -m pytest -q experiments/assessment_claims/test_stage.py experiments/assessment_claims/test_additional.py experiments/assessment_claims/test_integration.py experiments/release_readiness
 
   schema:
     name: Rollback schema ${{ matrix.schema }}

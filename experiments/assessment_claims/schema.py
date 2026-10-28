@@ -15,6 +15,17 @@ operations=Table('poc_stage_operations',metadata,
     CheckConstraint("kind IN ('upload','assess','ready','advance','request')"),
     CheckConstraint("status IN ('running','complete','cancelled','invalidated') AND fence>0"))
 
+# Owner-bound recovery evidence, erased with the account. No audio/transcript/body.
+recovery_audit=Table('poc_recovery_audit',metadata,
+    Column('id',UUID(as_uuid=False),primary_key=True),
+    Column('owner',UUID(as_uuid=False),ForeignKey(s.users.c.id,ondelete='CASCADE'),nullable=False),
+    Column('operation',UUID(as_uuid=False),nullable=False),
+    Column('actor',String(63),nullable=False),
+    Column('session_actor',String(63),nullable=False),
+    Column('fence_before',Integer,nullable=False),Column('fence_after',Integer,nullable=False),
+    Column('checkpoint',String(64),nullable=False),
+    Column('reason',String(40),nullable=False),Column('at',DateTime(timezone=True),nullable=False))
+
 # Whitelist shared by SQL batch writer and guard installation. Never supplied by HTTP.
 from app.storage import schema as s
 TABLES=[t for t in s.metadata.sorted_tables if t is s.users or {'user_id','exercise_id','attempt_id'} & set(t.c.keys())]
@@ -22,22 +33,30 @@ WRITE_TABLES=[s.profiles,s.sessions,s.attempts,s.conversations,s.followups,s.tur
 
 
 def install(engine):
-    assert_local(engine);create_schema(engine);metadata.create_all(engine)
+    assert_local(engine)
     with engine.begin() as db:
-        db.execute(text(Path(__file__).with_name('functions.sql').read_text()))
-        for table in TABLES:
-            name=table.name
-            db.exec_driver_sql(f'DROP TRIGGER IF EXISTS poc_claim_guard ON public."{name}"')
-            db.exec_driver_sql(f'CREATE TRIGGER poc_claim_guard BEFORE INSERT OR UPDATE OR DELETE ON public."{name}" FOR EACH ROW EXECUTE FUNCTION public.poc_claim_guard()')
-        # Generate fixed per-table upsert branches from repository metadata. No table/
-        # column names or SQL fragments can come from request bodies.
-        branches=[]
-        for table in WRITE_TABLES:
-            cols=[c.name for c in table.columns];pk=[c.name for c in table.primary_key.columns]
-            quoted=lambda names:','.join('"'+n+'"' for n in names)
-            updates=','.join('"'+c+'"=EXCLUDED."'+c+'"' for c in cols if c not in pk)
-            branches.append(f"WHEN '{table.name}' THEN INSERT INTO public.\"{table.name}\" ({quoted(cols)}) SELECT {quoted(cols)} FROM jsonb_populate_record(NULL::public.\"{table.name}\",v_row) ON CONFLICT ({quoted(pk)}) DO UPDATE SET {updates};")
-        definition='''CREATE OR REPLACE FUNCTION public.poc_stage_apply(p_owner uuid,p_id uuid,p_fence integer,p_rows jsonb,p_done boolean,p_fail boolean DEFAULT false)
+        install_on(db)
+
+
+def install_on(db):
+    assert_local(db.engine)
+    from experiments.durable_claims.store import metadata as claim_metadata,slots,operations as upload_operations
+    claim_metadata.create_all(db,tables=[slots,upload_operations])
+    metadata.create_all(db)
+    db.execute(text(Path(__file__).with_name('functions.sql').read_text()))
+    for table in TABLES:
+        name=table.name
+        db.exec_driver_sql(f'DROP TRIGGER IF EXISTS poc_claim_guard ON public."{name}"')
+        db.exec_driver_sql(f'CREATE TRIGGER poc_claim_guard BEFORE INSERT OR UPDATE OR DELETE ON public."{name}" FOR EACH ROW EXECUTE FUNCTION public.poc_claim_guard()')
+    # Generate fixed per-table upsert branches from repository metadata. No table/
+    # column names or SQL fragments can come from request bodies.
+    branches=[]
+    for table in WRITE_TABLES:
+        cols=[c.name for c in table.columns];pk=[c.name for c in table.primary_key.columns]
+        quoted=lambda names:','.join('"'+n+'"' for n in names)
+        updates=','.join('"'+c+'"=EXCLUDED."'+c+'"' for c in cols if c not in pk)
+        branches.append(f"WHEN '{table.name}' THEN INSERT INTO public.\"{table.name}\" ({quoted(cols)}) SELECT {quoted(cols)} FROM jsonb_populate_record(NULL::public.\"{table.name}\",v_row) ON CONFLICT ({quoted(pk)}) DO UPDATE SET {updates};")
+    definition='''CREATE OR REPLACE FUNCTION public.poc_stage_apply(p_owner uuid,p_id uuid,p_fence integer,p_rows jsonb,p_done boolean,p_fail boolean DEFAULT false)
 RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 DECLARE v_batch jsonb;v_row jsonb;v_op public.poc_stage_operations%ROWTYPE;v_slot public.poc_account_slots%ROWTYPE;
 BEGIN
@@ -58,8 +77,8 @@ BEGIN
  END IF;
  RETURN true;
 END $$; REVOKE ALL ON FUNCTION public.poc_stage_apply(uuid,uuid,integer,jsonb,boolean,boolean) FROM PUBLIC;'''
-        db.execute(text(definition))
-        db.execute(text('''CREATE OR REPLACE FUNCTION public.poc_stage_claim(p_owner uuid,p_id uuid,p_exercise uuid,p_kind text,p_hash text,p_old integer,p_expires timestamptz,p_snapshot jsonb,p_input jsonb,p_rows jsonb)
+    db.execute(text(definition))
+    db.execute(text('''CREATE OR REPLACE FUNCTION public.poc_stage_claim(p_owner uuid,p_id uuid,p_exercise uuid,p_kind text,p_hash text,p_old integer,p_expires timestamptz,p_snapshot jsonb,p_input jsonb,p_rows jsonb)
 RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
 DECLARE v_slot public.poc_account_slots%ROWTYPE;
 BEGIN

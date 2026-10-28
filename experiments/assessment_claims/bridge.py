@@ -166,13 +166,14 @@ class Bridge:
                 try:lesson_id=str(UUID(candidate))
                 except ValueError:lesson_id=None
                 await database_call(settle,self.proxy.current.get(),self.settings,lesson_id)
-            provider_get=method=='GET' and (path.endswith('/audio') or '/tutor-voice/preview/' in path)
-            if (method in ('GET','HEAD','OPTIONS') and not provider_get) or self.migrated.fullmatch(path):
+            # Planner GET lazily reconciles/persists a roadmap. It is a writer.
+            owned_get=method=='GET' and (path.endswith('/audio') or '/tutor-voice/preview/' in path or path=='/api/plan')
+            if (method in ('GET','HEAD','OPTIONS') and not owned_get) or self.migrated.fullmatch(path):
                 return await self.app(scope,receive,send)
-            if method=='DELETE':
+            if method=='DELETE' or path=='/api/account/delete':
                 return await JSONResponse({'detail':'Account deletion requires reviewed claim drain and retention handling.'},status_code=409)(scope,receive,send)
             headers=dict(scope['headers']);key=headers.get(b'x-audli-upload-id') or headers.get(b'x-audli-operation-id')
-            if provider_get and not key:
+            if owned_get and not key:
                 from uuid import uuid4
                 key=str(uuid4()).encode()
             if not key or len(key)>64:

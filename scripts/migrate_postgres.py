@@ -12,7 +12,7 @@ def migrate(settings: Settings):
         with psycopg.connect(url, autocommit=True, connect_timeout=10) as db:
             exists = db.execute("SELECT to_regclass('public.schema_migrations')").fetchone()[0]
             versions = db.execute('SELECT version FROM schema_migrations ORDER BY version').fetchall() if exists else []
-            if versions not in ([], [(1,)], [(1,), (2,)], [(1,), (2,), (3,)], [(1,), (2,), (3,), (4,)], [(1,), (2,), (3,), (4,), (5,)], [(1,), (2,), (3,), (4,), (5,), (6,)], [(1,), (2,), (3,), (4,), (5,), (6,), (7,)]):
+            if versions not in ([], [(1,)], [(1,), (2,)], [(1,), (2,), (3,)], [(1,), (2,), (3,), (4,)], [(1,), (2,), (3,), (4,), (5,)], [(1,), (2,), (3,), (4,), (5,), (6,)], [(1,), (2,), (3,), (4,), (5,), (6,), (7,)], [(i,) for i in range(1,9)]):
                 raise ValueError('Unsupported schema version')
             changed = False
             root = Path(__file__).resolve().parents[1] / 'docs'

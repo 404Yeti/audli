@@ -13,7 +13,7 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     while not isinstance(auth,LearnerAuthentication):auth=auth.app
     from .routes import UUID
     import re
-    specialized=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/ready)|attempts/{UUID}/assess|lessons/{UUID}/advance|operations/{UUID}/record-again|(?:exercises|lessons)/{UUID}/recordings/[0-9a-f]{{16}}/record-again|onboarding/restart)')
+    specialized=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/ready)|attempts/{UUID}/assess|lessons/{UUID}/advance|operations/{UUID}/record-again|(?:exercises|lessons)/{UUID}/recordings/[0-9a-f]{{16}}/record-again|onboarding/restart|account/delete)')
     # Original complete lesson response, heard/closing, reset and expiry semantics.
     restore={'/api/lessons/{lesson_id}','/api/lessons/{lesson_id}/end','/api/onboarding/restart','/api/exercises/{exercise_id}/conversation/listened','/api/exercises/{exercise_id}/conversation'}
     app.router.routes[:]=[r for r in app.router.routes if getattr(r,'path',None) not in restore]
@@ -42,6 +42,28 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     # Keep GET settlement behind admission, but pure status never acquires ownership.
     bridge=Bridge(auth.app,auth.request_repository,settings,specialized,mode)
     auth.app=bridge
+    if '/api/account/delete' in original:
+        # The account is gone after commit, so a generic post-response receipt
+        # cannot be finalized. Admit the actual erase transaction instead.
+        from fastapi import Request,HTTPException
+        from app.account import DeleteAccount,require_live_session,reauthenticate
+        from experiments.release_readiness.account_erasure import erase
+        from experiments.durable_claims.store import Conflict
+        app.router.routes[:]=[r for r in app.router.routes if getattr(r,'path',None)!='/api/account/delete']
+        @app.post('/api/account/delete')
+        async def delete_owned_account(body:DeleteAccount,request:Request):
+            repo=auth.request_repository.current.get()
+            await database_call(require_live_session,repo,request)
+            await reauthenticate(auth.identity,request,body.password,repo.learner_id)
+            try:
+                return await database_call(erase,repo,settings.data_dir/'exercise_audio')
+            except Conflict:
+                raise HTTPException(409,'An operation is active or unresolved. Recover it before deleting your account.') from None
+            except HTTPException:
+                raise
+            except Exception:
+                # Database exceptions can contain SQL parameters/account IDs.
+                raise HTTPException(503,'Deletion could not be confirmed. Retry or contact support.') from None
     if mode=='claims':auth.lease_exempt=lambda method,path:True
     @app.get('/api/operation-capabilities')
     async def capabilities():return {'durable_operations':True,'protocol':1}

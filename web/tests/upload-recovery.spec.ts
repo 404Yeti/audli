@@ -121,3 +121,25 @@ test('manual Send again after the kill switch keeps identity and clears the reco
   await expect(failure(page)).toHaveCount(0);
   expect(f.uploadRequests.at(-1)?.uploadId).toBe(id);expect(f.transcriptions).toBe(1);
 });
+
+for (const mode of ['exercise', 'checkin'] as const) {
+  test(`${mode}: processing acknowledgment polls without another audio send`, async ({ page }) => {
+    const f = await setupDelivery(page, mode, ['processing']);
+    await begin(page);
+    await until(page, () => f.statusReads >= 3);
+    expect(f.uploadRequests).toHaveLength(1);
+    expect(f.transcriptions).toBe(1);
+    await expect(failure(page)).toHaveCount(0);
+  });
+}
+
+test('uncertain operation keeps recording; Send again recovers status without POST', async ({ page }) => {
+  const f = await setupDelivery(page, 'exercise', ['uncertain']);
+  await begin(page); await until(page, () => failure(page).isVisible());
+  expect(f.uploadRequests).toHaveLength(1);
+  f.completeOperation();
+  await page.getByRole('button', { name: 'Send again', exact: true }).click();
+  await until(page, async () => !(await failure(page).isVisible()));
+  expect(f.uploadRequests).toHaveLength(1);
+  expect(f.transcriptions).toBe(1);
+});

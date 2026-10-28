@@ -59,7 +59,7 @@ BEGIN
  SELECT * INTO v_slot FROM public.poc_account_slots WHERE owner=v_owner;
  v_context=current_setting('audli.claim_owner',true);v_id=current_setting('audli.claim_id',true);v_fence=current_setting('audli.claim_fence',true);
  IF coalesce(v_id,'')<>'' THEN
-  IF v_context IS DISTINCT FROM v_owner::text OR v_slot.active IS DISTINCT FROM v_id::uuid OR v_slot.fence IS DISTINCT FROM v_fence::integer THEN RAISE EXCEPTION 'Invalid fenced writer' USING ERRCODE='P0001'; END IF;
+  IF v_context IS DISTINCT FROM v_owner::text OR v_slot.active IS DISTINCT FROM v_id::uuid OR v_slot.fence IS DISTINCT FROM v_fence::integer OR NOT EXISTS(SELECT 1 FROM public.poc_stage_operations WHERE owner=v_owner AND id=v_id::uuid AND fence=v_fence::integer AND status='running' AND expires>clock_timestamp()) THEN RAISE EXCEPTION 'Invalid fenced writer' USING ERRCODE='P0001'; END IF;
  ELSIF v_slot.active IS NOT NULL THEN RAISE EXCEPTION 'Account operation in progress' USING ERRCODE='P0001'; END IF;
  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END $$;

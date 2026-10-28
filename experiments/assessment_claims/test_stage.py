@@ -275,11 +275,13 @@ def test_owner_reassignment_and_lock_inversion_fail_closed(fixture):
             assert error.value.orig.sqlstate=='55P03'
 
 
-async def http_app(st,tmp_path,monkeypatch,provider,mode='claims'):
+async def http_app(st,tmp_path,monkeypatch,provider,mode='claims',full=False):
     import httpx
     import app.auth as auth_module
     from app.main import create_app
     from .routes import install as install_routes
+    if full:
+        from .integration import install as install_routes
     async def identity(request):
         if request.headers.get('authorization')!='Bearer local':return httpx.Response(401)
         return httpx.Response(200,json={'id':st.owner,'email_confirmed_at':'yes','is_anonymous':False})

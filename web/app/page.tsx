@@ -26,7 +26,7 @@ import { homeView } from '../lib/eligibility';
 import { useVoiceLifecycle } from '../lib/voice-lifecycle';
 import { reliableRecognition, type Recognition } from '../lib/hands-free';
 import { InterruptedRecording } from '../lib/recording';
-import { deliverCheckin, deliverExercise } from '../lib/recording-delivery';
+import { prepareNewRecording, deliverCheckin, deliverExercise } from '../lib/recording-delivery';
 import { DeliveryFailed, boundedTask, type DeliveryState } from '../lib/upload-sender';
 import { noticeFor, NOTICE_TEXT, type Notice } from '../lib/delivery-notice';
 import { clearUnsent, markUnsent, readUnsent, type UnsentKind } from '../lib/unsent-marker';
@@ -430,6 +430,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
         const saved = await boundedTask(signal => operation.apiWith<LessonCheckpoint>(`/lessons/${value.id}`, undefined, signal), 10000, operation.signal);
         if (saved.id !== value.id || saved.status !== 'active' || saved.phase !== value.phase
           || saved.exercise?.id !== value.exercise?.id) throw new DeliveryFailed('ambiguous', 0);
+        await prepareNewRecording(operation, personalCapture.current ?? retained.current?.blob ?? null, saved.exercise?.id);
         retained.current = null; personalCapture.current = null; clearUnsent(account.scope);
         setNotice({ kind: 'recordAgain', text: NOTICE_TEXT.recordAgain });
         setPrompt(saved.prompt ?? prompt);

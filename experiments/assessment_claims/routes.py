@@ -28,10 +28,9 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     assert_local(auth.repository.engine)
     proxy=auth.request_repository
     if mode=='claims':
-        import app.auth as module
-        original=module.lease_exempt
+        original=auth.lease_exempt
         migrated=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/(listened|ready))|attempts/{UUID}/assess|lessons/{UUID}/(advance|end)|onboarding/restart)')
-        module.lease_exempt=lambda method,path:(method=='POST' and bool(migrated.fullmatch(path))) or original(method,path)
+        auth.lease_exempt=lambda method,path:(method=='POST' and bool(migrated.fullmatch(path))) or original(method,path)
         class Gate:
             def __init__(self,app):self.app=app
             async def __call__(self,scope,receive,send):
@@ -39,6 +38,15 @@ def install(app,settings,provider,mode='claims',old_workers=0):
                     return await JSONResponse({'detail':'This writer is not part of the staged migration.'},status_code=409)(scope,receive,send)
                 return await self.app(scope,receive,send)
         auth.app=Gate(auth.app)
+    if mode=='bridge':
+        class LegacyContext:
+            def __init__(self,app):self.app=app
+            async def __call__(self,scope,receive,send):
+                from .bridge import legacy_lease
+                token=legacy_lease.set(True)
+                try:return await self.app(scope,receive,send)
+                finally:legacy_lease.reset(token)
+        auth.app=LegacyContext(auth.app)
     def store():return StageStore(proxy.current.get(),settings)
     async def error_guard(function):
         try:return await function()
@@ -75,6 +83,13 @@ def install(app,settings,provider,mode='claims',old_workers=0):
         result=await database_call(st.finish,lease,result)
         if result.get('uncertain'):return JSONResponse({'detail':'Please check recognition.','uncertain':True},status_code=422)
         return result
+
+    @app.get('/api/operations/{operation_id}')
+    async def operation_status(operation_id:str):
+        from uuid import UUID
+        try:UUID(operation_id)
+        except ValueError:raise HTTPException(404,'Operation not found') from None
+        return await error_guard(lambda:database_call(store().status,operation_id))
 
     @app.post('/api/exercises/{exercise_id}/attempts')
     async def upload(exercise_id:str,audio:UploadFile,request:Request,response:Response):

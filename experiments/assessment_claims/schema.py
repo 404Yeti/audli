@@ -12,7 +12,7 @@ operations=Table('poc_stage_operations',metadata,
     Column('fingerprint',String(64),nullable=False),Column('fence',Integer,nullable=False),
     Column('status',String(16),nullable=False),Column('expires',DateTime(timezone=True),nullable=False),
     Column('snapshot',JSONB,nullable=False),Column('input',JSONB,nullable=False),
-    CheckConstraint("kind IN ('upload','assess','ready','advance')"),
+    CheckConstraint("kind IN ('upload','assess','ready','advance','request')"),
     CheckConstraint("status IN ('running','complete','cancelled','invalidated') AND fence>0"))
 
 # Whitelist shared by SQL batch writer and guard installation. Never supplied by HTTP.

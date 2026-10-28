@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 import sys
+import os
 import uuid
 import asyncio
 
@@ -16,7 +17,7 @@ from app.services.demo import DemoProvider
 import psycopg
 from psycopg import sql
 
-ADMIN = 'postgresql://audli_poc:local-only@127.0.0.1:55449/postgres'
+ADMIN = os.environ.get('AUDLI_TEST_POSTGRES_URL', 'postgresql://audli_poc:local-only@127.0.0.1:55449/postgres')
 
 
 @contextmanager

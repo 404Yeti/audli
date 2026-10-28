@@ -5,7 +5,7 @@ on:
     branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [main]
+    branches: [main, codex/AUD-94-migration-safety]
 
 permissions:
   contents: read
@@ -86,6 +86,7 @@ jobs:
         run: |
           python -m pytest -q ci/test_safety.py
           python -m pytest -q
+          python -m pytest -q experiments/assessment_claims/test_stage.py experiments/assessment_claims/test_additional.py experiments/assessment_claims/test_integration.py
 
   schema:
     name: Rollback schema ${{ matrix.schema }}

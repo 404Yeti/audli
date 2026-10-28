@@ -134,3 +134,62 @@ test('a fresh recording first sent while disabled keeps the legacy no-telemetry 
   assert.equal((await deliverExercise(operation,'e',audio(),()=>{})).id,'legacy');
   assert.equal(posts,1);lifetime.close();
 });
+
+test('202 processing polls exact operation without resending audio',async()=>{
+  const c=fakeEnv(),blob=audio();let posts=0,reads=0;
+  const ref={operation_id:'00000000-0000-4000-8000-000000000001',kind:'upload'};
+  globalThis.fetch=async(url)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:true,...defaults});
+    if(url.endsWith('/attempts')){posts++;return Response.json(ref,{status:202});}
+    reads++;return Response.json({...ref,status:reads<3?'processing':'complete',...(reads<3?{}:{result:{id:'accepted',transcription:{text:'synthetic'}}})});
+  };
+  const lifetime=new LessonLifetime(),operation=lifetime.begin();
+  const r=await run(c,deliverExercise(operation,'e',blob,()=>assert.fail('recording discarded'),{env:c.env}));
+  assert.equal(r.result.id,'accepted');assert.equal(posts,1);assert.equal(reads,3);lifetime.close();
+});
+
+test('uncertain processing retains identity; Send again checks status without POST',async()=>{
+  const c=fakeEnv(),blob=audio();let posts=0,complete=false;
+  const ref={operation_id:'00000000-0000-4000-8000-000000000001',kind:'upload'};
+  globalThis.fetch=async(url)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:true,...defaults});
+    if(url.endsWith('/attempts')){posts++;return Response.json(ref,{status:202});}
+    return Response.json({...ref,status:complete?'complete':'uncertain',...(complete?{result:{id:'accepted'}}:{})});
+  };
+  const lifetime=new LessonLifetime(),operation=lifetime.begin();
+  const first=await run(c,deliverExercise(operation,'e',blob,()=>assert.fail(),{env:c.env}));
+  assert.equal(first.error.reason,'ambiguous');assert.equal(posts,1);
+  complete=true;enabled=false;
+  const second=await run(c,deliverExercise(operation,'e',blob,()=>assert.fail(),{env:c.env}));
+  assert.equal(second.result.id,'accepted');assert.equal(posts,1);lifetime.close();
+});
+
+test('mismatched processing receipt cannot adopt another recording',async()=>{
+  const c=fakeEnv();let posts=0;
+  globalThis.fetch=async(url)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:true,...defaults});
+    if(url.endsWith('/attempts')){posts++;return Response.json({operation_id:'00000000-0000-4000-8000-000000000001',kind:'upload'},{status:202});}
+    return Response.json({operation_id:'00000000-0000-4000-8000-000000000002',kind:'upload',status:'complete',result:{id:'wrong'}});
+  };
+  const lifetime=new LessonLifetime();
+  const r=await run(c,deliverExercise(lifetime.begin(),'e',audio(),()=>assert.fail(),{env:c.env}));
+  assert.equal(r.error.reason,'ambiguous');assert.equal(posts,1);lifetime.close();
+});
+
+for (const stop of ['background','cancel','deadline']) test(`processing ${stop} retains audio and never resends`,async()=>{
+  const c=fakeEnv(),blob=audio(),lifetime=new LessonLifetime(),operation=lifetime.begin();let posts=0,discarded=0;
+  const ref={operation_id:'00000000-0000-4000-8000-000000000001',kind:'upload'};
+  globalThis.fetch=async(url)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:true,...defaults});
+    if(url.endsWith('/attempts')){posts++;return Response.json(ref,{status:202});}
+    return Response.json({...ref,status:'processing'});
+  };
+  const promise=deliverExercise(operation,'e',blob,()=>discarded++,{env:c.env});promise.catch(()=>{});
+  await c.advance(1000);
+  if(stop==='background')c.setHidden(true);
+  if(stop==='cancel')operation.cancel();
+  const r=await run(c,promise);
+  assert.ok(r.error);assert.equal(posts,1);assert.equal(discarded,0);
+  assert.equal(r.error.name,stop==='cancel'?'AbortError':'DeliveryFailed');
+  assert.equal(c.timers,0);lifetime.close();
+});

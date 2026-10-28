@@ -1,4 +1,5 @@
 /** Bounded recording delivery. Every stage races cancellation and a wall-clock deadline. */
+import { OperationProcessing } from './operation-status.ts';
 import { ApiError, UnreachableError } from './api.ts';
 import { sendTimeoutMs, type PolicyNumbers } from './upload-policy.ts';
 export type DeliveryReason = 'timeout' | 'network' | 'server' | 'deadline' | 'background' | 'ambiguous';
@@ -64,6 +65,7 @@ export function boundedTask<T>(task: (signal: AbortSignal) => Promise<T>, ms: nu
 }
 export type DeliverOptions<T> = {
   policy: PolicyNumbers; bytes: number; attempt(signal: AbortSignal, send: number): Promise<T>;
+  processing?(reference: OperationProcessing, signal: AbortSignal): Promise<T>;
   reconcile?(signal: AbortSignal): Promise<Reconciled<T>>;
   /** Revalidate before another automatic send; a disabled/unavailable policy stops recovery. */
   canRetry?(signal: AbortSignal): Promise<boolean>;
@@ -77,7 +79,7 @@ function retryReason(error: unknown): DeliveryReason | null {
   return error instanceof TypeError ? 'network' : null;
 }
 export async function deliver<T>(options: DeliverOptions<T>): Promise<Delivered<T>> {
-  const { policy, attempt, reconcile, canRetry, cancelled, onState } = options;
+  const { policy, attempt, reconcile, canRetry, cancelled, onState, processing } = options;
   const env = options.env ?? browserEnv;
   const endAt = env.now() + policy.deadlineMs;
   const lifetime = new AbortController();
@@ -111,6 +113,14 @@ export async function deliver<T>(options: DeliverOptions<T>): Promise<Delivered<
       finally { env.clearTimeout(slow); }
       if (cancelled?.aborted) throw abortError();
       if (backgrounded) return fail('background');
+      if (error instanceof OperationProcessing) {
+        if (!processing) return fail('ambiguous');
+        try {
+          const value = await stage(signal => processing(error as OperationProcessing, signal), endAt - env.now());
+          emit({ kind: 'delivered', via: 'adopted' });
+          return { value, via: 'adopted', sends };
+        } catch { if (cancelled?.aborted) throw abortError(); return fail(backgrounded ? 'background' : 'ambiguous'); }
+      }
       const reason = retryReason(error);
       if (!reason || (error instanceof ApiError && error.status === 409 && !reconcile)) throw error;
       if (env.now() >= endAt) return fail('deadline');

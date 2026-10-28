@@ -60,6 +60,28 @@ class StageStore:
         r['now']=self.clock() if self.clock else datetime.fromisoformat(r['now'])
         return r
 
+    def status(self,identifier):
+        # Owner comes exclusively from authenticated request scope. No GUC or
+        # browser-supplied owner can widen this lookup; no provider or settlement.
+        with self.repo.transaction() as db:
+            op=db.execute(select(operations).where(operations.c.owner==self.owner,operations.c.id==identifier)).mappings().first()
+            if not op:raise HTTPException(404,'Operation not found')
+            r=self.read(db,op['exercise'],identifier)
+            reference=dict(operation_id=identifier,kind=op['kind'])
+            if op['status']=='running':
+                return dict(**reference,status='processing' if op['expires']>r['now'] else 'uncertain')
+            if op['status']!='complete':return dict(**reference,status='invalidated')
+            if op['kind']=='upload':
+                a=next((a for a in r['attempts'] if a['id']==identifier),None)
+                if not a:return dict(**reference,status='invalidated')
+                value=dict(id=a['id'],transcription=a['transcription'])
+            elif op['kind']=='advance':value=self.lesson_view(r)
+            else:
+                if op['kind']=='assess' and not any(t['attempt_id']==op['input']['attempt_id'] for t in r['conversation']['data']['turns']):
+                    return dict(**reference,status='uncertain')
+                value=self.view(r)
+            return dict(**reference,status='complete',result=value)
+
     def view(self,r):
         c=Conversation.model_validate(r['conversation']['data']) if r['conversation'] else None
         result=r['result'];pending=None
@@ -100,6 +122,8 @@ class StageStore:
         identifier=attempt_id_for(self.owner,exercise,key) if kind=='upload' else str(uuid5(NAMESPACE,f'{self.owner}|{exercise}|{kind}|{key}'))
         digest=fingerprint(request)
         with self.repo.transaction() as db:
+            from .bridge import advisory
+            advisory(db,self.owner)
             r=self.read(db,exercise,identifier);op=r['operation'];slot=r['slot']
             if op and op['fingerprint']!=digest:raise Conflict('Operation input changed')
             if op and op['status']=='invalidated':raise Conflict('Operation invalidated')

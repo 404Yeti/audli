@@ -420,3 +420,70 @@ def test_client_cannot_override_reliable_pending_evidence(fixture):
     st,ex,*_=fixture;first=upload(st,ex)
     with pytest.raises(Conflict):st.claim(ex,'upload',{'upload_id':'1111111111111111','bytes_hash':sha256(b'new').hexdigest(),'replaces_attempt_id':first})
     assert st.repo.conversation(ex).pending_attempt_id==first
+
+
+def test_short_transaction_bounds_never_relax_stricter_runtime_timeouts(fixture):
+    from .bridge import set_bounds
+    st,*_=fixture
+    with st.repo.transaction() as db:
+        db.exec_driver_sql("SET LOCAL lock_timeout='200ms'");db.exec_driver_sql("SET LOCAL statement_timeout='250ms'")
+        set_bounds(db)
+        assert db.exec_driver_sql('SHOW lock_timeout').scalar_one()=='200ms'
+        assert db.exec_driver_sql('SHOW statement_timeout').scalar_one()=='250ms'
+    with st.repo.transaction() as db:
+        db.exec_driver_sql("SET LOCAL lock_timeout='0'");db.exec_driver_sql("SET LOCAL statement_timeout='0'")
+        set_bounds(db)
+        assert db.exec_driver_sql('SHOW lock_timeout').scalar_one()=='1s'
+        assert db.exec_driver_sql('SHOW statement_timeout').scalar_one()=='5s'
+
+
+def test_disabled_retry_policy_still_has_stable_native_upload_identity(fixture,tmp_path,monkeypatch):
+    from .test_stage import T
+    st,ex,*_=fixture
+    async def run():
+        class Provider(BenchProvider):
+            calls=0
+            async def transcribe(self,*args):self.calls+=1;return T
+        p=Provider();app,auth=await http_app(st,tmp_path,monkeypatch,p,full=True)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://local',headers={'Authorization':'Bearer local'}) as client:
+            # Disabled legacy policy omits the diagnostic/retry header; the new
+            # client still owns its stable operation identity independently.
+            for _ in range(2):
+                response=await client.post(f'/api/exercises/{ex}/attempts',files={'audio':('answer.wav',wav(),'audio/wav')},headers={'X-Audli-Operation-Id':'0123456789abcdef'})
+                assert response.status_code==200,response.text
+            assert p.calls==1
+            missing=await client.post(f'/api/exercises/{ex}/attempts',files={'audio':('answer.wav',wav(),'audio/wav')})
+            assert missing.status_code==428  # not a definitive invalid-audio discard
+        await auth.aclose()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('first',['claims','bridge'])
+def test_guard_aware_bridge_and_claims_worker_share_one_upload_owner(fixture,tmp_path,monkeypatch,first):
+    from .test_stage import T
+    st,ex,*_=fixture
+    async def run():
+        class Provider(BenchProvider):
+            calls=0
+            def __init__(self):self.entered=asyncio.Event();self.release=asyncio.Event()
+            async def transcribe(self,*args):
+                self.calls+=1;self.entered.set();await self.release.wait();return T
+        p=Provider();apps={};auths=[]
+        for mode in ('claims','bridge'):
+            apps[mode],auth=await http_app(st,tmp_path/mode,monkeypatch,p,mode=mode,full=True);auths.append(auth)
+        clients={mode:httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://local',headers={'Authorization':'Bearer local','X-Audli-Upload-Id':'0123456789abcdef'}) for mode,app in apps.items()}
+        async def send(mode):return await clients[mode].post(f'/api/exercises/{ex}/attempts',files={'audio':('answer.wav',wav(),'audio/wav')})
+        try:
+            task=asyncio.create_task(send(first));await asyncio.wait_for(p.entered.wait(),5)
+            second=await send('bridge' if first=='claims' else 'claims')
+            assert second.status_code in (202,503),second.text
+            assert p.calls==1
+            p.release.set();assert (await task).status_code==200
+            replay=await send('bridge' if first=='claims' else 'claims')
+            assert replay.status_code==200 and p.calls==1
+            with st.repo.read() as db:assert db.execute(select(func.count()).select_from(s.attempts)).scalar_one()==1
+        finally:
+            p.release.set()
+            for client in clients.values():await client.aclose()
+            for auth in auths:await auth.aclose()
+    asyncio.run(run())

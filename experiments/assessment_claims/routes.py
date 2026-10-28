@@ -95,7 +95,11 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     async def upload(exercise_id:str,audio:UploadFile,request:Request,response:Response,replaces_attempt_id:str|None=Form(default=None)):
         try:
             key=upload_id_from(request.headers)
-            if not key:raise HTTPException(422,'Stable recording ID required by this stage.')
+            operation_key=request.headers.get('X-Audli-Operation-Id','')
+            if re.fullmatch('[0-9a-f]{16}',operation_key):
+                if key and key!=operation_key:raise HTTPException(409,'Recording identities disagree. Keep your recording.')
+                key=key or operation_key
+            if not key:raise HTTPException(428,'Stable recording identity required. Keep your recording while updating the page.')
             data,name=await validate_upload(audio,settings)
             st=store()
             async def execute():

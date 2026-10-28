@@ -34,14 +34,22 @@ writer=ContextVar('audli_stage_writer',default=None)
 legacy_lease=ContextVar('audli_stage_legacy_lease',default=False)
 
 
+def set_bounds(db):
+    # Tighten only; a smaller database/planner timeout is never relaxed.
+    db.execute(text("""SELECT
+      set_config('lock_timeout',CASE WHEN current_setting('lock_timeout')::interval=interval '0' OR current_setting('lock_timeout')::interval>interval '1 second' THEN '1000ms' ELSE current_setting('lock_timeout') END,true),
+      set_config('statement_timeout',CASE WHEN current_setting('statement_timeout')::interval=interval '0' OR current_setting('statement_timeout')::interval>interval '5 seconds' THEN '5000ms' ELSE current_setting('statement_timeout') END,true)"""))
+
+
 def advisory(db,owner):
+    set_bounds(db)
     if legacy_lease.get():return
     key=int.from_bytes(sha256(('audli-account:'+owner).encode()).digest()[:8],'big',signed=True)
-    db.execute(text("SET LOCAL lock_timeout='1000ms'"))
     db.execute(text('SELECT pg_advisory_xact_lock(:key)'),dict(key=key))
 
 
 def fence(db,context):
+    set_bounds(db)
     db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==context.owner).with_for_update()).one()
     slot=db.execute(select(slots).where(slots.c.owner==context.owner).with_for_update()).mappings().one()
     op=db.execute(select(operations).where(operations.c.owner==context.owner,operations.c.id==context.identifier)).mappings().one()

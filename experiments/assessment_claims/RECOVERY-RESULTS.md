@@ -15,7 +15,7 @@ Baseline: approved `4e5ed23`; separate review branch `codex/AUD-94-migration-saf
 
 - Full backend: 2,065 passed, 79 skipped (SQLite/default mode); one existing Starlette deprecation warning.
 - Full PostgreSQL-enabled backend: 3,000 passed, 82 skipped; one existing deprecation warning.
-- Final consolidated PostgreSQL migration suite: 62 passed; its 24 integration cases include covering the native stage, compatibility integration, drain/rollback, restricted backend role and generation-to-completion pipeline.
+- Final consolidated PostgreSQL migration suite: 64 passed; two additional mixed bridge/claims worker-order cases also passed. The 26-case integration subset covers covering the native stage, compatibility integration, drain/rollback, restricted backend role and generation-to-completion pipeline.
 - Frontend unit suite, lint, production build and TypeScript passed. Final sender/processing/notice checks: 42 passed; broader selected frontend regressions: 68 passed. Counts overlap.
 - Remote run 40616937480 at 6e66037: Backend, PostgreSQL, Frontend, schema 003/004 and Browser passed. Browser comprised 51 classroom WebKit cases, 24 Chromium/WebKit recovery cases, 361 mocked browser regressions, 18 HTTP short-choice cases and one native media lesson. These are different suites, not a physical iPhone result.
 - That initial remote run failed Security on 14 provenance/fixture false positives. Exact-value/file allowlists were added after inspecting redacted findings; no broad secret-scan exclusion or required-check waiver was added. Final CI must be green before review approval.
@@ -40,3 +40,7 @@ Record again tombstones the stable recording ID even if the old send has not rea
 Recognition retries identify the acknowledged previous attempt. The server permits this replacement only when its own STT reliability check failed or its completed assessment recorded a transcription concern, and retains both attempt rows. The browser cannot override reliable/ambiguous pending evidence or weaken confidence/comprehension gates. The replacement ID stays with the Blob across transport retries.
 
 Local final Chromium recovery suite: 14 passed, including explicit recording replacement in exercises and check-ins. Remote CI must rerun the full required matrix at the final reviewed commit, including the 28-case Chromium/WebKit recovery suite; first-run results above are provenance, not a claim of final-head CI success.
+
+Short database transaction bounds never relax a stricter runtime lock/statement timeout. Disabled-policy native uploads replay by the Blob-owned operation identity without requiring telemetry headers; missing identity returns non-destructive HTTP 428. Final CI must confirm all consolidated cases after these additions.
+
+Both real-HTTP mixed-worker orders (claims first and guard-aware bridge first) admit one owner and invoke STT once. Final backend hardening keeps stricter existing statement/lock timeouts and validates disabled-policy identity replay.

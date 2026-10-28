@@ -55,6 +55,8 @@ class StageStore:
         self.repo,self.owner,self.settings,self.clock=repo,repo.learner_id,settings,clock
 
     def read(self,db,exercise,identifier):
+        from .bridge import set_bounds
+        set_bounds(db)
         r=db.execute(text('SELECT public.poc_stage_read(CAST(:owner AS uuid),CAST(:ex AS uuid),CAST(:id AS uuid))'),
                      dict(owner=self.owner,ex=exercise,id=identifier)).scalar_one()
         r['now']=self.clock() if self.clock else datetime.fromisoformat(r['now'])

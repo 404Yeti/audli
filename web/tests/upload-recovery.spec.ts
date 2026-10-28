@@ -143,3 +143,17 @@ test('uncertain operation keeps recording; Send again recovers status without PO
   expect(f.uploadRequests).toHaveLength(1);
   expect(f.transcriptions).toBe(1);
 });
+
+for (const mode of ['exercise', 'checkin'] as const) {
+  test(`${mode}: Record again revokes uncertain recording before new capture`, async ({ page }) => {
+    const f = await setupDelivery(page, mode, ['uncertain', 'hang']);
+    await begin(page); await until(page, () => failure(page).isVisible());
+    const original = f.uploadRequests[0], audioBefore = f.audioRequests();
+    await page.getByRole('button', { name: 'Record again', exact: true }).click();
+    await until(page, () => f.uploadRequests.length >= 2);
+    expect(f.uploadRequests[1].uploadId).not.toBe(original.uploadId);
+    expect(f.requests.some(r => r.includes('/recordings/') && r.endsWith('/record-again'))).toBe(true);
+    expect(f.audioRequests()).toBe(audioBefore);
+    if (mode === 'checkin') expect(f.uploadRequests[1].revision).toBe(f.lesson.revision);
+  });
+}

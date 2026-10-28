@@ -5,6 +5,7 @@ import { sendTimeoutMs, type PolicyNumbers } from './upload-policy.ts';
 export type DeliveryReason = 'timeout' | 'network' | 'server' | 'deadline' | 'background' | 'ambiguous';
 export type DeliveryState =
   | { kind: 'sending'; send: number; of: number; slow: boolean }
+  | { kind: 'processing' }
   | { kind: 'retrying'; next: number; of: number }
   | { kind: 'failed'; reason: DeliveryReason; sends: number }
   | { kind: 'moved' }
@@ -115,6 +116,7 @@ export async function deliver<T>(options: DeliverOptions<T>): Promise<Delivered<
       if (backgrounded) return fail('background');
       if (error instanceof OperationProcessing) {
         if (!processing) return fail('ambiguous');
+        emit({ kind: 'processing' });
         try {
           const value = await stage(signal => processing(error as OperationProcessing, signal), endAt - env.now());
           emit({ kind: 'delivered', via: 'adopted' });

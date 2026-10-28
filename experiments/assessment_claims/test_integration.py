@@ -310,3 +310,113 @@ def test_real_http_generation_listening_upload_assessment_and_closing(fixture,tm
             assert st.repo.profile().completed_attempts==2
         await auth.aclose()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('mime',['application/json','audio/wav'])
+def test_fast_following_request_can_claim_before_acknowledgment(fixture,mime):
+    from types import SimpleNamespace
+    from contextvars import ContextVar
+    import re
+    from .bridge import Bridge
+    st,*_=fixture;install_transactions(st.repo.engine)
+    proxy=SimpleNamespace(current=ContextVar('synthetic_repo',default=st.repo))
+    async def run():
+        async def child(scope,receive,send):
+            await receive()
+            data=b'{"saved":true}' if mime=='application/json' else wav()
+            await send({'type':'http.response.start','status':200,'headers':[(b'content-type',mime.encode()),(b'content-length',str(len(data)).encode())]})
+            await send({'type':'http.response.body','body':data})
+        app=Bridge(child,proxy,st.settings,re.compile(r'never-match'),'claims')
+        observed=[]
+        async def send(message):
+            if message['type']=='http.response.start':
+                # Represents a separate, already-authenticated low-latency request.
+                token=writer.set(None)
+                try:observed.append(BridgeStore(st.repo).claim('fast-following','b'*64)[0])
+                finally:writer.reset(token)
+        async def receive():return {'type':'http.request','body':b'','more_body':False}
+        await app({'type':'http','method':'POST','path':'/api/synthetic-audio','headers':[(b'x-audli-operation-id',b'synthetic-first')]},receive,send)
+        assert observed==['owned']
+    asyncio.run(run())
+
+
+def test_unbuffered_audio_keeps_ownership_until_stream_finishes(fixture):
+    from types import SimpleNamespace
+    from contextvars import ContextVar
+    import re
+    from .bridge import Bridge
+    st,*_=fixture;install_transactions(st.repo.engine)
+    proxy=SimpleNamespace(current=ContextVar('synthetic_repo',default=st.repo))
+    async def run():
+        async def child(scope,receive,send):
+            await receive()
+            await send({'type':'http.response.start','status':200,'headers':[(b'content-type',b'audio/wav')]})
+            await send({'type':'http.response.body','body':b'first','more_body':True})
+            await send({'type':'http.response.body','body':b'last'})
+        async def send(message):
+            token=writer.set(None)
+            try:
+                with pytest.raises(Conflict):BridgeStore(st.repo).claim('competing-stream','b'*64)
+            finally:writer.reset(token)
+        async def receive():return {'type':'http.request','body':b'','more_body':False}
+        app=Bridge(child,proxy,st.settings,re.compile(r'never-match'),'claims')
+        await app({'type':'http','method':'POST','path':'/api/synthetic-audio','headers':[(b'x-audli-operation-id',b'stream-first')]},receive,send)
+        assert BridgeStore(st.repo).claim('after-stream','b'*64)[0]=='owned'
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('resource',['exercise','lesson'])
+def test_replace_without_ack_tombstones_late_upload_before_stt(fixture,resource):
+    from .lifecycle import replace_by_recording
+    from hashlib import sha256
+    st,ex,*_=fixture
+    recording='0123456789abcdef';lesson=st.repo.lesson()
+    if resource=='lesson':lesson.phase='WELCOME';st.repo.save_lesson(lesson,lesson.revision)
+    resource_id=ex if resource=='exercise' else lesson.id
+    result=replace_by_recording(st.repo,st.settings,resource,resource_id,recording,revision=lesson.revision)
+    assert result['record_again']
+    # Lost replacement acknowledgment can be recovered idempotently, too.
+    assert replace_by_recording(st.repo,st.settings,resource,resource_id,recording,revision=lesson.revision)['record_again']
+    if resource=='exercise':
+        with pytest.raises(Conflict):st.claim(ex,'upload',{'upload_id':recording,'bytes_hash':sha256(b'late-old-body').hexdigest()})
+    else:
+        with pytest.raises(Conflict):BridgeStore(st.repo).claim(f'POST|/api/lessons/{lesson.id}/attempts|{recording}',sha256(b'late-old-body').hexdigest())
+    assert st.repo.profile().completed_attempts==0
+
+
+def test_replacement_tombstone_does_not_discard_new_pending_evidence(fixture):
+    from .lifecycle import replace_by_recording
+    from .test_stage import upload
+    st,ex,*_=fixture
+    replace_by_recording(st.repo,st.settings,'exercise',ex,'0123456789abcdef')
+    accepted=upload(st,ex,'1111111111111111')
+    with pytest.raises(Conflict):replace_by_recording(st.repo,st.settings,'exercise',ex,'0123456789abcdef',pending=accepted)
+    assert st.repo.conversation(ex).pending_attempt_id==accepted and st.repo.attempt(accepted)
+
+
+@pytest.mark.parametrize('uncertain',['recognition','assessment'])
+def test_acknowledged_unreliable_attempt_can_be_replaced_without_losing_evidence(fixture,uncertain):
+    from .test_stage import T,body,assessment
+    from hashlib import sha256
+    st,ex,*_=fixture
+    request={'upload_id':'0123456789abcdef','bytes_hash':sha256(b'synthetic').hexdigest()}
+    _,_,lease=st.claim(ex,'upload',request)
+    first=st.finish(lease,T.model_copy(update={'confidence':.54}) if uncertain=='recognition' else T)['id']
+    if uncertain=='assessment':
+        _,_,lease=st.claim(ex,'assess',body(st,ex,first));value=assessment(st,ex,lease)
+        value.transcription_concern=True;value.concern_reason='Synthetic uncertainty';assert st.finish(lease,value)['uncertain']
+    next_request={'upload_id':'1111111111111111','bytes_hash':sha256(b'new-recording').hexdigest()}
+    with pytest.raises(Conflict):st.claim(ex,'upload',next_request)
+    next_request['replaces_attempt_id']=first
+    _,_,lease=st.claim(ex,'upload',next_request)
+    second=st.finish(lease,T)['id']
+    assert st.repo.attempt(first) is not None and st.repo.attempt(second) is not None
+    assert st.repo.conversation(ex).pending_attempt_id==second and st.repo.profile().completed_attempts==0
+
+
+def test_client_cannot_override_reliable_pending_evidence(fixture):
+    from .test_stage import upload
+    from hashlib import sha256
+    st,ex,*_=fixture;first=upload(st,ex)
+    with pytest.raises(Conflict):st.claim(ex,'upload',{'upload_id':'1111111111111111','bytes_hash':sha256(b'new').hexdigest(),'replaces_attempt_id':first})
+    assert st.repo.conversation(ex).pending_attempt_id==first

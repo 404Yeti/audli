@@ -151,7 +151,7 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
 
 export async function audioBlobUrl(url: string, signal?: AbortSignal, operation?: LessonOperation): Promise<string> {
   const response = await authenticatedFetch(url, { signal }, operation);
-  if (!response.ok) throw new Error(response.status === 401 ? 'Please sign in again.' : 'Audio playback is unavailable. Please retry.');
+  if (!response.ok || response.status === 202) throw new Error(response.status === 401 ? 'Please sign in again.' : 'Audio playback is unavailable. Please retry.');
   const blob = await response.blob();
   operation?.assertCurrent();
   return URL.createObjectURL(blob);

@@ -160,7 +160,17 @@ class StageStore:
             if op and op['snapshot']!=snapshot(r):raise Conflict('Operation evidence changed')
             plan=Plan()
             if kind=='upload':
-                if c.state not in ('AWAITING_SUMMARY','AWAITING_FOLLOWUP') or c.pending_attempt_id:raise Conflict('Existing pending recording must be resolved')
+                replaces=request.get('replaces_attempt_id')
+                uncertain=False
+                if c.pending_attempt_id:
+                    if replaces!=c.pending_attempt_id:raise Conflict('Acknowledge the current unreliable recording first')
+                    previous=next((a for a in r['attempts'] if a['id']==replaces),None)
+                    uncertain=bool(previous and not reliable_recognition(Transcription.model_validate(previous['transcription']),self.settings.min_transcription_confidence))
+                    if not uncertain:
+                        uncertain=db.execute(select(operations.c.id).where(operations.c.owner==self.owner,operations.c.exercise==exercise,operations.c.kind=='assess',operations.c.status=='complete',operations.c.input['attempt_id'].astext==replaces)).first() is not None and not any(t.attempt_id==replaces for t in c.turns)
+                    if not uncertain:raise Conflict('Reliable or ambiguous pending evidence cannot be overwritten')
+                elif replaces:raise Conflict('Pending recording changed')
+                if c.state not in ('AWAITING_SUMMARY','AWAITING_FOLLOWUP') and not (uncertain and c.state in ('ASSESSING','ASSESSING_FOLLOWUP')):raise Conflict('Existing pending recording must be resolved')
             elif kind=='assess':
                 a=next((a for a in r['attempts'] if a['id']==request['attempt_id']),None)
                 if a is None:raise HTTPException(404,'Attempt not found')

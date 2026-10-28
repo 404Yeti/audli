@@ -8,12 +8,13 @@ import { ApiError, UnreachableError, authenticatedFetch, resolveApiUrl, type Les
 import { decideCheckin, type Known } from './checkin-reconcile.ts';
 import type { Recognition } from './hands-free.ts';
 import type { LessonCheckpoint } from './lesson-lifecycle.ts';
-import { retainUploadId } from './upload-delivery.ts';
+import { retainUploadId, uploadIdFor } from './upload-delivery.ts';
 import { recordingUpload, sendRecording } from './recording.ts';
 import { createPolicyLoader, DISABLED, type UploadPolicy } from './upload-policy.ts';
 import { deliver, boundedTask, browserEnv, DeliveryFailed, type DeliveryState, type SenderEnv } from './upload-sender.ts';
 
 const pendingOperations = new WeakMap<Blob, OperationReference>();
+const replacedAttempts = new WeakMap<Blob, string>();
 async function completeOperation<T>(operation: LessonOperation, blob: Blob, signal: AbortSignal, env: SenderEnv): Promise<T> {
   const reference = pendingOperations.get(blob);
   if (!reference) throw new DeliveryFailed('ambiguous', 0);
@@ -26,7 +27,8 @@ async function completeOperation<T>(operation: LessonOperation, blob: Blob, sign
   pendingOperations.delete(blob);
   return result;
 }
-async function recoverOperation<T>(operation: LessonOperation, blob: Blob, env: SenderEnv): Promise<T> {
+async function recoverOperation<T>(operation: LessonOperation, blob: Blob, env: SenderEnv, onState?: (state: DeliveryState) => void): Promise<T> {
+  const emit = (state: DeliveryState) => { try { onState?.(state); } catch { /* Presentation cannot change recovery. */ } };
   const controller = new AbortController();
   let hidden = !env.visible();
   const cancel = () => controller.abort();
@@ -35,11 +37,16 @@ async function recoverOperation<T>(operation: LessonOperation, blob: Blob, env: 
   const stopPage = env.onPageHide?.(hide);
   operation.signal.addEventListener('abort', cancel, { once: true });
   if (operation.signal.aborted || hidden) cancel();
-  try { return await boundedTask(signal => completeOperation<T>(operation, blob, signal, env), 50000, controller.signal, env); }
+  emit({ kind: 'processing' });
+  try {
+    const result = await boundedTask(signal => completeOperation<T>(operation, blob, signal, env), 50000, controller.signal, env);
+    emit({ kind: 'delivered', via: 'adopted' }); return result;
+  }
   catch (error) {
     operation.signal.throwIfAborted();
-    if (hidden) throw new DeliveryFailed('background', 0);
-    throw error;
+    const reason = hidden ? 'background' : error instanceof DeliveryFailed ? error.reason : 'ambiguous';
+    emit({ kind: 'failed', reason, sends: 0 });
+    throw new DeliveryFailed(reason, 0);
   } finally { stop(); stopPage?.(); operation.signal.removeEventListener('abort', cancel); controller.abort(); }
 }
 async function sendOrRemember<T>(blob: Blob, send: () => Promise<T>): Promise<T> {
@@ -70,21 +77,27 @@ export async function currentPolicy(signal?: AbortSignal, force = false): Promis
 const DEFINITIVE = new Set([413, 415, 422]);
 export type Attempt = { id: string; transcription: Recognition; confirmed_text?: string | null };
 /** `onState` receives sending / retrying / failed for the learner; `env` is the clock (tests only). */
-export type DeliveryExtras = { onState?: (state: DeliveryState) => void; env?: SenderEnv };
+export type DeliveryExtras = { replacesAttemptId?: string; onState?: (state: DeliveryState) => void; env?: SenderEnv };
 
 export async function deliverExercise(operation: LessonOperation, exerciseId: string, blob: Blob, invalid: () => void,
   extras: DeliveryExtras = {}): Promise<Attempt> {
   const url = `/exercises/${exerciseId}/attempts`;
+  if (extras.replacesAttemptId) replacedAttempts.set(blob, extras.replacesAttemptId);
+  const form = () => {
+    const body = recordingUpload(blob), replaces = replacedAttempts.get(blob);
+    if (replaces) body.append('replaces_attempt_id', replaces);
+    return body;
+  };
   const env = extras.env ?? browserEnv;
   const started = env.now();
   const policy = await currentPolicy(operation.signal);
   operation.signal.throwIfAborted();
   // A retained processing acknowledgment is read before any explicit resend, even after a policy kill switch.
-  if (pendingOperations.has(blob)) return recoverOperation<Attempt>(operation, blob, env);
+  if (pendingOperations.has(blob)) return recoverOperation<Attempt>(operation, blob, env, extras.onState);
   if (!policy.enabled) {
-    try { return await sendRecording(() => sendOrRemember(blob, () => operation.api<Attempt>(url, { method: 'POST', body: recordingUpload(blob) })), invalid); }
+    try { return await sendRecording(() => sendOrRemember(blob, () => operation.api<Attempt>(url, { method: 'POST', body: form() })), invalid); }
     catch (error) { if (!pendingOperations.has(blob)) throw error;
-      return recoverOperation<Attempt>(operation, blob, env); }
+      return recoverOperation<Attempt>(operation, blob, env, extras.onState); }
   }
   retainUploadId(blob);
   try {
@@ -92,7 +105,7 @@ export async function deliverExercise(operation: LessonOperation, exerciseId: st
     const delivered = await deliver<Attempt>({ policy: { ...policy, deadlineMs: policy.deadlineMs - ((extras.env ?? browserEnv).now() - started) }, bytes: blob.size, ...extras, cancelled: operation.signal,
       canRetry: async signal => (await currentPolicy(signal, true)).enabled,
       processing: (_ack, signal) => completeOperation<Attempt>(operation, blob, signal, env),
-      attempt: signal => sendOrRemember(blob, () => operation.apiWith<Attempt>(url, { method: 'POST', body: recordingUpload(blob) }, signal)) });
+      attempt: signal => sendOrRemember(blob, () => operation.apiWith<Attempt>(url, { method: 'POST', body: form() }, signal)) });
     return delivered.value;
   } catch (error) {
     if (error instanceof ApiError && DEFINITIVE.has(error.status)) invalid();
@@ -122,12 +135,12 @@ export async function deliverCheckin(operation: LessonOperation, lesson: LessonC
   const started = env.now();
   const policy = await currentPolicy(operation.signal);
   operation.signal.throwIfAborted();
-  if (pendingOperations.has(blob)) return { value: await recoverOperation<LessonCheckpoint>(operation, blob, env), via: 'adopted' };
+  if (pendingOperations.has(blob)) return { value: await recoverOperation<LessonCheckpoint>(operation, blob, env, extras.onState), via: 'adopted' };
   const previous = original;
   if (!policy.enabled) {
     try { return { value: await sendRecording(() => sendOrRemember(blob, () => send(previous?.revision ?? lesson.revision)), invalid), via: 'sent' }; }
     catch (error) { if (!pendingOperations.has(blob)) throw error;
-      return { value: await recoverOperation<LessonCheckpoint>(operation, blob, env), via: 'adopted' }; }
+      return { value: await recoverOperation<LessonCheckpoint>(operation, blob, env, extras.onState), via: 'adopted' }; }
   }
   retainUploadId(blob);
   const known: Known = previous ?? { lessonId: lesson.id, revision: lesson.revision, phase: lesson.phase, pending: serverPending };
@@ -161,11 +174,21 @@ export async function deliverCheckin(operation: LessonOperation, lesson: LessonC
 }
 
 /** Explicit learner action only. Older servers keep their existing recovery path. */
-export async function prepareNewRecording(operation: LessonOperation, blob: Blob | null, exerciseId?: string): Promise<void> {
+export async function prepareNewRecording(operation: LessonOperation, blob: Blob | null, exerciseId?: string, lesson?: LessonCheckpoint): Promise<boolean> {
   let enabled = false;
   try { enabled = (await boundedTask(signal => operation.apiWith<{ durable_operations: boolean }>('/operation-capabilities', undefined, signal), 1500, operation.signal)).durable_operations === true; }
   catch (error) { operation.signal.throwIfAborted(); if (!(error instanceof ApiError && error.status === 404)) throw error; }
-  if (!enabled) return;
+  if (!enabled) return false;
+  if (blob && (exerciseId || lesson)) {
+    let pending: string | null = null, followup: string | null = null;
+    if (exerciseId) {
+      const current = await boundedTask(signal => operation.apiWith<{ pending_attempt: { id: string } | null; active_followup: { id: string } | null }>(`/exercises/${exerciseId}/conversation`, undefined, signal), 10000, operation.signal);
+      pending = current.pending_attempt?.id ?? null; followup = current.active_followup?.id ?? null;
+    }
+    const resource = exerciseId ? `/exercises/${exerciseId}` : `/lessons/${lesson!.id}`;
+    await boundedTask(signal => operation.apiWith(`${resource}/recordings/${uploadIdFor(blob)}/record-again`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: lesson?.revision ?? null, pending, followup }) }, signal), 10000, operation.signal);
+    pendingOperations.delete(blob); return true;
+  }
   const reference = blob ? pendingOperations.get(blob) : null;
   if (reference) {
     await boundedTask(signal => operation.apiWith(`/operations/${reference.operation_id}/record-again`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: reference.kind }) }, signal), 10000, operation.signal);
@@ -174,4 +197,5 @@ export async function prepareNewRecording(operation: LessonOperation, blob: Blob
     const current = await boundedTask(signal => operation.apiWith<{ pending_attempt: { id: string } | null; active_followup: { id: string } | null }>(`/exercises/${exerciseId}/conversation`, undefined, signal), 10000, operation.signal);
     if (current.pending_attempt) await boundedTask(signal => operation.apiWith(`/exercises/${exerciseId}/record-again`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pending_attempt_id: current.pending_attempt!.id, followup_id: current.active_followup?.id ?? null }) }, signal), 10000, operation.signal);
   }
+  return true;
 }

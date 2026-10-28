@@ -193,3 +193,20 @@ for (const stop of ['background','cancel','deadline']) test(`processing ${stop} 
   assert.equal(r.error.name,stop==='cancel'?'AbortError':'DeliveryFailed');
   assert.equal(c.timers,0);lifetime.close();
 });
+
+test('repeated uncertain status keeps recovery controls and processing indication without more sends',async()=>{
+  const c=fakeEnv(),blob=audio(),lifetime=new LessonLifetime();let posts=0,discarded=0;
+  const ref={operation_id:'00000000-0000-4000-8000-000000000001',kind:'upload'};
+  globalThis.fetch=async(url)=>{
+    if(url==='/api/upload-policy')return Response.json({enabled:true,...defaults});
+    if(url.endsWith('/attempts')){posts++;return Response.json(ref,{status:202});}
+    return Response.json({...ref,status:'uncertain'});
+  };
+  for(let i=0;i<3;i++){
+    const states=[];
+    const r=await run(c,deliverExercise(lifetime.begin(),'e',blob,()=>discarded++,{env:c.env,onState:s=>states.push(s.kind)}));
+    assert.equal(r.error.name,'DeliveryFailed');assert.equal(r.error.reason,'ambiguous');
+    assert.ok(states.includes('processing'));assert.equal(states.at(-1),'failed');
+  }
+  assert.equal(posts,1);assert.equal(discarded,0);lifetime.close();
+});

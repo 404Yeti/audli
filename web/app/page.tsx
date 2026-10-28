@@ -136,7 +136,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
 
   function reportDelivery(kind: UnsentKind, id: string) {
     return (state: DeliveryState) => {
-      if (state.kind === 'sending') markUnsent(account.scope, kind, id);
+      if (state.kind === 'sending' || state.kind === 'processing') markUnsent(account.scope, kind, id);
       else if (state.kind === 'delivered' || state.kind === 'moved') clearUnsent(account.scope);
       setNotice(noticeFor(state));
     };
@@ -191,7 +191,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     return checkpoint?.phase === 'EXERCISE' && checkpoint.exercise?.id === exercise.id
       ? { lesson_id: checkpoint.id, lesson_revision: checkpoint.revision } : undefined;
   }
-  async function captureAnswer(operation: LessonOperation, exercise: Exercise): Promise<Attempt> {
+  async function captureAnswer(operation: LessonOperation, exercise: Exercise, replacesAttemptId?: string): Promise<Attempt> {
     let blob = retained.current?.exercise === exercise.id ? retained.current.blob : null;
     if (!blob) {
       try { blob = await voice.listen(operation); }
@@ -199,7 +199,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       operation.assertCurrent(); retained.current = { exercise: exercise.id, blob };
     }
     voice.thinking();
-    const attempt = await measureTurn('upload_transcription', () => deliverExercise(operation, exercise.id, blob!, () => { retained.current = null; clearUnsent(account.scope); }, { onState: reportDelivery('exercise', exercise.id) }));
+    const attempt = await measureTurn('upload_transcription', () => deliverExercise(operation, exercise.id, blob!, () => { retained.current = null; clearUnsent(account.scope); }, { onState: reportDelivery('exercise', exercise.id), replacesAttemptId }));
     operation.assertCurrent(); retained.current = null; return attempt;
   }
   async function exerciseConversation(operation: LessonOperation, exercise: Exercise, intentionalRestart = false) {
@@ -237,7 +237,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
           if (!corrected && !reliableRecognition(attempt.transcription, minimum.current)) {
             if (++retries > 2) throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');
             setPrompt("I didn't quite catch that. Could you say it again?");
-            await voice.retrySpeech(operation); attempt = await captureAnswer(operation, exercise); continue;
+            await voice.retrySpeech(operation); attempt = await captureAnswer(operation, exercise, attempt.id); continue;
           }
           voice.thinking(); setPrompt('');
           try {
@@ -250,7 +250,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
             if (!(error instanceof ApiError) || !error.uncertain) throw error;
             if (++retries > 2) throw new Error('Recognition needs another try. Check your microphone, then retry this turn.');
             setPrompt("I didn't quite catch that. Could you say it again?");
-            await voice.retrySpeech(operation); attempt = await captureAnswer(operation, exercise);
+            await voice.retrySpeech(operation); attempt = await captureAnswer(operation, exercise, attempt.id);
           }
         }
       } else if (state.state === 'GIVING_FEEDBACK') {
@@ -427,10 +427,14 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
       let value = lesson.current;
       if (action === 'record') {
         // Discard only after the learner explicitly chooses Record again; read before replacing any evidence.
-        const saved = await boundedTask(signal => operation.apiWith<LessonCheckpoint>(`/lessons/${value.id}`, undefined, signal), 10000, operation.signal);
+        let saved = await boundedTask(signal => operation.apiWith<LessonCheckpoint>(`/lessons/${value.id}`, undefined, signal), 10000, operation.signal);
         if (saved.id !== value.id || saved.status !== 'active' || saved.phase !== value.phase
           || saved.exercise?.id !== value.exercise?.id) throw new DeliveryFailed('ambiguous', 0);
-        await prepareNewRecording(operation, personalCapture.current ?? retained.current?.blob ?? null, saved.exercise?.id);
+        if (await prepareNewRecording(operation, personalCapture.current ?? retained.current?.blob ?? null, saved.exercise?.id, saved)) {
+          const fresh = await boundedTask(signal => operation.apiWith<LessonCheckpoint>(`/lessons/${saved.id}`, undefined, signal), 10000, operation.signal);
+          if (fresh.id !== saved.id || fresh.status !== 'active' || fresh.phase !== saved.phase || fresh.exercise?.id !== saved.exercise?.id) throw new DeliveryFailed('ambiguous', 0);
+          saved = fresh;
+        }
         retained.current = null; personalCapture.current = null; clearUnsent(account.scope);
         setNotice({ kind: 'recordAgain', text: NOTICE_TEXT.recordAgain });
         setPrompt(saved.prompt ?? prompt);

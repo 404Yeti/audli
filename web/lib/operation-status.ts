@@ -14,10 +14,11 @@ export function operationReference(value: unknown): OperationReference {
 export type OperationStatus<T> = OperationReference & { status: 'processing' | 'complete' | 'uncertain' | 'invalidated'; result?: T };
 function abortable<T>(task: () => Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
-    const abort = () => reject(new DOMException('Cancelled.', 'AbortError'));
+    const finish = (error: unknown, value?: T) => { signal.removeEventListener('abort', abort); if (error) reject(error); else resolve(value as T); };
+    const abort = () => finish(new DOMException('Cancelled.', 'AbortError'));
     if (signal.aborted) { abort(); return; }
     signal.addEventListener('abort', abort, { once: true });
-    Promise.resolve().then(task).then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+    Promise.resolve().then(() => { signal.throwIfAborted(); return task(); }).then(value => finish(null, value), error => finish(error));
   });
 }
 /** Call inside the sender's bounded stage; its abort covers the GETs and delays together. */

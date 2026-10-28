@@ -34,6 +34,11 @@ export async function setupDelivery(page: Page, mode: Mode, uploads: Plan[], opt
     const path = new URL(request.url()).pathname;
     requests.push(`${request.method()} ${path}`);
     if (path === '/api/operation-capabilities') return route.fulfill({ json: { durable_operations: !!operation } });
+    if (path.includes('/recordings/') && path.endsWith('/record-again')) {
+      operation = null; attempts.clear();
+      if (mode === 'checkin' && lesson.pending) { lesson.pending = null; lesson.revision++; }
+      return route.fulfill({ json: { record_again: true } });
+    }
     if (path.startsWith('/api/operations/') && request.method() === 'GET') {
       statusReads++;
       if (!operation) return route.fulfill({ status: 404, json: {} });

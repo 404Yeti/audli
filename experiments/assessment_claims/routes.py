@@ -2,7 +2,7 @@
 import re
 import asyncio
 from hashlib import sha256
-from fastapi import Request,Response,UploadFile,HTTPException
+from fastapi import Request,Response,UploadFile,HTTPException,Form
 from starlette.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
@@ -92,14 +92,14 @@ def install(app,settings,provider,mode='claims',old_workers=0):
         return await error_guard(lambda:database_call(store().status,operation_id))
 
     @app.post('/api/exercises/{exercise_id}/attempts')
-    async def upload(exercise_id:str,audio:UploadFile,request:Request,response:Response):
+    async def upload(exercise_id:str,audio:UploadFile,request:Request,response:Response,replaces_attempt_id:str|None=Form(default=None)):
         try:
             key=upload_id_from(request.headers)
             if not key:raise HTTPException(422,'Stable recording ID required by this stage.')
             data,name=await validate_upload(audio,settings)
             st=store()
             async def execute():
-                state,value,lease=await database_call(st.claim,exercise_id,'upload',{'upload_id':key,'bytes_hash':sha256(data).hexdigest()})
+                state,value,lease=await database_call(st.claim,exercise_id,'upload',{'upload_id':key,'bytes_hash':sha256(data).hexdigest(),**({'replaces_attempt_id':replaces_attempt_id} if replaces_attempt_id else {})})
                 if state=='processing':return JSONResponse({'processing':True,**value},status_code=202)
                 if state=='done':response.headers['X-Audli-Replayed']='true';return value
                 try:t=await provider.transcribe(data,name)

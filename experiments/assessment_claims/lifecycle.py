@@ -83,3 +83,54 @@ def record_again(repo,settings,identifier,kind):
             lesson.pending=None;bound.save_lesson(lesson,lesson.revision)
         else:raise Conflict('Only a recording can be explicitly replaced')
         return {'record_again':True}
+
+
+def replace_by_recording(repo,settings,resource,resource_id,recording,*,revision=None,pending=None,followup=None):
+    """Explicit replacement also tombstones a send whose acknowledgment never arrived.
+
+    A status-404 alone cannot prove the old body will not arrive later. The stable
+    recording identity must be revoked before discarding the in-memory recording.
+    """
+    import re
+    from uuid import uuid5
+    from app.upload_idempotency import attempt_id_for,NAMESPACE
+    if not re.fullmatch('[0-9a-f]{16}',recording):raise Conflict('Invalid recording identity')
+    path=f'/api/lessons/{resource_id}/attempts'
+    identifier=attempt_id_for(repo.learner_id,resource_id,recording) if resource=='exercise' else str(uuid5(NAMESPACE,repo.learner_id+'|request|POST|'+path+'|'+recording))
+    kind='upload' if resource=='exercise' else 'request'
+    st=StageStore(repo,settings)
+    with repo.transaction() as db:
+        from .bridge import advisory
+        from sqlalchemy.dialects.postgresql import insert
+        advisory(db,repo.learner_id)
+        db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==repo.learner_id).with_for_update()).one()
+        db.execute(insert(slots).values(owner=repo.learner_id,fence=0).on_conflict_do_nothing())
+        slot=db.execute(select(slots).where(slots.c.owner==repo.learner_id).with_for_update()).mappings().one()
+        op=db.execute(select(operations).where(operations.c.owner==repo.learner_id,operations.c.id==identifier)).mappings().first()
+        if slot['active'] not in (None,identifier):raise Conflict('Recording ownership changed')
+        bound=st.repo_bound(db)
+        if resource=='exercise':
+            ex=bound.exercise(resource_id);c=bound.conversation(resource_id)
+            current=bound.current_exercise()
+            if not ex or not current or current['id']!=resource_id or not c or bound.completed(resource_id):raise Conflict('Exercise changed')
+            if c.pending_attempt_id!=pending or (c.active_followup.id if c.active_followup else None)!=followup or pending not in (None,identifier) or any(t.attempt_id==identifier for t in c.turns):raise Conflict('Question or recording evidence changed')
+        elif resource=='lesson':
+            lesson=bound.lesson(resource_id)
+            if not lesson or lesson.status!='active' or lesson.phase not in ('WELCOME','REVIEW') or lesson.revision!=revision or (not op and lesson.pending is not None):raise Conflict('Check-in changed')
+        else:raise Conflict('Unknown recording resource')
+        marker={'resource':resource,'id':resource_id,'followup':followup if resource=='exercise' else None,'revision':revision}
+        if op and op['status']=='invalidated':
+            empty=c.pending_attempt_id is None if resource=='exercise' else lesson.pending is None
+            if empty and op['input'].get('replacement')==marker:return {'record_again':True}
+            raise Conflict('Replacement checkpoint changed')
+        at=db.execute(select(func.clock_timestamp())).scalar_one();next_fence=slot['fence']+1
+        if op:db.execute(update(operations).where(operations.c.owner==repo.learner_id,operations.c.id==identifier).values(status='invalidated'))
+        else:db.execute(operations.insert().values(owner=repo.learner_id,id=identifier,exercise=resource_id if resource=='exercise' else repo.learner_id,kind=kind,fingerprint='0'*64,
+                fence=next_fence,status='invalidated',expires=at,snapshot={},input={} if resource=='exercise' else {'path':path,'method':'POST'}))
+        db.execute(update(slots).where(slots.c.owner==repo.learner_id).values(active=None,fence=next_fence))
+        if resource=='exercise':
+            c.pending_attempt_id=c.pending_text=None;c.state='AWAITING_FOLLOWUP' if c.active_followup else 'AWAITING_SUMMARY';bound.save_conversation(c)
+        elif lesson.pending is not None:
+            lesson.pending=None;saved=bound.save_lesson(lesson,lesson.revision);marker['revision']=saved.revision
+        db.execute(update(operations).where(operations.c.owner==repo.learner_id,operations.c.id==identifier).values(input={**(op['input'] if op else {}),'replacement':marker}))
+        return {'record_again':True}

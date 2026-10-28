@@ -13,7 +13,7 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     while not isinstance(auth,LearnerAuthentication):auth=auth.app
     from .routes import UUID
     import re
-    specialized=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/ready)|attempts/{UUID}/assess|lessons/{UUID}/advance|operations/{UUID}/record-again|onboarding/restart)')
+    specialized=re.compile(rf'/api/(exercises/{UUID}/(attempts|record-again|conversation/ready)|attempts/{UUID}/assess|lessons/{UUID}/advance|operations/{UUID}/record-again|(?:exercises|lessons)/{UUID}/recordings/[0-9a-f]{{16}}/record-again|onboarding/restart)')
     # Original complete lesson response, heard/closing, reset and expiry semantics.
     restore={'/api/lessons/{lesson_id}','/api/lessons/{lesson_id}/end','/api/onboarding/restart','/api/exercises/{exercise_id}/conversation/listened','/api/exercises/{exercise_id}/conversation'}
     app.router.routes[:]=[r for r in app.router.routes if getattr(r,'path',None) not in restore]
@@ -53,6 +53,19 @@ def install(app,settings,provider,mode='claims',old_workers=0):
     @app.post('/api/operations/{operation_id}/record-again')
     async def replace_recording(operation_id:str,body:ReplaceRecording):
         return await database_call(record_again,auth.request_repository.current.get(),settings,operation_id,body.kind)
+
+    from .lifecycle import replace_by_recording
+    from pydantic import Field
+    class ReplaceByRecording(StrictModel):
+        revision:int|None=Field(default=None,ge=0)
+        pending:str|None=None
+        followup:str|None=None
+    @app.post('/api/exercises/{resource_id}/recordings/{recording}/record-again')
+    async def replace_exercise(resource_id:str,recording:str,body:ReplaceByRecording):
+        return await database_call(lambda:replace_by_recording(auth.request_repository.current.get(),settings,'exercise',resource_id,recording,**body.model_dump()))
+    @app.post('/api/lessons/{resource_id}/recordings/{recording}/record-again')
+    async def replace_lesson(resource_id:str,recording:str,body:ReplaceByRecording):
+        return await database_call(lambda:replace_by_recording(auth.request_repository.current.get(),settings,'lesson',resource_id,recording,**body.model_dump()))
 
     # Generic receipts share the exact same authenticated status route.
     for route in app.router.routes:

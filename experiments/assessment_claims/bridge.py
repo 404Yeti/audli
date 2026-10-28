@@ -196,14 +196,21 @@ class Bridge:
                 nonlocal delivered
                 if not delivered:delivered=True;return {'type':'http.request','body':body,'more_body':False}
                 return await receive()
-            start=None;chunks=[];stream=False
+            start=None;chunks=[];stream=False;receipt_finished=False
             async def capture(message):
-                nonlocal start,stream
+                nonlocal start,stream,receipt_finished
                 if message['type']=='http.response.start':
                     start=message
                     content=dict(message.get('headers',[])).get(b'content-type',b'')
                     stream=b'application/json' not in content
-                    if stream:await emit(message)
+                    if stream:
+                        # Existing audio handlers have completed provider/cache work
+                        # before headers. Release ownership now, not after Safari has
+                        # consumed the body; keep audio transport bytes unchanged.
+                        if content.startswith(b'audio/') and b'content-length' in dict(message.get('headers',[])) and message['status']<400:
+                            await database_call(store.finish,context,{'status':message['status'],'body':{'audio_cached':True},'stream':True})
+                            receipt_finished=True
+                        await emit(message)
                     return
                 if stream:return await emit(message)
                 chunks.append(message.get('body',b''))
@@ -213,10 +220,10 @@ class Bridge:
                 import asyncio
                 async with asyncio.timeout(55):
                     await self.app(scope,replay,capture)
-                if start and start['status']<400:
+                if start and start['status']<400 and not receipt_finished:
                     receipt={'status':start['status'],'body':json.loads(b''.join(chunks)) if not stream else {'audio_cached':True},'stream':stream}
                     await database_call(store.finish,context,receipt)
-                elif start and not context.wrote and not context.provider_started:
+                elif start and start['status']>=400 and not context.wrote and not context.provider_started:
                     await database_call(store.reject,context)
                 if not stream and start:
                     await emit(start);await emit({'type':'http.response.body','body':b''.join(chunks)})

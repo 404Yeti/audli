@@ -41,6 +41,17 @@ BEGIN
   SELECT x.user_id INTO v_old_owner FROM public.attempts a JOIN public.exercises x ON x.id=a.exercise_id WHERE a.id=(v_old->>'attempt_id')::uuid;
  END IF;
  IF v_owner IS NULL OR v_old_owner IS DISTINCT FROM v_owner THEN RAISE EXCEPTION 'Owner change or missing owner' USING ERRCODE='P0001'; END IF;
+ -- Check every foreign reference, not just whichever column derived the owner.
+ -- This also fences inserts from an unconverted writer whose two parents disagree.
+ IF v->>'exercise_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.exercises WHERE id=(v->>'exercise_id')::uuid AND user_id=v_owner) THEN RAISE EXCEPTION 'Exercise parent owner mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'attempt_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.attempts a JOIN public.exercises x ON x.id=a.exercise_id WHERE a.id=(v->>'attempt_id')::uuid AND x.user_id=v_owner AND (v->>'exercise_id' IS NULL OR a.exercise_id=(v->>'exercise_id')::uuid)) THEN RAISE EXCEPTION 'Attempt parent scope mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'lesson_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.lesson_lifecycles WHERE id=(v->>'lesson_id')::uuid AND user_id=v_owner) THEN RAISE EXCEPTION 'Lesson parent owner mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'assignment_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.homework_assignments WHERE id=(v->>'assignment_id')::uuid AND user_id=v_owner) THEN RAISE EXCEPTION 'Homework parent owner mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'session_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.training_sessions WHERE id=(v->>'session_id')::uuid AND user_id=v_owner) THEN RAISE EXCEPTION 'Session parent owner mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'pending_attempt_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.attempts a JOIN public.exercises x ON x.id=a.exercise_id WHERE a.id=(v->>'pending_attempt_id')::uuid AND x.user_id=v_owner AND a.exercise_id=(v->>'exercise_id')::uuid) THEN RAISE EXCEPTION 'Pending parent scope mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'followup_id' IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.conversation_followups f JOIN public.exercises x ON x.id=f.exercise_id WHERE f.id=(v->>'followup_id')::uuid AND x.user_id=v_owner AND f.exercise_id=(v->>'exercise_id')::uuid) THEN RAISE EXCEPTION 'Followup parent scope mismatch' USING ERRCODE='P0001'; END IF;
+ IF v->>'active_followup_id' IS NOT NULL AND EXISTS(SELECT 1 FROM public.conversation_followups WHERE id=(v->>'active_followup_id')::uuid) AND NOT EXISTS(SELECT 1 FROM public.conversation_followups f JOIN public.exercises x ON x.id=f.exercise_id WHERE f.id=(v->>'active_followup_id')::uuid AND x.user_id=v_owner AND f.exercise_id=(v->>'exercise_id')::uuid) THEN RAISE EXCEPTION 'Active question parent scope mismatch' USING ERRCODE='P0001'; END IF;
+
  -- NOWAIT avoids inverted row/profile lock waits from an unconverted direct writer.
  -- A rejection rolls back that writer's entire transaction, rather than waiting in
  -- a lock cycle with finalization. Converted writers lock profile first.
@@ -53,3 +64,20 @@ BEGIN
  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END $$;
 REVOKE ALL ON FUNCTION public.poc_claim_guard() FROM PUBLIC;
+
+-- Legacy write_conversation upserts its JSON before inserting newly issued
+-- followups. Preserve that atomic order, but require the final parent at COMMIT.
+CREATE OR REPLACE FUNCTION public.poc_checkpoint_parent_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$
+DECLARE v public.conversations%ROWTYPE;
+BEGIN
+ SELECT * INTO v FROM public.conversations WHERE exercise_id=NEW.exercise_id;
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ IF v.active_followup_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.conversation_followups WHERE id=v.active_followup_id AND exercise_id=v.exercise_id) THEN RAISE EXCEPTION 'Active question parent missing or mismatched' USING ERRCODE='P0001'; END IF;
+ IF v.pending_attempt_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.attempts WHERE id=v.pending_attempt_id AND exercise_id=v.exercise_id) THEN RAISE EXCEPTION 'Pending attempt parent mismatched' USING ERRCODE='P0001'; END IF;
+ RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION public.poc_checkpoint_parent_guard() FROM PUBLIC;
+DROP TRIGGER IF EXISTS poc_checkpoint_parent_guard ON public.conversations;
+CREATE CONSTRAINT TRIGGER poc_checkpoint_parent_guard AFTER INSERT OR UPDATE ON public.conversations
+DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.poc_checkpoint_parent_guard();

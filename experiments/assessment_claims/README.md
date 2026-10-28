@@ -18,7 +18,9 @@ This does not migrate the entire lesson lifecycle: generation, check-ins, tutor 
 
 Every current learner-owned relational table is guarded: users, profiles, sessions/exercises/attempts, conversations/turns/followups/assessments/evidence, evaluation/adaptation rows, lessons/links/entitlements, owned audio/coaching caches, roadmaps, homework/reflections and review-improvement rows. A regression checks this inventory against schema.NOT_LEARNER_OWNED. Global catalog/budget/config tables are excluded intentionally.
 
-The SECURITY INVOKER trigger derives row ownership through direct owner or parent exercise/attempt, rejects owner reassignment, and requires the active transaction-local owner/operation/fence context while an operation is live. Unknown writers cannot silently overwrite pending evidence, change a question, reset a profile or complete an exercise underneath the provider. The slot remains exclusive even if its timestamp has expired until a legitimate claimant or invalidator handles it.
+The SECURITY INVOKER trigger derives row ownership through direct owner or parent exercise/attempt, rejects owner reassignment, and requires the active transaction-local owner/operation/fence context while an operation is live. All foreign parent references are checked for matching ownership/scope, including rows with more than one parent. Newly issued active-question references are additionally checked by a deferred constraint at commit, preserving the legacy conversation-before-followup insertion order without allowing a dangling committed question.
+
+Unknown writers cannot silently overwrite pending evidence, change a question, reset a profile or complete an exercise underneath the provider. The slot remains exclusive even if its timestamp has expired until a legitimate claimant or invalidator handles it.
 
 Converted writers lock profile before slot and domain rows. An unconverted row writer uses a NOWAIT profile check in the trigger to avoid waiting in an inverted row/profile lock cycle. A conflict aborts its entire transaction. This prevents deadlocks from becoming an unbounded application wait; callers normalize failures without logging SQL bound values or private inputs. It is not a replacement for migrating writer entry points.
 
@@ -28,7 +30,7 @@ Record again is explicit and CAS-bound to the pending attempt and question. It i
 
 ## Fault/recovery semantics
 
-- Normal duplicate requests join processing or replay completion without another provider invocation. Stable upload IDs and P2 source/cap/deadline are unchanged.
+- Normal duplicate requests join processing or replay completion without another provider invocation. A join includes the exact operation ID/kind; a different live operation receives a conflict. Recovery never adopts an unrelated pending recording. Stable upload IDs and P2 source/cap/deadline are unchanged.
 - Worker death leaves a durable expiring claim. Takeover rotates the token; an old result cannot mutate state. A crash after provider completion but before durable finalization can still repeat an external call. Exactly-once provider billing is not promised.
 - The shared cancellation helper waits for a started DB transaction to settle and bounds cancellation waiting. It never releases ownership underneath an unknown writer. Provider cleanup failure leaves a fenced claim until expiry rather than inventing a successful release. Responses and logs use fixed messages, not provider text/SQL parameters.
 - Audio stays in memory and is closed after upload processing. No raw audio persistence is added. Reload recovery needs the next-stage typed status/resume client and honest loss disclosure when the Blob is gone.

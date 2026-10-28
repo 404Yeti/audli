@@ -54,7 +54,7 @@ def install(app,settings,provider,mode='claims',old_workers=0):
 
     async def run(exercise,kind,request):
         st=store();state,value,lease=await database_call(st.claim,exercise,kind,request)
-        if state=='processing':return JSONResponse({'processing':True},status_code=202,headers={'Retry-After':'1'})
+        if state=='processing':return JSONResponse({'processing':True,**value},status_code=202,headers={'Retry-After':'1'})
         if state=='uncertain':return JSONResponse({'detail':'Please check the recognition or record again.','uncertain':True},status_code=422)
         if state=='done':return value
         try:
@@ -85,7 +85,7 @@ def install(app,settings,provider,mode='claims',old_workers=0):
             st=store()
             async def execute():
                 state,value,lease=await database_call(st.claim,exercise_id,'upload',{'upload_id':key,'bytes_hash':sha256(data).hexdigest()})
-                if state=='processing':return JSONResponse({'processing':True},status_code=202)
+                if state=='processing':return JSONResponse({'processing':True,**value},status_code=202)
                 if state=='done':response.headers['X-Audli-Replayed']='true';return value
                 try:t=await provider.transcribe(data,name)
                 except asyncio.CancelledError:

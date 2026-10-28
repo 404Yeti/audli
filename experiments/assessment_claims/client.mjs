@@ -30,7 +30,7 @@ const rows=await Promise.all(spec.learners.map(async(row,index)=>{
      if(response.status===202){
       while(true){
        const state=await request(`/api/exercises/${row.exercise}/conversation`,{signal});
-       if(state.value.pending_attempt)return state.value.pending_attempt;
+       if(state.value.pending_attempt?.id===response.value.operation_id)return state.value.pending_attempt;
        await new Promise(resolve=>setTimeout(resolve,250));signal.throwIfAborted();
       }
      }

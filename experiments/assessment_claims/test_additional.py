@@ -77,3 +77,54 @@ def test_guard_inventory_covers_every_current_learner_owned_table():
     from .schema import TABLES
     from app.storage import schema as s
     assert {t.name for t in TABLES}==set(s.metadata.tables)-set(s.NOT_LEARNER_OWNED)
+
+
+def test_cross_account_and_cross_exercise_parent_inserts_are_rejected(fixture):
+    from app.storage import schema as s
+    from .store import StageStore
+    from datetime import datetime,timezone
+    st,ex,other,other_ex,_=fixture
+    own=upload(st,ex);second=StageStore(other,st.settings);foreign=upload(second,other_ex)
+    # Even a direct unconverted writer cannot attach one account's attempt/evidence
+    # to another account's exercise. Both referenced parents must agree.
+    for attempt,exercise in [(foreign,ex),(own,other_ex)]:
+        with pytest.raises(DBAPIError):
+            with st.repo.transaction() as db:
+                db.execute(s.turns.insert().values(attempt_id=attempt,exercise_id=exercise,followup_id=None,position=0,confirmed_text='Synthetic',created_at=datetime.now(timezone.utc)))
+    assert counts(st)['conversation_turns']==0
+    # Correctly scoped inserts still face the live-claim guard.
+    request=body(st,ex,own);_,_,lease=st.claim(ex,'assess',request)
+    with pytest.raises(DBAPIError):
+        with st.repo.transaction() as db:
+            db.execute(s.turns.insert().values(attempt_id=own,exercise_id=ex,followup_id=None,position=0,confirmed_text='Synthetic',created_at=datetime.now(timezone.utc)))
+    st.finish(lease,assessment(st,ex,lease))
+    assert counts(st)['conversation_turns']==1
+
+
+def test_missing_question_parent_is_rejected_at_commit_for_legacy_order(fixture):
+    from app.storage import schema as s
+    from uuid import uuid4
+    st,ex,*_=fixture
+    with pytest.raises(DBAPIError):
+        with st.repo.transaction() as db:
+            db.execute(s.conversations.update().where(s.conversations.c.exercise_id==ex).values(active_followup_id=str(uuid4())))
+    assert st.repo.conversation(ex).active_followup is None
+
+
+def test_only_identical_operation_can_join_processing(fixture):
+    import hashlib
+    from experiments.durable_claims.store import Conflict
+    st,ex,*_=fixture
+    request={'upload_id':'0123456789abcdef','bytes_hash':hashlib.sha256(b'synthetic').hexdigest()}
+    _,_,lease=st.claim(ex,'upload',request)
+    kind,value,_=st.claim(ex,'upload',request)
+    assert kind=='processing' and value['operation_id']==lease.id and value['kind']=='upload'
+    with pytest.raises(Conflict):st.claim(ex,'upload',{**request,'upload_id':'1111111111111111'})
+    st.finish(lease,T)
+    a=lease.id;request=body(st,ex,a)
+    _,_,lease=st.claim(ex,'assess',request)
+    assert st.claim(ex,'assess',request)[1]['operation_id']==lease.id
+    with pytest.raises(Conflict):st.claim(ex,'assess',{**request,'text':T.text+' changed'})
+    assert st.repo.conversation(ex).pending_attempt_id==a
+    st.finish(lease,assessment(st,ex,lease))
+    assert counts(st)['conversation_turns']==1

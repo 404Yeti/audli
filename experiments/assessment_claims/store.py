@@ -114,7 +114,10 @@ class StageStore:
             elif kind=='advance' and op and op['status']=='complete':return 'done',self.lesson_view(r),None
             if slot['active']:
                 if not r['active']:raise Conflict('Unknown ownership protocol; drain required')
-                if r['active']['status']=='running' and datetime.fromisoformat(r['active']['expires'])>r['now']:return 'processing',None,None
+                if r['active']['status']=='running' and datetime.fromisoformat(r['active']['expires'])>r['now']:
+                    if r['active']['id']==identifier and r['active']['kind']==kind:
+                        return 'processing',{'operation_id':identifier,'kind':kind},None
+                    raise Conflict('A different operation owns this account')
             c,l=self.question(r) if kind in ('upload','assess') else (Conversation.model_validate(r['conversation']['data']),Lesson.model_validate(r['lesson']['data']) if r['lesson'] else None)
             if op and op['snapshot']!=snapshot(r):raise Conflict('Operation evidence changed')
             plan=Plan()

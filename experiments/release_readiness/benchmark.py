@@ -165,7 +165,7 @@ async def run():
             if server_task.done(): await server_task
             await asyncio.sleep(.005)
         audio = Path(directory)/'synthetic.wav'; audio.write_bytes(wav())
-        result = dict(source_hashes={str(p.relative_to(args.root)):hashlib.sha256(p.read_bytes()).hexdigest() for folder in ('app','experiments/assessment_claims','experiments/release_readiness') for p in (args.root/folder).rglob('*') if p.suffix in ('.py','.sql','.mjs')},
+        result = dict(source_hashes=[dict(path=str(p.relative_to(args.root)),sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for folder in ('app','experiments/assessment_claims','experiments/release_readiness') for p in (args.root/folder).rglob('*') if p.suffix in ('.py','.sql','.mjs')],
             packages={p:importlib.metadata.version(p) for p in ('SQLAlchemy','psycopg','fastapi','httpx','pydantic','openai','uvicorn')},python=sys.version.split()[0],
             installer=args.installer,schema_mode=args.schema,runtime_role='audli_audit_app (non-owner, RLS)' if args.schema=='migration8' else 'local lab owner',
             application_source=str(args.root),source_tree_clean=subprocess.call(['git','-C',str(args.root),'diff','--quiet','HEAD','--','app','experiments'])==0,

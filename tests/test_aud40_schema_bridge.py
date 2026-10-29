@@ -84,7 +84,10 @@ def test_incomplete_or_future_ledgers_still_fail_closed(repository_factory, vers
         for version in versions:
             db.execute(text('INSERT INTO schema_migrations VALUES (:version, now())'), {'version': version})
     before = snapshot(repo.engine)
-    with pytest.raises(RuntimeError, match='schema version validation'):
+    # 008 is now an accepted additive ledger, but a fabricated marker without
+    # claims objects/guards still fails the required-schema gate.
+    stage='required table and column validation' if versions==list(range(1,9)) else 'schema version validation'
+    with pytest.raises(RuntimeError, match=stage):
         PostgresRepository(repo.engine.url.render_as_string(hide_password=False))
     assert snapshot(repo.engine) == before
 

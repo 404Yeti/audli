@@ -9,3 +9,18 @@ condition = "AND"
 paths = ['''^tests/password-recovery\.test\.mjs$''', '''^web/tests/password-recovery\.spec\.ts$''']
 regexTarget = "secret"
 regexes = ['''^0123456789abcdef(?:0123456789abcdef)?$''']
+
+# Provenance SHA-256 values, verified against the recorded source revisions.
+[[allowlists]]
+description = "AUD-94 exact source provenance digests"
+condition = "AND"
+paths = ['''^experiments/assessment_claims/results/app\-hashes\.json$''', '''^experiments/durable_claims/results/optimization/app\-source\-hashes\.json$''', '''^experiments/durable_claims/results/provenance\.json$''']
+regexTarget = "secret"
+regexes = ['''^(?:1ad071081099025bbb946a328588af9b486505198597544fa5d00f5cd223e932|388ba748999e8dfec92e835a9da2dea499e2f151e81100f1134c21d6d2c03228|606d91af4f339a9ebf69b8f7725b975221997b9f78782eb30bbd6a7064a79890|bde7c2e9a99e3d9dbfcf9b9dd34216c317963467ac20db57d6edae5d710925fd|f1c84f92f4084f187b229b4e20fc84c9b17f97ce029fb141c8bdf2418ea2fbe4)$''']
+
+[[allowlists]]
+description = "AUD-94 literal synthetic recording identity"
+condition = "AND"
+paths = ['''^experiments/assessment_claims/test_stage\.py$''', '''^experiments/durable_claims/test_claims\.py$''']
+regexTarget = "secret"
+regexes = ['''^0123456789abcdef$''']

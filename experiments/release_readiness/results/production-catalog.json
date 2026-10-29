@@ -1,0 +1,2239 @@
+{
+  "roles": [
+    {
+      "name": "anon",
+      "login": false,
+      "super": false,
+      "inherit": true,
+      "bypass_rls": false
+    },
+    {
+      "name": "authenticated",
+      "login": false,
+      "super": false,
+      "inherit": true,
+      "bypass_rls": false
+    },
+    {
+      "name": "authenticator",
+      "login": true,
+      "super": false,
+      "inherit": false,
+      "bypass_rls": false
+    },
+    {
+      "name": "postgres",
+      "login": true,
+      "super": false,
+      "inherit": true,
+      "bypass_rls": true
+    },
+    {
+      "name": "service_role",
+      "login": false,
+      "super": false,
+      "inherit": true,
+      "bypass_rls": true
+    },
+    {
+      "name": "supabase_admin",
+      "login": true,
+      "super": true,
+      "inherit": true,
+      "bypass_rls": true
+    }
+  ],
+  "tables": [
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "accent_control",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "accent_reservations",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "adaptation_events",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "assessment_evidence",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "attempts",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "audio_assets",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "coach_audio",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "conversation_followups",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "conversation_turns",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "conversations",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "evaluation_results",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "exercises",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "homework_assignments",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "homework_discovery_budget",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "homework_reflections",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "learner_profiles",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "learner_roadmaps",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "lesson_entitlements",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "lesson_exercises",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "lesson_lifecycles",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "listening_content",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "schema_migrations",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "training_sessions",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "turn_assessments",
+      "owner": "postgres",
+      "force_rls": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}",
+      "rls": true,
+      "name": "users",
+      "owner": "postgres",
+      "force_rls": false
+    }
+  ],
+  "columns": [
+    {
+      "name": "id",
+      "type": "integer",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "enabled",
+      "type": "integer",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "revision",
+      "type": "integer",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "daily_limit",
+      "type": "integer",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "concurrent_limit",
+      "type": "integer",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "budget_day",
+      "type": "character varying(10)",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "characters",
+      "type": "integer",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "accent_control",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "scope",
+      "type": "character varying(64)",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "token",
+      "type": "uuid",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "budget_day",
+      "type": "character varying(10)",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "characters",
+      "type": "integer",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "flag_revision",
+      "type": "integer",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "state",
+      "type": "character varying(16)",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "lease_until",
+      "type": "timestamp with time zone",
+      "table": "accent_reservations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "attempt_id",
+      "type": "uuid",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "decision",
+      "type": "character varying(8)",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "changed_variable",
+      "type": "character varying(40)",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "old_value",
+      "type": "jsonb",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "new_value",
+      "type": "jsonb",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "previous_score",
+      "type": "double precision",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "policy_version",
+      "type": "character varying(40)",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "adaptation_events",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "attempt_id",
+      "type": "uuid",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "dimension",
+      "type": "character varying(20)",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "unit_index",
+      "type": "integer",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "status",
+      "type": "character varying(24)",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "evidence",
+      "type": "text",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "question",
+      "type": "text",
+      "table": "assessment_evidence",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "transcription",
+      "type": "jsonb",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "recognized_text",
+      "type": "text",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "confidence",
+      "type": "double precision",
+      "table": "attempts",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "transcription_source",
+      "type": "character varying(24)",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "confirmed_text",
+      "type": "text",
+      "table": "attempts",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "status",
+      "type": "character varying(12)",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "attempts",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "audio_name",
+      "type": "text",
+      "table": "audio_assets",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "audio_assets",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "bytea",
+      "table": "audio_assets",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "audio_assets",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "coach_audio",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "cue_id",
+      "type": "character varying(80)",
+      "table": "coach_audio",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "audio_name",
+      "type": "text",
+      "table": "coach_audio",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "position",
+      "type": "integer",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "dimension",
+      "type": "character varying(20)",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "unit_index",
+      "type": "integer",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "question",
+      "type": "text",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "conversation_followups",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "attempt_id",
+      "type": "uuid",
+      "table": "conversation_turns",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "conversation_turns",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "followup_id",
+      "type": "uuid",
+      "table": "conversation_turns",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "position",
+      "type": "integer",
+      "table": "conversation_turns",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "confirmed_text",
+      "type": "text",
+      "table": "conversation_turns",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "conversation_turns",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "conversations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "conversations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "state",
+      "type": "character varying(24)",
+      "table": "conversations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "pending_attempt_id",
+      "type": "uuid",
+      "table": "conversations",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "active_followup_id",
+      "type": "uuid",
+      "table": "conversations",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "conversations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "attempt_id",
+      "type": "uuid",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "version",
+      "type": "character varying(12)",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "overall",
+      "type": "double precision",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "main_idea",
+      "type": "double precision",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "details",
+      "type": "double precision",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "vocabulary",
+      "type": "double precision",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "inference",
+      "type": "double precision",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "coverage",
+      "type": "double precision",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "coaching_outcome",
+      "type": "text",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "evaluation_results",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "session_id",
+      "type": "uuid",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "content",
+      "type": "jsonb",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "difficulty",
+      "type": "jsonb",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "audio_name",
+      "type": "text",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "lesson_id",
+      "type": "uuid",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "content_id",
+      "type": "uuid",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "status",
+      "type": "character varying(16)",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "objective",
+      "type": "text",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "topic",
+      "type": "character varying(100)",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "attempts",
+      "type": "integer",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "lease_token",
+      "type": "uuid",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "lease_until",
+      "type": "timestamp with time zone",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "homework_assignments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "integer",
+      "table": "homework_discovery_budget",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "day",
+      "type": "character varying(10)",
+      "table": "homework_discovery_budget",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "searches",
+      "type": "integer",
+      "table": "homework_discovery_budget",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "homework_reflections",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "homework_reflections",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "assignment_id",
+      "type": "uuid",
+      "table": "homework_reflections",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "homework_reflections",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "homework_reflections",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "grounding",
+      "type": "character varying(32)",
+      "table": "homework_reflections",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "name",
+      "type": "character varying(80)",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "target_language",
+      "type": "character varying(8)",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "goal",
+      "type": "text",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "interests",
+      "type": "jsonb",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "target_situations",
+      "type": "jsonb",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "onboarding_status",
+      "type": "character varying(20)",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "initial_listening_profile",
+      "type": "jsonb",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "overall",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "main_idea",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "details",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "vocabulary",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "inference",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "natural_speed",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "speech_rate",
+      "type": "double precision",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "duration_seconds",
+      "type": "integer",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "vocabulary_level",
+      "type": "character varying(2)",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "information_density",
+      "type": "integer",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "speaker_count",
+      "type": "integer",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "accent_complexity",
+      "type": "integer",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "background_noise",
+      "type": "integer",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "focus",
+      "type": "character varying(20)",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "completed_attempts",
+      "type": "integer",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "learner_profiles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "learner_roadmaps",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "revision",
+      "type": "integer",
+      "table": "learner_roadmaps",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "learner_roadmaps",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "lesson_entitlements",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "last_started_at",
+      "type": "timestamp with time zone",
+      "table": "lesson_entitlements",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "next_eligible_at",
+      "type": "timestamp with time zone",
+      "table": "lesson_entitlements",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "last_lesson_id",
+      "type": "uuid",
+      "table": "lesson_entitlements",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "voided_at",
+      "type": "timestamp with time zone",
+      "table": "lesson_entitlements",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "first_speech_failures",
+      "type": "integer",
+      "table": "lesson_entitlements",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "grace_actions",
+      "type": "integer",
+      "table": "lesson_entitlements",
+      "default": "0",
+      "not_null": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "lesson_entitlements",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "lesson_exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "lesson_id",
+      "type": "uuid",
+      "table": "lesson_exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "lesson_exercises",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "lesson_lifecycles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "lesson_lifecycles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "status",
+      "type": "character varying(12)",
+      "table": "lesson_lifecycles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "revision",
+      "type": "integer",
+      "table": "lesson_lifecycles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "started_at",
+      "type": "timestamp with time zone",
+      "table": "lesson_lifecycles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "lesson_lifecycles",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "listening_content",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "provider",
+      "type": "character varying(40)",
+      "table": "listening_content",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "provider_id",
+      "type": "character varying(100)",
+      "table": "listening_content",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "listening_content",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "validated_at",
+      "type": "timestamp with time zone",
+      "table": "listening_content",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "version",
+      "type": "integer",
+      "table": "schema_migrations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "applied_at",
+      "type": "timestamp with time zone",
+      "table": "schema_migrations",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "training_sessions",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "training_sessions",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "status",
+      "type": "character varying(12)",
+      "table": "training_sessions",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "started_at",
+      "type": "timestamp with time zone",
+      "table": "training_sessions",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "completed_at",
+      "type": "timestamp with time zone",
+      "table": "training_sessions",
+      "default": null,
+      "not_null": false
+    },
+    {
+      "name": "starting_difficulty",
+      "type": "jsonb",
+      "table": "training_sessions",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "attempt_id",
+      "type": "uuid",
+      "table": "turn_assessments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "exercise_id",
+      "type": "uuid",
+      "table": "turn_assessments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "data",
+      "type": "jsonb",
+      "table": "turn_assessments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "turn_assessments",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "users",
+      "default": null,
+      "not_null": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "users",
+      "default": null,
+      "not_null": true
+    }
+  ],
+  "indexes": [
+    {
+      "name": "accent_control_pkey",
+      "table": "accent_control",
+      "definition": "CREATE UNIQUE INDEX accent_control_pkey ON public.accent_control USING btree (id)"
+    },
+    {
+      "name": "accent_reservations_by_lease",
+      "table": "accent_reservations",
+      "definition": "CREATE INDEX accent_reservations_by_lease ON public.accent_reservations USING btree (lease_until)"
+    },
+    {
+      "name": "accent_reservations_by_state_lease",
+      "table": "accent_reservations",
+      "definition": "CREATE INDEX accent_reservations_by_state_lease ON public.accent_reservations USING btree (state, lease_until)"
+    },
+    {
+      "name": "accent_reservations_pkey",
+      "table": "accent_reservations",
+      "definition": "CREATE UNIQUE INDEX accent_reservations_pkey ON public.accent_reservations USING btree (scope)"
+    },
+    {
+      "name": "accent_reservations_token_key",
+      "table": "accent_reservations",
+      "definition": "CREATE UNIQUE INDEX accent_reservations_token_key ON public.accent_reservations USING btree (token)"
+    },
+    {
+      "name": "adaptation_events_attempt_id_key",
+      "table": "adaptation_events",
+      "definition": "CREATE UNIQUE INDEX adaptation_events_attempt_id_key ON public.adaptation_events USING btree (attempt_id)"
+    },
+    {
+      "name": "adaptation_events_pkey",
+      "table": "adaptation_events",
+      "definition": "CREATE UNIQUE INDEX adaptation_events_pkey ON public.adaptation_events USING btree (id)"
+    },
+    {
+      "name": "assessment_evidence_pkey",
+      "table": "assessment_evidence",
+      "definition": "CREATE UNIQUE INDEX assessment_evidence_pkey ON public.assessment_evidence USING btree (attempt_id, dimension, unit_index)"
+    },
+    {
+      "name": "attempts_by_exercise",
+      "table": "attempts",
+      "definition": "CREATE INDEX attempts_by_exercise ON public.attempts USING btree (exercise_id)"
+    },
+    {
+      "name": "attempts_pkey",
+      "table": "attempts",
+      "definition": "CREATE UNIQUE INDEX attempts_pkey ON public.attempts USING btree (id)"
+    },
+    {
+      "name": "one_evaluation_per_exercise",
+      "table": "attempts",
+      "definition": "CREATE UNIQUE INDEX one_evaluation_per_exercise ON public.attempts USING btree (exercise_id) WHERE ((status)::text = 'evaluated'::text)"
+    },
+    {
+      "name": "audio_assets_pkey",
+      "table": "audio_assets",
+      "definition": "CREATE UNIQUE INDEX audio_assets_pkey ON public.audio_assets USING btree (audio_name)"
+    },
+    {
+      "name": "coach_audio_pkey",
+      "table": "coach_audio",
+      "definition": "CREATE UNIQUE INDEX coach_audio_pkey ON public.coach_audio USING btree (exercise_id, cue_id)"
+    },
+    {
+      "name": "conversation_followups_pkey",
+      "table": "conversation_followups",
+      "definition": "CREATE UNIQUE INDEX conversation_followups_pkey ON public.conversation_followups USING btree (id)"
+    },
+    {
+      "name": "followups_by_exercise",
+      "table": "conversation_followups",
+      "definition": "CREATE UNIQUE INDEX followups_by_exercise ON public.conversation_followups USING btree (exercise_id, \"position\")"
+    },
+    {
+      "name": "conversation_turns_pkey",
+      "table": "conversation_turns",
+      "definition": "CREATE UNIQUE INDEX conversation_turns_pkey ON public.conversation_turns USING btree (attempt_id)"
+    },
+    {
+      "name": "turns_by_exercise",
+      "table": "conversation_turns",
+      "definition": "CREATE UNIQUE INDEX turns_by_exercise ON public.conversation_turns USING btree (exercise_id, \"position\")"
+    },
+    {
+      "name": "conversations_pkey",
+      "table": "conversations",
+      "definition": "CREATE UNIQUE INDEX conversations_pkey ON public.conversations USING btree (exercise_id)"
+    },
+    {
+      "name": "evaluation_results_pkey",
+      "table": "evaluation_results",
+      "definition": "CREATE UNIQUE INDEX evaluation_results_pkey ON public.evaluation_results USING btree (attempt_id)"
+    },
+    {
+      "name": "exercises_by_learner_time",
+      "table": "exercises",
+      "definition": "CREATE INDEX exercises_by_learner_time ON public.exercises USING btree (user_id, created_at)"
+    },
+    {
+      "name": "exercises_by_session",
+      "table": "exercises",
+      "definition": "CREATE INDEX exercises_by_session ON public.exercises USING btree (session_id)"
+    },
+    {
+      "name": "exercises_pkey",
+      "table": "exercises",
+      "definition": "CREATE UNIQUE INDEX exercises_pkey ON public.exercises USING btree (id)"
+    },
+    {
+      "name": "homework_assignments_pkey",
+      "table": "homework_assignments",
+      "definition": "CREATE UNIQUE INDEX homework_assignments_pkey ON public.homework_assignments USING btree (id)"
+    },
+    {
+      "name": "homework_by_owner_time",
+      "table": "homework_assignments",
+      "definition": "CREATE INDEX homework_by_owner_time ON public.homework_assignments USING btree (user_id, created_at)"
+    },
+    {
+      "name": "homework_owner_key",
+      "table": "homework_assignments",
+      "definition": "CREATE UNIQUE INDEX homework_owner_key ON public.homework_assignments USING btree (id, user_id)"
+    },
+    {
+      "name": "no_repeated_homework_content",
+      "table": "homework_assignments",
+      "definition": "CREATE UNIQUE INDEX no_repeated_homework_content ON public.homework_assignments USING btree (user_id, content_id)"
+    },
+    {
+      "name": "one_homework_per_lesson",
+      "table": "homework_assignments",
+      "definition": "CREATE UNIQUE INDEX one_homework_per_lesson ON public.homework_assignments USING btree (user_id, lesson_id)"
+    },
+    {
+      "name": "homework_discovery_budget_pkey",
+      "table": "homework_discovery_budget",
+      "definition": "CREATE UNIQUE INDEX homework_discovery_budget_pkey ON public.homework_discovery_budget USING btree (id)"
+    },
+    {
+      "name": "homework_reflections_pkey",
+      "table": "homework_reflections",
+      "definition": "CREATE UNIQUE INDEX homework_reflections_pkey ON public.homework_reflections USING btree (id)"
+    },
+    {
+      "name": "reflections_by_assignment_owner",
+      "table": "homework_reflections",
+      "definition": "CREATE INDEX reflections_by_assignment_owner ON public.homework_reflections USING btree (assignment_id, user_id)"
+    },
+    {
+      "name": "learner_profiles_pkey",
+      "table": "learner_profiles",
+      "definition": "CREATE UNIQUE INDEX learner_profiles_pkey ON public.learner_profiles USING btree (user_id)"
+    },
+    {
+      "name": "learner_roadmaps_pkey",
+      "table": "learner_roadmaps",
+      "definition": "CREATE UNIQUE INDEX learner_roadmaps_pkey ON public.learner_roadmaps USING btree (user_id)"
+    },
+    {
+      "name": "lesson_entitlements_pkey",
+      "table": "lesson_entitlements",
+      "definition": "CREATE UNIQUE INDEX lesson_entitlements_pkey ON public.lesson_entitlements USING btree (user_id)"
+    },
+    {
+      "name": "exercises_by_lesson",
+      "table": "lesson_exercises",
+      "definition": "CREATE INDEX exercises_by_lesson ON public.lesson_exercises USING btree (lesson_id)"
+    },
+    {
+      "name": "lesson_exercises_pkey",
+      "table": "lesson_exercises",
+      "definition": "CREATE UNIQUE INDEX lesson_exercises_pkey ON public.lesson_exercises USING btree (exercise_id)"
+    },
+    {
+      "name": "lesson_lifecycles_pkey",
+      "table": "lesson_lifecycles",
+      "definition": "CREATE UNIQUE INDEX lesson_lifecycles_pkey ON public.lesson_lifecycles USING btree (id)"
+    },
+    {
+      "name": "lesson_owner_key",
+      "table": "lesson_lifecycles",
+      "definition": "CREATE UNIQUE INDEX lesson_owner_key ON public.lesson_lifecycles USING btree (id, user_id)"
+    },
+    {
+      "name": "lessons_by_learner_time",
+      "table": "lesson_lifecycles",
+      "definition": "CREATE INDEX lessons_by_learner_time ON public.lesson_lifecycles USING btree (user_id, started_at)"
+    },
+    {
+      "name": "one_open_lesson_per_learner",
+      "table": "lesson_lifecycles",
+      "definition": "CREATE UNIQUE INDEX one_open_lesson_per_learner ON public.lesson_lifecycles USING btree (user_id) WHERE ((status)::text = ANY ((ARRAY['active'::character varying, 'paused'::character varying])::text[]))"
+    },
+    {
+      "name": "content_provider_key",
+      "table": "listening_content",
+      "definition": "CREATE UNIQUE INDEX content_provider_key ON public.listening_content USING btree (provider, provider_id)"
+    },
+    {
+      "name": "listening_content_pkey",
+      "table": "listening_content",
+      "definition": "CREATE UNIQUE INDEX listening_content_pkey ON public.listening_content USING btree (id)"
+    },
+    {
+      "name": "schema_migrations_pkey",
+      "table": "schema_migrations",
+      "definition": "CREATE UNIQUE INDEX schema_migrations_pkey ON public.schema_migrations USING btree (version)"
+    },
+    {
+      "name": "session_owner_key",
+      "table": "training_sessions",
+      "definition": "CREATE UNIQUE INDEX session_owner_key ON public.training_sessions USING btree (id, user_id)"
+    },
+    {
+      "name": "sessions_by_learner_time",
+      "table": "training_sessions",
+      "definition": "CREATE INDEX sessions_by_learner_time ON public.training_sessions USING btree (user_id, started_at)"
+    },
+    {
+      "name": "training_sessions_pkey",
+      "table": "training_sessions",
+      "definition": "CREATE UNIQUE INDEX training_sessions_pkey ON public.training_sessions USING btree (id)"
+    },
+    {
+      "name": "assessments_by_exercise",
+      "table": "turn_assessments",
+      "definition": "CREATE INDEX assessments_by_exercise ON public.turn_assessments USING btree (exercise_id, created_at)"
+    },
+    {
+      "name": "turn_assessments_pkey",
+      "table": "turn_assessments",
+      "definition": "CREATE UNIQUE INDEX turn_assessments_pkey ON public.turn_assessments USING btree (attempt_id)"
+    },
+    {
+      "name": "users_pkey",
+      "table": "users",
+      "definition": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+    }
+  ],
+  "policies": [],
+  "triggers": [
+    {
+      "name": "lesson_entitlement_guard",
+      "table": "lesson_entitlements",
+      "enabled": "O",
+      "definition": "CREATE TRIGGER lesson_entitlement_guard BEFORE UPDATE ON public.lesson_entitlements FOR EACH ROW EXECUTE FUNCTION lesson_entitlement_guard()"
+    }
+  ],
+  "functions": [
+    {
+      "acl": null,
+      "name": "lesson_entitlement_guard()",
+      "owner": "postgres",
+      "definer": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "rls_auto_enable()",
+      "owner": "postgres",
+      "definer": true
+    }
+  ],
+  "constraints": [
+    {
+      "name": "accent_control_limits",
+      "table": "accent_control",
+      "validated": true,
+      "definition": "CHECK (((daily_limit >= 0) AND (characters >= 0) AND ((concurrent_limit >= 1) AND (concurrent_limit <= 16))))"
+    },
+    {
+      "name": "accent_control_pkey",
+      "table": "accent_control",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "accent_control_singleton",
+      "table": "accent_control",
+      "validated": true,
+      "definition": "CHECK (((id = 1) AND (enabled = ANY (ARRAY[0, 1])) AND (revision >= 0)))"
+    },
+    {
+      "name": "accent_reservation_characters",
+      "table": "accent_reservations",
+      "validated": true,
+      "definition": "CHECK (((characters >= 1) AND (characters <= 4000)))"
+    },
+    {
+      "name": "accent_reservation_state",
+      "table": "accent_reservations",
+      "validated": true,
+      "definition": "CHECK (((state)::text = ANY ((ARRAY['active'::character varying, 'success'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'abandoned'::character varying])::text[])))"
+    },
+    {
+      "name": "accent_reservations_pkey",
+      "table": "accent_reservations",
+      "validated": true,
+      "definition": "PRIMARY KEY (scope)"
+    },
+    {
+      "name": "accent_reservations_token_key",
+      "table": "accent_reservations",
+      "validated": true,
+      "definition": "UNIQUE (token)"
+    },
+    {
+      "name": "adaptation_events_attempt_id_fkey",
+      "table": "adaptation_events",
+      "validated": true,
+      "definition": "FOREIGN KEY (attempt_id) REFERENCES attempts(id)"
+    },
+    {
+      "name": "adaptation_events_attempt_id_key",
+      "table": "adaptation_events",
+      "validated": true,
+      "definition": "UNIQUE (attempt_id)"
+    },
+    {
+      "name": "adaptation_events_pkey",
+      "table": "adaptation_events",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "assessment_evidence_attempt_id_fkey",
+      "table": "assessment_evidence",
+      "validated": true,
+      "definition": "FOREIGN KEY (attempt_id) REFERENCES turn_assessments(attempt_id)"
+    },
+    {
+      "name": "assessment_evidence_exercise_id_fkey",
+      "table": "assessment_evidence",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "assessment_evidence_pkey",
+      "table": "assessment_evidence",
+      "validated": true,
+      "definition": "PRIMARY KEY (attempt_id, dimension, unit_index)"
+    },
+    {
+      "name": "evidence_status_valid",
+      "table": "assessment_evidence",
+      "validated": true,
+      "definition": "CHECK (((status)::text = ANY ((ARRAY['demonstrated'::character varying, 'partially_demonstrated'::character varying, 'misunderstood'::character varying, 'insufficient_evidence'::character varying])::text[])))"
+    },
+    {
+      "name": "attempt_status_valid",
+      "table": "attempts",
+      "validated": true,
+      "definition": "CHECK (((status)::text = ANY ((ARRAY['transcribed'::character varying, 'evaluated'::character varying])::text[])))"
+    },
+    {
+      "name": "attempts_exercise_id_fkey",
+      "table": "attempts",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "attempts_pkey",
+      "table": "attempts",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "audio_assets_pkey",
+      "table": "audio_assets",
+      "validated": true,
+      "definition": "PRIMARY KEY (audio_name)"
+    },
+    {
+      "name": "audio_assets_user_id_fkey",
+      "table": "audio_assets",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "coach_audio_exercise_id_fkey",
+      "table": "coach_audio",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "coach_audio_pkey",
+      "table": "coach_audio",
+      "validated": true,
+      "definition": "PRIMARY KEY (exercise_id, cue_id)"
+    },
+    {
+      "name": "conversation_followups_exercise_id_fkey",
+      "table": "conversation_followups",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "conversation_followups_pkey",
+      "table": "conversation_followups",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "conversation_turns_attempt_id_fkey",
+      "table": "conversation_turns",
+      "validated": true,
+      "definition": "FOREIGN KEY (attempt_id) REFERENCES attempts(id)"
+    },
+    {
+      "name": "conversation_turns_exercise_id_fkey",
+      "table": "conversation_turns",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "conversation_turns_followup_id_fkey",
+      "table": "conversation_turns",
+      "validated": true,
+      "definition": "FOREIGN KEY (followup_id) REFERENCES conversation_followups(id)"
+    },
+    {
+      "name": "conversation_turns_pkey",
+      "table": "conversation_turns",
+      "validated": true,
+      "definition": "PRIMARY KEY (attempt_id)"
+    },
+    {
+      "name": "conversations_exercise_id_fkey",
+      "table": "conversations",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "conversations_pending_attempt_id_fkey",
+      "table": "conversations",
+      "validated": true,
+      "definition": "FOREIGN KEY (pending_attempt_id) REFERENCES attempts(id)"
+    },
+    {
+      "name": "conversations_pkey",
+      "table": "conversations",
+      "validated": true,
+      "definition": "PRIMARY KEY (exercise_id)"
+    },
+    {
+      "name": "evaluation_results_attempt_id_fkey",
+      "table": "evaluation_results",
+      "validated": true,
+      "definition": "FOREIGN KEY (attempt_id) REFERENCES attempts(id)"
+    },
+    {
+      "name": "evaluation_results_pkey",
+      "table": "evaluation_results",
+      "validated": true,
+      "definition": "PRIMARY KEY (attempt_id)"
+    },
+    {
+      "name": "exercise_session_owner",
+      "table": "exercises",
+      "validated": true,
+      "definition": "FOREIGN KEY (session_id, user_id) REFERENCES training_sessions(id, user_id)"
+    },
+    {
+      "name": "exercises_pkey",
+      "table": "exercises",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "exercises_session_id_fkey",
+      "table": "exercises",
+      "validated": true,
+      "definition": "FOREIGN KEY (session_id) REFERENCES training_sessions(id)"
+    },
+    {
+      "name": "exercises_user_id_fkey",
+      "table": "exercises",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "homework_assignments_content_id_fkey",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "FOREIGN KEY (content_id) REFERENCES listening_content(id)"
+    },
+    {
+      "name": "homework_assignments_pkey",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "homework_assignments_user_id_fkey",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "homework_attempts_bounded",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "CHECK (((attempts >= 0) AND (attempts <= 2)))"
+    },
+    {
+      "name": "homework_lesson_owner",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "FOREIGN KEY (lesson_id, user_id) REFERENCES lesson_lifecycles(id, user_id)"
+    },
+    {
+      "name": "homework_owner_key",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "UNIQUE (id, user_id)"
+    },
+    {
+      "name": "homework_status_valid",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "CHECK (((status)::text = ANY ((ARRAY['offered'::character varying, 'assigned'::character varying, 'completed'::character varying, 'discussed'::character varying, 'skipped'::character varying, 'unavailable'::character varying])::text[])))"
+    },
+    {
+      "name": "no_repeated_homework_content",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "UNIQUE (user_id, content_id)"
+    },
+    {
+      "name": "one_homework_per_lesson",
+      "table": "homework_assignments",
+      "validated": true,
+      "definition": "UNIQUE (user_id, lesson_id)"
+    },
+    {
+      "name": "homework_budget_valid",
+      "table": "homework_discovery_budget",
+      "validated": true,
+      "definition": "CHECK (((id = 1) AND (searches >= 0)))"
+    },
+    {
+      "name": "homework_discovery_budget_pkey",
+      "table": "homework_discovery_budget",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "homework_reflections_pkey",
+      "table": "homework_reflections",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "reflection_grounding_valid",
+      "table": "homework_reflections",
+      "validated": true,
+      "definition": "CHECK (((grounding)::text = 'unverified_self_report'::text))"
+    },
+    {
+      "name": "reflection_owner",
+      "table": "homework_reflections",
+      "validated": true,
+      "definition": "FOREIGN KEY (assignment_id, user_id) REFERENCES homework_assignments(id, user_id)"
+    },
+    {
+      "name": "difficulty_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK ((((speech_rate >= (0.6)::double precision) AND (speech_rate <= (1.15)::double precision)) AND ((duration_seconds >= 30) AND (duration_seconds <= 90)) AND ((information_density >= 1) AND (information_density <= 3))))"
+    },
+    {
+      "name": "learner_profiles_pkey",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "PRIMARY KEY (user_id)"
+    },
+    {
+      "name": "learner_profiles_user_id_fkey",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "onboarding_status_valid",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((onboarding_status)::text = ANY ((ARRAY['not_started'::character varying, 'in_progress'::character varying, 'profile_saved'::character varying, 'complete'::character varying])::text[])))"
+    },
+    {
+      "name": "profile_details_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((details IS NULL) OR ((details >= (0)::double precision) AND (details <= (1)::double precision))))"
+    },
+    {
+      "name": "profile_inference_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((inference IS NULL) OR ((inference >= (0)::double precision) AND (inference <= (1)::double precision))))"
+    },
+    {
+      "name": "profile_level_count_valid",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK ((((vocabulary_level)::text = ANY ((ARRAY['A2'::character varying, 'B1'::character varying, 'B2'::character varying, 'C1'::character varying])::text[])) AND (completed_attempts >= 0)))"
+    },
+    {
+      "name": "profile_main_idea_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((main_idea IS NULL) OR ((main_idea >= (0)::double precision) AND (main_idea <= (1)::double precision))))"
+    },
+    {
+      "name": "profile_natural_speed_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((natural_speed IS NULL) OR ((natural_speed >= (0)::double precision) AND (natural_speed <= (1)::double precision))))"
+    },
+    {
+      "name": "profile_overall_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((overall IS NULL) OR ((overall >= (0)::double precision) AND (overall <= (1)::double precision))))"
+    },
+    {
+      "name": "profile_vocabulary_bounds",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((vocabulary IS NULL) OR ((vocabulary >= (0)::double precision) AND (vocabulary <= (1)::double precision))))"
+    },
+    {
+      "name": "supported_difficulty",
+      "table": "learner_profiles",
+      "validated": true,
+      "definition": "CHECK (((speaker_count = 1) AND (accent_complexity = 1) AND (background_noise = 0)))"
+    },
+    {
+      "name": "learner_roadmaps_pkey",
+      "table": "learner_roadmaps",
+      "validated": true,
+      "definition": "PRIMARY KEY (user_id)"
+    },
+    {
+      "name": "learner_roadmaps_user_id_fkey",
+      "table": "learner_roadmaps",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "roadmap_revision_valid",
+      "table": "learner_roadmaps",
+      "validated": true,
+      "definition": "CHECK ((revision >= 0))"
+    },
+    {
+      "name": "entitlement_grace_bounded",
+      "table": "lesson_entitlements",
+      "validated": true,
+      "definition": "CHECK (((grace_actions >= 0) AND (grace_actions <= 25)))"
+    },
+    {
+      "name": "entitlement_window_ordered",
+      "table": "lesson_entitlements",
+      "validated": true,
+      "definition": "CHECK ((next_eligible_at >= last_started_at))"
+    },
+    {
+      "name": "lesson_entitlements_pkey",
+      "table": "lesson_entitlements",
+      "validated": true,
+      "definition": "PRIMARY KEY (user_id)"
+    },
+    {
+      "name": "lesson_entitlements_user_id_fkey",
+      "table": "lesson_entitlements",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "lesson_exercise_owner",
+      "table": "lesson_exercises",
+      "validated": true,
+      "definition": "FOREIGN KEY (lesson_id, user_id) REFERENCES lesson_lifecycles(id, user_id)"
+    },
+    {
+      "name": "lesson_exercises_exercise_id_fkey",
+      "table": "lesson_exercises",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "lesson_exercises_pkey",
+      "table": "lesson_exercises",
+      "validated": true,
+      "definition": "PRIMARY KEY (exercise_id)"
+    },
+    {
+      "name": "lesson_lifecycles_pkey",
+      "table": "lesson_lifecycles",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "lesson_lifecycles_user_id_fkey",
+      "table": "lesson_lifecycles",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "lesson_owner_key",
+      "table": "lesson_lifecycles",
+      "validated": true,
+      "definition": "UNIQUE (id, user_id)"
+    },
+    {
+      "name": "lesson_revision_valid",
+      "table": "lesson_lifecycles",
+      "validated": true,
+      "definition": "CHECK ((revision >= 0))"
+    },
+    {
+      "name": "lesson_status_valid",
+      "table": "lesson_lifecycles",
+      "validated": true,
+      "definition": "CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'paused'::character varying, 'completed'::character varying, 'expired'::character varying])::text[])))"
+    },
+    {
+      "name": "content_provider_key",
+      "table": "listening_content",
+      "validated": true,
+      "definition": "UNIQUE (provider, provider_id)"
+    },
+    {
+      "name": "listening_content_pkey",
+      "table": "listening_content",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "schema_migrations_pkey",
+      "table": "schema_migrations",
+      "validated": true,
+      "definition": "PRIMARY KEY (version)"
+    },
+    {
+      "name": "session_completion_valid",
+      "table": "training_sessions",
+      "validated": true,
+      "definition": "CHECK (((((status)::text = 'active'::text) AND (completed_at IS NULL)) OR (((status)::text = 'completed'::text) AND (completed_at IS NOT NULL))))"
+    },
+    {
+      "name": "session_owner_key",
+      "table": "training_sessions",
+      "validated": true,
+      "definition": "UNIQUE (id, user_id)"
+    },
+    {
+      "name": "session_status_valid",
+      "table": "training_sessions",
+      "validated": true,
+      "definition": "CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'completed'::character varying])::text[])))"
+    },
+    {
+      "name": "training_sessions_pkey",
+      "table": "training_sessions",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "training_sessions_user_id_fkey",
+      "table": "training_sessions",
+      "validated": true,
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+    },
+    {
+      "name": "turn_assessments_attempt_id_fkey",
+      "table": "turn_assessments",
+      "validated": true,
+      "definition": "FOREIGN KEY (attempt_id) REFERENCES attempts(id)"
+    },
+    {
+      "name": "turn_assessments_exercise_id_fkey",
+      "table": "turn_assessments",
+      "validated": true,
+      "definition": "FOREIGN KEY (exercise_id) REFERENCES exercises(id)"
+    },
+    {
+      "name": "turn_assessments_pkey",
+      "table": "turn_assessments",
+      "validated": true,
+      "definition": "PRIMARY KEY (attempt_id)"
+    },
+    {
+      "name": "users_pkey",
+      "table": "users",
+      "validated": true,
+      "definition": "PRIMARY KEY (id)"
+    }
+  ],
+  "server_version": "17.11",
+  "schema_versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ]
+}

@@ -10,6 +10,7 @@ export type Notice =
 
 export const NOTICE_TEXT = {
   sending: 'Sending your answer…',
+  processing: 'Your answer is processing…',
   retrying: (next: number, of: number) => `Trying to send again (${next} of ${of})…`,
   failed: "We couldn't confirm your answer was received. Your recording is available while this page stays open.",
   recordAgain: "Okay, let's try that again.",
@@ -21,6 +22,7 @@ export const NOTICE_TEXT = {
 export function noticeFor(state: DeliveryState): Notice | null {
   switch (state.kind) {
     case 'sending': return state.slow ? { kind: 'sending', text: NOTICE_TEXT.sending } : null;
+    case 'processing': return { kind: 'sending', text: NOTICE_TEXT.processing };
     case 'retrying': return { kind: 'retrying', text: NOTICE_TEXT.retrying(state.next, state.of) };
     case 'failed': return { kind: 'failed', text: NOTICE_TEXT.failed, ...(state.reason === 'ambiguous' ? { ambiguous: true } : {}) };
     case 'moved': return { kind: 'moved', text: NOTICE_TEXT.moved };

@@ -1,0 +1,18 @@
+{
+  "audli-claims-baseline": {
+    "app/auth.py": "388ba748999e8dfec92e835a9da2dea499e2f151e81100f1134c21d6d2c03228",
+    "app/main.py": "9102041a596e8dc523e5b18f267f116541e0c2162cc21d42efafac4c061662a6",
+    "app/conversation_api.py": "1ad071081099025bbb946a328588af9b486505198597544fa5d00f5cd223e932",
+    "app/storage/repository.py": "08fcbd8dea37e56a573dd541071e445762f304f3b60f56d57a0e3f18058fe681",
+    "web/lib/upload-sender.ts": "c6fbd244e4be2471adee99e0bf6a44b856c41a40e41b16c77447034d16935f7a",
+    "web/lib/upload-policy.ts": "e357f8be14ca2aa2aaaa01534bda2c451309c26258e41b35beaa3fee7c96a452"
+  },
+  "audli-assessment-claims": {
+    "app/auth.py": "388ba748999e8dfec92e835a9da2dea499e2f151e81100f1134c21d6d2c03228",
+    "app/main.py": "9102041a596e8dc523e5b18f267f116541e0c2162cc21d42efafac4c061662a6",
+    "app/conversation_api.py": "1ad071081099025bbb946a328588af9b486505198597544fa5d00f5cd223e932",
+    "app/storage/repository.py": "08fcbd8dea37e56a573dd541071e445762f304f3b60f56d57a0e3f18058fe681",
+    "web/lib/upload-sender.ts": "c6fbd244e4be2471adee99e0bf6a44b856c41a40e41b16c77447034d16935f7a",
+    "web/lib/upload-policy.ts": "e357f8be14ca2aa2aaaa01534bda2c451309c26258e41b35beaa3fee7c96a452"
+  }
+}

@@ -1,4 +1,5 @@
-import { markApiActivity, startDelivery, retryUploadIdOf } from './upload-delivery.ts';
+import { OperationProcessing, operationReference, awaitOperation, type OperationStatus } from './operation-status.ts';
+import { markApiActivity, startDelivery, retryUploadIdOf, uploadIdOf } from './upload-delivery.ts';
 let accessToken: (() => Promise<string | null>) | null = null;
 /** AUD-85, build-time opt-in diagnostics, installed by turn-reporting: the random per-turn id and request spans. */
 export type RequestTraceHooks = { turnId(): string | null; kindOf(path: string): string | null; record(kind: never, start: number, token: number, ttfb: number): void };
@@ -66,7 +67,7 @@ export class LessonOperation {
   }
   api<T>(url: string, init?: RequestInit, onResponse?: (status: number) => void): Promise<T> {
     this.assertCurrent();
-    return this.wait(() => api<T>(url, { ...init, signal: this.signal }, onResponse, this));
+    return this.wait(() => api<T>(url, { ...init, signal: this.signal }, onResponse, this, !!init?.body && init.body instanceof FormData));
   }
   /** Like `api`, but this one request can also be aborted by `extra` (a per-send timeout); leaving the lesson still aborts it too. */
   apiWith<T>(url: string, init: RequestInit | undefined, extra: AbortSignal): Promise<T> {
@@ -76,7 +77,7 @@ export class LessonOperation {
     if (this.signal.aborted || extra.aborted) abort();
     this.signal.addEventListener('abort', abort, { once: true });
     extra.addEventListener('abort', abort, { once: true });
-    return this.wait(() => api<T>(url, { ...init, signal: controller.signal }, undefined, this))
+    return this.wait(() => api<T>(url, { ...init, signal: controller.signal }, undefined, this, true))
       .finally(() => { this.signal.removeEventListener('abort', abort); extra.removeEventListener('abort', abort); });
   }
   audio(url: string): Promise<string> {
@@ -104,6 +105,9 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
   const revision = authRevision;
   let requestToken: string | null = null;
   const headers = new Headers(init?.headers);
+  if (resolveApiUrl(url) === url && init?.method && !['GET', 'HEAD', 'OPTIONS'].includes(init.method.toUpperCase()) && !headers.has('X-Audli-Operation-Id')) {
+    headers.set('X-Audli-Operation-Id', uploadIdOf(init.body) ?? globalThis.crypto.randomUUID());
+  }
   // AUD-85 (build-time opt-in): the turn's random id, and how long this request waited for its access token.
   const traceTurn = traceHooks?.turnId() ?? null;
   const kind = traceTurn ? traceHooks!.kindOf(url) : null;
@@ -147,7 +151,7 @@ export async function authenticatedFetch(url: string, init?: RequestInit, operat
 
 export async function audioBlobUrl(url: string, signal?: AbortSignal, operation?: LessonOperation): Promise<string> {
   const response = await authenticatedFetch(url, { signal }, operation);
-  if (!response.ok) throw new Error(response.status === 401 ? 'Please sign in again.' : 'Audio playback is unavailable. Please retry.');
+  if (!response.ok || response.status === 202) throw new Error(response.status === 401 ? 'Please sign in again.' : 'Audio playback is unavailable. Please retry.');
   const blob = await response.blob();
   operation?.assertCurrent();
   return URL.createObjectURL(blob);
@@ -184,7 +188,7 @@ export async function limitErrorFrom(response: Response): Promise<ApiError | nul
   const detail = data && typeof data === 'object' && 'detail' in data && typeof (data as { detail: unknown }).detail === 'string' ? (data as { detail: string }).detail : 'Your next lesson opens soon.';
   return new ApiError(detail, 429, false, limit);
 }
-export async function api<T>(url: string, init?: RequestInit, onResponse?: (status: number) => void, operation?: LessonOperation): Promise<T> {
+export async function api<T>(url: string, init?: RequestInit, onResponse?: (status: number) => void, operation?: LessonOperation, deferProcessing = false): Promise<T> {
   const response = await authenticatedFetch(`/api${url}`, init, operation);
   operation?.assertCurrent();
   onResponse?.(response.status);
@@ -203,6 +207,33 @@ export async function api<T>(url: string, init?: RequestInit, onResponse?: (stat
     const detail = data && typeof data === 'object' && 'detail' in data ? data.detail : null;
     throw new ApiError(typeof detail === 'string' ? detail : 'Please check your input and try again.', response.status,
       !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true), response.status === 429 ? limitFrom(data) : undefined);
+  }
+  // Existing Review coaching has its own non-durable 202 contract. Upload
+  // callers defer processing explicitly, so malformed acknowledgments fail closed.
+  if (response.status === 202 && (deferProcessing || (data !== null && typeof data === 'object' && ('operation_id' in data || 'processing' in data)))) {
+    const reference = operationReference(data);
+    if (deferProcessing) throw new OperationProcessing(reference);
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    const hide = () => { if (document.visibilityState === 'hidden') abort(); };
+    const timer = setTimeout(abort, 50000);
+    init?.signal?.addEventListener('abort', abort, { once: true });
+    if (init?.signal?.aborted) abort();
+    if (typeof document !== 'undefined') { document.addEventListener('visibilitychange', hide); hide(); }
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', abort);
+    try {
+      return await awaitOperation<T>(reference,
+        (path, signal) => api<OperationStatus<T>>(path, { signal }, undefined, operation, true), controller.signal,
+        signal => new Promise<void>((resolve, reject) => {
+          const cancel = () => { clearTimeout(wait); reject(new DOMException('Cancelled.', 'AbortError')); };
+          const wait = setTimeout(() => { signal.removeEventListener('abort', cancel); resolve(); }, 500);
+          if (signal.aborted) cancel(); else signal.addEventListener('abort', cancel, { once: true });
+        }));
+    } finally {
+      clearTimeout(timer); init?.signal?.removeEventListener('abort', abort);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', hide);
+      if (typeof window !== 'undefined') window.removeEventListener('pagehide', abort);
+    }
   }
   return data as T;
 }

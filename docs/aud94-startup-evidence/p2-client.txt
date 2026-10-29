@@ -1,0 +1,262 @@
+TAP version 13
+# (node:21252) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-startup-packaging/web/lib/delivery-notice.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-startup-packaging/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the learner-facing wording is fixed (the design document quotes it)
+ok 1 - the learner-facing wording is fixed (the design document quotes it)
+  ---
+  duration_ms: 4.025067
+  type: 'test'
+  ...
+# Subtest: a send that is going normally shows nothing; slow, retrying, failed and moved each have a notice; delivered clears it
+ok 2 - a send that is going normally shows nothing; slow, retrying, failed and moved each have a notice; delivered clears it
+  ---
+  duration_ms: 1.864863
+  type: 'test'
+  ...
+# Subtest: the unsent marker round-trips, is per account, expires, and holds no audio or text
+ok 3 - the unsent marker round-trips, is per account, expires, and holds no audio or text
+  ---
+  duration_ms: 1.8002
+  type: 'test'
+  ...
+# Subtest: a corrupt, future-dated or hostile marker is ignored and removed; a storage that throws never matters
+ok 4 - a corrupt, future-dated or hostile marker is ignored and removed; a storage that throws never matters
+  ---
+  duration_ms: 1.359603
+  type: 'test'
+  ...
+# Subtest: processing has polite text without requesting another recording or audio
+ok 5 - processing has polite text without requesting another recording or audio
+  ---
+  duration_ms: 1.257299
+  type: 'test'
+  ...
+# (node:21253) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-startup-packaging/web/lib/recording-delivery.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-startup-packaging/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: disabled policy retains legacy one-send behavior
+ok 6 - disabled policy retains legacy one-send behavior
+  ---
+  duration_ms: 54.614322
+  type: 'test'
+  ...
+# Subtest: a lost check-in response stops, and Send again never overwrites ambiguous pending
+ok 7 - a lost check-in response stops, and Send again never overwrites ambiguous pending
+  ---
+  duration_ms: 17.568954
+  type: 'test'
+  ...
+# Subtest: unchanged check-in resends only original revision, with one accepted STT
+ok 8 - unchanged check-in resends only original revision, with one accepted STT
+  ---
+  duration_ms: 9.902384
+  type: 'test'
+  ...
+# Subtest: failed reconciliation retains audio without an extra send
+ok 9 - failed reconciliation retains audio without an extra send
+  ---
+  duration_ms: 3.38985
+  type: 'test'
+  ...
+# Subtest: stable exercise ID is sent without telemetry; a lost response replays without a second STT
+ok 10 - stable exercise ID is sent without telemetry; a lost response replays without a second STT
+  ---
+  duration_ms: 10.307072
+  type: 'test'
+  ...
+# Subtest: cancellation during token acquisition prevents late network submission
+ok 11 - cancellation during token acquisition prevents late network submission
+  ---
+  duration_ms: 2.044614
+  type: 'test'
+  ...
+# Subtest: unavailable and malformed policy fail closed
+ok 12 - unavailable and malformed policy fail closed
+  ---
+  duration_ms: 2.901633
+  type: 'test'
+  ...
+# Subtest: a retained check-in cannot be redirected to another lesson at a coincident revision
+ok 13 - a retained check-in cannot be redirected to another lesson at a coincident revision
+  ---
+  duration_ms: 8.37189
+  type: 'test'
+  ...
+# Subtest: an existing direct-origin opt-in fails closed instead of retrying without an idempotency header
+ok 14 - an existing direct-origin opt-in fails closed instead of retrying without an idempotency header
+  ---
+  duration_ms: 1.823495
+  type: 'test'
+  ...
+# Subtest: manual Send again after the kill switch keeps the prior exercise identity with telemetry off
+ok 15 - manual Send again after the kill switch keeps the prior exercise identity with telemetry off
+  ---
+  duration_ms: 4.371976
+  type: 'test'
+  ...
+# Subtest: a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior
+ok 16 - a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior
+  ---
+  duration_ms: 2.242601
+  type: 'test'
+  ...
+# Subtest: 202 processing polls exact operation without resending audio
+ok 17 - 202 processing polls exact operation without resending audio
+  ---
+  duration_ms: 5.780708
+  type: 'test'
+  ...
+# Subtest: uncertain processing retains identity; Send again checks status without POST
+ok 18 - uncertain processing retains identity; Send again checks status without POST
+  ---
+  duration_ms: 4.339374
+  type: 'test'
+  ...
+# Subtest: mismatched processing receipt cannot adopt another recording
+ok 19 - mismatched processing receipt cannot adopt another recording
+  ---
+  duration_ms: 3.594049
+  type: 'test'
+  ...
+# Subtest: processing background retains audio and never resends
+ok 20 - processing background retains audio and never resends
+  ---
+  duration_ms: 7.865469
+  type: 'test'
+  ...
+# Subtest: processing cancel retains audio and never resends
+ok 21 - processing cancel retains audio and never resends
+  ---
+  duration_ms: 2.999018
+  type: 'test'
+  ...
+# Subtest: processing deadline retains audio and never resends
+ok 22 - processing deadline retains audio and never resends
+  ---
+  duration_ms: 33.515816
+  type: 'test'
+  ...
+# Subtest: repeated uncertain status keeps recovery controls and processing indication without more sends
+ok 23 - repeated uncertain status keeps recovery controls and processing indication without more sends
+  ---
+  duration_ms: 3.232652
+  type: 'test'
+  ...
+# Subtest: legacy Review coaching 202 keeps its existing pending contract
+ok 24 - legacy Review coaching 202 keeps its existing pending contract
+  ---
+  duration_ms: 0.548722
+  type: 'test'
+  ...
+# Subtest: a non-durable 202 cannot be mistaken for an uploaded recording
+ok 25 - a non-durable 202 cannot be mistaken for an uploaded recording
+  ---
+  duration_ms: 2.119446
+  type: 'test'
+  ...
+# (node:21259) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-startup-packaging/web/lib/upload-delivery.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-startup-packaging/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: an upload id is random per recording, 16 hex, and stays with the same recording when it is sent again
+ok 26 - an upload id is random per recording, 16 hex, and stays with the same recording when it is sent again
+  ---
+  duration_ms: 50.429516
+  type: 'test'
+  ...
+# Subtest: only recording uploads have a kind, and the kind is a fixed enum
+ok 27 - only recording uploads have a kind, and the kind is a fixed enum
+  ---
+  duration_ms: 1.190572
+  type: 'test'
+  ...
+# Subtest: mime types collapse to a small enum
+ok 28 - mime types collapse to a small enum
+  ---
+  duration_ms: 2.239986
+  type: 'test'
+  ...
+# Subtest: error text is reduced to letters and basic punctuation: no URL, id, number or path can get through
+ok 29 - error text is reduced to letters and basic punctuation: no URL, id, number or path can get through
+  ---
+  duration_ms: 0.870514
+  type: 'test'
+  ...
+# Subtest: failures are classified as aborted, timeout or network
+ok 30 - failures are classified as aborted, timeout or network
+  ---
+  duration_ms: 1.39487
+  type: 'test'
+  ...
+# Subtest: nothing is tracked for non-uploads, untagged forms or forms without audio
+ok 31 - nothing is tracked for non-uploads, untagged forms or forms without audio
+  ---
+  duration_ms: 1.825138
+  type: 'test'
+  ...
+# Subtest: a finished send is one bounded record that carries no content, and a resend of the same recording is send 2
+ok 32 - a finished send is one bounded record that carries no content, and a resend of the same recording is send 2
+  ---
+  duration_ms: 2.269582
+  type: 'test'
+  ...
+# Subtest: http statuses are recorded as http and the status is bounded
+ok 33 - http statuses are recorded as http and the status is bounded
+  ---
+  duration_ms: 1.346959
+  type: 'test'
+  ...
+# Subtest: hidden page time and pagehide during the send are counted, and the listeners are removed afterwards
+ok 34 - hidden page time and pagehide during the send are counted, and the listeners are removed afterwards
+  ---
+  duration_ms: 31.712059
+  type: 'test'
+  ...
+# Subtest: the queue is bounded, ordered, survives a reload through sessionStorage and can be put back
+ok 35 - the queue is bounded, ordered, survives a reload through sessionStorage and can be put back
+  ---
+  duration_ms: 2.806752
+  type: 'test'
+  ...
+# Subtest: unusable sessionStorage content or a storage that throws never affects the send
+ok 36 - unusable sessionStorage content or a storage that throws never affects the send
+  ---
+  duration_ms: 0.490742
+  type: 'test'
+  ...
+# Subtest: with reporting installed the upload carries its id header; without it nothing is observed or added
+ok 37 - with reporting installed the upload carries its id header; without it nothing is observed or added
+  ---
+  duration_ms: 4.960174
+  type: 'test'
+  ...
+# Subtest: a network failure is recorded and still thrown unchanged; the quiet time is measured from the previous request
+ok 38 - a network failure is recorded and still thrown unchanged; the quiet time is measured from the previous request
+  ---
+  duration_ms: 42.432743
+  type: 'test'
+  ...
+# Subtest: the turn report carries the deliveries and puts them back only when the report itself failed on the server
+ok 39 - the turn report carries the deliveries and puts them back only when the report itself failed on the server
+  ---
+  duration_ms: 64.339528
+  type: 'test'
+  ...
+# Subtest: a report with no deliveries is exactly the report it was before
+ok 40 - a report with no deliveries is exactly the report it was before
+  ---
+  duration_ms: 21.714836
+  type: 'test'
+  ...
+1..40
+# tests 40
+# suites 0
+# pass 40
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 520.591388

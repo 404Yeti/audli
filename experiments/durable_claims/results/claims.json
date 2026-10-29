@@ -1,0 +1,926 @@
+{
+  "source_hashes": {
+    "experiments/durable_claims/local.py": "b8d16a0a28e58e83f50605c776d3f5745292d41781525cbfac402e42a0202674",
+    "experiments/durable_claims/benchmark.py": "e23b9f9b5a520c9272880a18385af04204d0dce74e291e07f99ba4fd57a3270d",
+    "experiments/durable_claims/store.py": "39f5b702e3b4bcdb7905d208d87c2a6f1ba201420fb0f02e6268c952d0947c69",
+    "experiments/durable_claims/service.py": "fd2ccc52325143af2069b1cf0e94d650f478800aca9e2b0b23744b4a421b0a9b",
+    "experiments/durable_claims/routes.py": "a669ba5a6f56e800a0708fab484e501a1eff74db2cf25e6a46018b97f368bd82",
+    "experiments/durable_claims/__init__.py": "7a6e00de2ad410d0b732f689abbf6fcb9b0f8f359331a91bd23236e3c0f83450",
+    "experiments/durable_claims/metrics.py": "175987665331ace41f9f5c7552ed16204cafce686cd400116d1bf18f610dc20e",
+    "experiments/durable_claims/test_claims.py": "c47782d886942edad5b8c0a5031ac10f3c7bf469a5ad55865ac24a5ad1395cba"
+  },
+  "packages": {
+    "SQLAlchemy": "2.1.6",
+    "psycopg": "3.3.6",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1",
+    "openai": "2.54.0",
+    "uvicorn": "0.54.0"
+  },
+  "python": "3.12.13",
+  "mode": "claims",
+  "root_revision": "732e4203770592992f25e006b59e05425b7b456b",
+  "database_rtt_ms": 72,
+  "auth_ms": 300,
+  "stt_ms": 1100,
+  "per_learner_locks": true,
+  "repetitions": 2,
+  "measure": "upload start including policy read through complete JSON acknowledgment",
+  "waves": [
+    {
+      "connection_seconds": 2.858,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 1,
+      "queries": 33,
+      "new_connections": 0,
+      "checkouts": 4,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 1,
+      "repetition": 0,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 4677.4,
+        "p50": 4677.4,
+        "p95": 4677.4,
+        "max": 4677.4
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 4677.4,
+        "p50": 4677.4,
+        "p95": 4677.4,
+        "max": 4677.4
+      },
+      "wall_ms": 4861.0,
+      "provider_calls": 1,
+      "extra_provider_calls": 0,
+      "sends": 1,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4677.3904840000005,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 1
+    },
+    {
+      "connection_seconds": 2.836,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 1,
+      "queries": 33,
+      "new_connections": 0,
+      "checkouts": 4,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 1,
+      "repetition": 1,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 4637.5,
+        "p50": 4637.5,
+        "p95": 4637.5,
+        "max": 4637.5
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 4637.5,
+        "p50": 4637.5,
+        "p95": 4637.5,
+        "max": 4637.5
+      },
+      "wall_ms": 4819.5,
+      "provider_calls": 1,
+      "extra_provider_calls": 0,
+      "sends": 1,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4637.541577999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 1
+    },
+    {
+      "connection_seconds": 5.697,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 2,
+      "queries": 66,
+      "new_connections": 0,
+      "checkouts": 8,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 2,
+      "repetition": 0,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 4640.4,
+        "p50": 4640.4,
+        "p95": 4659.3,
+        "max": 4661.4
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 4640.4,
+        "p50": 4640.4,
+        "p95": 4659.3,
+        "max": 4661.4
+      },
+      "wall_ms": 4932.7,
+      "provider_calls": 2,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4661.401502,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4619.462297,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 2
+    },
+    {
+      "connection_seconds": 5.748,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 2,
+      "queries": 66,
+      "new_connections": 0,
+      "checkouts": 8,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 2,
+      "repetition": 1,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 4662.9,
+        "p50": 4662.9,
+        "p95": 4681.4,
+        "max": 4683.5
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 4662.9,
+        "p50": 4662.9,
+        "p95": 4681.4,
+        "max": 4683.5
+      },
+      "wall_ms": 4971.2,
+      "provider_calls": 2,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4683.490348,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4642.287386,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 2
+    },
+    {
+      "connection_seconds": 11.212,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 132,
+      "new_connections": 0,
+      "checkouts": 16,
+      "pool_wait_count": 6,
+      "pool_wait_ms": {
+        "n": 6,
+        "mean": 263.7,
+        "p50": 77.3,
+        "p95": 911.2,
+        "max": 1141.8
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 4,
+      "repetition": 0,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 4983.2,
+        "p50": 4659.4,
+        "p95": 5831.5,
+        "max": 6031.9
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 4983.2,
+        "p50": 4659.4,
+        "p95": 5831.5,
+        "max": 6031.9
+      },
+      "wall_ms": 6259.5,
+      "provider_calls": 4,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4623.411916,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4695.351686,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4582.177133,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6031.941909,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 4
+    },
+    {
+      "connection_seconds": 11.252,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 132,
+      "new_connections": 0,
+      "checkouts": 16,
+      "pool_wait_count": 6,
+      "pool_wait_ms": {
+        "n": 6,
+        "mean": 266.0,
+        "p50": 78.6,
+        "p95": 915.4,
+        "max": 1146.2
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 4,
+      "repetition": 1,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 5001.6,
+        "p50": 4675.9,
+        "p95": 5851.6,
+        "max": 6053.0
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 5001.6,
+        "p50": 4675.9,
+        "p95": 5851.6,
+        "max": 6053.0
+      },
+      "wall_ms": 6285.2,
+      "provider_calls": 4,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4641.256372,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4601.398201999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4710.594912,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6053.009099,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 4
+    },
+    {
+      "connection_seconds": 22.538,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 264,
+      "new_connections": 0,
+      "checkouts": 32,
+      "pool_wait_count": 26,
+      "pool_wait_ms": {
+        "n": 26,
+        "mean": 696.5,
+        "p50": 541.6,
+        "p95": 1547.2,
+        "max": 1715.9
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 8,
+      "repetition": 0,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 6853.6,
+        "p50": 6865.0,
+        "p95": 8486.0,
+        "max": 8889.3
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 6853.6,
+        "p50": 6865.0,
+        "p95": 8486.0,
+        "max": 8889.3
+      },
+      "wall_ms": 9137.9,
+      "provider_calls": 8,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 6040.955602999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4854.480232,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6068.115258,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6296.945857,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7508.808290999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7433.077051,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8889.309202999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7736.924782,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 8
+    },
+    {
+      "connection_seconds": 22.583,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 264,
+      "new_connections": 0,
+      "checkouts": 32,
+      "pool_wait_count": 26,
+      "pool_wait_ms": {
+        "n": 26,
+        "mean": 697.9,
+        "p50": 538.3,
+        "p95": 1551.8,
+        "max": 1714.6
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 8,
+      "repetition": 1,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 6863.2,
+        "p50": 6875.1,
+        "p95": 8496.9,
+        "max": 8899.8
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 6863.2,
+        "p50": 6875.1,
+        "p95": 8496.9,
+        "max": 8899.8
+      },
+      "wall_ms": 9142.3,
+      "provider_calls": 8,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4906.891071,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6079.87677,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6002.365031,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6304.58785,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7518.251802,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7445.655054000001,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7748.523277,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8899.84815,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 8
+    },
+    {
+      "connection_seconds": 56.261,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 645,
+      "new_connections": 0,
+      "checkouts": 103,
+      "pool_wait_count": 98,
+      "pool_wait_ms": {
+        "n": 98,
+        "mean": 2121.5,
+        "p50": 1388.2,
+        "p95": 4799.1,
+        "max": 5834.0
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 16,
+      "repetition": 0,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 16254.8,
+        "p50": 17644.7,
+        "p95": 19303.5,
+        "max": 19326.0
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 16254.8,
+        "p50": 17644.7,
+        "p95": 19303.5,
+        "max": 19326.0
+      },
+      "wall_ms": 19559.4,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 29,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 13,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 8883.558561,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8768.725338,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8842.128727,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 16452.532754,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 16650.820458,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17206.704228000002,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17322.217392000002,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17357.251824,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17932.078542,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17965.205410000002,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18081.163278,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18576.602878,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18692.520752,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18722.902584,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19295.988192,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19326.044863,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        }
+      ],
+      "persisted_attempts": 16
+    },
+    {
+      "connection_seconds": 55.651,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 645,
+      "new_connections": 0,
+      "checkouts": 103,
+      "pool_wait_count": 98,
+      "pool_wait_ms": {
+        "n": 98,
+        "mean": 2051.4,
+        "p50": 1561.6,
+        "p95": 4617.1,
+        "max": 5228.3
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "learners": 16,
+      "repetition": 1,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 15872.3,
+        "p50": 17399.2,
+        "p95": 19085.7,
+        "max": 19139.9
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 15872.3,
+        "p50": 17399.2,
+        "p95": 19085.7,
+        "max": 19139.9
+      },
+      "wall_ms": 19380.8,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 29,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 13,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 7296.378577,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7396.582485,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8842.22277,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 16142.247054,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 16323.111695,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 16966.211895,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17075.837764,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17151.683103,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17646.650164000002,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17760.897302999998,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17836.021720999997,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18336.383477,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18450.335731,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18524.918253,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19067.697781,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19139.852059999997,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        }
+      ],
+      "persisted_attempts": 16
+    }
+  ]
+}

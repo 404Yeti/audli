@@ -1,0 +1,138 @@
+TAP version 13
+# (node:50318) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-claims-poc/web/lib/upload-sender.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-claims-poc/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: 50-second delivery deadline never grants a 60-second claim takeover or extra sends
+ok 1 - 50-second delivery deadline never grants a 60-second claim takeover or extra sends
+  ---
+  duration_ms: 12.38226
+  type: 'test'
+  ...
+# (node:50319) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-claims-poc/web/lib/upload-sender.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-claims-poc/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: repeated lost sends stop at a hard cap even when fetch ignores abort
+ok 2 - repeated lost sends stop at a hard cap even when fetch ignores abort
+  ---
+  duration_ms: 17.342689
+  type: 'test'
+  ...
+# Subtest: the wall deadline caps large recordings before three full sends
+ok 3 - the wall deadline caps large recordings before three full sends
+  ---
+  duration_ms: 3.457706
+  type: 'test'
+  ...
+# Subtest: cancellation ends send even when a dependency ignores abort
+ok 4 - cancellation ends send even when a dependency ignores abort
+  ---
+  duration_ms: 2.403008
+  type: 'test'
+  ...
+# Subtest: cancellation ends reconcile even when a dependency ignores abort
+ok 5 - cancellation ends reconcile even when a dependency ignores abort
+  ---
+  duration_ms: 3.315199
+  type: 'test'
+  ...
+# Subtest: cancellation ends policy even when a dependency ignores abort
+ok 6 - cancellation ends policy even when a dependency ignores abort
+  ---
+  duration_ms: 1.52658
+  type: 'test'
+  ...
+# Subtest: cancellation ends backoff even when a dependency ignores abort
+ok 7 - cancellation ends backoff even when a dependency ignores abort
+  ---
+  duration_ms: 1.067007
+  type: 'test'
+  ...
+# Subtest: a hanging reconcile is bounded by the total wall deadline
+ok 8 - a hanging reconcile is bounded by the total wall deadline
+  ---
+  duration_ms: 2.023294
+  type: 'test'
+  ...
+# Subtest: a hanging policy is bounded by the total wall deadline
+ok 9 - a hanging policy is bounded by the total wall deadline
+  ---
+  duration_ms: 1.611943
+  type: 'test'
+  ...
+# Subtest: hidden pages stop immediately, never gain free sends, and expire in wall time
+ok 10 - hidden pages stop immediately, never gain free sends, and expire in wall time
+  ---
+  duration_ms: 3.046355
+  type: 'test'
+  ...
+# Subtest: starting hidden never sends
+ok 11 - starting hidden never sends
+  ---
+  duration_ms: 2.28487
+  type: 'test'
+  ...
+# Subtest: a failed reconciliation or changed checkpoint stops without blind resend
+ok 12 - a failed reconciliation or changed checkpoint stops without blind resend
+  ---
+  duration_ms: 1.561968
+  type: 'test'
+  ...
+# Subtest: kill switch is checked before another automatic send
+ok 13 - kill switch is checked before another automatic send
+  ---
+  duration_ms: 1.017292
+  type: 'test'
+  ...
+# Subtest: HTTP 401 is final
+ok 14 - HTTP 401 is final
+  ---
+  duration_ms: 1.964127
+  type: 'test'
+  ...
+# Subtest: HTTP 403 is final
+ok 15 - HTTP 403 is final
+  ---
+  duration_ms: 1.549725
+  type: 'test'
+  ...
+# Subtest: HTTP 413 is final
+ok 16 - HTTP 413 is final
+  ---
+  duration_ms: 1.490902
+  type: 'test'
+  ...
+# Subtest: HTTP 415 is final
+ok 17 - HTTP 415 is final
+  ---
+  duration_ms: 1.455626
+  type: 'test'
+  ...
+# Subtest: HTTP 422 is final
+ok 18 - HTTP 422 is final
+  ---
+  duration_ms: 0.781555
+  type: 'test'
+  ...
+# Subtest: HTTP 429 is final
+ok 19 - HTTP 429 is final
+  ---
+  duration_ms: 1.038723
+  type: 'test'
+  ...
+# Subtest: late results cannot resolve timed-out stages
+ok 20 - late results cannot resolve timed-out stages
+  ---
+  duration_ms: 2.675934
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 305.157809

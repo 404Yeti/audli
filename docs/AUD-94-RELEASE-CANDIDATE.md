@@ -34,6 +34,8 @@ by `app.main.create_app`; Docker already copies `app`. `off` is the default.
   limiter is introduced. The bridge is still needed for generic non-atomic routes
   and code rollback; its quarantine cannot be removed until those routes migrate.
 
+The initial integrated CI exposed a machine-speed-sensitive telemetry test: HTTP204 completed in905ms but failed an unrelated500ms assertion. Its regression now directly asserts zero lease acquisition calls for telemetry while a real profile mutation is observed contending on a held PostgreSQL lock. Runtime behavior and timeouts are unchanged; the existing600ms contention-observation guard is retained.
+
 Raw synthetic benchmark JSON is retained for reproducibility. Review runtime and
 migration SQL first; then follow recorded source hashes and samples in historical
 results. Do not treat mocked provider evidence as actual AI-quality acceptance.

@@ -136,7 +136,7 @@ def test_summary_loop_survives_a_failing_window(monkeypatch, caplog):
     assert len(calls) >= 3          # kept reporting after the failure, plus the shutdown flush
 
 
-def test_telemetry_report_never_waits_for_the_account_lease(tmp_path, repository_factory):
+def test_telemetry_report_never_waits_for_the_account_lease(tmp_path, repository_factory, monkeypatch):
     """Postgres only: a held account lease blocks real writes but not the (state-free) timing report."""
     import asyncio
     from hashlib import sha256
@@ -151,21 +151,42 @@ def test_telemetry_report_never_waits_for_the_account_lease(tmp_path, repository
     app = create_app(settings_for(tmp_path, latency_aggregates=True), provider, repository=repo, auth_client=http)
     key = int.from_bytes(sha256(('audli-account:' + USER_A).encode()).digest()[:8], 'big', signed=True)
     headers = {'Authorization': 'Bearer valid-a'}
+    from app.auth import LearnerAuthentication
+    app.middleware_stack = app.build_middleware_stack()
+    auth = app.middleware_stack
+    while not isinstance(auth, LearnerAuthentication):
+        auth = auth.app
+    attempts = []
+    original = auth._take_lease
     async def run():
+        contended = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        def observe(key):
+            candidate, acquired = original(key)
+            attempts.append(acquired)
+            loop.call_soon_threadsafe(contended.set)
+            return candidate, acquired
+        monkeypatch.setattr(auth, '_take_lease', observe)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://testserver') as client:
             blocker = repo.engine.connect(); transaction = blocker.begin()
             try:
                 blocker.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': key})   # another worker is saving this account
-                started = asyncio.get_running_loop().time()
                 report = await client.post('/api/telemetry/turn', json={'stages': {'assessment': 5}}, headers=headers)
-                fast = asyncio.get_running_loop().time() - started
-                with pytest.raises(asyncio.TimeoutError):                                     # real writes still queue behind the lease
-                    await asyncio.wait_for(client.put('/api/profile', json={'name': 'A', 'goal': 'B'}, headers=headers), .6)
+                # Observe the isolation property directly: authentication/profile
+                # startup can take >500ms on a busy runner without lease polling.
+                assert report.status_code == 204 and attempts == []
+                mutation = asyncio.create_task(client.put('/api/profile', json={'name': 'A', 'goal': 'B'}, headers=headers))
+                try:
+                    await asyncio.wait_for(contended.wait(), .6)
+                    assert attempts and not any(attempts)
+                    assert not mutation.done()  # the real writer is still excluded
+                finally:
+                    mutation.cancel()
+                    await asyncio.gather(mutation, return_exceptions=True)
             finally:
                 transaction.rollback(); blocker.close()
-            return report.status_code, fast
-    status, fast = asyncio.run(run())
-    assert status == 204 and fast < .5, (status, fast)
+            return report.status_code
+    assert asyncio.run(run()) == 204
     app.state.repository.close(); asyncio.run(http.aclose())
 
 

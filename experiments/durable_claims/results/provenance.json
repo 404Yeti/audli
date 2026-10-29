@@ -1,0 +1,46 @@
+{
+  "sources": {
+    "current": {
+      "revision": "732e4203770592992f25e006b59e05425b7b456b",
+      "files": {
+        "app/auth.py": "388ba748999e8dfec92e835a9da2dea499e2f151e81100f1134c21d6d2c03228",
+        "app/main.py": "9102041a596e8dc523e5b18f267f116541e0c2162cc21d42efafac4c061662a6",
+        "app/lesson_api.py": "606d91af4f339a9ebf69b8f7725b975221997b9f78782eb30bbd6a7064a79890",
+        "app/offload.py": "5ee2a3134d4e5cf1a6f398e2f4c478ac679eabe708b3fd0b943a3dc18c3f3c47",
+        "app/storage/repository.py": "08fcbd8dea37e56a573dd541071e445762f304f3b60f56d57a0e3f18058fe681"
+      }
+    },
+    "combined": {
+      "revision": "272e41ca353a7f7f8604381c2af437d5ba5c9f49",
+      "files": {
+        "app/auth.py": "bde7c2e9a99e3d9dbfcf9b9dd34216c317963467ac20db57d6edae5d710925fd",
+        "app/main.py": "d670133226bee6588fdcd2caf58ed769cc0d7ab7bab4120a46a9ec1f7edeecfe",
+        "app/lesson_api.py": "f1c84f92f4084f187b229b4e20fc84c9b17f97ce029fb141c8bdf2418ea2fbe4",
+        "app/offload.py": "b774c60fbf627d704996fa373aee564cb99f3cd80cd643d8c2c19d3f0da3c62e",
+        "app/storage/repository.py": "08fcbd8dea37e56a573dd541071e445762f304f3b60f56d57a0e3f18058fe681",
+        "app/lease_admission.py": "c716b5d53e3c92517348943bda340f596f8139c15c9b640feb3362e2256ff026"
+      }
+    },
+    "claims": {
+      "revision": "732e4203770592992f25e006b59e05425b7b456b",
+      "files": {
+        "app/auth.py": "388ba748999e8dfec92e835a9da2dea499e2f151e81100f1134c21d6d2c03228",
+        "app/main.py": "9102041a596e8dc523e5b18f267f116541e0c2162cc21d42efafac4c061662a6",
+        "app/lesson_api.py": "606d91af4f339a9ebf69b8f7725b975221997b9f78782eb30bbd6a7064a79890",
+        "app/offload.py": "5ee2a3134d4e5cf1a6f398e2f4c478ac679eabe708b3fd0b943a3dc18c3f3c47",
+        "app/storage/repository.py": "08fcbd8dea37e56a573dd541071e445762f304f3b60f56d57a0e3f18058fe681"
+      }
+    }
+  },
+  "python": "3.12.13 (main, Aug  7 2026, 02:25:39) [Clang 22.1.3 ]",
+  "packages": {
+    "SQLAlchemy": "2.1.6",
+    "psycopg": "3.3.6",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1",
+    "openai": "2.54.0",
+    "uvicorn": "0.54.0"
+  },
+  "postgresql": "17.10"
+}

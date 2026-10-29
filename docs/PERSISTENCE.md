@@ -265,3 +265,7 @@ variables. API enablement and production changes require owner approval.
 ## Account deletion (AUD-34)
 
 See [AUD-34-ACCOUNT-DELETION.md](AUD-34-ACCOUNT-DELETION.md). The erase plan is derived from `app.storage.schema.metadata` (every table except `NOT_LEARNER_OWNED`, children first, NOT NULL foreign-key ownership paths, absent tables skipped), so migrations 004–007 and later tables are covered without a hand-kept list. Off by default (`AUDLI_ACCOUNT_DELETION_ENABLED`).
+
+## AUD-94 integrated candidate (not activated)
+
+See [the candidate procedure](AUD-94-RELEASE-CANDIDATE.md) for006→007→008, restricted-role grants, default-off startup, and guard-aware rollback. The normal migration CLI stops at007; no runtime claims migration or activation is automatic.

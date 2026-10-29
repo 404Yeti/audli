@@ -1,0 +1,23 @@
+{
+  "columns": {
+    "equal": true,
+    "expected": 172,
+    "actual": 172,
+    "missing": [],
+    "extra": []
+  },
+  "constraints": {
+    "equal": true,
+    "expected": 89,
+    "actual": 89,
+    "missing": [],
+    "extra": []
+  },
+  "indexes": {
+    "equal": true,
+    "expected": 48,
+    "actual": 48,
+    "missing": [],
+    "extra": []
+  }
+}

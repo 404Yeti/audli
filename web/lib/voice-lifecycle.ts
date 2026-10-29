@@ -101,7 +101,7 @@ export function useVoiceLifecycle() {
         body: JSON.stringify({ cue_id: cueId, ...checkpoint }), signal: operation.signal,
       }, operation));
       if (response.status === 429) { const limited = await operation.wait(() => limitErrorFrom(response.clone())); if (limited) throw limited; }
-      if (!response.ok) {
+      if (!response.ok || response.status === 202) {
         const data: unknown = await operation.wait(() => response.json().catch(() => null));
         operation.assertCurrent();
         throw new Error(data && typeof data === 'object' && 'detail' in data && typeof data.detail === 'string'
@@ -138,7 +138,7 @@ export function useVoiceLifecycle() {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }), signal: operation.signal,
       }, operation));
       if (response.status === 429) { const limited = await limitErrorFrom(response); if (limited) throw limited; }
-      if (!response.ok) throw new Error('Audli’s lesson voice is unavailable. Retry the conversation; your progress is saved.');
+      if (!response.ok || response.status === 202) throw new Error('Audli’s lesson voice is unavailable. Retry the conversation; your progress is saved.');
       return operation.wait(() => measuredAudioBody(response));
     });
     operation.assertCurrent();
@@ -192,7 +192,7 @@ export function useVoiceLifecycle() {
     setState('Retry');
     const response = await operation.wait(() => authenticatedFetch('/api/recognition/retry-audio', { method: 'POST', signal: operation.signal }, operation));
     if (response.status === 429) { const limited = await limitErrorFrom(response); if (limited) throw limited; }
-    if (!response.ok) throw new Error('Audli’s retry voice is unavailable. Please retry audio.');
+    if (!response.ok || response.status === 202) throw new Error('Audli’s retry voice is unavailable. Please retry audio.');
     const body = await operation.wait(() => response.blob());
     operation.assertCurrent();
     await speak(operation, URL.createObjectURL(body), 'retry');

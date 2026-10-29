@@ -47,3 +47,7 @@ test('a corrupt, future-dated or hostile marker is ignored and removed; a storag
   globalThis.sessionStorage = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('quota'); }, removeItem() { throw new Error('denied'); } };
   markUnsent('a', 'checkin', 'x'); clearUnsent('a'); assert.equal(readUnsent('a'), null);
 });
+
+test('processing has polite text without requesting another recording or audio',()=>{
+  assert.deepEqual(noticeFor({kind:'processing'}),{kind:'sending',text:'Your answer is processing…'});
+});

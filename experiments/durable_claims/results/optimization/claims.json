@@ -1,0 +1,3721 @@
+{
+  "source_hashes": {
+    "experiments/durable_claims/client.mjs": "95be696bf20178395b35a2cdb0752c8195ba0b289d9738a258e619d891855330",
+    "experiments/durable_claims/local.py": "b8d16a0a28e58e83f50605c776d3f5745292d41781525cbfac402e42a0202674",
+    "experiments/durable_claims/benchmark.py": "d3e8b7d6e9d086e8b49bdefe1ce73e0e8e60895b37d4d57961b70e5902803671",
+    "experiments/durable_claims/store.py": "39f5b702e3b4bcdb7905d208d87c2a6f1ba201420fb0f02e6268c952d0947c69",
+    "experiments/durable_claims/service.py": "426fde969e4167d96379a352622ee69aeb592cc80b487e05ab959c03b9fb3416",
+    "experiments/durable_claims/routes.py": "cf2c7770fa105048a019a221fa5c5cfb1d308a3e0727a9b5ededd98f5172404e",
+    "experiments/durable_claims/deadline-policy.test.mjs": "24ae5ccb1644c57f25ddecad3aa0549388d2f5c8df13310acc70b6efbaf55fce",
+    "experiments/durable_claims/__init__.py": "7a6e00de2ad410d0b732f689abbf6fcb9b0f8f359331a91bd23236e3c0f83450",
+    "experiments/durable_claims/metrics.py": "3f1f6852d97dc093ee4703bc90dcb2edad54926c1ecada36915c93fb22712e28",
+    "experiments/durable_claims/optimized_read.sql": "c2c6b52deca7b789607da797d5e7fbd9e64ca3338403202b520af6173676afc8",
+    "experiments/durable_claims/server_profile.py": "f9d568cce155518f9194ac599ca36e9600ae815bca4e7468c18e1abf5caf9d1b",
+    "experiments/durable_claims/optimized_store.py": "def843d75690c7b9de2ea41936d7d906c90357417c131fd100e19390f1549f34",
+    "experiments/durable_claims/test_claims.py": "4e453bc097e7eba4c9899380929abcb4265bdc4eace398f09e0d518f4e209a8d"
+  },
+  "packages": {
+    "SQLAlchemy": "2.1.6",
+    "psycopg": "3.3.6",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1",
+    "openai": "2.54.0",
+    "uvicorn": "0.54.0"
+  },
+  "python": "3.12.13",
+  "mode": "claims",
+  "root_revision": "9d9fc7e4b7b776dce91228995d598b6690172f4f",
+  "claims_store_sha256": "39f5b702e3b4bcdb7905d208d87c2a6f1ba201420fb0f02e6268c952d0947c69",
+  "claims_source_revision": "9d9fc7e4b7b776dce91228995d598b6690172f4f",
+  "database_rtt_ms": 72,
+  "auth_ms": 300,
+  "stt_ms": 1100,
+  "per_learner_locks": true,
+  "repetitions": 2,
+  "measure": "upload start including policy read through complete JSON acknowledgment",
+  "waves": [
+    {
+      "connection_seconds": 2.869,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 1,
+      "queries": 33,
+      "new_connections": 0,
+      "checkouts": 4,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.30129599967768
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 151.70502699947974
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 1,
+          "cursor_ms": 77.71407499967609
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 75.63942100023269
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.42528099952324
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 79.63596199988388
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.28031600052054
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 1,
+          "cursor_ms": 75.84063500053162
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.43531600024289
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 1,
+          "cursor_ms": 76.40504899973166
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.63604899971688
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.85427699996217
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.2641999999687
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 1,
+          "cursor_ms": 76.49993799986987
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 151.59557399965706
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 1,
+          "cursor_ms": 77.02466099999583
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 77.61332400059473
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.0644060001141
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 2,
+          "cursor_ms": 151.64687100059382
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.0699800003058
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.48544699986815
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 1,
+          "cursor_ms": 76.66836299995339
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.21212399953947
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.28992199988716
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 1,
+          "cursor_ms": 76.79193900003156
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.93453899992164
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 1,
+          "cursor_ms": 76.7481550001321
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.65196299967647
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.02411399966513
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.5826009997909,
+          "cursor_ms": 2674.458223998954,
+          "do_rollback_ms": 0.06429299901355989,
+          "checkout_ms": 2868.51304800075,
+          "executor_queue_ms": 0.8500539997839951,
+          "do_commit_ms": 158.50027899978159,
+          "claim_ms": 1243.8448990005782,
+          "provider_ms": 1100.9123020003244,
+          "finalize_ms": 1470.8218989999295
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 6,
+            "exec_ms": 0.195,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 37,
+            "exec_ms": 5.384,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 445,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 1,
+      "repetition": 0,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 4694.9,
+        "p50": 4694.9,
+        "p95": 4694.9,
+        "max": 4694.9
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 4694.9,
+        "p50": 4694.9,
+        "p95": 4694.9,
+        "max": 4694.9
+      },
+      "wall_ms": 4904.3,
+      "provider_calls": 1,
+      "extra_provider_calls": 0,
+      "sends": 1,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4694.903989,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 1
+    },
+    {
+      "connection_seconds": 2.832,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 1,
+      "queries": 33,
+      "new_connections": 0,
+      "checkouts": 4,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.30996500031324
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 150.86740799961262
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 1,
+          "cursor_ms": 76.40104199981579
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 75.52922700051568
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.18138699947303
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.388364000195
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.55045800017979
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 1,
+          "cursor_ms": 75.50633800019568
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.06368799952179
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 1,
+          "cursor_ms": 75.96266499967896
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.14957499936281
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.37161699949502
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.18102800006454
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 1,
+          "cursor_ms": 76.91768099994079
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 151.27428600044368
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 1,
+          "cursor_ms": 75.63048800057004
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 1,
+          "cursor_ms": 75.64606399955665
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.58371999948577
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 2,
+          "cursor_ms": 150.87377799954993
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 151.2597339997228
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.82011000067723
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 1,
+          "cursor_ms": 75.89300800009369
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 75.9491849994447
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.75318799990782
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 1,
+          "cursor_ms": 76.0893019996729
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.25227900007303
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 1,
+          "cursor_ms": 76.14829800058942
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.82005400035996
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.77137699990999
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 602.3940229997606,
+          "cursor_ms": 2656.1453139984224,
+          "do_rollback_ms": 0.0577710006837151,
+          "checkout_ms": 2832.394959999874,
+          "executor_queue_ms": 0.4277480002201628,
+          "do_commit_ms": 153.99797899954137,
+          "claim_ms": 1225.8770510006798,
+          "provider_ms": 1100.5005030001485,
+          "finalize_ms": 1452.164771999378
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 4,
+            "exec_ms": 0.084,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 37,
+            "exec_ms": 3.189,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 444,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 1,
+      "repetition": 1,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 4636.4,
+        "p50": 4636.4,
+        "p95": 4636.4,
+        "max": 4636.4
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 4636.4,
+        "p50": 4636.4,
+        "p95": 4636.4,
+        "max": 4636.4
+      },
+      "wall_ms": 4870.6,
+      "provider_calls": 1,
+      "extra_provider_calls": 0,
+      "sends": 1,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4636.369795,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 1
+    },
+    {
+      "connection_seconds": 5.685,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 2,
+      "queries": 66,
+      "new_connections": 0,
+      "checkouts": 8,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 302.41797600046993
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 298.7441659997785
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 2,
+          "cursor_ms": 149.00770300027943
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 149.01636999911716
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 302.73049999959767
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 149.20048099975247
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.57718599989312
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 2,
+          "cursor_ms": 152.18378200006555
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.60729100100434
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 2,
+          "cursor_ms": 152.8409440006726
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 153.46516699992208
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.9475329998604
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.4219300001496
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 2,
+          "cursor_ms": 153.55156900022848
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 304.0825380003298
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 2,
+          "cursor_ms": 153.26885899958143
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 152.05369200066343
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.99774799859733
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 4,
+          "cursor_ms": 305.12421499952325
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 306.03981700005534
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.72251900023548
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 2,
+          "cursor_ms": 152.80344500024512
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 153.1493060001594
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.19287000056647
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 2,
+          "cursor_ms": 154.74295999956666
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.13318600055936
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 2,
+          "cursor_ms": 151.33505599987984
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.629459000309
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.0369409993
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.5278359991498,
+          "cursor_ms": 2661.1839919978593,
+          "do_rollback_ms": 0.06086599933041725,
+          "checkout_ms": 2845.5560299989884,
+          "executor_queue_ms": 0.9906220002449118,
+          "do_commit_ms": 160.05804399992485,
+          "claim_ms": 1225.8636459991976,
+          "provider_ms": 1101.2933770007294,
+          "finalize_ms": 1466.2931520006168
+        },
+        {
+          "index": 1,
+          "auth_ms": 603.0075090002356,
+          "cursor_ms": 2664.841217002504,
+          "do_rollback_ms": 0.0455959998362232,
+          "checkout_ms": 2839.0619399997377,
+          "executor_queue_ms": 1.4356729998326045,
+          "do_commit_ms": 160.00240100129304,
+          "claim_ms": 1223.4233700000914,
+          "provider_ms": 1100.0559030007935,
+          "finalize_ms": 1463.902925000184
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 10,
+            "exec_ms": 0.196,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 74,
+            "exec_ms": 4.719,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 455,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 2,
+      "repetition": 0,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 4642.4,
+        "p50": 4642.4,
+        "p95": 4663.3,
+        "max": 4665.6
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 4642.4,
+        "p50": 4642.4,
+        "p95": 4663.3,
+        "max": 4665.6
+      },
+      "wall_ms": 4949.7,
+      "provider_calls": 2,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4665.636578,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4619.069603,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 2
+    },
+    {
+      "connection_seconds": 5.674,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 2,
+      "queries": 66,
+      "new_connections": 0,
+      "checkouts": 8,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 302.6693530009652
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 298.288388000401
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 2,
+          "cursor_ms": 149.01431099951878
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 149.52576300038345
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 308.49707599918474
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.5532830000884
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.36964700054523
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 2,
+          "cursor_ms": 152.64759799993044
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.30013899872574
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 2,
+          "cursor_ms": 153.64762500030338
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 153.47817900055816
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.2320209998943
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.86957400005485
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 2,
+          "cursor_ms": 153.66499600077077
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 302.7979110001979
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 2,
+          "cursor_ms": 152.7211279999392
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 2,
+          "cursor_ms": 152.9375700001765
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.7300520003555
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 4,
+          "cursor_ms": 305.1715610008614
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 306.5753829996538
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.69747199909034
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 2,
+          "cursor_ms": 152.87982799964084
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 153.4386520006592
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.21248300006118
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 2,
+          "cursor_ms": 153.14962699903845
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 155.61173300011433
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 2,
+          "cursor_ms": 148.69639999960782
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 148.48970099956205
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 150.0447520002126
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 602.228075000312,
+          "cursor_ms": 2663.5399330007203,
+          "do_rollback_ms": 0.07818900030542864,
+          "checkout_ms": 2835.221048000676,
+          "executor_queue_ms": 0.6994979994487949,
+          "do_commit_ms": 153.45119100038573,
+          "claim_ms": 1224.192007000056,
+          "provider_ms": 1101.2217560000863,
+          "finalize_ms": 1457.6030590005757
+        },
+        {
+          "index": 1,
+          "auth_ms": 602.843944999222,
+          "cursor_ms": 2665.3722729997753,
+          "do_rollback_ms": 0.03453399858699413,
+          "checkout_ms": 2838.6660570004096,
+          "executor_queue_ms": 1.0693699996409123,
+          "do_commit_ms": 153.00928299984662,
+          "claim_ms": 1228.8855530005094,
+          "provider_ms": 1100.3326209993247,
+          "finalize_ms": 1458.1954440000118
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 8,
+            "exec_ms": 0.139,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 74,
+            "exec_ms": 4.221,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 452,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 2,
+      "repetition": 1,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 4637.8,
+        "p50": 4637.8,
+        "p95": 4654.3,
+        "max": 4656.2
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 4637.8,
+        "p50": 4637.8,
+        "p95": 4654.3,
+        "max": 4656.2
+      },
+      "wall_ms": 4928.5,
+      "provider_calls": 2,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4656.150887,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4619.509188999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 2
+    },
+    {
+      "connection_seconds": 11.224,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 132,
+      "new_connections": 0,
+      "checkouts": 16,
+      "pool_wait_count": 6,
+      "pool_wait_ms": {
+        "n": 6,
+        "mean": 264.7,
+        "p50": 80.7,
+        "p95": 912.1,
+        "max": 1145.0
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 609.8265549990174
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 597.076258000925
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 4,
+          "cursor_ms": 300.80249499951606
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 300.40658800044184
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 599.7159419994205
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.5739490006599
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.7043819996179
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 4,
+          "cursor_ms": 299.68763300075807
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.9645700001565
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 4,
+          "cursor_ms": 299.1770690014164
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 299.178287000359
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 298.79625700050383
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 298.2924539992382
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 4,
+          "cursor_ms": 298.1840390002617
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 596.0806920011237
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 4,
+          "cursor_ms": 299.0216029993462
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 300.4753270006404
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 300.18915200162155
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 8,
+          "cursor_ms": 599.8740260010891
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.4194300007366
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 300.9833849991992
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 4,
+          "cursor_ms": 301.8017550011791
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 299.92182799924194
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.0788180004529
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 4,
+          "cursor_ms": 302.1051610003269
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 300.20585600050254
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 4,
+          "cursor_ms": 300.6347039990942
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 302.05565899996145
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 301.199701000769
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 602.1390800005975,
+          "cursor_ms": 2618.25948700789,
+          "do_rollback_ms": 0.034515999686846044,
+          "checkout_ms": 2798.645876999217,
+          "executor_queue_ms": 3.724507999322668,
+          "do_commit_ms": 160.6898909994925,
+          "claim_ms": 1206.6161459997602,
+          "provider_ms": 1100.4522279999946,
+          "finalize_ms": 1435.9516249996886
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.3544460001867,
+          "cursor_ms": 2620.2180169984786,
+          "do_rollback_ms": 0.0463780006612069,
+          "checkout_ms": 2798.0044659998384,
+          "executor_queue_ms": 0.9776529996088357,
+          "pool_wait_ms": 125.48613999933877,
+          "do_commit_ms": 155.5982749996474,
+          "claim_ms": 1240.361720000692,
+          "provider_ms": 1100.5758490000517,
+          "finalize_ms": 1528.427997000108
+        },
+        {
+          "index": 2,
+          "auth_ms": 602.1333240005333,
+          "cursor_ms": 2620.6356390011933,
+          "do_rollback_ms": 0.07226699835882755,
+          "checkout_ms": 2799.7034330010138,
+          "executor_queue_ms": 0.7238529988171649,
+          "do_commit_ms": 158.12721800011786,
+          "claim_ms": 1212.6429319996532,
+          "provider_ms": 1100.7604930000525,
+          "finalize_ms": 1434.99176000023
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.4081450002777,
+          "pool_wait_ms": 1462.7049969994914,
+          "cursor_ms": 2647.320432000015,
+          "do_rollback_ms": 0.05490500097948825,
+          "checkout_ms": 2828.0516290005835,
+          "executor_queue_ms": 0.4753119992528809,
+          "do_commit_ms": 157.64816399951087,
+          "claim_ms": 2366.7819340007554,
+          "provider_ms": 1100.6246730003113,
+          "finalize_ms": 1668.188256000576
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 20,
+            "exec_ms": 0.339,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 148,
+            "exec_ms": 8.154,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 575,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 4,
+      "repetition": 0,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 4992.9,
+        "p50": 4675.9,
+        "p95": 5837.0,
+        "max": 6035.6
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 4992.9,
+        "p50": 4675.9,
+        "p95": 5837.0,
+        "max": 6035.6
+      },
+      "wall_ms": 6297.0,
+      "provider_calls": 4,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4639.920528,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4711.905699,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4584.294579,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6035.580119,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 4
+    },
+    {
+      "connection_seconds": 11.244,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 132,
+      "new_connections": 0,
+      "checkouts": 16,
+      "pool_wait_count": 6,
+      "pool_wait_ms": {
+        "n": 6,
+        "mean": 263.2,
+        "p50": 70.3,
+        "p95": 907.5,
+        "max": 1136.7
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 607.9459399998086
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 600.5132850004884
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 4,
+          "cursor_ms": 299.6084480000718
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 300.06355499972415
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.7127249999467
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 300.59758800052805
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 300.73446099959256
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 4,
+          "cursor_ms": 299.06968400064216
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 300.24269800105685
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 4,
+          "cursor_ms": 300.40394499883405
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 303.10351899970556
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 301.8466409994289
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 301.99533900031383
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 4,
+          "cursor_ms": 301.43149600007746
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 600.5539550005778
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 4,
+          "cursor_ms": 298.2391830000779
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 4,
+          "cursor_ms": 300.84174599869584
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.7712530004719
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 8,
+          "cursor_ms": 597.4789400006557
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 604.1561950005416
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.58964599882165
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 4,
+          "cursor_ms": 299.37580000114394
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 299.24061200017604
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 302.81527399984043
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 4,
+          "cursor_ms": 300.79341499913426
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.91920800057414
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 4,
+          "cursor_ms": 302.16854300033447
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 305.4730630001359
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 307.13347300024907
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 603.1531250000626,
+          "cursor_ms": 2629.1767150014493,
+          "do_rollback_ms": 0.05773999964731047,
+          "checkout_ms": 2807.293948998449,
+          "executor_queue_ms": 1.1334770006214967,
+          "pool_wait_ms": 108.8490140000431,
+          "do_commit_ms": 153.4785460007697,
+          "claim_ms": 1262.3868610007776,
+          "provider_ms": 1101.4424940003664,
+          "finalize_ms": 1499.8413399998753
+        },
+        {
+          "index": 1,
+          "auth_ms": 602.4297209996803,
+          "cursor_ms": 2629.29113300288,
+          "do_rollback_ms": 0.05629699899145635,
+          "checkout_ms": 2806.523861999267,
+          "executor_queue_ms": 1.265367999621958,
+          "do_commit_ms": 155.94261499973072,
+          "claim_ms": 1215.4733289999058,
+          "provider_ms": 1100.401441000031,
+          "finalize_ms": 1438.9884389993313
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.9001750000825,
+          "cursor_ms": 2629.2283299999326,
+          "do_rollback_ms": 0.05263999992166646,
+          "checkout_ms": 2803.8428909994764,
+          "executor_queue_ms": 2.628979999826697,
+          "do_commit_ms": 155.70819999993546,
+          "claim_ms": 1207.6243559995419,
+          "provider_ms": 1100.7443629996487,
+          "finalize_ms": 1441.459434000535
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.3550699999541,
+          "pool_wait_ms": 1470.3652270009115,
+          "cursor_ms": 2650.1234519973877,
+          "do_rollback_ms": 0.062168999647838064,
+          "checkout_ms": 2826.631220999843,
+          "executor_queue_ms": 0.7363680006164941,
+          "do_commit_ms": 153.31899900047574,
+          "claim_ms": 2357.0940339996014,
+          "provider_ms": 1100.9214890000294,
+          "finalize_ms": 1673.7011489994984
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 16,
+            "exec_ms": 0.297,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 148,
+            "exec_ms": 7.859,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 571,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 4,
+      "repetition": 1,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 4998.8,
+        "p50": 4674.3,
+        "p95": 5854.2,
+        "max": 6048.9
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 4998.8,
+        "p50": 4674.3,
+        "p95": 5854.2,
+        "max": 6048.9
+      },
+      "wall_ms": 6270.1,
+      "provider_calls": 4,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4750.825049,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4597.626998,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4597.776361,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6048.918632,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 4
+    },
+    {
+      "connection_seconds": 22.493,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 264,
+      "new_connections": 0,
+      "checkouts": 32,
+      "pool_wait_count": 26,
+      "pool_wait_ms": {
+        "n": 26,
+        "mean": 689.8,
+        "p50": 528.3,
+        "p95": 1534.0,
+        "max": 1699.7
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1199.0890919987578
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 1198.3489590002137
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 8,
+          "cursor_ms": 597.939368999505
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 609.7528559985221
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1217.162842001926
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 599.5655740007351
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 601.8486770008167
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 8,
+          "cursor_ms": 604.2886980003459
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 606.2275939993924
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 8,
+          "cursor_ms": 609.2563830006839
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 602.8226669977812
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 606.8064480004978
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 609.592614999201
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 8,
+          "cursor_ms": 607.4429480004255
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 1194.2592309997053
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 8,
+          "cursor_ms": 596.7201749999731
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 600.3337329993883
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 598.2522450012766
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 16,
+          "cursor_ms": 1198.5920579991216
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1208.0926440003168
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 605.7021300002816
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 8,
+          "cursor_ms": 602.2816419990704
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 604.6765639994192
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 606.3705259975904
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 8,
+          "cursor_ms": 604.1208800006643
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 604.5597299998917
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 8,
+          "cursor_ms": 602.0404030005011
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.2349310005666
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 606.4875890006078
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 600.9854619996986,
+          "cursor_ms": 2639.2888250020405,
+          "do_rollback_ms": 0.14199999895936344,
+          "checkout_ms": 2815.5762700016567,
+          "executor_queue_ms": 1.2769750001098146,
+          "pool_wait_ms": 1453.0662949991893,
+          "do_commit_ms": 156.458484999348,
+          "claim_ms": 1270.7808519999162,
+          "provider_ms": 1101.19397499966,
+          "finalize_ms": 2846.245738000107
+        },
+        {
+          "index": 1,
+          "auth_ms": 602.0782039995538,
+          "cursor_ms": 2641.9047580011465,
+          "do_rollback_ms": 0.0771670011090464,
+          "checkout_ms": 2814.3520650000937,
+          "executor_queue_ms": 2.693911999813281,
+          "pool_wait_ms": 234.12286399980076,
+          "do_commit_ms": 153.67102900017926,
+          "claim_ms": 1262.022068999613,
+          "provider_ms": 1101.218181999684,
+          "finalize_ms": 1635.4996390000451
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.7405370002962,
+          "cursor_ms": 2637.2207809981774,
+          "do_rollback_ms": 0.04794999858859228,
+          "checkout_ms": 2812.987989999783,
+          "executor_queue_ms": 0.7418589993903879,
+          "pool_wait_ms": 1376.6481989996464,
+          "do_commit_ms": 160.08237299956818,
+          "claim_ms": 1264.0607759994964,
+          "provider_ms": 1101.1976429999777,
+          "finalize_ms": 2773.790985999767
+        },
+        {
+          "index": 3,
+          "auth_ms": 602.4570689996835,
+          "pool_wait_ms": 1710.8675199997379,
+          "cursor_ms": 2633.04957499804,
+          "do_rollback_ms": 0.04701899979409063,
+          "checkout_ms": 2806.0372099989763,
+          "executor_queue_ms": 2.4955259996204404,
+          "do_commit_ms": 153.46686900011264,
+          "claim_ms": 2414.012021000417,
+          "provider_ms": 1100.724698000704,
+          "finalize_ms": 1855.693400999371
+        },
+        {
+          "index": 4,
+          "auth_ms": 606.1048739993566,
+          "pool_wait_ms": 2914.8264210007255,
+          "cursor_ms": 2641.952155000581,
+          "do_rollback_ms": 0.0431930002378067,
+          "checkout_ms": 2812.2280529996715,
+          "executor_queue_ms": 1.0156749995076098,
+          "do_commit_ms": 152.65974399972038,
+          "claim_ms": 2488.537501000792,
+          "provider_ms": 1102.1222230001513,
+          "finalize_ms": 2993.230027000209
+        },
+        {
+          "index": 5,
+          "auth_ms": 602.8639009991821,
+          "pool_wait_ms": 2847.826439000528,
+          "cursor_ms": 2628.8120019989947,
+          "do_rollback_ms": 0.041588999920350034,
+          "checkout_ms": 2800.788697999451,
+          "executor_queue_ms": 0.8693769996170886,
+          "do_commit_ms": 152.9522860000725,
+          "claim_ms": 2482.8599840002425,
+          "provider_ms": 1101.808331999564,
+          "finalize_ms": 2916.0122659995977
+        },
+        {
+          "index": 6,
+          "auth_ms": 602.7592019991062,
+          "pool_wait_ms": 3131.3130399994407,
+          "cursor_ms": 2638.4523829983664,
+          "do_rollback_ms": 0.06054599998606136,
+          "checkout_ms": 2810.2272360001734,
+          "executor_queue_ms": 0.702729001204716,
+          "do_commit_ms": 154.1062750002311,
+          "claim_ms": 2318.8359429996126,
+          "provider_ms": 1101.0054250000394,
+          "finalize_ms": 2078.9402740001606
+        },
+        {
+          "index": 7,
+          "auth_ms": 601.5575890005493,
+          "pool_wait_ms": 4267.287580999437,
+          "cursor_ms": 2644.1887239998323,
+          "do_rollback_ms": 0.06229900009202538,
+          "checkout_ms": 2820.4279629990197,
+          "executor_queue_ms": 0.520824999512115,
+          "do_commit_ms": 153.45019399956072,
+          "claim_ms": 2387.273002999791,
+          "provider_ms": 1101.209856999958,
+          "finalize_ms": 3151.1120839995783
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 40,
+            "exec_ms": 0.691,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 296,
+            "exec_ms": 15.32,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 835,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 8,
+      "repetition": 0,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 6835.8,
+        "p50": 6845.4,
+        "p95": 8460.6,
+        "max": 8861.8
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 6835.8,
+        "p50": 6845.4,
+        "p95": 8460.6,
+        "max": 8861.8
+      },
+      "wall_ms": 9120.9,
+      "provider_calls": 8,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 6103.098274,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4844.640637,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5979.879304,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6277.272311,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7490.4019419999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7413.534111999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7715.511379,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8861.766419,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 8
+    },
+    {
+      "connection_seconds": 22.779,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 264,
+      "new_connections": 0,
+      "checkouts": 32,
+      "pool_wait_count": 26,
+      "pool_wait_ms": {
+        "n": 26,
+        "mean": 709.8,
+        "p50": 525.4,
+        "p95": 1706.2,
+        "max": 1899.7
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1200.9176999999909
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 1193.0271840001296
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 8,
+          "cursor_ms": 595.8063960006257
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 595.7509259997096
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1202.7876329966602
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 597.8426990004664
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.0692379988759
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 8,
+          "cursor_ms": 595.698959999936
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 607.786286001101
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 8,
+          "cursor_ms": 605.5754999988494
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 602.0391810006913
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 604.59148100108
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 607.0986129998346
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 8,
+          "cursor_ms": 606.6795019996789
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 1195.7436429984227
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 8,
+          "cursor_ms": 597.3857019989737
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 8,
+          "cursor_ms": 597.6674260000436
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 597.861389001082
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 16,
+          "cursor_ms": 1198.3303740007614
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1206.5287590003209
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 596.8357489991831
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 8,
+          "cursor_ms": 601.1179009992702
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 601.7933910006832
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 598.9734649983802
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 8,
+          "cursor_ms": 602.328068001043
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 601.1977409998508
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 8,
+          "cursor_ms": 601.2317239974436
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.1751790012786
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 602.4057369986622
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.9876450009178,
+          "cursor_ms": 2627.5475080028627,
+          "do_rollback_ms": 0.057637999816506635,
+          "checkout_ms": 2802.79489700024,
+          "executor_queue_ms": 0.7358129996646312,
+          "pool_wait_ms": 237.24019800010865,
+          "do_commit_ms": 155.54815299947222,
+          "claim_ms": 1264.4067629998972,
+          "provider_ms": 1100.783674000013,
+          "finalize_ms": 1624.4689579998521
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.4414550008951,
+          "cursor_ms": 2630.7306810003865,
+          "do_rollback_ms": 0.044954000259167515,
+          "checkout_ms": 2977.000324999608,
+          "executor_queue_ms": 0.8156339999914053,
+          "pool_wait_ms": 1443.7588659993708,
+          "do_commit_ms": 329.2523889995209,
+          "claim_ms": 1263.9508270003716,
+          "provider_ms": 1100.2872709996154,
+          "finalize_ms": 3006.343961999846
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.6069759998572,
+          "cursor_ms": 2622.565531998589,
+          "do_rollback_ms": 0.04314099987823283,
+          "checkout_ms": 2995.4531480007063,
+          "executor_queue_ms": 0.8391379988097469,
+          "pool_wait_ms": 1371.3676779998423,
+          "do_commit_ms": 353.8601419995757,
+          "claim_ms": 1259.7515950001252,
+          "provider_ms": 1100.8619430003819,
+          "finalize_ms": 2956.444568999359
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.361635000103,
+          "pool_wait_ms": 1697.901169999568,
+          "cursor_ms": 2629.4945559984626,
+          "do_rollback_ms": 0.049913998736883514,
+          "checkout_ms": 2798.184776999733,
+          "executor_queue_ms": 0.6438910004362697,
+          "do_commit_ms": 152.58706999975402,
+          "claim_ms": 2402.526625000064,
+          "provider_ms": 1101.2836469999456,
+          "finalize_ms": 1848.3024559991463
+        },
+        {
+          "index": 4,
+          "auth_ms": 602.6826119996258,
+          "pool_wait_ms": 3071.7110670011607,
+          "cursor_ms": 2623.9975559965387,
+          "do_rollback_ms": 0.04790200000570621,
+          "checkout_ms": 2799.1344969996135,
+          "executor_queue_ms": 2.8022080005030148,
+          "do_commit_ms": 153.85274199979904,
+          "claim_ms": 2473.2717639999464,
+          "provider_ms": 1100.350093999623,
+          "finalize_ms": 3152.1440440001243
+        },
+        {
+          "index": 5,
+          "auth_ms": 602.1930509996309,
+          "pool_wait_ms": 3028.811379000217,
+          "cursor_ms": 2623.300878000009,
+          "do_rollback_ms": 0.16733099892007886,
+          "checkout_ms": 2799.0476479999415,
+          "executor_queue_ms": 1.0849260006580153,
+          "do_commit_ms": 156.10423999987688,
+          "claim_ms": 2469.158439000239,
+          "provider_ms": 1100.294058000145,
+          "finalize_ms": 3108.3274160000656
+        },
+        {
+          "index": 6,
+          "auth_ms": 601.2963229995876,
+          "pool_wait_ms": 3135.8880169991608,
+          "cursor_ms": 2624.016386997937,
+          "do_rollback_ms": 0.06016400129738031,
+          "checkout_ms": 2795.7066730004954,
+          "executor_queue_ms": 0.6688080002277275,
+          "do_commit_ms": 152.3925629999212,
+          "claim_ms": 2322.1392539999215,
+          "provider_ms": 1100.2679800003534,
+          "finalize_ms": 2072.57714699972
+        },
+        {
+          "index": 7,
+          "auth_ms": 601.9995349997771,
+          "pool_wait_ms": 4467.893116999221,
+          "cursor_ms": 2637.594448998243,
+          "do_rollback_ms": 0.04787200032296823,
+          "checkout_ms": 2811.613029999535,
+          "executor_queue_ms": 0.39967900102055864,
+          "do_commit_ms": 151.93488000022626,
+          "claim_ms": 2391.3383190001696,
+          "provider_ms": 1101.5781030000653,
+          "finalize_ms": 3349.3205699996906
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 32,
+            "exec_ms": 0.614,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 296,
+            "exec_ms": 12.365,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 851,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 8,
+      "repetition": 1,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 6927.4,
+        "p50": 6921.4,
+        "p95": 8563.1,
+        "max": 9035.8
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 6927.4,
+        "p50": 6921.4,
+        "p95": 8563.1,
+        "max": 9035.8
+      },
+      "wall_ms": 9274.9,
+      "provider_calls": 8,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4868.009195,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6203.1015560000005,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6151.543943,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6254.331649,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7632.250871,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7588.550488999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7685.305764,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 9035.801073999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 8
+    },
+    {
+      "connection_seconds": 55.489,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 645,
+      "new_connections": 0,
+      "checkouts": 103,
+      "pool_wait_count": 98,
+      "pool_wait_ms": {
+        "n": 98,
+        "mean": 2044.1,
+        "p50": 1555.7,
+        "p95": 4571.4,
+        "max": 5193.1
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 58,
+          "cursor_ms": 4347.249777001707
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 29,
+          "cursor_ms": 4330.630855004529
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 29,
+          "cursor_ms": 2169.947646001674
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 29,
+          "cursor_ms": 2173.625465000441
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 58,
+          "cursor_ms": 4339.913885000897
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 29,
+          "cursor_ms": 2172.38256300152
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1199.6733519990812
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 16,
+          "cursor_ms": 1195.8685680001508
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1200.075723001646
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 16,
+          "cursor_ms": 1200.4202830012218
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1199.143534000541
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1202.2707680016538
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1197.0174430007319
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 16,
+          "cursor_ms": 1202.9471490004653
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 16,
+          "cursor_ms": 2378.8392939986807
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 16,
+          "cursor_ms": 1189.8317919994952
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 16,
+          "cursor_ms": 1193.5041770011594
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1191.442130001633
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 32,
+          "cursor_ms": 2382.4097309970966
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2389.2451880001317
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1195.0279569991835
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 16,
+          "cursor_ms": 1192.234641000141
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1194.824010000957
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1194.2001429988522
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 16,
+          "cursor_ms": 1191.7985730033251
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1193.3422620022611
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 16,
+          "cursor_ms": 1187.3434329982047
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1195.6563750018177
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1189.6897710012126
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 13,
+          "cursor_ms": 977.8898879994813
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.2085349993868,
+          "cursor_ms": 2612.009828000737,
+          "do_rollback_ms": 0.056587000472063664,
+          "checkout_ms": 2792.0452500002284,
+          "executor_queue_ms": 0.7092999994711136,
+          "pool_wait_ms": 2817.054241000733,
+          "do_commit_ms": 158.8796200003344,
+          "claim_ms": 1261.0776889996487,
+          "provider_ms": 1100.9166320000077,
+          "finalize_ms": 4194.463666000047
+        },
+        {
+          "index": 1,
+          "auth_ms": 602.5432540000111,
+          "cursor_ms": 2607.7208349988723,
+          "do_rollback_ms": 0.04705900028056931,
+          "checkout_ms": 2785.6835470001897,
+          "executor_queue_ms": 0.4110429999855114,
+          "pool_wait_ms": 2673.5411569998178,
+          "do_commit_ms": 160.06415500032745,
+          "claim_ms": 1256.2772119999863,
+          "provider_ms": 1101.0347849996833,
+          "finalize_ms": 4051.499211999726
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.2347779997071,
+          "cursor_ms": 2609.2708980040697,
+          "do_rollback_ms": 0.055044998589437455,
+          "checkout_ms": 2782.9510649999065,
+          "pool_wait_ms": 4253.984477999438,
+          "executor_queue_ms": 0.5760690000897739,
+          "do_commit_ms": 152.36395000101766,
+          "claim_ms": 1486.9858960000784,
+          "provider_ms": 1100.2227070002846,
+          "finalize_ms": 5352.7472870000565
+        },
+        {
+          "index": 3,
+          "auth_ms": 1203.0852999987474,
+          "pool_wait_ms": 10555.99293099749,
+          "cursor_ms": 3360.9071160017265,
+          "do_rollback_ms": 0.10098299935634714,
+          "checkout_ms": 3621.483488001104,
+          "executor_queue_ms": 1.8593400000099791,
+          "do_commit_ms": 232.55073500058643,
+          "claim_ms": 3430.341082999803,
+          "provider_ms": 1100.92689800058,
+          "finalize_ms": 5841.801315999874
+        },
+        {
+          "index": 4,
+          "auth_ms": 1202.1395149995442,
+          "pool_wait_ms": 10570.936240000265,
+          "cursor_ms": 3356.855601001371,
+          "do_rollback_ms": 0.09512899941910291,
+          "checkout_ms": 3620.866551999825,
+          "executor_queue_ms": 1.709482999103784,
+          "do_commit_ms": 234.64600599982077,
+          "claim_ms": 3560.560118999092,
+          "provider_ms": 1100.8724850007638,
+          "finalize_ms": 5656.721825999739
+        },
+        {
+          "index": 5,
+          "auth_ms": 1202.1805019994645,
+          "pool_wait_ms": 12233.906241999648,
+          "cursor_ms": 3363.392754002234,
+          "do_rollback_ms": 0.1509970006736694,
+          "checkout_ms": 3623.4723950001353,
+          "executor_queue_ms": 0.7647080010428908,
+          "do_commit_ms": 229.0720800001509,
+          "claim_ms": 4566.176958999677,
+          "provider_ms": 1100.2580240001407,
+          "finalize_ms": 6193.1111080002665
+        },
+        {
+          "index": 6,
+          "auth_ms": 1205.7576560000598,
+          "pool_wait_ms": 12674.105850999695,
+          "cursor_ms": 3374.222282000119,
+          "do_rollback_ms": 0.0967639989539748,
+          "checkout_ms": 3631.473112999629,
+          "executor_queue_ms": 0.7351620006375015,
+          "do_commit_ms": 228.83305699997436,
+          "claim_ms": 5344.58302800067,
+          "provider_ms": 1102.0795459999135,
+          "finalize_ms": 5788.338821999787
+        },
+        {
+          "index": 7,
+          "auth_ms": 1202.629037999941,
+          "pool_wait_ms": 12906.729699000607,
+          "cursor_ms": 3378.469589002634,
+          "do_rollback_ms": 0.10867800028790953,
+          "checkout_ms": 3635.1633139984187,
+          "executor_queue_ms": 1.2152439994679298,
+          "do_commit_ms": 227.49040199869341,
+          "claim_ms": 5394.155854000019,
+          "provider_ms": 1100.9903530002703,
+          "finalize_ms": 5826.140664000377
+        },
+        {
+          "index": 8,
+          "auth_ms": 1203.060612999252,
+          "pool_wait_ms": 14250.127318002342,
+          "cursor_ms": 3368.70161400293,
+          "do_rollback_ms": 0.09204599882650655,
+          "checkout_ms": 3634.1282020002836,
+          "executor_queue_ms": 1.07901900082652,
+          "do_commit_ms": 234.3557209997016,
+          "claim_ms": 6010.874578000767,
+          "provider_ms": 1101.557676000084,
+          "finalize_ms": 6404.446938000547
+        },
+        {
+          "index": 9,
+          "auth_ms": 1203.2434259999718,
+          "pool_wait_ms": 14947.110536000764,
+          "cursor_ms": 3370.8863350047977,
+          "do_rollback_ms": 0.10208499861619202,
+          "checkout_ms": 3628.154829999403,
+          "executor_queue_ms": 0.8820199991532718,
+          "do_commit_ms": 228.3247350005695,
+          "claim_ms": 5651.741679999759,
+          "provider_ms": 1100.2394580000328,
+          "finalize_ms": 6039.573269999892
+        },
+        {
+          "index": 10,
+          "auth_ms": 1204.9748939998608,
+          "pool_wait_ms": 14703.32070799941,
+          "cursor_ms": 3374.4255150031677,
+          "do_rollback_ms": 0.09581400172464782,
+          "checkout_ms": 3636.081610000474,
+          "executor_queue_ms": 0.703770000654913,
+          "do_commit_ms": 233.71984099958354,
+          "claim_ms": 5610.895856999377,
+          "provider_ms": 1102.1258560003844,
+          "finalize_ms": 5995.001887000399
+        },
+        {
+          "index": 11,
+          "auth_ms": 1203.129466000064,
+          "pool_wait_ms": 16298.150134000025,
+          "cursor_ms": 3363.3651299978737,
+          "do_rollback_ms": 0.09402999967278447,
+          "checkout_ms": 3623.9378119998946,
+          "executor_queue_ms": 0.7373910002570483,
+          "do_commit_ms": 229.27787499975238,
+          "claim_ms": 6259.548932001053,
+          "provider_ms": 1101.0922340001343,
+          "finalize_ms": 6625.769260000197
+        },
+        {
+          "index": 12,
+          "auth_ms": 1203.282671001034,
+          "pool_wait_ms": 16756.29447599931,
+          "cursor_ms": 3350.5803479965834,
+          "do_rollback_ms": 0.09736400079418672,
+          "checkout_ms": 3612.443979998716,
+          "executor_queue_ms": 0.7978710009410861,
+          "do_commit_ms": 230.70199799985858,
+          "claim_ms": 6248.843385999862,
+          "provider_ms": 1101.0334630000216,
+          "finalize_ms": 5819.451459999982
+        },
+        {
+          "index": 13,
+          "auth_ms": 1201.743286999772,
+          "pool_wait_ms": 16989.836523998747,
+          "cursor_ms": 3351.8627620023835,
+          "do_rollback_ms": 0.10666299749573227,
+          "checkout_ms": 3615.733497999827,
+          "executor_queue_ms": 1.2334559996816097,
+          "do_commit_ms": 234.50491299990972,
+          "claim_ms": 7243.5662220004815,
+          "provider_ms": 1100.066271000287,
+          "finalize_ms": 4981.93147999973
+        },
+        {
+          "index": 14,
+          "auth_ms": 1202.4589069978902,
+          "pool_wait_ms": 18339.53910099899,
+          "cursor_ms": 3361.295818000144,
+          "do_rollback_ms": 0.0921139999263687,
+          "checkout_ms": 3621.8737950002833,
+          "executor_queue_ms": 0.7438319998982479,
+          "do_commit_ms": 230.30151299917634,
+          "claim_ms": 7724.32254100022,
+          "provider_ms": 1100.9013469993079,
+          "finalize_ms": 5659.05248099989
+        },
+        {
+          "index": 15,
+          "auth_ms": 1204.3275300002279,
+          "pool_wait_ms": 19353.574067999944,
+          "cursor_ms": 3364.4799510002485,
+          "do_rollback_ms": 0.10901600126089761,
+          "checkout_ms": 3623.33087999923,
+          "executor_queue_ms": 0.9612240000933525,
+          "do_commit_ms": 229.24705700097547,
+          "claim_ms": 8758.703931999662,
+          "provider_ms": 1100.383906999923,
+          "finalize_ms": 5588.459595000131
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 80,
+            "exec_ms": 1.386,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 735,
+            "exec_ms": 33.018,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1780,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 16,
+      "repetition": 0,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 16001.4,
+        "p50": 17534.3,
+        "p95": 19182.7,
+        "max": 19246.8
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 16001.4,
+        "p50": 17534.3,
+        "p95": 19182.7,
+        "max": 19246.8
+      },
+      "wall_ms": 19490.7,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 29,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 13,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 7597.5931120000005,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7410.62103,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8976.975209,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 16257.790797,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 16460.360932,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17087.604978,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17255.215535000003,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17262.143378,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17806.539493,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17987.835658,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17890.280121999996,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18439.062982000003,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18566.332381,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18615.218118999997,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19161.382684,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19246.783632,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        }
+      ],
+      "persisted_attempts": 16
+    },
+    {
+      "connection_seconds": 55.786,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 645,
+      "new_connections": 0,
+      "checkouts": 103,
+      "pool_wait_count": 98,
+      "pool_wait_ms": {
+        "n": 98,
+        "mean": 2052.1,
+        "p50": 1560.2,
+        "p95": 4562.1,
+        "max": 5170.5
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 58,
+          "cursor_ms": 4339.983530000609
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 29,
+          "cursor_ms": 4328.899237001679
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 29,
+          "cursor_ms": 2181.856348999645
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 29,
+          "cursor_ms": 2186.20465100048
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 58,
+          "cursor_ms": 4384.209131000716
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 29,
+          "cursor_ms": 2183.056926001882
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1207.8762369992546
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 16,
+          "cursor_ms": 1204.103390000455
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1208.184752001216
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 16,
+          "cursor_ms": 1208.981768002559
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1213.8101150012517
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1210.626238000259
+        },
+        {
+          "stage": "claim",
+          "sql": "UPDATE poc_account_slots SET fence=%(fence)s::INTEGER, active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1209.0553039997758
+        },
+        {
+          "stage": "claim",
+          "sql": "INSERT INTO poc_upload_operations (owner, id, exercise, upload_key, fingerprint, checkpoint, fence, status, expires) VALUES (%(owner)s::UUID, %(id)s::UUID, %(exercise)s::UUID, %(upload_key)s::VARCHAR, %(fingerprint)s::VARCHAR, %(checkpoint)s::VARCHAR, %(fence)s::INTEGER, %(status)s::VARCHAR, %(expires)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (owner, id) DO UPDATE SET fence = %(param_1)s::INTEGER, status = %(param_2)s::VARCHAR, expires = %(param_3)s::TIMESTAMP WITH TIME ZONE",
+          "calls": 16,
+          "cursor_ms": 1205.407752998326
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID FOR UPDATE",
+          "calls": 16,
+          "cursor_ms": 2389.160993000587
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO poc_account_slots (owner, fence, active) VALUES (%(owner)s::UUID, %(fence)s::INTEGER, %(active)s::UUID) ON CONFLICT DO NOTHING",
+          "calls": 16,
+          "cursor_ms": 1199.6698719995038
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_account_slots.owner, poc_account_slots.fence, poc_account_slots.active \nFROM poc_account_slots \nWHERE poc_account_slots.owner = %(owner_1)s::UUID FOR UPDATE",
+          "calls": 16,
+          "cursor_ms": 1211.9464390025314
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT poc_upload_operations.owner, poc_upload_operations.id, poc_upload_operations.exercise, poc_upload_operations.upload_key, poc_upload_operations.fingerprint, poc_upload_operations.checkpoint, poc_upload_operations.fence, poc_upload_operations.status, poc_upload_operations.expires \nFROM poc_upload_operations \nWHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1207.8490459998648
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT clock_timestamp() AS clock_timestamp_1",
+          "calls": 32,
+          "cursor_ms": 2395.9570959968914
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2415.728100004344
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT lesson_lifecycles.id \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1205.7135919994835
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id \nFROM attempts \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR",
+          "calls": 16,
+          "cursor_ms": 1201.2334580012975
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT exercises.id \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1198.3479939963217
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT conversations.exercise_id, conversations.data, conversations.state, conversations.pending_attempt_id, conversations.active_followup_id, conversations.updated_at \nFROM conversations \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1214.5489850008744
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE)",
+          "calls": 16,
+          "cursor_ms": 1204.4913809977515
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1207.6060859999416
+        },
+        {
+          "stage": "finalize",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 16,
+          "cursor_ms": 1196.7977669974061
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_upload_operations SET status=%(status)s::VARCHAR WHERE poc_upload_operations.owner = %(owner_1)s::UUID AND poc_upload_operations.id = %(id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1197.049991998938
+        },
+        {
+          "stage": "finalize",
+          "sql": "UPDATE poc_account_slots SET active=%(active)s::UUID WHERE poc_account_slots.owner = %(owner_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1205.6421309998768
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts \nWHERE attempts.id = %(id_1)s::UUID AND attempts.exercise_id = %(exercise_id_1)s::UUID",
+          "calls": 13,
+          "cursor_ms": 977.7578070015807
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 602.5767169994651,
+          "cursor_ms": 2633.2837129994004,
+          "do_rollback_ms": 0.05539500034501543,
+          "checkout_ms": 2808.7735729995984,
+          "executor_queue_ms": 0.9224069999618223,
+          "pool_wait_ms": 2760.4896230013765,
+          "do_commit_ms": 154.11722200042277,
+          "claim_ms": 1252.3024169995551,
+          "provider_ms": 1101.1842600000818,
+          "finalize_ms": 4164.973352000743
+        },
+        {
+          "index": 1,
+          "auth_ms": 602.033068998935,
+          "cursor_ms": 2640.885462999904,
+          "do_rollback_ms": 0.05169700125406962,
+          "checkout_ms": 2816.9327300001896,
+          "executor_queue_ms": 1.7779500003598514,
+          "pool_wait_ms": 1803.1027360002554,
+          "do_commit_ms": 154.49362299932545,
+          "claim_ms": 1255.3585959994962,
+          "provider_ms": 1101.1290650003502,
+          "finalize_ms": 3212.1885569995356
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.5388999994684,
+          "cursor_ms": 2623.789678003959,
+          "do_rollback_ms": 0.056898001275840215,
+          "checkout_ms": 2797.375059000842,
+          "pool_wait_ms": 4059.829183999682,
+          "executor_queue_ms": 0.47274300050048623,
+          "do_commit_ms": 153.0132070001855,
+          "claim_ms": 1485.7128559997363,
+          "provider_ms": 1100.5814240006657,
+          "finalize_ms": 5184.179044999837
+        },
+        {
+          "index": 3,
+          "auth_ms": 1202.480285999627,
+          "pool_wait_ms": 10673.58111899921,
+          "cursor_ms": 3388.531952999074,
+          "do_rollback_ms": 0.0892590005605598,
+          "checkout_ms": 3650.7898260006186,
+          "executor_queue_ms": 0.9037039999384433,
+          "do_commit_ms": 234.5535659987945,
+          "claim_ms": 3520.608283000911,
+          "provider_ms": 1100.5241559996648,
+          "finalize_ms": 5852.804510000169
+        },
+        {
+          "index": 4,
+          "auth_ms": 1202.7596500001891,
+          "pool_wait_ms": 10642.767326001376,
+          "cursor_ms": 3387.527941998087,
+          "do_rollback_ms": 0.11162300052092178,
+          "checkout_ms": 3647.3344459991495,
+          "executor_queue_ms": 0.5917079997743713,
+          "do_commit_ms": 233.88466099913785,
+          "claim_ms": 3590.6476690006457,
+          "provider_ms": 1100.505751000128,
+          "finalize_ms": 5669.274914000198
+        },
+        {
+          "index": 5,
+          "auth_ms": 1203.2254550003927,
+          "pool_wait_ms": 12448.546234000787,
+          "cursor_ms": 3385.7756060033353,
+          "do_rollback_ms": 0.09907800085784402,
+          "checkout_ms": 3648.275307001313,
+          "executor_queue_ms": 1.502944998719613,
+          "do_commit_ms": 234.09926199929032,
+          "claim_ms": 4573.321622000549,
+          "provider_ms": 1101.4927470005205,
+          "finalize_ms": 6387.06957299928
+        },
+        {
+          "index": 6,
+          "auth_ms": 1201.9023010007004,
+          "pool_wait_ms": 12786.390717001268,
+          "cursor_ms": 3373.9966410021225,
+          "do_rollback_ms": 0.10015999851020752,
+          "checkout_ms": 3628.87167199915,
+          "executor_queue_ms": 0.9956460007742862,
+          "do_commit_ms": 228.85772399968118,
+          "claim_ms": 5454.102135000539,
+          "provider_ms": 1100.2886290007154,
+          "finalize_ms": 5738.486891999855
+        },
+        {
+          "index": 7,
+          "auth_ms": 1202.727844999572,
+          "pool_wait_ms": 13001.488820000304,
+          "cursor_ms": 3378.7484160011445,
+          "do_rollback_ms": 0.0955400000748341,
+          "checkout_ms": 3635.618301998875,
+          "executor_queue_ms": 0.7897380010035704,
+          "do_commit_ms": 228.6161460006042,
+          "claim_ms": 5415.16411900011,
+          "provider_ms": 1101.19793100057,
+          "finalize_ms": 5852.7118960000735
+        },
+        {
+          "index": 8,
+          "auth_ms": 1202.1575969984042,
+          "pool_wait_ms": 14500.577345999773,
+          "cursor_ms": 3389.837396006442,
+          "do_rollback_ms": 0.08175300081347814,
+          "checkout_ms": 3645.456814001591,
+          "executor_queue_ms": 1.1552149999261019,
+          "do_commit_ms": 229.99211200021819,
+          "claim_ms": 6017.0450170007825,
+          "provider_ms": 1101.5788960003192,
+          "finalize_ms": 6616.294833000211
+        },
+        {
+          "index": 9,
+          "auth_ms": 1201.9141260007018,
+          "pool_wait_ms": 14808.601176001503,
+          "cursor_ms": 3400.362143995153,
+          "do_rollback_ms": 0.09300699912273558,
+          "checkout_ms": 3657.3917060013628,
+          "executor_queue_ms": 0.8772470018811873,
+          "do_commit_ms": 231.48716200012132,
+          "claim_ms": 5690.006784000616,
+          "provider_ms": 1100.698373999876,
+          "finalize_ms": 5965.489995999633
+        },
+        {
+          "index": 10,
+          "auth_ms": 1203.1632000007448,
+          "pool_wait_ms": 15031.060053998772,
+          "cursor_ms": 3393.7045549992035,
+          "do_rollback_ms": 0.16123599834827473,
+          "checkout_ms": 3651.6693830017175,
+          "executor_queue_ms": 0.7140510006138356,
+          "do_commit_ms": 228.09146999952645,
+          "claim_ms": 5653.695724999125,
+          "provider_ms": 1100.7315670003663,
+          "finalize_ms": 6073.304989000462
+        },
+        {
+          "index": 11,
+          "auth_ms": 1206.065992000731,
+          "pool_wait_ms": 16535.927577999246,
+          "cursor_ms": 3391.0057699995377,
+          "do_rollback_ms": 0.08828899990476202,
+          "checkout_ms": 3647.273734000919,
+          "executor_queue_ms": 0.9671709995018318,
+          "do_commit_ms": 227.73427200081642,
+          "claim_ms": 6486.144883999259,
+          "provider_ms": 1100.3640399994765,
+          "finalize_ms": 5797.004394999931
+        },
+        {
+          "index": 12,
+          "auth_ms": 1205.8969249992515,
+          "pool_wait_ms": 17055.835485999523,
+          "cursor_ms": 3376.622581002266,
+          "do_rollback_ms": 0.08444200102530885,
+          "checkout_ms": 3632.957971999531,
+          "executor_queue_ms": 0.6790859997636289,
+          "do_commit_ms": 228.9122120009779,
+          "claim_ms": 7252.567314000771,
+          "provider_ms": 1101.6608780000752,
+          "finalize_ms": 4926.3918810002
+        },
+        {
+          "index": 13,
+          "auth_ms": 1204.9531930006196,
+          "pool_wait_ms": 16890.07660400057,
+          "cursor_ms": 3383.085266998023,
+          "do_rollback_ms": 0.10381599895481486,
+          "checkout_ms": 3644.6227129999897,
+          "executor_queue_ms": 0.7681500010221498,
+          "do_commit_ms": 234.32598499948654,
+          "claim_ms": 6343.051018999176,
+          "provider_ms": 1102.3705349998636,
+          "finalize_ms": 5674.440785000115
+        },
+        {
+          "index": 14,
+          "auth_ms": 1202.5605710005038,
+          "pool_wait_ms": 18620.61941200045,
+          "cursor_ms": 3374.4783059955807,
+          "do_rollback_ms": 0.09933800083672395,
+          "checkout_ms": 3635.9281149998424,
+          "executor_queue_ms": 0.963682000474364,
+          "do_commit_ms": 233.96593100096652,
+          "claim_ms": 7982.235485000274,
+          "provider_ms": 1101.5928909991999,
+          "finalize_ms": 5605.5258409996895
+        },
+        {
+          "index": 15,
+          "auth_ms": 1205.1965709988508,
+          "pool_wait_ms": 19485.4777010014,
+          "cursor_ms": 3380.1206890020694,
+          "do_rollback_ms": 0.10036200001195539,
+          "checkout_ms": 3637.107614999877,
+          "executor_queue_ms": 0.6921369995325222,
+          "do_commit_ms": 228.53944900089118,
+          "claim_ms": 8892.889232000016,
+          "provider_ms": 1101.0984360000293,
+          "finalize_ms": 5521.515023000575
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 64,
+            "exec_ms": 1.089,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 735,
+            "exec_ms": 31.777,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 1782,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 16,
+      "repetition": 1,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 15847.0,
+        "p50": 17451.1,
+        "p95": 19127.6,
+        "max": 19181.9
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 15847.0,
+        "p50": 17451.1,
+        "p95": 19127.6,
+        "max": 19181.9
+      },
+      "wall_ms": 19423.3,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 29,
+      "max_sends": 2,
+      "polls": 0,
+      "replays": 13,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 7410.407416,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6412.402591,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 8649.498276,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 16225.088604000002,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 16377.479594,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17057.276187,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17130.309122,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17167.169094,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17735.056357999998,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17809.044533,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 17846.418449,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18416.873528999997,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18493.186679,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 18530.064084,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19109.514111,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        },
+        {
+          "ok": true,
+          "ms": 19181.935886,
+          "sends": 2,
+          "polls": 0,
+          "replay": true
+        }
+      ],
+      "persisted_attempts": 16
+    }
+  ]
+}

@@ -32,7 +32,7 @@ def test_release_restart_on_schema3_preserves_profiles_and_rejects_future_schema
     assert accepted.for_learner(repo.learner_id).profile() == profile
     accepted.close()
     with repo.engine.begin() as db:
-        db.execute(s.versions.insert().values(version=8, applied_at=now()))
+        db.execute(s.versions.insert().values(version=9, applied_at=now()))
     with pytest.raises(RuntimeError, match='schema version validation'):
         PostgresRepository(repo.engine.url.render_as_string(hide_password=False))
 

@@ -1,0 +1,2445 @@
+{
+  "source_hashes": {
+    "experiments/durable_claims/client.mjs": "95be696bf20178395b35a2cdb0752c8195ba0b289d9738a258e619d891855330",
+    "experiments/durable_claims/local.py": "b8d16a0a28e58e83f50605c776d3f5745292d41781525cbfac402e42a0202674",
+    "experiments/durable_claims/benchmark.py": "d3e8b7d6e9d086e8b49bdefe1ce73e0e8e60895b37d4d57961b70e5902803671",
+    "experiments/durable_claims/store.py": "39f5b702e3b4bcdb7905d208d87c2a6f1ba201420fb0f02e6268c952d0947c69",
+    "experiments/durable_claims/service.py": "426fde969e4167d96379a352622ee69aeb592cc80b487e05ab959c03b9fb3416",
+    "experiments/durable_claims/routes.py": "cf2c7770fa105048a019a221fa5c5cfb1d308a3e0727a9b5ededd98f5172404e",
+    "experiments/durable_claims/deadline-policy.test.mjs": "24ae5ccb1644c57f25ddecad3aa0549388d2f5c8df13310acc70b6efbaf55fce",
+    "experiments/durable_claims/__init__.py": "7a6e00de2ad410d0b732f689abbf6fcb9b0f8f359331a91bd23236e3c0f83450",
+    "experiments/durable_claims/metrics.py": "3f1f6852d97dc093ee4703bc90dcb2edad54926c1ecada36915c93fb22712e28",
+    "experiments/durable_claims/optimized_read.sql": "c2c6b52deca7b789607da797d5e7fbd9e64ca3338403202b520af6173676afc8",
+    "experiments/durable_claims/server_profile.py": "f9d568cce155518f9194ac599ca36e9600ae815bca4e7468c18e1abf5caf9d1b",
+    "experiments/durable_claims/optimized_store.py": "def843d75690c7b9de2ea41936d7d906c90357417c131fd100e19390f1549f34",
+    "experiments/durable_claims/test_claims.py": "4e453bc097e7eba4c9899380929abcb4265bdc4eace398f09e0d518f4e209a8d"
+  },
+  "packages": {
+    "SQLAlchemy": "2.1.6",
+    "psycopg": "3.3.6",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1",
+    "openai": "2.54.0",
+    "uvicorn": "0.54.0"
+  },
+  "python": "3.12.13",
+  "mode": "current",
+  "root_revision": "732e4203770592992f25e006b59e05425b7b456b",
+  "claims_store_sha256": null,
+  "claims_source_revision": null,
+  "database_rtt_ms": 72,
+  "auth_ms": 300,
+  "stt_ms": 1100,
+  "per_learner_locks": true,
+  "repetitions": 2,
+  "measure": "upload start including policy read through complete JSON acknowledgment",
+  "waves": [
+    {
+      "connection_seconds": 4.01,
+      "peak_physical_sessions": 4,
+      "peak_checked_out": 2,
+      "queries": 15,
+      "new_connections": 1,
+      "checkouts": 11,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 151.47277799951553
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 1,
+          "cursor_ms": 150.96267199987778
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 1,
+          "cursor_ms": 75.38158100032888
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 153.29314999962662
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 78.87647799998376
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 3,
+          "cursor_ms": 378.74857100086956
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.3905240000895
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.60945099996752
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 1,
+          "cursor_ms": 77.78849599981186
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.28972300062742
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 1,
+          "cursor_ms": 76.57356100025936
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.482847000625,
+          "cursor_ms": 1372.3869850009578,
+          "do_rollback_ms": 75.37688999855163,
+          "checkout_ms": 1323.0928269995275,
+          "provider_ms": 1100.4499860000578,
+          "do_commit_ms": 159.70987100081402
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 2,
+            "exec_ms": 0.078,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 30,
+            "exec_ms": 2.615,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 411,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 1,
+      "repetition": 0,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 4208.1,
+        "p50": 4208.1,
+        "p95": 4208.1,
+        "max": 4208.1
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 4208.1,
+        "p50": 4208.1,
+        "p95": 4208.1,
+        "max": 4208.1
+      },
+      "wall_ms": 4486.8,
+      "provider_calls": 1,
+      "extra_provider_calls": 0,
+      "sends": 1,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4208.149945,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 1
+    },
+    {
+      "connection_seconds": 3.967,
+      "peak_physical_sessions": 4,
+      "peak_checked_out": 2,
+      "queries": 15,
+      "new_connections": 1,
+      "checkouts": 11,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.25778800049738
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 1,
+          "cursor_ms": 151.5132900003664
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 1,
+          "cursor_ms": 75.76726300067094
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.56633700028033
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 77.1192180000071
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 3,
+          "cursor_ms": 377.718988000197
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 1,
+          "cursor_ms": 76.13706800020736
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 75.88076499996532
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 1,
+          "cursor_ms": 76.3505629993233
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 1,
+          "cursor_ms": 76.01250900006562
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 1,
+          "cursor_ms": 76.68882300004043
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.4547890008544,
+          "cursor_ms": 1368.0126120016212,
+          "do_rollback_ms": 0.14466500033449847,
+          "checkout_ms": 1306.6066330002286,
+          "provider_ms": 1100.4165580006884,
+          "do_commit_ms": 154.08359599950927
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 2,
+            "exec_ms": 0.09,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 21,
+            "exec_ms": 1.882,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 344,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 1,
+      "repetition": 1,
+      "automatic": 1,
+      "manual": 0,
+      "latency_ms": {
+        "n": 1,
+        "mean": 3502.9,
+        "p50": 3502.9,
+        "p95": 3502.9,
+        "max": 3502.9
+      },
+      "all_outcome_latency_ms": {
+        "n": 1,
+        "mean": 3502.9,
+        "p50": 3502.9,
+        "p95": 3502.9,
+        "max": 3502.9
+      },
+      "wall_ms": 3754.3,
+      "provider_calls": 1,
+      "extra_provider_calls": 0,
+      "sends": 1,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3502.91344,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 1
+    },
+    {
+      "connection_seconds": 7.947,
+      "peak_physical_sessions": 5,
+      "peak_checked_out": 4,
+      "queries": 30,
+      "new_connections": 2,
+      "checkouts": 22,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 304.2900840009679
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 2,
+          "cursor_ms": 304.2028569998365
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 2,
+          "cursor_ms": 152.10052100064786
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 304.24753799889004
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 153.11601700068422
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 6,
+          "cursor_ms": 755.5487189993073
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 151.76627700020617
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 151.18931800134305
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 2,
+          "cursor_ms": 149.18956400015304
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 154.5865740008594
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 2,
+          "cursor_ms": 151.26296099970205
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 600.9525070003292,
+          "cursor_ms": 1366.8269700001474,
+          "do_rollback_ms": 0.12656699891522294,
+          "checkout_ms": 1306.0590830000365,
+          "provider_ms": 1100.4687660006311,
+          "do_commit_ms": 157.2310519995881
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.8333709989747,
+          "cursor_ms": 1364.6734600024502,
+          "do_rollback_ms": 0.1640720010982477,
+          "checkout_ms": 1301.996115998918,
+          "provider_ms": 1100.9125239997957,
+          "do_commit_ms": 155.58519199930743
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 4,
+            "exec_ms": 0.071,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 42,
+            "exec_ms": 2.506,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 347,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 2,
+      "repetition": 0,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 3488.9,
+        "p50": 3488.9,
+        "p95": 3510.7,
+        "max": 3513.1
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 3488.9,
+        "p50": 3488.9,
+        "p95": 3510.7,
+        "max": 3513.1
+      },
+      "wall_ms": 3799.3,
+      "provider_calls": 2,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3513.128748,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3464.628781,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 2
+    },
+    {
+      "connection_seconds": 7.955,
+      "peak_physical_sessions": 5,
+      "peak_checked_out": 4,
+      "queries": 30,
+      "new_connections": 2,
+      "checkouts": 22,
+      "pool_wait_count": 0,
+      "pool_wait_ms": {
+        "n": 0,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 306.8620239992015
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 2,
+          "cursor_ms": 302.35371999970084
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 2,
+          "cursor_ms": 152.27261600011843
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 305.9776129994134
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 155.4014780003854
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 6,
+          "cursor_ms": 758.460671998364
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 2,
+          "cursor_ms": 151.96366000054695
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 152.24816299905797
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 2,
+          "cursor_ms": 150.79720500034455
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 2,
+          "cursor_ms": 151.16645300076925
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 2,
+          "cursor_ms": 148.8360499997725
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.0938870003883,
+          "cursor_ms": 1370.7506450000437,
+          "do_rollback_ms": 0.10927800121862674,
+          "checkout_ms": 1309.1405759996633,
+          "provider_ms": 1100.8496530002958,
+          "do_commit_ms": 156.96437299993704
+        },
+        {
+          "index": 1,
+          "auth_ms": 602.3273330001757,
+          "cursor_ms": 1365.589008997631,
+          "do_rollback_ms": 0.12794499889423605,
+          "checkout_ms": 1307.6532130007763,
+          "provider_ms": 1101.1828860000605,
+          "do_commit_ms": 156.2189969999963
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 4,
+            "exec_ms": 0.081,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 42,
+            "exec_ms": 2.686,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 347,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 2,
+      "repetition": 1,
+      "automatic": 2,
+      "manual": 0,
+      "latency_ms": {
+        "n": 2,
+        "mean": 3502.7,
+        "p50": 3502.7,
+        "p95": 3527.0,
+        "max": 3529.7
+      },
+      "all_outcome_latency_ms": {
+        "n": 2,
+        "mean": 3502.7,
+        "p50": 3502.7,
+        "p95": 3527.0,
+        "max": 3529.7
+      },
+      "wall_ms": 3829.4,
+      "provider_calls": 2,
+      "extra_provider_calls": 0,
+      "sends": 2,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3529.6639999999998,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3475.63783,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 2
+    },
+    {
+      "connection_seconds": 16.655,
+      "peak_physical_sessions": 7,
+      "peak_checked_out": 7,
+      "queries": 60,
+      "new_connections": 4,
+      "checkouts": 44,
+      "pool_wait_count": 8,
+      "pool_wait_ms": {
+        "n": 8,
+        "mean": 115.7,
+        "p50": 70.1,
+        "p95": 370.6,
+        "max": 447.9
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 607.7221820014529
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 4,
+          "cursor_ms": 606.6628349999519
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 4,
+          "cursor_ms": 302.3011920004137
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 600.1455710002119
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 299.640315999568
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 12,
+          "cursor_ms": 1496.111576999283
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 302.2666939987175
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 301.05460199956724
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 4,
+          "cursor_ms": 299.946527999964
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 303.70117199981905
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 4,
+          "cursor_ms": 302.42062999968766
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 602.4120460006088,
+          "cursor_ms": 1357.1282150005572,
+          "do_rollback_ms": 0.13093900179228513,
+          "checkout_ms": 1293.4175580003284,
+          "pool_wait_ms": 70.55427299928851,
+          "provider_ms": 1100.7029699994746,
+          "do_commit_ms": 152.7750859995649
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.6299379989505,
+          "cursor_ms": 1352.4918389975937,
+          "do_rollback_ms": 0.11465600073279347,
+          "checkout_ms": 1290.6457050003155,
+          "provider_ms": 1100.2975940000397,
+          "do_commit_ms": 154.6407999994699
+        },
+        {
+          "index": 2,
+          "auth_ms": 600.982846000079,
+          "cursor_ms": 1355.3476529987165,
+          "do_rollback_ms": 0.11067099876527209,
+          "checkout_ms": 1291.0244979993877,
+          "pool_wait_ms": 71.14259400077572,
+          "provider_ms": 1100.8778669993262,
+          "do_commit_ms": 153.813670001
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.0538690006797,
+          "pool_wait_ms": 784.1107460008061,
+          "cursor_ms": 1357.0055920017694,
+          "do_rollback_ms": 0.15147600061027333,
+          "checkout_ms": 1299.9939859992082,
+          "provider_ms": 1100.7232490001115,
+          "do_commit_ms": 156.6629129993089
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 8,
+            "exec_ms": 0.118,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 84,
+            "exec_ms": 4.444,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 413,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 4,
+      "repetition": 0,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 3700.8,
+        "p50": 3553.9,
+        "p95": 4131.7,
+        "max": 4229.0
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 3700.8,
+        "p50": 3553.9,
+        "p95": 4131.7,
+        "max": 4229.0
+      },
+      "wall_ms": 4534.6,
+      "provider_calls": 4,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3579.994245,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3466.381957,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3527.782713,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4229.038894,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 4
+    },
+    {
+      "connection_seconds": 16.586,
+      "peak_physical_sessions": 7,
+      "peak_checked_out": 7,
+      "queries": 60,
+      "new_connections": 4,
+      "checkouts": 44,
+      "pool_wait_count": 6,
+      "pool_wait_ms": {
+        "n": 6,
+        "mean": 154.3,
+        "p50": 72.4,
+        "p95": 395.8,
+        "max": 452.7
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 604.4422479999412
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 4,
+          "cursor_ms": 593.719780000356
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 4,
+          "cursor_ms": 297.704477001389
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 603.4998379991521
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 298.56853899946145
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 12,
+          "cursor_ms": 1488.6828740000055
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 4,
+          "cursor_ms": 300.07132299942896
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 299.8098749985729
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 4,
+          "cursor_ms": 298.12140699959855
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 4,
+          "cursor_ms": 301.29320099877077
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 4,
+          "cursor_ms": 299.83303300014086
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.5546489998087,
+          "cursor_ms": 1344.3981130003522,
+          "do_rollback_ms": 0.12643899935937952,
+          "checkout_ms": 1287.017017000835,
+          "provider_ms": 1100.6181100001413,
+          "do_commit_ms": 156.01327000058518
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.2588000003234,
+          "cursor_ms": 1342.9841529987243,
+          "do_rollback_ms": 0.13245299942354904,
+          "checkout_ms": 1283.5662909965322,
+          "pool_wait_ms": 70.34489099987695,
+          "provider_ms": 1102.1861139997782,
+          "do_commit_ms": 152.41520700055844
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.3606910000817,
+          "cursor_ms": 1346.0474269986662,
+          "do_rollback_ms": 0.09786699956748635,
+          "checkout_ms": 1286.6398050009593,
+          "pool_wait_ms": 71.78506199943513,
+          "provider_ms": 1100.2288699992278,
+          "do_commit_ms": 154.36115700049413
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.6775979996964,
+          "pool_wait_ms": 783.9218020008047,
+          "cursor_ms": 1352.3169019990746,
+          "do_rollback_ms": 0.11975699999311473,
+          "checkout_ms": 1298.2809400000406,
+          "provider_ms": 1101.085921000049,
+          "do_commit_ms": 157.23415499996918
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 8,
+            "exec_ms": 0.133,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 84,
+            "exec_ms": 3.756,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 411,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 4,
+      "repetition": 1,
+      "automatic": 4,
+      "manual": 0,
+      "latency_ms": {
+        "n": 4,
+        "mean": 3684.3,
+        "p50": 3516.9,
+        "p95": 4106.1,
+        "max": 4210.1
+      },
+      "all_outcome_latency_ms": {
+        "n": 4,
+        "mean": 3684.3,
+        "p50": 3516.9,
+        "p95": 4106.1,
+        "max": 4210.1
+      },
+      "wall_ms": 4506.3,
+      "provider_calls": 4,
+      "extra_provider_calls": 0,
+      "sends": 4,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3493.507493,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3516.794624,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3517.0444780000003,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4210.050496,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 4
+    },
+    {
+      "connection_seconds": 38.149,
+      "peak_physical_sessions": 11,
+      "peak_checked_out": 11,
+      "queries": 120,
+      "new_connections": 8,
+      "checkouts": 88,
+      "pool_wait_count": 27,
+      "pool_wait_ms": {
+        "n": 27,
+        "mean": 267.6,
+        "p50": 149.4,
+        "p95": 815.0,
+        "max": 904.6
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1212.3708509989228
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 8,
+          "cursor_ms": 1192.8206359998512
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 8,
+          "cursor_ms": 598.3750559989858
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1197.9872780002552
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 603.0929179987652
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 24,
+          "cursor_ms": 2988.210058999357
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 599.5628030013904
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 601.9256679992395
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 8,
+          "cursor_ms": 600.834341999871
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 599.6224049995362
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 8,
+          "cursor_ms": 601.5719959987109
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.5961019993483,
+          "cursor_ms": 1345.6104219976623,
+          "do_rollback_ms": 0.1295080019190209,
+          "checkout_ms": 1284.5231860010244,
+          "pool_wait_ms": 1672.5557549998484,
+          "provider_ms": 1100.8663929997056,
+          "do_commit_ms": 151.136057000258
+        },
+        {
+          "index": 1,
+          "auth_ms": 600.8208989997001,
+          "cursor_ms": 1355.3964759994415,
+          "do_rollback_ms": 0.09841800056165084,
+          "checkout_ms": 1288.8954140007627,
+          "pool_wait_ms": 1064.243314000123,
+          "provider_ms": 1101.180425000166,
+          "do_commit_ms": 150.2211709994299
+        },
+        {
+          "index": 2,
+          "auth_ms": 601.2572580011692,
+          "cursor_ms": 1358.1306689984558,
+          "do_rollback_ms": 0.10032999944087351,
+          "checkout_ms": 1296.345876999112,
+          "pool_wait_ms": 147.46422600001097,
+          "provider_ms": 1101.184086000103,
+          "do_commit_ms": 153.94776700031798
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.7963859994779,
+          "pool_wait_ms": 332.7690079995591,
+          "cursor_ms": 1352.9478130003554,
+          "do_rollback_ms": 0.11008900037268177,
+          "checkout_ms": 1291.5832919998138,
+          "provider_ms": 1101.2730270003885,
+          "do_commit_ms": 151.72781599994778
+        },
+        {
+          "index": 4,
+          "auth_ms": 601.8516760004786,
+          "pool_wait_ms": 1775.0090950003141,
+          "cursor_ms": 1346.308974002568,
+          "do_rollback_ms": 0.11968700164288748,
+          "checkout_ms": 1284.1017399996417,
+          "provider_ms": 1101.2673810000706,
+          "do_commit_ms": 151.49283000027935
+        },
+        {
+          "index": 5,
+          "auth_ms": 601.3769409992165,
+          "pool_wait_ms": 261.2110780009971,
+          "cursor_ms": 1346.300293999775,
+          "do_rollback_ms": 0.13481800124282017,
+          "checkout_ms": 1289.0571160005493,
+          "provider_ms": 1101.7747050000253,
+          "do_commit_ms": 153.7415160000819
+        },
+        {
+          "index": 6,
+          "auth_ms": 601.437079999414,
+          "pool_wait_ms": 949.2133799994917,
+          "cursor_ms": 1347.4806849990273,
+          "do_rollback_ms": 0.09954899906006176,
+          "checkout_ms": 1287.68161500102,
+          "provider_ms": 1101.1201900000742,
+          "do_commit_ms": 154.38740400077222
+        },
+        {
+          "index": 7,
+          "auth_ms": 601.6749170003095,
+          "pool_wait_ms": 1023.4045979996154,
+          "cursor_ms": 1344.1986789976,
+          "do_rollback_ms": 0.1094979998015333,
+          "checkout_ms": 1285.0844929998857,
+          "provider_ms": 1101.120119999905,
+          "do_commit_ms": 152.79696899960982
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 16,
+            "exec_ms": 0.245,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 168,
+            "exec_ms": 7.27,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 501,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 8,
+      "repetition": 0,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 4346.3,
+        "p50": 4405.5,
+        "p95": 5186.8,
+        "max": 5197.0
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 4346.3,
+        "p50": 4405.5,
+        "p95": 5186.8,
+        "max": 5197.0
+      },
+      "wall_ms": 5485.5,
+      "provider_calls": 8,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 5167.809972,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4519.444147,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3620.576832,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3767.7789780000003,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5196.974254,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3687.137987,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4371.21138,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4439.824296000001,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 8
+    },
+    {
+      "connection_seconds": 37.903,
+      "peak_physical_sessions": 11,
+      "peak_checked_out": 11,
+      "queries": 120,
+      "new_connections": 8,
+      "checkouts": 88,
+      "pool_wait_count": 29,
+      "pool_wait_ms": {
+        "n": 29,
+        "mean": 238.8,
+        "p50": 145.9,
+        "p95": 800.2,
+        "max": 834.8
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1204.9430049974035
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 8,
+          "cursor_ms": 1188.3503649996783
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 8,
+          "cursor_ms": 593.3323179988292
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1200.6974770010856
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 602.5991070009695
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 24,
+          "cursor_ms": 2996.3262339997527
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 8,
+          "cursor_ms": 599.0633309993427
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 606.5330950004864
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 8,
+          "cursor_ms": 598.9353619997928
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 8,
+          "cursor_ms": 606.8962189992817
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 8,
+          "cursor_ms": 604.512653000711
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.1226800001168,
+          "cursor_ms": 1348.6047189981036,
+          "do_rollback_ms": 0.1105920009649708,
+          "checkout_ms": 1290.731052999945,
+          "pool_wait_ms": 74.47632599996723,
+          "provider_ms": 1100.5456399998366,
+          "do_commit_ms": 154.0459309990183
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.6716849999284,
+          "cursor_ms": 1350.7921350001197,
+          "do_rollback_ms": 0.10892499994952232,
+          "checkout_ms": 1291.6184929972587,
+          "pool_wait_ms": 222.0298760003061,
+          "provider_ms": 1100.2594510000563,
+          "do_commit_ms": 152.8650620002736
+        },
+        {
+          "index": 2,
+          "auth_ms": 602.1570259990767,
+          "cursor_ms": 1350.659601001098,
+          "do_rollback_ms": 0.13046899948676582,
+          "checkout_ms": 1290.6563430005917,
+          "pool_wait_ms": 821.2169649996213,
+          "provider_ms": 1101.5305419996366,
+          "do_commit_ms": 152.69907699985197
+        },
+        {
+          "index": 3,
+          "auth_ms": 603.4880039997006,
+          "pool_wait_ms": 1765.4309409990674,
+          "cursor_ms": 1355.922448000456,
+          "do_rollback_ms": 0.11381600052118301,
+          "checkout_ms": 1297.093944000153,
+          "provider_ms": 1100.955540000541,
+          "do_commit_ms": 152.01743800025724
+        },
+        {
+          "index": 4,
+          "auth_ms": 602.3869319997175,
+          "pool_wait_ms": 1004.8759960000098,
+          "cursor_ms": 1353.1988179984182,
+          "do_rollback_ms": 0.10885600113397231,
+          "checkout_ms": 1293.60261599777,
+          "provider_ms": 1100.9916580005665,
+          "do_commit_ms": 152.75827799996478
+        },
+        {
+          "index": 5,
+          "auth_ms": 601.8820310000592,
+          "pool_wait_ms": 331.6042500000549,
+          "cursor_ms": 1344.1703539992886,
+          "do_rollback_ms": 0.08960799823398702,
+          "checkout_ms": 1284.2536470016057,
+          "provider_ms": 1102.08793899983,
+          "do_commit_ms": 152.5591670006179
+        },
+        {
+          "index": 6,
+          "auth_ms": 602.5885750004818,
+          "pool_wait_ms": 1085.9496670000226,
+          "cursor_ms": 1346.6908839991447,
+          "do_rollback_ms": 0.09556199893268058,
+          "checkout_ms": 1288.5854639998797,
+          "provider_ms": 1101.7602750007427,
+          "do_commit_ms": 154.55070400093973
+        },
+        {
+          "index": 7,
+          "auth_ms": 602.1756320005807,
+          "pool_wait_ms": 1620.8843760005038,
+          "cursor_ms": 1352.1502070007045,
+          "do_rollback_ms": 0.1292669994654716,
+          "checkout_ms": 1297.67445699963,
+          "provider_ms": 1100.8087059999525,
+          "do_commit_ms": 158.83457499967335
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 16,
+            "exec_ms": 0.256,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 168,
+            "exec_ms": 6.807,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 502,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 1
+      },
+      "learners": 8,
+      "repetition": 1,
+      "automatic": 8,
+      "manual": 0,
+      "latency_ms": {
+        "n": 8,
+        "mean": 4308.6,
+        "p50": 4358.9,
+        "p95": 5143.0,
+        "max": 5195.1
+      },
+      "all_outcome_latency_ms": {
+        "n": 8,
+        "mean": 4308.6,
+        "p50": 4358.9,
+        "p95": 5143.0,
+        "max": 5195.1
+      },
+      "wall_ms": 5487.6,
+      "provider_calls": 8,
+      "extra_provider_calls": 0,
+      "sends": 8,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3573.5627019999997,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3677.6000799999997,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4283.435941000001,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5195.146686,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4434.279684,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3750.950165,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4507.450833,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5046.164661,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 8
+    },
+    {
+      "connection_seconds": 100.379,
+      "peak_physical_sessions": 19,
+      "peak_checked_out": 19,
+      "queries": 240,
+      "new_connections": 16,
+      "checkouts": 176,
+      "pool_wait_count": 67,
+      "pool_wait_ms": {
+        "n": 67,
+        "mean": 576.0,
+        "p50": 304.5,
+        "p95": 1855.6,
+        "max": 3110.0
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2408.322489997772
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 16,
+          "cursor_ms": 2380.1159230006306
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 16,
+          "cursor_ms": 1199.1653330014742
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2400.7984029994986
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1196.4271729975735
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 48,
+          "cursor_ms": 5966.854089001572
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1200.3319869991174
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1201.5614739975717
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 16,
+          "cursor_ms": 1197.1669670001575
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1195.7506469998407
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 16,
+          "cursor_ms": 1197.7156660004766
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 600.4620249996151,
+          "cursor_ms": 1350.0357800003258,
+          "do_rollback_ms": 0.21863700112589868,
+          "checkout_ms": 1293.1078450001223,
+          "pool_wait_ms": 535.4156430003059,
+          "provider_ms": 1100.5647080000927,
+          "do_commit_ms": 153.15733299939893
+        },
+        {
+          "index": 1,
+          "auth_ms": 600.9661030002462,
+          "cursor_ms": 1345.1596139984758,
+          "do_rollback_ms": 0.12238400086062029,
+          "checkout_ms": 1287.9251510003087,
+          "pool_wait_ms": 919.3906849995983,
+          "provider_ms": 1100.498626999979,
+          "do_commit_ms": 153.50234899960924
+        },
+        {
+          "index": 2,
+          "auth_ms": 602.3237429999426,
+          "cursor_ms": 1352.0001409997349,
+          "do_rollback_ms": 0.12664999849221203,
+          "checkout_ms": 1290.735657001278,
+          "pool_wait_ms": 1070.4926970001907,
+          "provider_ms": 1100.9615020002457,
+          "do_commit_ms": 151.94264999900042
+        },
+        {
+          "index": 3,
+          "auth_ms": 602.9287460005435,
+          "pool_wait_ms": 2101.951476999602,
+          "cursor_ms": 1349.2692900017573,
+          "do_rollback_ms": 0.10475799899722915,
+          "checkout_ms": 1287.7628349979204,
+          "provider_ms": 1100.6540429998495,
+          "do_commit_ms": 151.65000799970585
+        },
+        {
+          "index": 4,
+          "auth_ms": 601.7863709994344,
+          "pool_wait_ms": 3998.486901999968,
+          "cursor_ms": 1342.9924289994233,
+          "do_rollback_ms": 0.11621999965427676,
+          "checkout_ms": 1282.3724210002183,
+          "provider_ms": 1101.5240239994455,
+          "do_commit_ms": 150.4572179992465
+        },
+        {
+          "index": 5,
+          "auth_ms": 600.7927939999718,
+          "pool_wait_ms": 1341.286830998797,
+          "cursor_ms": 1344.9540450001223,
+          "do_rollback_ms": 0.13019800007896265,
+          "checkout_ms": 1288.1965619999391,
+          "provider_ms": 1101.3625940004204,
+          "do_commit_ms": 154.8850869994567
+        },
+        {
+          "index": 6,
+          "auth_ms": 600.9292339995227,
+          "cursor_ms": 1343.969842997467,
+          "do_rollback_ms": 0.14087599993217736,
+          "checkout_ms": 1284.195125002043,
+          "pool_wait_ms": 2437.104966998959,
+          "provider_ms": 1100.6549319999976,
+          "do_commit_ms": 151.51793500081112
+        },
+        {
+          "index": 7,
+          "auth_ms": 602.7058789995863,
+          "cursor_ms": 1350.4339039991464,
+          "do_rollback_ms": 0.11464899944257922,
+          "checkout_ms": 1284.2820339992613,
+          "pool_wait_ms": 2276.9445459989583,
+          "provider_ms": 1100.863553999261,
+          "do_commit_ms": 152.94607399937377
+        },
+        {
+          "index": 8,
+          "auth_ms": 636.269903999164,
+          "cursor_ms": 1348.4061030003431,
+          "do_rollback_ms": 0.11185199946339708,
+          "checkout_ms": 1283.8811600004192,
+          "pool_wait_ms": 1530.1212970007327,
+          "provider_ms": 1100.5696760003048,
+          "do_commit_ms": 151.46419499978947
+        },
+        {
+          "index": 9,
+          "auth_ms": 603.3175420006955,
+          "pool_wait_ms": 1714.7984399998677,
+          "cursor_ms": 1343.5380810005881,
+          "do_rollback_ms": 0.11310500121908262,
+          "checkout_ms": 1283.4204009996029,
+          "provider_ms": 1100.3113819997452,
+          "do_commit_ms": 151.26970799883566
+        },
+        {
+          "index": 10,
+          "auth_ms": 603.9860209994004,
+          "pool_wait_ms": 3984.170620000441,
+          "cursor_ms": 1346.970855998734,
+          "do_rollback_ms": 0.10778300020319875,
+          "checkout_ms": 1285.9134360005555,
+          "provider_ms": 1101.2444749994756,
+          "do_commit_ms": 151.6384440001275
+        },
+        {
+          "index": 11,
+          "auth_ms": 603.4504039998865,
+          "pool_wait_ms": 2700.3232500001104,
+          "cursor_ms": 1346.4511510001103,
+          "do_rollback_ms": 0.10271200153511018,
+          "checkout_ms": 1285.1122639995083,
+          "provider_ms": 1100.8477579998726,
+          "do_commit_ms": 151.5889110005446
+        },
+        {
+          "index": 12,
+          "auth_ms": 603.0244200001107,
+          "pool_wait_ms": 3227.8298000001087,
+          "cursor_ms": 1342.9518330003702,
+          "do_rollback_ms": 0.1251760013474268,
+          "checkout_ms": 1284.0580829979444,
+          "provider_ms": 1100.758035000581,
+          "do_commit_ms": 152.40697199988062
+        },
+        {
+          "index": 13,
+          "auth_ms": 603.1024329995489,
+          "pool_wait_ms": 3454.0376889999607,
+          "cursor_ms": 1345.5512309983533,
+          "do_rollback_ms": 0.13855399902240606,
+          "checkout_ms": 1284.6485329973802,
+          "provider_ms": 1100.889518999793,
+          "do_commit_ms": 153.44217399979243
+        },
+        {
+          "index": 14,
+          "auth_ms": 603.3893320000061,
+          "pool_wait_ms": 3084.7045199989225,
+          "cursor_ms": 1344.6701289994962,
+          "do_rollback_ms": 0.1328350008407142,
+          "checkout_ms": 1282.64268500061,
+          "provider_ms": 1100.3602709997722,
+          "do_commit_ms": 151.2143019999712
+        },
+        {
+          "index": 15,
+          "auth_ms": 603.837991000546,
+          "pool_wait_ms": 4217.390479999267,
+          "cursor_ms": 1346.8557220012372,
+          "do_rollback_ms": 0.11777399868151406,
+          "checkout_ms": 1289.1336990005584,
+          "provider_ms": 1100.993995999488,
+          "do_commit_ms": 153.3125640007711
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 32,
+            "exec_ms": 0.54,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 336,
+            "exec_ms": 15.049,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 717,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 16,
+      "repetition": 0,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 5965.4,
+        "p50": 5993.2,
+        "p95": 7631.5,
+        "max": 7802.3
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 5965.4,
+        "p50": 5993.2,
+        "p95": 7631.5,
+        "max": 7802.3
+      },
+      "wall_ms": 8099.8,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 16,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4066.8699279999996,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4412.259848,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4561.372951,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5537.290765,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7428.583201,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4782.4437,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6066.247097,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5920.1851560000005,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5162.839246,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5307.947400999999,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7574.62951,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6289.671767000001,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6818.811728,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7044.823472,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6669.7931690000005,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7802.271421,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 16
+    },
+    {
+      "connection_seconds": 99.661,
+      "peak_physical_sessions": 19,
+      "peak_checked_out": 19,
+      "queries": 240,
+      "new_connections": 16,
+      "checkouts": 176,
+      "pool_wait_count": 71,
+      "pool_wait_ms": {
+        "n": 71,
+        "mean": 553.0,
+        "p50": 300.0,
+        "p95": 1869.7,
+        "max": 3106.3
+      },
+      "max_request_connections_at_stt": 1,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2402.462509004181
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT set_config('idle_in_transaction_session_timeout', '0', true)",
+          "calls": 16,
+          "cursor_ms": 2390.2396029989177
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT pg_try_advisory_xact_lock(%(key)s)",
+          "calls": 16,
+          "cursor_ms": 1191.042492001543
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id, attempts.exercise_id, attempts.transcription, attempts.recognized_text, attempts.confidence, attempts.transcription_source, attempts.confirmed_text, attempts.status, attempts.created_at \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2402.5548740000886
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT lesson_lifecycles.id, lesson_lifecycles.user_id, lesson_lifecycles.status, lesson_lifecycles.revision, lesson_lifecycles.started_at, lesson_lifecycles.data \nFROM lesson_lifecycles \nWHERE lesson_lifecycles.user_id = %(user_id_1)s::UUID AND lesson_lifecycles.status IN (%(status_1_1)s::VARCHAR, %(status_1_2)s::VARCHAR) ORDER BY lesson_lifecycles.started_at DESC, lesson_lifecycles.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1199.018719000378
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.id = %(id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 48,
+          "cursor_ms": 5973.890738000591
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT exercises.id, exercises.user_id, exercises.session_id, exercises.content, exercises.difficulty, exercises.audio_name, exercises.created_at \nFROM exercises \nWHERE exercises.user_id = %(user_id_1)s::UUID ORDER BY exercises.created_at DESC, exercises.id DESC \n LIMIT %(param_1)s::INTEGER",
+          "calls": 16,
+          "cursor_ms": 1200.7052909993945
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT attempts.id \nFROM attempts JOIN exercises ON exercises.id = attempts.exercise_id \nWHERE attempts.exercise_id = %(exercise_id_1)s::UUID AND attempts.status = %(status_1)s::VARCHAR AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1201.5223159960442
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO attempts (id, exercise_id, transcription, recognized_text, confidence, transcription_source, status, created_at) VALUES (%(id)s::UUID, %(exercise_id)s::UUID, %(transcription)s::JSONB, %(recognized_text)s::VARCHAR, %(confidence)s, %(transcription_source)s::VARCHAR, %(status)s::VARCHAR, %(created_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (id) DO NOTHING RETURNING attempts.id",
+          "calls": 16,
+          "cursor_ms": 1203.902534001827
+        },
+        {
+          "stage": "request",
+          "sql": "SELECT conversations.data \nFROM conversations JOIN exercises ON exercises.id = conversations.exercise_id \nWHERE conversations.exercise_id = %(exercise_id_1)s::UUID AND exercises.user_id = %(user_id_1)s::UUID",
+          "calls": 16,
+          "cursor_ms": 1198.0008680020546
+        },
+        {
+          "stage": "request",
+          "sql": "INSERT INTO conversations (exercise_id, data, state, pending_attempt_id, active_followup_id, updated_at) VALUES (%(exercise_id)s::UUID, %(data)s::JSONB, %(state)s::VARCHAR, %(pending_attempt_id)s::UUID, %(active_followup_id)s::UUID, %(updated_at)s::TIMESTAMP WITH TIME ZONE) ON CONFLICT (exercise_id) DO UPDATE SET data = excluded.data, state = excluded.state, pending_attempt_id = excluded.pending_attempt_id, active_followup_id = excluded.active_followup_id, updated_at = excluded.updated_at",
+          "calls": 16,
+          "cursor_ms": 1201.3697270003831
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 602.0390249996126,
+          "cursor_ms": 1357.1512230000735,
+          "do_rollback_ms": 0.10560200007603271,
+          "checkout_ms": 1291.263345000516,
+          "pool_wait_ms": 917.5519119989985,
+          "provider_ms": 1100.759853999989,
+          "do_commit_ms": 151.11446699938824
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.6093920006824,
+          "cursor_ms": 1351.567759000318,
+          "do_rollback_ms": 0.10316599946236238,
+          "checkout_ms": 1287.374953998551,
+          "pool_wait_ms": 767.1386960000746,
+          "provider_ms": 1100.6893619996845,
+          "do_commit_ms": 153.55157700014388
+        },
+        {
+          "index": 2,
+          "auth_ms": 602.1469790002811,
+          "cursor_ms": 1348.3261790006509,
+          "do_rollback_ms": 0.10354799906053813,
+          "checkout_ms": 1288.6781189999965,
+          "pool_wait_ms": 535.5189819993029,
+          "provider_ms": 1100.6747989995347,
+          "do_commit_ms": 154.8896309986958
+        },
+        {
+          "index": 3,
+          "auth_ms": 601.3793049996821,
+          "pool_wait_ms": 2470.347529000719,
+          "cursor_ms": 1345.6168129996513,
+          "do_rollback_ms": 0.11352500041539315,
+          "checkout_ms": 1282.6627219992588,
+          "provider_ms": 1100.5494800001543,
+          "do_commit_ms": 150.5553549995966
+        },
+        {
+          "index": 4,
+          "auth_ms": 601.1333150008795,
+          "pool_wait_ms": 3598.259670000516,
+          "cursor_ms": 1346.7410519988334,
+          "do_rollback_ms": 0.1239869998244103,
+          "checkout_ms": 1290.4336860010517,
+          "provider_ms": 1100.9139739999227,
+          "do_commit_ms": 154.38905699920724
+        },
+        {
+          "index": 5,
+          "auth_ms": 600.6574030006959,
+          "pool_wait_ms": 3211.4209679984924,
+          "cursor_ms": 1348.8934750021144,
+          "do_rollback_ms": 0.1123629999710829,
+          "checkout_ms": 1287.20839700145,
+          "provider_ms": 1100.8894609994968,
+          "do_commit_ms": 153.0680180003401
+        },
+        {
+          "index": 6,
+          "auth_ms": 600.9623760000977,
+          "pool_wait_ms": 2067.3074069991344,
+          "cursor_ms": 1353.7335749988415,
+          "do_rollback_ms": 0.14582699895981932,
+          "checkout_ms": 1292.6717840000492,
+          "provider_ms": 1100.222474000475,
+          "do_commit_ms": 152.91006000006746
+        },
+        {
+          "index": 7,
+          "auth_ms": 608.545280000726,
+          "pool_wait_ms": 1699.8956629995519,
+          "cursor_ms": 1343.3408780010723,
+          "do_rollback_ms": 0.11599899971770355,
+          "checkout_ms": 1283.0579270003,
+          "provider_ms": 1100.5699249999452,
+          "do_commit_ms": 153.8807890001408
+        },
+        {
+          "index": 8,
+          "auth_ms": 608.5550789994159,
+          "pool_wait_ms": 2839.8002390003967,
+          "cursor_ms": 1348.504722999678,
+          "do_rollback_ms": 0.09617399882699829,
+          "checkout_ms": 1286.4263689989457,
+          "provider_ms": 1100.9481419996519,
+          "do_commit_ms": 151.13493199987715
+        },
+        {
+          "index": 9,
+          "auth_ms": 608.0936760008626,
+          "pool_wait_ms": 1550.6946920004339,
+          "cursor_ms": 1343.5740840022845,
+          "do_rollback_ms": 0.09102300009544706,
+          "checkout_ms": 1284.2566210010773,
+          "provider_ms": 1101.1488180001834,
+          "do_commit_ms": 152.8553420002936
+        },
+        {
+          "index": 10,
+          "auth_ms": 608.0354249997981,
+          "pool_wait_ms": 1322.3822249992736,
+          "cursor_ms": 1349.2875510000886,
+          "do_rollback_ms": 0.09880900051939534,
+          "checkout_ms": 1287.7774800017505,
+          "provider_ms": 1100.6221730003745,
+          "do_commit_ms": 152.11880300012126
+        },
+        {
+          "index": 11,
+          "auth_ms": 608.2559669994225,
+          "pool_wait_ms": 3365.3024410004946,
+          "cursor_ms": 1346.0501030003797,
+          "do_rollback_ms": 0.10926899904006859,
+          "checkout_ms": 1288.5053089994472,
+          "provider_ms": 1101.2590370000908,
+          "do_commit_ms": 154.1591969989895
+        },
+        {
+          "index": 12,
+          "auth_ms": 607.878718999018,
+          "pool_wait_ms": 3973.0851609992897,
+          "cursor_ms": 1348.0085049968693,
+          "do_rollback_ms": 0.15929100209177705,
+          "checkout_ms": 1289.2125800008216,
+          "provider_ms": 1100.6843450004453,
+          "do_commit_ms": 152.51716600050713
+        },
+        {
+          "index": 13,
+          "auth_ms": 607.5181080004768,
+          "pool_wait_ms": 4495.648984000582,
+          "cursor_ms": 1347.8017390016248,
+          "do_rollback_ms": 0.15258099847414996,
+          "checkout_ms": 1287.728977998995,
+          "provider_ms": 1101.1451270005637,
+          "do_commit_ms": 153.46923299966875
+        },
+        {
+          "index": 14,
+          "auth_ms": 607.2868139999628,
+          "pool_wait_ms": 2317.7618580002672,
+          "cursor_ms": 1344.774148000397,
+          "do_rollback_ms": 0.1143079998655594,
+          "checkout_ms": 1286.0848380005336,
+          "provider_ms": 1100.6007120004142,
+          "do_commit_ms": 152.51331600029516
+        },
+        {
+          "index": 15,
+          "auth_ms": 607.320787999015,
+          "pool_wait_ms": 4128.88293099968,
+          "cursor_ms": 1341.3378640025257,
+          "do_rollback_ms": 0.15513600374106318,
+          "checkout_ms": 1281.89742700215,
+          "provider_ms": 1100.4699779996372,
+          "do_commit_ms": 151.60722800010262
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 32,
+            "exec_ms": 0.595,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 336,
+            "exec_ms": 12.547,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 750,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 16,
+      "repetition": 1,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 5903.4,
+        "p50": 5823.4,
+        "p95": 7651.2,
+        "max": 7928.1
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 5903.4,
+        "p50": 5823.4,
+        "p95": 7651.2,
+        "max": 7928.1
+      },
+      "wall_ms": 8269.9,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 16,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 4452.9986819999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4242.617659,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4015.492535,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5902.832597,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7042.46593,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6658.497015,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5522.026017,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5144.211556,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6277.7155379999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4988.262814000001,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4759.9173949999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 6807.373989,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7409.2837469999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7928.123348,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 5743.9448,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 7558.9430649999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 16
+    }
+  ]
+}

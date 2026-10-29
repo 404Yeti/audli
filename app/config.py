@@ -10,6 +10,9 @@ from app.security import parse_browser_origin
 from sqlalchemy.engine import make_url
 
 class Settings(BaseSettings):
+    durable_operations: Literal['off', 'bridge', 'claims', 'paused'] = 'off'
+    durable_fleet_drained: bool = False
+
     homework_enabled: bool = False
     youtube_api_key: SecretStr | None = None
     homework_daily_search_limit: int = Field(default=0, ge=0, le=100)

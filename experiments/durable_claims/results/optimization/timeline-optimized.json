@@ -1,0 +1,2741 @@
+{
+  "source_hashes": {
+    "experiments/durable_claims/client.mjs": "95be696bf20178395b35a2cdb0752c8195ba0b289d9738a258e619d891855330",
+    "experiments/durable_claims/local.py": "b8d16a0a28e58e83f50605c776d3f5745292d41781525cbfac402e42a0202674",
+    "experiments/durable_claims/benchmark.py": "d3e8b7d6e9d086e8b49bdefe1ce73e0e8e60895b37d4d57961b70e5902803671",
+    "experiments/durable_claims/diagnostic_timeline.py": "4cebd63fc2dda5cf2ca35aa45e0b5eca654f0d4e92d1290c402a58c1c51696e9",
+    "experiments/durable_claims/store.py": "39f5b702e3b4bcdb7905d208d87c2a6f1ba201420fb0f02e6268c952d0947c69",
+    "experiments/durable_claims/service.py": "426fde969e4167d96379a352622ee69aeb592cc80b487e05ab959c03b9fb3416",
+    "experiments/durable_claims/routes.py": "cf2c7770fa105048a019a221fa5c5cfb1d308a3e0727a9b5ededd98f5172404e",
+    "experiments/durable_claims/deadline-policy.test.mjs": "24ae5ccb1644c57f25ddecad3aa0549388d2f5c8df13310acc70b6efbaf55fce",
+    "experiments/durable_claims/__init__.py": "7a6e00de2ad410d0b732f689abbf6fcb9b0f8f359331a91bd23236e3c0f83450",
+    "experiments/durable_claims/metrics.py": "3f1f6852d97dc093ee4703bc90dcb2edad54926c1ecada36915c93fb22712e28",
+    "experiments/durable_claims/optimized_read.sql": "c2c6b52deca7b789607da797d5e7fbd9e64ca3338403202b520af6173676afc8",
+    "experiments/durable_claims/server_profile.py": "f9d568cce155518f9194ac599ca36e9600ae815bca4e7468c18e1abf5caf9d1b",
+    "experiments/durable_claims/optimized_store.py": "def843d75690c7b9de2ea41936d7d906c90357417c131fd100e19390f1549f34",
+    "experiments/durable_claims/test_claims.py": "4e453bc097e7eba4c9899380929abcb4265bdc4eace398f09e0d518f4e209a8d"
+  },
+  "packages": {
+    "SQLAlchemy": "2.1.6",
+    "psycopg": "3.3.6",
+    "fastapi": "0.162.0",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1",
+    "openai": "2.54.0",
+    "uvicorn": "0.54.0"
+  },
+  "python": "3.12.13",
+  "mode": "optimized",
+  "root_revision": "9d9fc7e4b7b776dce91228995d598b6690172f4f",
+  "claims_store_sha256": null,
+  "claims_source_revision": null,
+  "database_rtt_ms": 72,
+  "auth_ms": 300,
+  "stt_ms": 1100,
+  "per_learner_locks": true,
+  "repetitions": 1,
+  "measure": "upload start including policy read through complete JSON acknowledgment",
+  "waves": [
+    {
+      "connection_seconds": 12.132,
+      "peak_physical_sessions": 3,
+      "peak_checked_out": 3,
+      "queries": 96,
+      "new_connections": 0,
+      "checkouts": 64,
+      "pool_wait_count": 59,
+      "pool_wait_ms": {
+        "n": 59,
+        "mean": 329.2,
+        "p50": 281.1,
+        "p95": 692.3,
+        "max": 732.7
+      },
+      "max_request_connections_at_stt": 0,
+      "outstanding": 0,
+      "sql_inventory": [
+        {
+          "stage": "request",
+          "sql": "SELECT learner_profiles.user_id \nFROM learner_profiles JOIN users ON users.id = learner_profiles.user_id \nWHERE learner_profiles.user_id = %(user_id_1)s::UUID",
+          "calls": 32,
+          "cursor_ms": 2410.9045220011467
+        },
+        {
+          "stage": "claim",
+          "sql": "SELECT public.poc_upload_read(CAST(%(owner)s AS uuid),CAST(%(exercise)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 16,
+          "cursor_ms": 2411.779459000172
+        },
+        {
+          "stage": "claim",
+          "sql": "\nWITH expired AS (\n    UPDATE public.poc_upload_operations SET status='cancelled'\n    WHERE owner=CAST(%(owner)s AS uuid) AND id=CAST(%(old_active)s AS uuid)\n      AND id<>CAST(%(id)s AS uuid) AND status='running'\n), slot AS (\n    UPDATE public.poc_account_slots SET fence=%(fence)s, active=CAST(%(id)s AS uuid)\n    WHERE owner=CAST(%(owner)s AS uuid) AND fence=%(old_fence)s\n      AND active IS NOT DISTINCT FROM CAST(%(old_active)s AS uuid)\n    RETURNING owner\n), operation AS (\n    INSERT INTO public.poc_upload_operations(owner,id,exercise,upload_key,fingerprint,checkpoint,fence,status,expires)\n    SELECT owner,CAST(%(id)s AS uuid),CAST(%(exercise)s AS uuid),%(key)s,%(hash)s,%(checkpoint)s,%(fence)s,'running',%(expires)s FROM slot\n    ON CONFLICT(owner,id) DO UPDATE SET fence=EXCLUDED.fence,status=EXCLUDED.status,expires=EXCLUDED.expires\n    RETURNING id\n) SELECT count(*) FROM operation\n",
+          "calls": 16,
+          "cursor_ms": 1206.1247619994901
+        },
+        {
+          "stage": "finalize",
+          "sql": "SELECT public.poc_upload_read(CAST(%(owner)s AS uuid),CAST(%(exercise)s AS uuid),CAST(%(id)s AS uuid))",
+          "calls": 16,
+          "cursor_ms": 2387.3597280007743
+        },
+        {
+          "stage": "finalize",
+          "sql": "\nWITH attempt AS (\n    INSERT INTO public.attempts(id,exercise_id,transcription,recognized_text,confidence,transcription_source,status,created_at)\n    VALUES(CAST(%(id)s AS uuid),CAST(%(exercise)s AS uuid),CAST(%(transcription)s AS jsonb),%(recognized)s,%(confidence)s,%(source)s,'transcribed',%(now)s)\n    RETURNING id\n), checkpoint AS (\n    UPDATE public.conversations SET data=CAST(%(document)s AS jsonb),state=%(state)s,\n      pending_attempt_id=(SELECT id FROM attempt),updated_at=%(now)s\n    WHERE exercise_id=CAST(%(exercise)s AS uuid) AND data=CAST(%(expected)s AS jsonb) AND NOT CAST(%(fail)s AS boolean)\n    RETURNING exercise_id\n), operation AS (\n    UPDATE public.poc_upload_operations SET status='complete'\n    WHERE owner=CAST(%(owner)s AS uuid) AND id=CAST(%(id)s AS uuid) AND fence=%(fence)s AND status='running'\n      AND EXISTS(SELECT 1 FROM checkpoint)\n    RETURNING id\n), slot AS (\n    UPDATE public.poc_account_slots SET active=NULL\n    WHERE owner=CAST(%(owner)s AS uuid) AND active=CAST(%(id)s AS uuid) AND fence=%(fence)s\n      AND EXISTS(SELECT 1 FROM operation)\n    RETURNING owner\n) SELECT (SELECT count(*) FROM attempt),(SELECT count(*) FROM checkpoint),\n         (SELECT count(*) FROM operation),(SELECT count(*) FROM slot)\n",
+          "calls": 16,
+          "cursor_ms": 1214.531182000428
+        }
+      ],
+      "client_profile": [
+        {
+          "index": 0,
+          "auth_ms": 601.8750809998892,
+          "cursor_ms": 612.1130109995647,
+          "do_rollback_ms": 0.05427299856819445,
+          "checkout_ms": 769.2383069997959,
+          "executor_queue_ms": 0.5940359997111955,
+          "pool_wait_ms": 487.4549380001554,
+          "do_commit_ms": 153.42953100025625,
+          "claim_ms": 351.9137490002322,
+          "provider_ms": 1100.163889000214,
+          "finalize_ms": 748.2001099997433
+        },
+        {
+          "index": 1,
+          "auth_ms": 601.6503360006027,
+          "cursor_ms": 616.0931839995101,
+          "do_rollback_ms": 0.061796999943908304,
+          "checkout_ms": 771.1988190003467,
+          "pool_wait_ms": 615.5086199996731,
+          "executor_queue_ms": 0.6442160001824959,
+          "do_commit_ms": 151.5639969993572,
+          "claim_ms": 591.5896209999119,
+          "provider_ms": 1100.6609020005271,
+          "finalize_ms": 600.5101939999804
+        },
+        {
+          "index": 2,
+          "auth_ms": 602.0037580010467,
+          "cursor_ms": 608.4135950004566,
+          "do_rollback_ms": 0.059030999182141386,
+          "checkout_ms": 765.6852719992457,
+          "executor_queue_ms": 0.7697419996475219,
+          "pool_wait_ms": 453.40754100016056,
+          "do_commit_ms": 151.89224499954435,
+          "claim_ms": 353.6763299998711,
+          "provider_ms": 1100.937420000264,
+          "finalize_ms": 714.114005000738
+        },
+        {
+          "index": 3,
+          "auth_ms": 604.3298460008373,
+          "pool_wait_ms": 806.402850998893,
+          "cursor_ms": 597.2007859991209,
+          "do_rollback_ms": 0.058801999330171384,
+          "checkout_ms": 756.0942670006625,
+          "executor_queue_ms": 0.39729600030113943,
+          "do_commit_ms": 154.60255000016332,
+          "claim_ms": 595.6798669994896,
+          "provider_ms": 1100.5495660001543,
+          "finalize_ms": 711.1851660001776
+        },
+        {
+          "index": 4,
+          "auth_ms": 602.8329320006378,
+          "pool_wait_ms": 836.0697650005022,
+          "cursor_ms": 599.5273690004979,
+          "do_rollback_ms": 0.04472599994187476,
+          "checkout_ms": 757.8772030001346,
+          "executor_queue_ms": 0.4973940003765165,
+          "do_commit_ms": 154.83910400052991,
+          "claim_ms": 591.3378380000722,
+          "provider_ms": 1100.7963230003952,
+          "finalize_ms": 743.1358289995842
+        },
+        {
+          "index": 5,
+          "auth_ms": 603.1369789989185,
+          "pool_wait_ms": 957.6780610004789,
+          "cursor_ms": 598.3626540019031,
+          "do_rollback_ms": 0.058689998695626855,
+          "checkout_ms": 753.8638749983875,
+          "executor_queue_ms": 0.455812000836886,
+          "do_commit_ms": 151.06381499936106,
+          "claim_ms": 892.6567610005804,
+          "provider_ms": 1100.8376110003155,
+          "finalize_ms": 522.6714979999088
+        },
+        {
+          "index": 6,
+          "auth_ms": 603.2203679988015,
+          "pool_wait_ms": 1111.5013130001898,
+          "cursor_ms": 597.6381609998498,
+          "do_rollback_ms": 0.04382399947644444,
+          "checkout_ms": 752.4105350003083,
+          "executor_queue_ms": 0.6516630000987789,
+          "do_commit_ms": 150.7346950002102,
+          "claim_ms": 935.5119089996151,
+          "provider_ms": 1100.308949000464,
+          "finalize_ms": 553.9263589998882
+        },
+        {
+          "index": 7,
+          "auth_ms": 603.4881880013927,
+          "pool_wait_ms": 1140.5944570005886,
+          "cursor_ms": 597.8253660005066,
+          "do_rollback_ms": 0.05604499983746791,
+          "checkout_ms": 754.4073369990656,
+          "executor_queue_ms": 0.5562679998547537,
+          "do_commit_ms": 152.34264399987296,
+          "claim_ms": 1002.9530949996115,
+          "provider_ms": 1100.250995999886,
+          "finalize_ms": 442.2066500001165
+        },
+        {
+          "index": 8,
+          "auth_ms": 603.7699130001783,
+          "pool_wait_ms": 1258.6705009998695,
+          "cursor_ms": 600.2601289992526,
+          "do_rollback_ms": 0.049593001676839776,
+          "checkout_ms": 756.4828359991225,
+          "executor_queue_ms": 0.7059740000840975,
+          "do_commit_ms": 152.3028300007354,
+          "claim_ms": 966.5415139998004,
+          "provider_ms": 1100.52265899958,
+          "finalize_ms": 523.3303700006218
+        },
+        {
+          "index": 9,
+          "auth_ms": 601.9375300002139,
+          "pool_wait_ms": 1411.9964809997327,
+          "cursor_ms": 600.1577189999807,
+          "do_rollback_ms": 0.050795998504327144,
+          "checkout_ms": 756.1238139987836,
+          "executor_queue_ms": 0.5856120005773846,
+          "do_commit_ms": 151.59109799969883,
+          "claim_ms": 701.4169009999023,
+          "provider_ms": 1100.8333729996593,
+          "finalize_ms": 554.9430399996709
+        },
+        {
+          "index": 10,
+          "auth_ms": 602.0979059994715,
+          "pool_wait_ms": 1555.5619910001042,
+          "cursor_ms": 598.576716000025,
+          "do_rollback_ms": 0.05481400057760766,
+          "checkout_ms": 754.669326000112,
+          "executor_queue_ms": 0.63000899990584,
+          "do_commit_ms": 152.3242109997227,
+          "claim_ms": 833.1245139997918,
+          "provider_ms": 1100.7153079999625,
+          "finalize_ms": 524.331747999895
+        },
+        {
+          "index": 11,
+          "auth_ms": 602.421322999362,
+          "pool_wait_ms": 1441.1534000000756,
+          "cursor_ms": 603.0838100004985,
+          "do_rollback_ms": 0.056707000112510286,
+          "checkout_ms": 758.0171959998552,
+          "executor_queue_ms": 0.6470449989137705,
+          "do_commit_ms": 151.52796700112958,
+          "claim_ms": 802.9986539995662,
+          "provider_ms": 1100.4423000003953,
+          "finalize_ms": 443.6032140001771
+        },
+        {
+          "index": 12,
+          "auth_ms": 603.0460519996268,
+          "pool_wait_ms": 1712.2182670009352,
+          "cursor_ms": 599.6911489992272,
+          "do_rollback_ms": 0.046458000724669546,
+          "checkout_ms": 755.6513250001444,
+          "executor_queue_ms": 0.40771900057734456,
+          "do_commit_ms": 152.3812760005967,
+          "claim_ms": 882.695700000113,
+          "provider_ms": 1100.4501520001213,
+          "finalize_ms": 557.545515000129
+        },
+        {
+          "index": 13,
+          "auth_ms": 601.838537999356,
+          "pool_wait_ms": 1750.1227750008184,
+          "cursor_ms": 600.6808860011006,
+          "do_rollback_ms": 0.047249000090232585,
+          "checkout_ms": 755.502821999471,
+          "executor_queue_ms": 0.4404619994602399,
+          "do_commit_ms": 151.22378000069148,
+          "claim_ms": 1028.150533000371,
+          "provider_ms": 1100.6090060000133,
+          "finalize_ms": 445.85312100025476
+        },
+        {
+          "index": 14,
+          "auth_ms": 602.2197680003956,
+          "pool_wait_ms": 1868.4839660008947,
+          "cursor_ms": 598.7412220001715,
+          "do_rollback_ms": 0.056418000895064324,
+          "checkout_ms": 755.4750300005253,
+          "executor_queue_ms": 0.5211310008235159,
+          "do_commit_ms": 152.87001699925895,
+          "claim_ms": 992.5574019998749,
+          "provider_ms": 1100.9744049997607,
+          "finalize_ms": 527.57032000045
+        },
+        {
+          "index": 15,
+          "auth_ms": 601.928885000234,
+          "pool_wait_ms": 2013.668472000063,
+          "cursor_ms": 602.3338960003457,
+          "do_rollback_ms": 0.06301000030362047,
+          "checkout_ms": 759.7571169999355,
+          "executor_queue_ms": 0.6100619993958389,
+          "do_commit_ms": 153.0407379996177,
+          "claim_ms": 1034.3276479998167,
+          "provider_ms": 1101.0269449998304,
+          "finalize_ms": 562.478927000484
+        }
+      ],
+      "diagnostic_timeline": [
+        {
+          "index": 0,
+          "observed_window_ms": 3042.291883000871,
+          "covered_ms": 2959.3262509997658,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 82.9656320011054,
+          "union_ms": {
+            "provider_ms": 1100.163889000214,
+            "do_rollback_ms": 0.05427299856819445,
+            "checkout_ms": 769.2383069997959,
+            "cursor_ms": 612.1130109995647,
+            "pool_wait_ms": 487.4549380001554,
+            "auth_ms": 601.8750809998892,
+            "executor_queue_ms": 0.5940359997111955,
+            "do_commit_ms": 153.42953100025625
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 300.75832000056835
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 307.1622870011197,
+              "end_ms": 387.5897330008229
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 387.8839510016405,
+              "end_ms": 387.90011200126173
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 306.5448990009827,
+              "end_ms": 387.98793900059536
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 430.2720890018463,
+              "end_ms": 731.3888500011672
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 732.7647590009292,
+              "end_ms": 807.6097220009615
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 807.7966980017663,
+              "end_ms": 807.8128380011549
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 732.316938000622,
+              "end_ms": 807.8642550008226
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 840.8024640011718,
+              "end_ms": 841.0481580012856
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 841.1945560010281,
+              "end_ms": 883.9679240008991
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 884.2614210007014,
+              "end_ms": 1037.724887000877
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1038.0065930003184,
+              "end_ms": 1114.634909000415
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1114.7393770006602,
+              "end_ms": 1192.8597330006596
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1192.8751920013383,
+              "end_ms": 1192.883017000895
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 884.0043130003323,
+              "end_ms": 1192.89475900041
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1193.6599450009453,
+              "end_ms": 2293.8238340011594
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 2293.8435210016905,
+              "end_ms": 2294.191863001288
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 2294.2124930004866,
+              "end_ms": 2738.894063000771
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2739.27472700052,
+              "end_ms": 2889.502364000691
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2890.127932001633,
+              "end_ms": 2966.649115001019
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2966.9105210005,
+              "end_ms": 3042.219696000757
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3042.2540910012685,
+              "end_ms": 3042.26823800127
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2738.934379000966,
+              "end_ms": 3042.291883000871
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "observed_window_ms": 3158.354311000039,
+          "covered_ms": 3089.662893001332,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 68.69141799870704,
+          "union_ms": {
+            "provider_ms": 1100.6609020005271,
+            "do_rollback_ms": 0.061796999943908304,
+            "checkout_ms": 771.1988190003467,
+            "cursor_ms": 616.0931839995101,
+            "pool_wait_ms": 615.5086199996731,
+            "auth_ms": 601.6503360006027,
+            "executor_queue_ms": 0.6442160001824959,
+            "do_commit_ms": 151.5639969993572
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.47039399980713
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 307.528459000423,
+              "end_ms": 393.0528860000777
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 393.28837399989425,
+              "end_ms": 393.3064180000656
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 307.2172470001533,
+              "end_ms": 393.38150000003225
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 431.50884799888445,
+              "end_ms": 731.68878999968
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 732.7937300005942,
+              "end_ms": 766.9560200001797
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 767.5499580000178,
+              "end_ms": 841.3753439999709
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 841.5818459998263,
+              "end_ms": 841.5957320003145
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 766.9916370005012,
+              "end_ms": 841.6785500003243
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 863.307127000553,
+              "end_ms": 863.5405450004328
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 863.6565959996005,
+              "end_ms": 1144.7303730001295
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1145.0934329996016,
+              "end_ms": 1301.344964999771
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1301.7921440005011,
+              "end_ms": 1378.7946660004309
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1378.9755200004947,
+              "end_ms": 1454.938521999793
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1454.9794089998613,
+              "end_ms": 1454.996972999652
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1144.772854000621,
+              "end_ms": 1455.0267900003746
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1456.8163899994033,
+              "end_ms": 2557.4772919999305
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 2557.5101549993633,
+              "end_ms": 2557.920952999666
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 2557.9550270003892,
+              "end_ms": 2858.227579999948
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2858.509296000193,
+              "end_ms": 3007.0113700003276
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3007.5002990006396,
+              "end_ms": 3082.487542000308
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3082.6942439998675,
+              "end_ms": 3158.2952389999264
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3158.3266590005223,
+              "end_ms": 3158.338962000016
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2858.260593999148,
+              "end_ms": 3158.354311000039
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "observed_window_ms": 3007.7434950007955,
+          "covered_ms": 2922.8037330003644,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 84.93976200043107,
+          "union_ms": {
+            "provider_ms": 1100.937420000264,
+            "do_rollback_ms": 0.059030999182141386,
+            "checkout_ms": 765.6852719992457,
+            "cursor_ms": 608.4135950004566,
+            "pool_wait_ms": 453.40754100016056,
+            "auth_ms": 602.0037580010467,
+            "executor_queue_ms": 0.7697419996475219,
+            "do_commit_ms": 151.89224499954435
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.712934000534
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 308.24826500065683,
+              "end_ms": 383.8192590010294
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 384.1528560014922,
+              "end_ms": 384.1727940007331
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 307.7842940010669,
+              "end_ms": 384.26111200078594
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 426.9909800004825,
+              "end_ms": 727.2818040009952
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 728.67356200004,
+              "end_ms": 802.9909470005805
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 803.295566000088,
+              "end_ms": 803.3147920004922
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 728.0595850015743,
+              "end_ms": 803.3789640012401
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 837.0012280010997,
+              "end_ms": 837.3317910009064
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 837.5344150008459,
+              "end_ms": 879.2636740008675
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 879.6997020008348,
+              "end_ms": 1036.0801430006177
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1037.1086570012267,
+              "end_ms": 1113.8625420007884
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1114.154777001204,
+              "end_ms": 1190.8635660010987
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1190.895077001187,
+              "end_ms": 1190.9055260011883
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 879.3008050015487,
+              "end_ms": 1190.9258240011695
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1192.2791210008654,
+              "end_ms": 2293.2165410011294
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 2293.275192000692,
+              "end_ms": 2293.714371000533
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 2293.761151000581,
+              "end_ms": 2705.43943300072
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2705.7718240012036,
+              "end_ms": 2854.0639790007845
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2855.18897700058,
+              "end_ms": 2932.287712001198
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2932.507599000928,
+              "end_ms": 3007.6910550005778
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3007.7191490017867,
+              "end_ms": 3007.7285670013225
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2705.4794390005554,
+              "end_ms": 3007.7434950007955
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "observed_window_ms": 3309.1351800003395,
+          "covered_ms": 3267.773826000848,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 41.36135399949126,
+          "union_ms": {
+            "provider_ms": 1100.5495660001543,
+            "do_rollback_ms": 0.058801999330171384,
+            "checkout_ms": 756.0942670006625,
+            "cursor_ms": 597.2007859991209,
+            "pool_wait_ms": 806.402850998893,
+            "auth_ms": 604.3298460008373,
+            "executor_queue_ms": 0.39729600030113943,
+            "do_commit_ms": 154.60255000016332
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 302.0514270001513
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 308.3979650009496,
+              "end_ms": 387.9690270005085
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 388.8311450009496,
+              "end_ms": 462.8928050005925
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 463.1086850004067,
+              "end_ms": 463.1218700005775
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 388.071452000986,
+              "end_ms": 463.1788480010073
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 474.74961100033397,
+              "end_ms": 777.0280300010199
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 777.5398500007213,
+              "end_ms": 803.4818900005121
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 804.1761980002775,
+              "end_ms": 878.635148000285
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 878.8518510009453,
+              "end_ms": 878.865737000524
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 803.5212340000726,
+              "end_ms": 878.9272130006793
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 900.0457160000224,
+              "end_ms": 900.2544980003222
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 900.3619920003985,
+              "end_ms": 1191.4885280002636
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1191.7964640006176,
+              "end_ms": 1342.7628500003266
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1343.2195180012059,
+              "end_ms": 1418.0980240007557
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1418.3681470003648,
+              "end_ms": 1495.7806030006395
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1495.8105690002412,
+              "end_ms": 1495.8230130005177
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1191.5281140009029,
+              "end_ms": 1495.843873000922
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1497.2574910007097,
+              "end_ms": 2597.807057000864
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 2597.8476340005727,
+              "end_ms": 2598.036148000574
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 2598.0759040012344,
+              "end_ms": 3007.8391170009127
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3008.1690640008674,
+              "end_ms": 3155.8426540004803
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3156.329069000094,
+              "end_ms": 3231.490763000693
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3231.869051001013,
+              "end_ms": 3309.0591450009015
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3309.09552400135,
+              "end_ms": 3309.1148110006543
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3007.870047000324,
+              "end_ms": 3309.1351800003395
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "observed_window_ms": 3342.2953310000594,
+          "covered_ms": 3298.0736170020464,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 44.221713998013,
+          "union_ms": {
+            "provider_ms": 1100.7963230003952,
+            "do_rollback_ms": 0.04472599994187476,
+            "checkout_ms": 757.8772030001346,
+            "cursor_ms": 599.5273690004979,
+            "pool_wait_ms": 836.0697650005022,
+            "auth_ms": 602.8329320006378,
+            "executor_queue_ms": 0.4973940003765165,
+            "do_commit_ms": 154.83910400052991
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 302.2826370006442
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 308.41155699999945,
+              "end_ms": 388.8650070002768
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 389.46224200117285,
+              "end_ms": 465.8047680004529
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 466.02527699997154,
+              "end_ms": 466.0393030007981
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 388.9042310001969,
+              "end_ms": 466.0957910000434
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 479.94649600059347,
+              "end_ms": 780.4967910005871
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 780.9634720006216,
+              "end_ms": 807.5536260002991
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 808.157282999673,
+              "end_ms": 883.0119240001295
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 883.1504770005267,
+              "end_ms": 883.159505000549
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 807.5869200001762,
+              "end_ms": 883.2184270004291
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 905.7700130006197,
+              "end_ms": 906.0749570007829
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 906.1708790004559,
+              "end_ms": 1192.515139000534
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1192.8019249999124,
+              "end_ms": 1343.5364150000169
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1343.8121890003458,
+              "end_ms": 1418.7441270005365
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1418.888010000046,
+              "end_ms": 1497.3216710004635
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1497.3351060016284,
+              "end_ms": 1497.3418490008044
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1192.5971660002688,
+              "end_ms": 1497.352420000425
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1498.2449199997063,
+              "end_ms": 2599.0412430001015
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 2599.0651789998083,
+              "end_ms": 2599.2576290000216
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 2599.2788089997703,
+              "end_ms": 3041.9607100002395
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3042.2736440004883,
+              "end_ms": 3190.0487870007055
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3190.6270460003725,
+              "end_ms": 3265.5156770006215
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3265.816047000044,
+              "end_ms": 3342.2214900001563
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3342.2571970004356,
+              "end_ms": 3342.2721260003527
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3041.9964490001803,
+              "end_ms": 3342.2953310000594
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "observed_window_ms": 3457.7840169995397,
+          "covered_ms": 3415.9723379989373,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 41.81167900060245,
+          "union_ms": {
+            "provider_ms": 1100.8376110003155,
+            "do_rollback_ms": 0.058689998695626855,
+            "checkout_ms": 753.8638749983875,
+            "cursor_ms": 598.3626540019031,
+            "pool_wait_ms": 957.6780610004789,
+            "auth_ms": 603.1369789989185,
+            "executor_queue_ms": 0.455812000836886,
+            "do_commit_ms": 151.06381499936106
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 302.5956209994547
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 308.67454999861366,
+              "end_ms": 393.0828789989391
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 393.7058319988864,
+              "end_ms": 469.4501689991739
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 469.7274469999684,
+              "end_ms": 469.74421799950505
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 393.1253899991134,
+              "end_ms": 469.8433869989458
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 480.4076909995274,
+              "end_ms": 780.9490489989912
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 781.3758099991901,
+              "end_ms": 841.3724019992515
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 841.8998649985951,
+              "end_ms": 916.28892099925
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 916.8529629996556,
+              "end_ms": 916.8703359991923
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 841.4146630002506,
+              "end_ms": 916.950287999498
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 940.1043529987874,
+              "end_ms": 940.3576159993463
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 940.4992349991517,
+              "end_ms": 1530.9672079993106
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1531.3230349984224,
+              "end_ms": 1681.3713709989315
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1681.8087519986875,
+              "end_ms": 1756.721282999024
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1756.9660389999626,
+              "end_ms": 1832.8605049991893
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1832.8953919990454,
+              "end_ms": 1832.9097689993432
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1531.0118529996544,
+              "end_ms": 1832.931218998965
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1834.1212609984723,
+              "end_ms": 2934.958871998788
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 2934.998126998835,
+              "end_ms": 2935.2006759991127
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 2935.254668998823,
+              "end_ms": 3158.059835998756
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3158.2988199998,
+              "end_ms": 3306.2705229995117
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3307.028045998777,
+              "end_ms": 3382.3247369991805
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3382.5609049990817,
+              "end_ms": 3457.730253999216
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3457.756203999452,
+              "end_ms": 3457.766372998776
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3158.0931299995427,
+              "end_ms": 3457.7840169995397
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "observed_window_ms": 3607.8293129994563,
+          "covered_ms": 3568.0928279998625,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 39.73648499959381,
+          "union_ms": {
+            "provider_ms": 1100.308949000464,
+            "do_rollback_ms": 0.04382399947644444,
+            "checkout_ms": 752.4105350003083,
+            "cursor_ms": 597.6381609998498,
+            "pool_wait_ms": 1111.5013130001898,
+            "auth_ms": 603.2203679988015,
+            "executor_queue_ms": 0.6516630000987789,
+            "do_commit_ms": 150.7346950002102
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 302.74340199957805
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 308.7562660002732,
+              "end_ms": 462.94912200028193
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 463.74535500035563,
+              "end_ms": 538.2920259999082
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 538.4882179996566,
+              "end_ms": 538.5007119994043
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 462.99971799999184,
+              "end_ms": 538.5597240001516
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 546.2899510002899,
+              "end_ms": 846.7669169995133
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 847.5569780002843,
+              "end_ms": 916.9304209999609
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 917.5807859992346,
+              "end_ms": 992.419346999668
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 992.6190559999668,
+              "end_ms": 992.6298569998835
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 916.9660190000286,
+              "end_ms": 992.6867550002498
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1016.6813380001258,
+              "end_ms": 1017.1141450000505
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1017.2128919994066,
+              "end_ms": 1650.2579939997304
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1650.5241899994871,
+              "end_ms": 1801.355558999603
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1801.7667609992714,
+              "end_ms": 1876.7714119994707
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 1877.0114079998166,
+              "end_ms": 1952.4911369999245
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1952.5169259995891,
+              "end_ms": 1952.5285279996751
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1650.2947740000309,
+              "end_ms": 1952.5465119995715
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 1953.4095839990187,
+              "end_ms": 3053.7185329994827
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3053.7639799995304,
+              "end_ms": 3053.9828359997045
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3054.026087999773,
+              "end_ms": 3308.915999999954
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3309.2413280000983,
+              "end_ms": 3456.5382959999624
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3457.062942000448,
+              "end_ms": 3532.1828830001323
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3532.526465999581,
+              "end_ms": 3607.7814319996833
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3607.8042150002148,
+              "end_ms": 3607.813141999941
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3308.9512579990696,
+              "end_ms": 3607.8293129994563
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "observed_window_ms": 3643.8563250003426,
+          "covered_ms": 3599.2972460007877,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 44.55907899955491,
+          "union_ms": {
+            "provider_ms": 1100.250995999886,
+            "do_rollback_ms": 0.05604499983746791,
+            "checkout_ms": 754.4073369990656,
+            "cursor_ms": 597.8253660005066,
+            "pool_wait_ms": 1140.5944570005886,
+            "auth_ms": 603.4881880013927,
+            "executor_queue_ms": 0.5562679998547537,
+            "do_commit_ms": 152.34264399987296
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 302.7405870006987
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 308.53247699997155,
+              "end_ms": 466.97913900061394
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 467.7554540003257,
+              "end_ms": 542.6124040004652
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 542.760526001075,
+              "end_ms": 542.7696630003993
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 467.0270390006408,
+              "end_ms": 542.8128450002987
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 550.4121769999983,
+              "end_ms": 851.1597780006923
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 851.8679490007344,
+              "end_ms": 992.5432880008884
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 993.1492800005799,
+              "end_ms": 1067.5794140006474
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1067.848586000764,
+              "end_ms": 1067.8669100007028
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 992.5964680014658,
+              "end_ms": 1068.0160630008686
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1096.9087420007781,
+              "end_ms": 1097.1833580006205
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1097.2844810003153,
+              "end_ms": 1798.6987420008518
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1799.0981620005186,
+              "end_ms": 1948.2322660005593
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1948.681679999936,
+              "end_ms": 2024.0020460005326
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2024.221142000897,
+              "end_ms": 2099.9678330008464
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2100.0069370002166,
+              "end_ms": 2100.0236090003455
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1798.7483470005827,
+              "end_ms": 2100.046162000581
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2101.224090000869,
+              "end_ms": 3201.4750860007553
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3201.524821000021,
+              "end_ms": 3201.8064730000333
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3201.8601040008434,
+              "end_ms": 3341.918299000099
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3342.2806580001634,
+              "end_ms": 3490.3821560001234
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3490.9381420011414,
+              "end_ms": 3566.920456000844
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3567.1971320007287,
+              "end_ms": 3643.7930850006524
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3643.822662000275,
+              "end_ms": 3643.8345740007207
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3341.9522040003358,
+              "end_ms": 3643.8563250003426
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "observed_window_ms": 3759.5812059998934,
+          "covered_ms": 3720.1518829988345,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 39.42932300105895,
+          "union_ms": {
+            "provider_ms": 1100.52265899958,
+            "do_rollback_ms": 0.049593001676839776,
+            "checkout_ms": 756.4828359991225,
+            "cursor_ms": 600.2601289992526,
+            "pool_wait_ms": 1258.6705009998695,
+            "auth_ms": 603.7699130001783,
+            "executor_queue_ms": 0.7059740000840975,
+            "do_commit_ms": 152.3028300007354
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 302.72476699974504
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 308.529059000648,
+              "end_ms": 469.4387569998071
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 470.09949199946277,
+              "end_ms": 546.1377819992776
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 546.2659959994198,
+              "end_ms": 546.2739009999495
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 469.48065600008704,
+              "end_ms": 546.3108309995732
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 553.6178639995342,
+              "end_ms": 854.6630099999675
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 855.2188459998433,
+              "end_ms": 1067.9161489997568
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1068.6274700001377,
+              "end_ms": 1142.9896509998798
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1143.2065039998633,
+              "end_ms": 1143.220048999865
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1067.9608529990219,
+              "end_ms": 1143.2826269992802
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1167.485246999604,
+              "end_ms": 1167.9895849993045
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1168.091688999084,
+              "end_ms": 1832.3661369995534
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1832.8321729995878,
+              "end_ms": 1982.156393999503
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1982.6454419999209,
+              "end_ms": 2058.04145699949
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2058.2258879994697,
+              "end_ms": 2134.350326999993
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2134.3922769992787,
+              "end_ms": 2134.410941999704
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1832.4461389993303,
+              "end_ms": 2134.4333539991567
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2135.5926269998236,
+              "end_ms": 3236.1152859994036
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3236.1682669989023,
+              "end_ms": 3236.369902999286
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3236.4161409996086,
+              "end_ms": 3457.205192999936
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3457.4326350002593,
+              "end_ms": 3606.3007789998665
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3606.792562998635,
+              "end_ms": 3683.063840999239
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3683.3544639994216,
+              "end_ms": 3759.532854999634
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3759.5559579986,
+              "end_ms": 3759.5654359993205
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3457.237534000342,
+              "end_ms": 3759.5812059998934
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "observed_window_ms": 3909.519583000474,
+          "covered_ms": 3871.476809998967,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 38.04277300150716,
+          "union_ms": {
+            "provider_ms": 1100.8333729996593,
+            "do_rollback_ms": 0.050795998504327144,
+            "checkout_ms": 756.1238139987836,
+            "cursor_ms": 600.1577189999807,
+            "pool_wait_ms": 1411.9964809997327,
+            "auth_ms": 601.9375300002139,
+            "executor_queue_ms": 0.5856120005773846,
+            "do_commit_ms": 151.59109799969883
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.70780400021613
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 307.2981149998668,
+              "end_ms": 536.8582159999278
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 537.4074290002682,
+              "end_ms": 611.8287970002712
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 612.035350000042,
+              "end_ms": 612.0458599998528
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 536.8995740009268,
+              "end_ms": 612.1044310002617
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 620.4169640004693,
+              "end_ms": 920.6466900004671
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 921.2218229995415,
+              "end_ms": 1452.721585999825
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1453.6544609991324,
+              "end_ms": 1528.3629949999522
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1528.6106860012296,
+              "end_ms": 1528.6243320006179
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1452.7671220002958,
+              "end_ms": 1528.6929520007106
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1550.982335000299,
+              "end_ms": 1551.2487860005422
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1551.354467001147,
+              "end_ms": 1950.8837270004733
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1951.1969020004472,
+              "end_ms": 2100.7881900004577
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2101.2466120009776,
+              "end_ms": 2176.037637000263
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2176.221667000391,
+              "end_ms": 2252.5253809999413
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2252.5520920007693,
+              "end_ms": 2252.564786000221
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1950.9279010007958,
+              "end_ms": 2252.5846240005194
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2253.481868000563,
+              "end_ms": 3354.315241000222
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3354.365576999953,
+              "end_ms": 3354.6847380002873
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3354.740063999998,
+              "end_ms": 3606.1474210000597
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3606.4768770002047,
+              "end_ms": 3757.3812700002236
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3758.0639970001357,
+              "end_ms": 3833.8051079999786
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3834.166925000318,
+              "end_ms": 3909.4543090004663
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3909.4853480000893,
+              "end_ms": 3909.499293999943
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3606.183179001164,
+              "end_ms": 3909.519583000474
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "observed_window_ms": 4060.768255999392,
+          "covered_ms": 4013.674539999556,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 47.093715999835695,
+          "union_ms": {
+            "provider_ms": 1100.7153079999625,
+            "do_rollback_ms": 0.05481400057760766,
+            "checkout_ms": 754.669326000112,
+            "cursor_ms": 598.576716000025,
+            "pool_wait_ms": 1555.5619910001042,
+            "auth_ms": 602.0979059994715,
+            "executor_queue_ms": 0.63000899990584,
+            "do_commit_ms": 152.3242109997227
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.77659499986476
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 307.25495899969246,
+              "end_ms": 541.2448359993505
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 541.7126649990678,
+              "end_ms": 616.5024779993473
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 616.7534449987215,
+              "end_ms": 616.7731019995699
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 541.277877999164,
+              "end_ms": 616.8658379992848
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 624.7844520003127,
+              "end_ms": 925.1057629999195
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 925.5807249992358,
+              "end_ms": 1493.6127789997045
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1494.1789449994758,
+              "end_ms": 1568.9584289993945
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1569.1530789999888,
+              "end_ms": 1569.1633779997574
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1493.6562619996039,
+              "end_ms": 1569.2206069998065
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1601.1345769993568,
+              "end_ms": 1601.444688999436
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1601.5199319999738,
+              "end_ms": 2133.2380029998603
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2133.624487999441,
+              "end_ms": 2282.6736709994293
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2283.19320799892,
+              "end_ms": 2357.9719799990926
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2358.1521919995794,
+              "end_ms": 2434.413866999421
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2434.442620999107,
+              "end_ms": 2434.456116999172
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2133.2866859993374,
+              "end_ms": 2434.477006999259
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2435.437231999458,
+              "end_ms": 3536.1525399994207
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3536.205680999956,
+              "end_ms": 3536.5255779997824
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3536.576244999196,
+              "end_ms": 3758.398233999287
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3758.695737999915,
+              "end_ms": 3908.373260999724
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3908.8359499992293,
+              "end_ms": 3984.337890999086
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3984.651125999335,
+              "end_ms": 4060.713661999216
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 4060.7387699992614,
+              "end_ms": 4060.750131999157
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3758.441555999525,
+              "end_ms": 4060.768255999392
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "observed_window_ms": 3947.0672449997437,
+          "covered_ms": 3902.681263998602,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 44.38598100114177,
+          "union_ms": {
+            "provider_ms": 1100.4423000003953,
+            "do_rollback_ms": 0.056707000112510286,
+            "checkout_ms": 758.0171959998552,
+            "cursor_ms": 603.0838100004985,
+            "pool_wait_ms": 1441.1534000000756,
+            "auth_ms": 602.421322999362,
+            "executor_queue_ms": 0.6470449989137705,
+            "do_commit_ms": 151.52796700112958
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.7728779996105
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 307.1375059989805,
+              "end_ms": 544.8756089990638
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 545.2771309992386,
+              "end_ms": 620.2600409997103
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 620.4720449995875,
+              "end_ms": 620.4860409998219
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 544.905104999998,
+              "end_ms": 620.5514249995758
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 628.873558000123,
+              "end_ms": 929.5220029998745
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 930.6835950001187,
+              "end_ms": 1495.0165629998082
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1495.358111999849,
+              "end_ms": 1570.1778799993917
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1570.3208119994088,
+              "end_ms": 1570.3297989994098
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1495.046590000129,
+              "end_ms": 1570.3636429998369
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1597.5050039996859,
+              "end_ms": 1597.8172869990885
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1597.9203229990162,
+              "end_ms": 2098.3494879992577
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2098.759997000343,
+              "end_ms": 2248.0675269998756
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2248.4803409997767,
+              "end_ms": 2324.576455999704
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2324.756298999091,
+              "end_ms": 2400.6416499996703
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2400.6813949999923,
+              "end_ms": 2400.6992089998676
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2098.3950349991574,
+              "end_ms": 2400.7275929998286
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2402.7756669993323,
+              "end_ms": 3503.2179669997277
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3503.2638450002196,
+              "end_ms": 3503.5986069997307
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3503.6515579995466,
+              "end_ms": 3642.304721999608
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3642.675475998658,
+              "end_ms": 3794.3412609993175
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3794.877529999212,
+              "end_ms": 3871.0892319995764
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 3871.343053999226,
+              "end_ms": 3946.9856699997763
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 3947.0241839990194,
+              "end_ms": 3947.0400939990213
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3642.3459799998454,
+              "end_ms": 3947.0672449997437
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "observed_window_ms": 4212.801808999757,
+          "covered_ms": 4171.773515001405,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 41.02829399835173,
+          "union_ms": {
+            "provider_ms": 1100.4501520001213,
+            "do_rollback_ms": 0.046458000724669546,
+            "checkout_ms": 755.6513250001444,
+            "cursor_ms": 599.6911489992272,
+            "pool_wait_ms": 1712.2182670009352,
+            "auth_ms": 603.0460519996268,
+            "executor_queue_ms": 0.40771900057734456,
+            "do_commit_ms": 152.3812760005967
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.91661099979683
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 306.9917089997034,
+              "end_ms": 611.6836629998943
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 612.3015559996929,
+              "end_ms": 687.1996949994355
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 687.4049049993118,
+              "end_ms": 687.4182209994615
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 611.7162539994752,
+              "end_ms": 687.4781039996378
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 695.1446749999377,
+              "end_ms": 996.2741159997677
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 996.816475999367,
+              "end_ms": 1569.0756459998738
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1569.576457999574,
+              "end_ms": 1644.1232589995707
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1644.3384280000828,
+              "end_ms": 1644.351672999619
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1569.117494999773,
+              "end_ms": 1644.4121479999012
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1670.4039039996132,
+              "end_ms": 1670.621156999914
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1670.7226199996512,
+              "end_ms": 2252.1988359994793
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2252.4769049996394,
+              "end_ms": 2401.7433509998227
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2402.202852999835,
+              "end_ms": 2475.985342999593
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2476.1664979996567,
+              "end_ms": 2553.172001999883
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2553.1992739997804,
+              "end_ms": 2553.210455000226
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2252.2335419998853,
+              "end_ms": 2553.2283789998473
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2554.6476359995722,
+              "end_ms": 3655.0977879996935
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3655.1425739999104,
+              "end_ms": 3655.333040000187
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3655.378806999579,
+              "end_ms": 3909.1697339999882
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3909.4432129995766,
+              "end_ms": 4059.575178999694
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 4060.1037430005817,
+              "end_ms": 4137.169050000011
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 4137.378777999402,
+              "end_ms": 4212.754549999772
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 4212.777292998908,
+              "end_ms": 4212.786008999501
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3909.201823999865,
+              "end_ms": 4212.801808999757
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "observed_window_ms": 4249.027900999863,
+          "covered_ms": 4208.513602999119,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 40.51429800074402,
+          "union_ms": {
+            "provider_ms": 1100.6090060000133,
+            "do_rollback_ms": 0.047249000090232585,
+            "checkout_ms": 755.502821999471,
+            "cursor_ms": 600.6808860011006,
+            "pool_wait_ms": 1750.1227750008184,
+            "auth_ms": 601.838537999356,
+            "executor_queue_ms": 0.4404619994602399,
+            "do_commit_ms": 151.22378000069148
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.4387439998245
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 306.30113299957884,
+              "end_ms": 615.843761999713
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 616.4488610002081,
+              "end_ms": 691.2088330000188
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 691.4363249998132,
+              "end_ms": 691.4515440003015
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 615.8892480007125,
+              "end_ms": 691.5104560002874
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 698.7104460004048,
+              "end_ms": 999.1102399999363
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 999.7951249997641,
+              "end_ms": 1569.7417620003762
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1570.057612999335,
+              "end_ms": 1646.4163310001823
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1646.5459769997324,
+              "end_ms": 1646.5537920003044
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1569.769193999491,
+              "end_ms": 1646.6326419995312
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1673.1251459996201,
+              "end_ms": 1673.3753409998826
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1673.4713329997248,
+              "end_ms": 2400.3569429996787
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2400.6853270002466,
+              "end_ms": 2549.387590999686
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2549.8053639994396,
+              "end_ms": 2625.3170789996148
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2625.550071998987,
+              "end_ms": 2701.383853999687
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2701.413069999944,
+              "end_ms": 2701.4245009995648
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2400.392931999704,
+              "end_ms": 2701.444438999715
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2702.387319999616,
+              "end_ms": 3802.9963259996293
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3803.034839001157,
+              "end_ms": 3803.2251060003546
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3803.2707219999793,
+              "end_ms": 3947.0186210000975
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 3947.3208349991182,
+              "end_ms": 4097.632730999976
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 4098.296983000182,
+              "end_ms": 4173.333304000153
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 4173.550417000115,
+              "end_ms": 4248.940415000106
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 4248.992554000324,
+              "end_ms": 4249.0053379997335
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 3947.061242000018,
+              "end_ms": 4249.027900999863
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "observed_window_ms": 4364.087864000794,
+          "covered_ms": 4327.6743000024,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 36.41356399839424,
+          "union_ms": {
+            "provider_ms": 1100.9744049997607,
+            "do_rollback_ms": 0.056418000895064324,
+            "checkout_ms": 755.4750300005253,
+            "cursor_ms": 598.7412220001715,
+            "pool_wait_ms": 1868.4839660008947,
+            "auth_ms": 602.2197680003956,
+            "executor_queue_ms": 0.5211310008235159,
+            "do_commit_ms": 152.87001699925895
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.59149400060414
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 306.1585229997945,
+              "end_ms": 619.4635390002077
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 620.053660000849,
+              "end_ms": 694.3020670005353
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 694.4851150001341,
+              "end_ms": 694.497398000749
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 619.5049670004664,
+              "end_ms": 694.5516710002266
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 702.0236550006302,
+              "end_ms": 1002.6519290004217
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1003.2025260006776,
+              "end_ms": 1644.1990740004258
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1644.7477460005757,
+              "end_ms": 1718.7443580005493
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1718.9949329995216,
+              "end_ms": 1719.0137090001372
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1644.2422059999444,
+              "end_ms": 1719.0744850004194
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1741.554434000136,
+              "end_ms": 1741.862124000363
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1741.9651500003965,
+              "end_ms": 2433.2390930003385
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2433.545124000375,
+              "end_ms": 2582.6493200002005
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2583.200497000689,
+              "end_ms": 2658.472323000751
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2658.6827030005225,
+              "end_ms": 2734.2704820002837
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2734.2998480007736,
+              "end_ms": 2734.3118510007116
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2433.279419000428,
+              "end_ms": 2734.330726000735
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2735.3472710010465,
+              "end_ms": 3836.321676000807
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3836.354076999669,
+              "end_ms": 3836.5675180002654
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3836.602423999466,
+              "end_ms": 4059.5108830002573
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 4059.7426140002426,
+              "end_ms": 4209.452272000817
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 4210.093289000724,
+              "end_ms": 4286.503812000774
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 4286.740382000971,
+              "end_ms": 4364.022620000469
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 4364.053458000853,
+              "end_ms": 4364.06681400058
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 4059.543124000811,
+              "end_ms": 4364.087864000794
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "observed_window_ms": 4518.3203400010825,
+          "covered_ms": 4476.991480999459,
+          "cross_category_overlap_ms": 0.0,
+          "unclassified_window_ms": 41.32885900162364,
+          "union_ms": {
+            "provider_ms": 1101.0269449998304,
+            "do_rollback_ms": 0.06301000030362047,
+            "checkout_ms": 759.7571169999355,
+            "cursor_ms": 602.3338960003457,
+            "pool_wait_ms": 2013.668472000063,
+            "auth_ms": 601.928885000234,
+            "executor_queue_ms": 0.6100619993958389,
+            "do_commit_ms": 153.0407379996177
+          },
+          "spans": [
+            {
+              "kind": "auth_ms",
+              "start_ms": 0.0,
+              "end_ms": 301.5399760006403
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 306.0342050011968,
+              "end_ms": 686.4270950009086
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 687.0354910006427,
+              "end_ms": 762.0678680004858
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 762.2998080005345,
+              "end_ms": 762.3175620010443
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 686.472242000491,
+              "end_ms": 762.396142000398
+            },
+            {
+              "kind": "auth_ms",
+              "start_ms": 772.8655020009683,
+              "end_ms": 1073.254411000562
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1074.3382370010295,
+              "end_ms": 1719.0381660011553
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 1719.5360210007493,
+              "end_ms": 1794.6630820006249
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 1794.9595560003218,
+              "end_ms": 1794.9833010006842
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 1719.076047001181,
+              "end_ms": 1795.0730410011602
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 1818.9688690008552,
+              "end_ms": 1819.376158000523
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 1819.460738000089,
+              "end_ms": 2552.1976300005917
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2552.494733000458,
+              "end_ms": 2702.118940001128
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 2702.453105001041,
+              "end_ms": 2777.5171940011205
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 2777.70217500165,
+              "end_ms": 2853.567016000852
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 2853.596192000623,
+              "end_ms": 2853.6079140003494
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 2552.228959000786,
+              "end_ms": 2853.6248860009437
+            },
+            {
+              "kind": "provider_ms",
+              "start_ms": 2854.6164150011464,
+              "end_ms": 3955.643360000977
+            },
+            {
+              "kind": "executor_queue_ms",
+              "start_ms": 3955.68430700132,
+              "end_ms": 3955.887080001048
+            },
+            {
+              "kind": "pool_wait_ms",
+              "start_ms": 3955.933228001413,
+              "end_ms": 4211.771989001136
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 4212.090172000899,
+              "end_ms": 4362.339767000776
+            },
+            {
+              "kind": "cursor_ms",
+              "start_ms": 4363.5905730006925,
+              "end_ms": 4440.827140000692
+            },
+            {
+              "kind": "do_commit_ms",
+              "start_ms": 4441.083918000004,
+              "end_ms": 4518.25981500042
+            },
+            {
+              "kind": "do_rollback_ms",
+              "start_ms": 4518.288870001015,
+              "end_ms": 4518.29865900072
+            },
+            {
+              "kind": "checkout_ms",
+              "start_ms": 4211.880044001191,
+              "end_ms": 4518.3203400010825
+            }
+          ]
+        }
+      ],
+      "server": {
+        "execution": [
+          {
+            "toplevel": false,
+            "calls": 288,
+            "exec_ms": 13.798,
+            "plan_ms": 0.0
+          },
+          {
+            "toplevel": true,
+            "calls": 160,
+            "exec_ms": 63.439,
+            "plan_ms": 0.0
+          }
+        ],
+        "lock_samples": 441,
+        "samples_with_lock_wait": 0,
+        "max_lock_waiters": 0,
+        "max_active": 2
+      },
+      "learners": 16,
+      "repetition": 0,
+      "automatic": 16,
+      "manual": 0,
+      "latency_ms": {
+        "n": 16,
+        "mean": 3757.8,
+        "p50": 3732.3,
+        "p95": 4430.4,
+        "max": 4545.7
+      },
+      "all_outcome_latency_ms": {
+        "n": 16,
+        "mean": 3757.8,
+        "p50": 3732.3,
+        "p95": 4430.4,
+        "max": 4545.7
+      },
+      "wall_ms": 4833.4,
+      "provider_calls": 16,
+      "extra_provider_calls": 0,
+      "sends": 16,
+      "max_sends": 1,
+      "polls": 0,
+      "replays": 0,
+      "raw": [
+        {
+          "ok": true,
+          "ms": 3124.328911,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3193.090421,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3042.109573,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3341.3204729999998,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3373.996359,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3488.76852,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3638.256626,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3673.99943,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3790.6713099999997,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3938.472632,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4089.005314,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 3974.682637,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4240.8786279999995,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4276.7711500000005,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4391.986107,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        },
+        {
+          "ok": true,
+          "ms": 4545.700403,
+          "sends": 1,
+          "polls": 0,
+          "replay": false
+        }
+      ],
+      "persisted_attempts": 16
+    }
+  ]
+}

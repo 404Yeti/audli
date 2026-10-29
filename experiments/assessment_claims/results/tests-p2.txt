@@ -1,0 +1,208 @@
+TAP version 13
+# (node:92670) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-assessment-claims/web/lib/upload-sender.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-assessment-claims/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: 50-second delivery deadline never grants a 60-second claim takeover or extra sends
+ok 1 - 50-second delivery deadline never grants a 60-second claim takeover or extra sends
+  ---
+  duration_ms: 11.273668
+  type: 'test'
+  ...
+# (node:92671) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-assessment-claims/web/lib/recording-delivery.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-assessment-claims/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: disabled policy retains legacy one-send behavior
+ok 2 - disabled policy retains legacy one-send behavior
+  ---
+  duration_ms: 40.996971
+  type: 'test'
+  ...
+# Subtest: a lost check-in response stops, and Send again never overwrites ambiguous pending
+ok 3 - a lost check-in response stops, and Send again never overwrites ambiguous pending
+  ---
+  duration_ms: 12.350384
+  type: 'test'
+  ...
+# Subtest: unchanged check-in resends only original revision, with one accepted STT
+ok 4 - unchanged check-in resends only original revision, with one accepted STT
+  ---
+  duration_ms: 7.13212
+  type: 'test'
+  ...
+# Subtest: failed reconciliation retains audio without an extra send
+ok 5 - failed reconciliation retains audio without an extra send
+  ---
+  duration_ms: 2.575163
+  type: 'test'
+  ...
+# Subtest: stable exercise ID is sent without telemetry; a lost response replays without a second STT
+ok 6 - stable exercise ID is sent without telemetry; a lost response replays without a second STT
+  ---
+  duration_ms: 5.412193
+  type: 'test'
+  ...
+# Subtest: cancellation during token acquisition prevents late network submission
+ok 7 - cancellation during token acquisition prevents late network submission
+  ---
+  duration_ms: 1.325388
+  type: 'test'
+  ...
+# Subtest: unavailable and malformed policy fail closed
+ok 8 - unavailable and malformed policy fail closed
+  ---
+  duration_ms: 2.54996
+  type: 'test'
+  ...
+# Subtest: a retained check-in cannot be redirected to another lesson at a coincident revision
+ok 9 - a retained check-in cannot be redirected to another lesson at a coincident revision
+  ---
+  duration_ms: 6.789544
+  type: 'test'
+  ...
+# Subtest: an existing direct-origin opt-in fails closed instead of retrying without an idempotency header
+ok 10 - an existing direct-origin opt-in fails closed instead of retrying without an idempotency header
+  ---
+  duration_ms: 1.701142
+  type: 'test'
+  ...
+# Subtest: manual Send again after the kill switch keeps the prior exercise identity with telemetry off
+ok 11 - manual Send again after the kill switch keeps the prior exercise identity with telemetry off
+  ---
+  duration_ms: 4.450886
+  type: 'test'
+  ...
+# Subtest: a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior
+ok 12 - a fresh recording first sent while disabled keeps the legacy no-telemetry header behavior
+  ---
+  duration_ms: 1.79512
+  type: 'test'
+  ...
+# (node:92677) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/lenovo/work/audli-assessment-claims/web/lib/upload-sender.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /home/lenovo/work/audli-assessment-claims/web/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: repeated lost sends stop at a hard cap even when fetch ignores abort
+ok 13 - repeated lost sends stop at a hard cap even when fetch ignores abort
+  ---
+  duration_ms: 16.381604
+  type: 'test'
+  ...
+# Subtest: the wall deadline caps large recordings before three full sends
+ok 14 - the wall deadline caps large recordings before three full sends
+  ---
+  duration_ms: 2.033173
+  type: 'test'
+  ...
+# Subtest: cancellation ends send even when a dependency ignores abort
+ok 15 - cancellation ends send even when a dependency ignores abort
+  ---
+  duration_ms: 3.546894
+  type: 'test'
+  ...
+# Subtest: cancellation ends reconcile even when a dependency ignores abort
+ok 16 - cancellation ends reconcile even when a dependency ignores abort
+  ---
+  duration_ms: 1.553923
+  type: 'test'
+  ...
+# Subtest: cancellation ends policy even when a dependency ignores abort
+ok 17 - cancellation ends policy even when a dependency ignores abort
+  ---
+  duration_ms: 1.566487
+  type: 'test'
+  ...
+# Subtest: cancellation ends backoff even when a dependency ignores abort
+ok 18 - cancellation ends backoff even when a dependency ignores abort
+  ---
+  duration_ms: 1.311783
+  type: 'test'
+  ...
+# Subtest: a hanging reconcile is bounded by the total wall deadline
+ok 19 - a hanging reconcile is bounded by the total wall deadline
+  ---
+  duration_ms: 1.608536
+  type: 'test'
+  ...
+# Subtest: a hanging policy is bounded by the total wall deadline
+ok 20 - a hanging policy is bounded by the total wall deadline
+  ---
+  duration_ms: 1.269402
+  type: 'test'
+  ...
+# Subtest: hidden pages stop immediately, never gain free sends, and expire in wall time
+ok 21 - hidden pages stop immediately, never gain free sends, and expire in wall time
+  ---
+  duration_ms: 1.955039
+  type: 'test'
+  ...
+# Subtest: starting hidden never sends
+ok 22 - starting hidden never sends
+  ---
+  duration_ms: 1.382697
+  type: 'test'
+  ...
+# Subtest: a failed reconciliation or changed checkpoint stops without blind resend
+ok 23 - a failed reconciliation or changed checkpoint stops without blind resend
+  ---
+  duration_ms: 1.349715
+  type: 'test'
+  ...
+# Subtest: kill switch is checked before another automatic send
+ok 24 - kill switch is checked before another automatic send
+  ---
+  duration_ms: 1.36853
+  type: 'test'
+  ...
+# Subtest: HTTP 401 is final
+ok 25 - HTTP 401 is final
+  ---
+  duration_ms: 0.980804
+  type: 'test'
+  ...
+# Subtest: HTTP 403 is final
+ok 26 - HTTP 403 is final
+  ---
+  duration_ms: 0.898006
+  type: 'test'
+  ...
+# Subtest: HTTP 413 is final
+ok 27 - HTTP 413 is final
+  ---
+  duration_ms: 1.176365
+  type: 'test'
+  ...
+# Subtest: HTTP 415 is final
+ok 28 - HTTP 415 is final
+  ---
+  duration_ms: 0.742831
+  type: 'test'
+  ...
+# Subtest: HTTP 422 is final
+ok 29 - HTTP 422 is final
+  ---
+  duration_ms: 0.837061
+  type: 'test'
+  ...
+# Subtest: HTTP 429 is final
+ok 30 - HTTP 429 is final
+  ---
+  duration_ms: 2.536399
+  type: 'test'
+  ...
+# Subtest: late results cannot resolve timed-out stages
+ok 31 - late results cannot resolve timed-out stages
+  ---
+  duration_ms: 1.195732
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 408.275318

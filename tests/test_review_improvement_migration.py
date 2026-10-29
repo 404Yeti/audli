@@ -73,7 +73,9 @@ def test_rollback_drops_only_the_new_table_and_its_version():
 def test_schema_version_and_accepted_ledgers():
     assert SCHEMA_VERSION == 7
     assert [1, 2, 3, 4, 5, 6] in ACCEPTED_POSTGRES_VERSIONS and [1, 2, 3, 4, 5, 6, 7] in ACCEPTED_POSTGRES_VERSIONS
-    assert [1, 2, 3, 4, 5, 6, 7] in ACCEPTED_SQLITE_VERSIONS and all(max(v) <= 7 for v in ACCEPTED_POSTGRES_VERSIONS)
+    assert [1, 2, 3, 4, 5, 6, 7] in ACCEPTED_SQLITE_VERSIONS
+    assert all(max(v) <= 8 for v in ACCEPTED_POSTGRES_VERSIONS)
+    assert list(range(1,9)) in ACCEPTED_POSTGRES_VERSIONS  # additive, validated claims bridge
 
 
 # ------------------------------------------------------------------------------------------------ SQLite

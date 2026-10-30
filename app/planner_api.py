@@ -1,5 +1,5 @@
 """Optional owned planning check-in; audio is generated only when requested."""
-from fastapi import HTTPException, UploadFile, Form
+from fastapi import HTTPException, UploadFile, Form, Request
 from pydantic import ValidationError
 from app.onboarding import Revision, ProfileExtraction
 from app.audio import validate_upload
@@ -15,15 +15,18 @@ class TopicReply(Revision):
 
 
 def register_planner_routes(app, repo, ai, lock, settings, speech):
-    def public(roadmap):
-        open_lesson = repo.lesson()
-        ready = repo.profile().onboarding_status == 'complete'
+    offload = app.state.offload
+
+    def public(roadmap, projection=None):
+        open_lesson = projection['opened'] if projection is not None else repo.lesson()
+        ready = projection['ready'] if projection is not None else repo.profile().onboarding_status == 'complete'
+        history = projection['completed'] if projection is not None else repo.accent_lesson_history()
         milestone = due(roadmap)
         return {'revision': roadmap.revision, 'completed_lessons': len(roadmap.completed_ids),
             'block_progress': qualifying_count(roadmap) % 3,
             'focus': roadmap.upcoming[0].objective, 'upcoming': roadmap.upcoming,
             'completed': [{'id': item.id, 'focus': item.focus, 'completed_at': item.completed_at,
-                           'title': item.plan_topic or 'Listening lesson'} for item in repo.accent_lesson_history() if item.status == 'completed'],
+                           'title': item.plan_topic or 'Listening lesson'} for item in history if item.status == 'completed'],
             'readiness': 'onboarding' if not ready else 'resume_lesson' if open_lesson else 'ready',
             'checkin': {'after_lesson': milestone, 'status': 'due' if milestone else 'answered' if roadmap.feedback and roadmap.feedback[-1].status == 'answered' else 'skipped' if roadmap.feedback else 'not_due',
                 'available': bool(milestone and ready and not open_lesson), 'prompt': CHECKIN_PROMPT if milestone else None,
@@ -48,9 +51,15 @@ def register_planner_routes(app, repo, ai, lock, settings, speech):
         return roadmap
 
     @app.get('/api/plan')
-    async def get_plan():
+    async def get_plan(request: Request):
         enabled()
-        return public(repo.roadmap())
+        def load():
+            # Only the authenticated claims middleware supplies this request-local snapshot.
+            projection = request.scope.get('_audli_readonly_plan')
+            if projection is None:
+                projection = repo.roadmap(projection=True)
+            return public(projection['roadmap'], projection)
+        return await offload.run(load)
 
     @app.post('/api/lessons/{lesson_id}/topic-checkin')
     async def offer_checkin(lesson_id: UUID):

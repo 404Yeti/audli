@@ -32,7 +32,9 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
         if not settings.homework_enabled:
             raise HTTPException(404, 'Optional listening homework is disabled.')
 
-    def owned(action, *args):
+    offload = app.state.offload
+
+    def call_owned(action, *args):
         try:
             return action(repo, *args)
         except LookupError:
@@ -40,26 +42,29 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
         except ValueError as error:
             raise HTTPException(409, str(error)) from None
 
+    async def owned(action, *args):
+        return await offload.run(call_owned, action, *args)
+
     @app.get('/api/homework', response_model=HomeworkView)
     async def listing():
         if not settings.homework_enabled:
             return HomeworkView(enabled=False)
-        return HomeworkView(enabled=True, assignments=store.list_assignments(repo))
+        return HomeworkView(enabled=True, assignments=await offload.run(store.list_assignments, repo))
 
     @app.post('/api/lessons/{lesson_id}/homework', response_model=Assignment)
     async def offer(lesson_id: UUID):
         enabled()
-        return owned(store.offer, str(lesson_id))
+        return await owned(store.offer, str(lesson_id))
 
     @app.get('/api/homework/{assignment_id}', response_model=Assignment)
     async def saved_assignment(assignment_id: UUID):
         enabled()
-        return owned(store.get, str(assignment_id))
+        return await owned(store.get, str(assignment_id))
 
     @app.post('/api/homework/{assignment_id}/invitation-audio')
     async def invitation_audio(assignment_id: UUID):
         enabled()
-        assignment = owned(store.get, str(assignment_id))
+        assignment = await owned(store.get, str(assignment_id))
         if assignment.status != 'offered':
             raise HTTPException(409, 'This invitation has already been answered.')
         # Separate conversational act: never appended to terminal feedback.
@@ -69,17 +74,16 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
     async def decide(assignment_id: UUID, body: Decision):
         enabled()
         identifier = str(assignment_id)
-        existing = owned(store.get, identifier)
-        lesson = repo.lesson(existing.lesson_id)
+        existing, lesson, profile = await owned(store.decision_context, identifier)
         if lesson is None or lesson.status != 'completed':
             raise HTTPException(409, 'Finish your lesson before choosing optional homework.')
         if not body.accept:
-            return owned(store.reserve, identifier, False, None, settings.homework_daily_search_limit)[0]
+            return (await owned(store.reserve, identifier, False, None, settings.homework_daily_search_limit))[0]
         try:
-            plan = search_plan(repo.profile(), lesson, body.topic, settings.homework_region)
+            plan = search_plan(profile, lesson, body.topic, settings.homework_region)
         except ValueError:
             raise HTTPException(422, 'Choose a topic using English words.') from None
-        existing, token = owned(store.reserve, identifier, body.accept, plan.topic, settings.homework_daily_search_limit)
+        existing, token = await owned(store.reserve, identifier, body.accept, plan.topic, settings.homework_daily_search_limit)
         if not token:
             return existing
         try:
@@ -89,12 +93,12 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
                 key=lambda item: (-relevance(item, plan), item.duration_seconds, item.provider_id))
         except (DiscoveryUnavailable, TimeoutError):
             candidates = []
-        return owned(store.finish, identifier, token, candidates)
+        return await owned(store.finish, identifier, token, candidates)
 
     @app.post('/api/homework/{assignment_id}/decision/text', response_model=Assignment)
     async def typed(assignment_id: UUID, body: HomeworkReply):
         enabled()
-        existing = owned(store.get, str(assignment_id))
+        existing = await owned(store.get, str(assignment_id))
         if existing.status != 'offered' or existing.discovery_in_progress:
             return existing
         choice = spoken_decision(body.text)
@@ -108,10 +112,10 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
             enabled()
             # Repeated delivered events return durable state without paying for STT.
             async with lock:
-                existing = owned(store.get, str(assignment_id))
+                existing = await owned(store.get, str(assignment_id))
                 if existing.status != 'offered' or existing.discovery_in_progress:
                     return existing
-                app.state.limits.admit('wrapup', 'homework.decision.attempt')
+                await offload.run(app.state.limits.admit, 'wrapup', 'homework.decision.attempt')
                 data, filename = await validate_upload(audio, settings)
                 try:
                     transcription = Transcription.model_validate(await asyncio.wait_for(ai().transcribe(data, filename), timeout=15))
@@ -133,7 +137,7 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
     @app.post('/api/homework/{assignment_id}/clarification-audio')
     async def clarification(assignment_id: UUID):
         enabled()
-        assignment = owned(store.get, str(assignment_id))
+        assignment = await owned(store.get, str(assignment_id))
         if assignment.status != 'offered' or assignment.discovery_in_progress:
             raise HTTPException(409, 'This invitation has already been answered.')
         return await app.state.homework_speech('I didn’t catch your choice. Say yes please, no thanks, or type your reply.', 'homework-clarification-v1')
@@ -141,18 +145,18 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
     @app.post('/api/homework/{assignment_id}/confirmation-audio')
     async def confirmation_audio(assignment_id: UUID):
         enabled()
-        assignment = owned(store.get, str(assignment_id))
+        assignment = await owned(store.get, str(assignment_id))
         if assignment.status != 'assigned' or assignment.content is None:
             raise HTTPException(409, 'There is no assigned listening homework to confirm.')
         # Only application-owned objective copy is spoken, never provider metadata.
-        lesson = repo.lesson(assignment.lesson_id)
+        lesson = await offload.run(repo.lesson, assignment.lesson_id)
         text = 'Your optional listening is ready in Plan. ' + objective(lesson.focus)
         return await app.state.homework_speech(text, 'homework-confirmation-v2')
 
     @app.post('/api/homework/{assignment_id}/farewell-audio')
     async def farewell(assignment_id: UUID):
         enabled()
-        assignment = owned(store.get, str(assignment_id))
+        assignment = await owned(store.get, str(assignment_id))
         if assignment.status not in ('skipped', 'unavailable'):
             raise HTTPException(409, 'Finish your homework choice first.')
         text = ('No homework today. ' if assignment.status == 'skipped' else 'We couldn’t find optional listening this time. ') + 'Your lesson is saved, and your next class is ready when you are.'
@@ -161,28 +165,28 @@ def register_homework_routes(app, repo, settings, database, ai, lock):
     @app.post('/api/homework/{assignment_id}/status', response_model=Assignment)
     async def status(assignment_id: UUID, body: StatusChange):
         enabled()
-        return owned(store.change_status, str(assignment_id), body.status)
+        return await owned(store.change_status, str(assignment_id), body.status)
 
     @app.post('/api/homework/{assignment_id}/validate', response_model=Assignment)
     async def validate(assignment_id: UUID):
         enabled()
         identifier = str(assignment_id)
-        assignment = owned(store.get, identifier)
+        assignment = await owned(store.get, identifier)
         content = assignment.content
         if assignment.status != 'assigned' or content is None:
             return assignment
-        lesson = repo.lesson(assignment.lesson_id)
-        plan = search_plan(repo.profile(), lesson, assignment.topic or content.topic, settings.homework_region)
+        lesson = await offload.run(repo.lesson, assignment.lesson_id)
+        plan = search_plan(await offload.run(repo.profile), lesson, assignment.topic or content.topic, settings.homework_region)
         # Eligibility includes each provider's canonical URL allowlist. Assignment
         # logic never follows URLs or depends on YouTube-specific identifiers.
         if not engine.provider.validate(content, plan):
-            return owned(store.revalidated, identifier, None)
+            return await owned(store.revalidated, identifier, None)
         if content.validated_at > utcnow() - timedelta(hours=1):
             return assignment
-        owned(store.admit_validation, settings.homework_daily_search_limit)
+        await owned(store.admit_validation, settings.homework_daily_search_limit)
         try:
             contents = await asyncio.wait_for(engine.provider.metadata([content.provider_id], plan.topic), timeout=5)
         except (DiscoveryUnavailable, TimeoutError):
             raise HTTPException(503, 'The video could not be checked. Please try later; your lesson is saved.') from None
         selected = next((item for item in contents if item.provider_id == content.provider_id and engine.provider.validate(item, plan)), None)
-        return owned(store.revalidated, identifier, selected)
+        return await owned(store.revalidated, identifier, selected)

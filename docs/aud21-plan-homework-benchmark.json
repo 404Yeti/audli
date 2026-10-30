@@ -1,0 +1,243 @@
+{
+  "method": "Disposable PostgreSQL schema 008, restricted LOGIN, 72 ms simulated RTT, six synthetic accounts, mocked providers; sequential requests. Database milliseconds include network round trips, not SQL execution alone.",
+  "before": {
+    "schema": 8,
+    "claims": "claims",
+    "restricted_login": true,
+    "database_rtt_ms": 72,
+    "no_state_cache": true,
+    "routes": {
+      "plan": {
+        "http_ms": {
+          "n": 6,
+          "mean": 3697.5,
+          "p50": 3669.2,
+          "p95": 3803.7,
+          "max": 3847.5
+        },
+        "database_ms": {
+          "n": 6,
+          "mean": 3287.2,
+          "p50": 3260.6,
+          "p95": 3383.6,
+          "max": 3423.2
+        },
+        "loop_sql_ms": {
+          "n": 6,
+          "mean": 1240.5,
+          "p50": 1214.0,
+          "p95": 1334.5,
+          "max": 1374.2
+        },
+        "queries": [
+          42,
+          40,
+          40,
+          40,
+          40,
+          40
+        ],
+        "cold": {
+          "route": "plan",
+          "queries": 42,
+          "database_ms": 3423.249937033688,
+          "loop_sql_ms": 1374.2109040322248,
+          "http_ms": 3847.5414540007478
+        },
+        "warm_mean": {
+          "queries": 40,
+          "database_ms": 3259.95,
+          "loop_sql_ms": 1213.71,
+          "http_ms": 3667.51
+        }
+      },
+      "creation": {
+        "http_ms": {
+          "n": 6,
+          "mean": 3364.2,
+          "p50": 3362.9,
+          "p95": 3375.3,
+          "max": 3376.7
+        },
+        "database_ms": {
+          "n": 6,
+          "mean": 2959.9,
+          "p50": 2959.5,
+          "p95": 2966.7,
+          "max": 2966.8
+        },
+        "loop_sql_ms": {
+          "n": 6,
+          "mean": 912.0,
+          "p50": 911.7,
+          "p95": 914.8,
+          "max": 915.3
+        },
+        "queries": [
+          36,
+          36,
+          36,
+          36,
+          36,
+          36
+        ]
+      },
+      "decision": {
+        "http_ms": {
+          "n": 6,
+          "mean": 6973.3,
+          "p50": 6952.3,
+          "p95": 7048.0,
+          "max": 7078.6
+        },
+        "database_ms": {
+          "n": 6,
+          "mean": 5767.8,
+          "p50": 5769.0,
+          "p95": 5771.7,
+          "max": 5771.9
+        },
+        "loop_sql_ms": {
+          "n": 6,
+          "mean": 3720.1,
+          "p50": 3720.7,
+          "p95": 3723.4,
+          "max": 3724.0
+        },
+        "queries": [
+          70,
+          70,
+          70,
+          70,
+          70,
+          70
+        ]
+      }
+    },
+    "max_event_loop_lag_ms": 3212.98,
+    "peak_checked_out": 1,
+    "provider_connections_max": 0,
+    "connections_after": 0
+  },
+  "after": {
+    "schema": 8,
+    "claims": "claims",
+    "restricted_login": true,
+    "database_rtt_ms": 72,
+    "no_state_cache": true,
+    "routes": {
+      "plan": {
+        "http_ms": {
+          "n": 6,
+          "mean": 1543.7,
+          "p50": 994.1,
+          "p95": 3469.8,
+          "max": 4295.0
+        },
+        "database_ms": {
+          "n": 6,
+          "mean": 1263.6,
+          "p50": 757.2,
+          "p95": 3036.5,
+          "max": 3796.1
+        },
+        "loop_sql_ms": {
+          "n": 6,
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "max": 0
+        },
+        "queries": [
+          46,
+          9,
+          9,
+          9,
+          9,
+          9
+        ],
+        "cold": {
+          "route": "plan",
+          "queries": 46,
+          "database_ms": 3796.0798179992707,
+          "loop_sql_ms": 0,
+          "http_ms": 4294.987793000473,
+          "fresh_read_projection": false
+        },
+        "warm_mean": {
+          "queries": 9,
+          "database_ms": 757.15,
+          "loop_sql_ms": 0,
+          "http_ms": 993.47
+        }
+      },
+      "creation": {
+        "http_ms": {
+          "n": 6,
+          "mean": 3279.5,
+          "p50": 3278.5,
+          "p95": 3283.9,
+          "max": 3284.6
+        },
+        "database_ms": {
+          "n": 6,
+          "mean": 2877.1,
+          "p50": 2876.3,
+          "p95": 2880.2,
+          "max": 2880.6
+        },
+        "loop_sql_ms": {
+          "n": 6,
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "max": 0
+        },
+        "queries": [
+          35,
+          35,
+          35,
+          35,
+          35,
+          35
+        ]
+      },
+      "decision": {
+        "http_ms": {
+          "n": 6,
+          "mean": 5365.6,
+          "p50": 5342.6,
+          "p95": 5441.6,
+          "max": 5463.8
+        },
+        "database_ms": {
+          "n": 6,
+          "mean": 4319.6,
+          "p50": 4317.8,
+          "p95": 4327.4,
+          "max": 4329.7
+        },
+        "loop_sql_ms": {
+          "n": 6,
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "max": 0
+        },
+        "queries": [
+          53,
+          53,
+          53,
+          53,
+          53,
+          53
+        ]
+      }
+    },
+    "fresh_plan_projection_hits": 5,
+    "max_event_loop_lag_ms": 21.5,
+    "peak_checked_out": 1,
+    "provider_connections_max": 0,
+    "connections_after": 0
+  }
+}

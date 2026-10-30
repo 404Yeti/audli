@@ -46,7 +46,7 @@ def test_a_whole_lesson_gives_identical_responses_and_rows_with_the_flag_on(make
 
 def test_the_hot_routes_really_leave_the_loop_thread_and_the_flag_off_keeps_them_on_it(make_repo, tmp_path, audio_bytes, monkeypatch):
     seen = {}
-    names = ('attempt', 'conversation', 'add_attempt', 'save_conversation', 'prepare_assessment', 'complete', 'coach_audio', 'save_coach_audio', 'audio_blob')
+    names = ('attempt', 'conversation', 'add_attempt', 'save_conversation', 'prepare_assessment', 'complete', 'coach_audio', 'save_coach_audio', 'audio_blob', 'coach_audio_snapshot')
     for flag in (False, True):
         seen[flag] = {}
         deterministic_ids(monkeypatch)
@@ -61,7 +61,7 @@ def test_the_hot_routes_really_leave_the_loop_thread_and_the_flag_off_keeps_them
         _, client = app_for(repo, tmp_path, flag, audio_bytes)
         run_lesson(client, audio_bytes)
         monkeypatch.undo()
-    for name in ('attempt', 'add_attempt', 'prepare_assessment', 'complete', 'save_coach_audio', 'coach_audio'):
+    for name in ('attempt', 'add_attempt', 'prepare_assessment', 'complete', 'save_coach_audio', 'coach_audio', 'coach_audio_snapshot'):
         assert seen[False][name] == {True}, name      # unchanged: on the loop
         assert seen[True][name] == {False}, name      # offloaded: never on the loop
 

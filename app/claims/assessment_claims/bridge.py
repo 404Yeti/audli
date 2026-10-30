@@ -32,6 +32,7 @@ class Context:
 
 writer=ContextVar('audli_stage_writer',default=None)
 legacy_lease=ContextVar('audli_stage_legacy_lease',default=False)
+_FENCED_TRANSACTION = '_audli_fenced_transaction'
 
 
 def set_bounds(db):
@@ -49,6 +50,13 @@ def advisory(db,owner):
 
 
 def fence(db,context):
+    # The begin hook may already have checked this exact connection/context.
+    # Profile and slot locks remain held until transaction end. SQL write guards
+    # still check the live fence/expiry on every mutation; this is not a request cache.
+    cached = db.info.get(_FENCED_TRANSACTION)
+    if (cached is not None and cached[0] is db and cached[1] is context
+            and cached[2:] == (context.owner, context.identifier, context.fence)):
+        return
     set_bounds(db)
     db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id==context.owner).with_for_update()).one()
     slot=db.execute(select(slots).where(slots.c.owner==context.owner).with_for_update()).mappings().one()
@@ -58,6 +66,8 @@ def fence(db,context):
         raise Conflict('Stale fenced transaction')
     db.execute(text("SELECT set_config('audli.claim_owner',:owner,true),set_config('audli.claim_id',:id,true),set_config('audli.claim_fence',:fence,true)"),
         dict(owner=context.owner,id=context.identifier,fence=str(context.fence)))
+    if getattr(db.engine, '_audli_claim_hook', False):
+        db.info[_FENCED_TRANSACTION] = (db, context, context.owner, context.identifier, context.fence)
 
 
 def install_transactions(engine):
@@ -73,8 +83,15 @@ def install_transactions(engine):
             active.wrote=True
     @event.listens_for(engine,'begin')
     def hook(db):
+        db.info.pop(_FENCED_TRANSACTION, None)
         context=writer.get()
         if context and not db.get_execution_options().get('audli_read_only'):fence(db,context)
+    def clear(db, *unused):
+        # Don't reconnect an invalidated DBAPI connection during error cleanup.
+        if not db.closed and not db.invalidated:
+            db.info.pop(_FENCED_TRANSACTION, None)
+    for boundary in ('commit', 'rollback', 'savepoint', 'rollback_savepoint', 'release_savepoint'):
+        event.listen(engine, boundary, clear)
 
 
 class BridgeStore:
@@ -117,13 +134,20 @@ class BridgeStore:
     def reject(self,context):
         with self.repo.transaction() as db:
             fence(db,context)
-            db.execute(update(operations).where(operations.c.owner==self.owner,operations.c.id==context.identifier).values(status='invalidated'))
+            changed=db.execute(update(operations).where(operations.c.owner==self.owner,operations.c.id==context.identifier,
+                operations.c.fence==context.fence,operations.c.status=='running',operations.c.expires>func.clock_timestamp())
+                .values(status='invalidated').returning(operations.c.id)).first()
+            if changed is None:raise Conflict('Expired or stale receipt transaction')
             db.execute(update(slots).where(slots.c.owner==self.owner).values(active=None))
 
     def finish(self,context,receipt):
         with self.repo.transaction() as db:
             fence(db,context)
-            db.execute(update(operations).where(operations.c.owner==self.owner,operations.c.id==context.identifier).values(status='complete',snapshot={'receipt':receipt,'checkpoint':self.checkpoint(db)}))
+            changed=db.execute(update(operations).where(operations.c.owner==self.owner,operations.c.id==context.identifier,
+                operations.c.fence==context.fence,operations.c.status=='running',operations.c.expires>func.clock_timestamp())
+                .values(status='complete',snapshot={'receipt':receipt,'checkpoint':self.checkpoint(db)})
+                .returning(operations.c.id)).first()
+            if changed is None:raise Conflict('Expired or stale receipt transaction')
             db.execute(update(slots).where(slots.c.owner==self.owner).values(active=None))
 
     def status(self,identifier):

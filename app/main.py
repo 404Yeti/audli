@@ -59,6 +59,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         from app.lazyping import install_lazy_ping
         install_lazy_ping(database.engine, settings.db_lazy_ping_seconds)    # after instrumentation, so pool_ping counts only real pings
     database.limit_mode = settings.lesson_limit_mode
+    database.lesson_completed_limit = settings.lesson_completed_limit
+    # Only Supabase-authenticated request scopes may receive this exemption.
+    database.developer_user_id = str(settings.developer_user_id) if settings.auth_mode == 'supabase' and settings.developer_user_id else None
     database.require_auth_user = settings.account_deletion_enabled
     read_autocommit = {'requested': settings.db_read_autocommit, 'effective': False, 'reason': 'flag off'}
     if settings.db_read_autocommit:

@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     per_learner_locks: bool = False
     # AUD-47: daily lesson allowance. off = previous behavior; observe = ledger + would-refuse logs, never blocks; enforce = refuse with HTTP 429.
     lesson_limit_mode: Literal['off', 'observe', 'enforce'] = 'off'
+    # Learning quota only; operational lesson/provider guards remain controlled by lesson_limit_mode.
+    lesson_completed_limit: int = Field(default=10, ge=1, le=100)
+    developer_user_id: UUID | None = Field(default=None, repr=False)
     llm_model: str = 'gpt-4.1-mini'
     transcription_model: str = 'gpt-4o-mini-transcribe'
     speech_model: str = 'gpt-4o-mini-tts'
@@ -113,7 +116,7 @@ class Settings(BaseSettings):
         from app.upload_policy import flag_value
         return flag_value(value)         # a typo must not crash the service, and must not turn retries on
 
-    @field_validator('database_url', 'learner_id', mode='before')
+    @field_validator('database_url', 'learner_id', 'developer_user_id', mode='before')
     @classmethod
     def empty_persistence_values(cls, value):
         return None if isinstance(value, str) and not value.strip() else value

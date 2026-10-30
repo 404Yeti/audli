@@ -44,60 +44,76 @@ start transactions also include the BEGIN round trip. No single query dominates.
 No transaction is split; no authorization, deadline, RLS or ownership check is cached
 across transactions or requests. No connection is retained through provider awaits.
 
-## Controlled comparison
+## Reconciled comparison against PR118
 
-Disposable PostgreSQL17, actual schema008 and restricted LOGIN role, production flags,
-72ms RTT proxy and six synthetic turns (two exercises, two follow-ups each). Both runs
-use identical mocked STT and the six production assessment/TTS provider delay samples.
-A test clock reproduces the final response's closing-grace budget transaction, yielding
-the same baseline statement counts. No production learner data or providers are used.
+The branch is based on deployed merge `5948590`. Only conversation audio,
+repository preparation/persistence and same-transaction fence deduplication change
+runtime behavior. Plan/homework changes from PR118 remain intact. `/heard`, check-in
+offloading, providers, speech conflicts, schema, flags, routing and upload transport
+are outside this PR. The separate offload working patch was preserved in the local
+production-preparation evidence before being removed from this branch.
 
-| Measure | Before | After |
+Disposable PostgreSQL17, schema008 and restricted LOGIN, 72ms RTT proxy, six synthetic
+turns with identical fixed mocked STT/assessment/TTS delays. Unlike the original
+benchmark, the final cue does not cross the closing deadline, matching the latest
+production45–49-statement pattern. `--closing-grace` retains the earlier budget-path
+experiment. Never load production/provider credentials.
+
+| Measure | PR118 baseline | Reconciled PR117 |
 | --- | ---: | ---: |
-| Full HTTP turn, upload start→audio body |12.935s|11.934s|
-| Coaching endpoint total |4.771s|3.775s|
-| Coaching database statements |45–56|33–41|
-| Coaching database time |3.852s|2.868s|
+| Full HTTP turn, upload start→audio body |12.809s|11.823s|
+| Coaching endpoint total |4.651s|3.655s|
+| Coaching database statements |45–49|33–34|
+| Coaching SQL execution/round-trip time |3.751s|2.763s|
 | TTS provider span |0.439s|0.439s|
-| Maximum sampled event-loop lag |18.28ms|21.42ms|
+| Maximum sampled event-loop lag |15.89ms|17.98ms|
 | Peak checked-out connections |1|1|
 | Checked-out connections at provider entry |0|0|
 | Connections/active claims after run |0/0|0/0|
 
-Database time improved25.6%; full HTTP turns improved1.00s. Small event-loop sampling
-variation is not an improvement claim: audio work was already offloaded. Local HTTP
-turns exclude phone/Vercel transport, VAD and real audio download, so they must not be
-presented as production22.9→11.9s. A production before/after still needs an approved
-code deployment and a comparable iPhone lesson.
+Six attempts, two evaluations and two adaptations persisted in each run. SQL time
+improved26.3%; the full HTTP path improved0.986s. Audio was already offloaded: small
+loop-sampling variation is not an improvement claim. SQL time here includes transport
+inside execute calls and excludes checkout/commit timing; do not equate it with server
+SQL execution alone or the broader database budget.
 
-Results with samples and source hashes: `aud21-audio-db-benchmark.json`. Full normalized
-SQL profiles remain local; no parameters or private audio/transcripts are exported.
+The primary production baseline remains **22.66s speech-end→browser playing**.
+Local HTTP turns omit browser VAD, recording/policy preparation, phone/Vercel transport
+and playback. These results are not production22.66→11.82s, nor a promise of a five-second
+voice interaction. After separately approved deployment, compare complete assessed
+turns, median/tail, provider spans, DB counts/time, stalls, uncertainty/retries and
+playback failures using existing telemetry.
 
-Run the existing `scripts/pg_delay_proxy.py` against a disposable loopback PostgreSQL
-server with36ms one-way delay. Set AUDLI_TEST_POSTGRES_URL to that disposable cluster,
-then run `python scripts/benchmark_coach_audio_db.py --proxy-port PORT --output FILE`.
-AUDLI_AUDIO_BENCH_ROOT can select the baseline checkout. Never load provider credentials.
+Numeric results/source hashes: `aud21-audio-db-benchmark.json`. Full normalized SQL
+profiles remain local; parameters and learner data are not exported.
 
-## Validation
+Reproduce with `scripts/pg_delay_proxy.py` at36ms each way and a disposable
+AUDLI_TEST_POSTGRES_URL, then `python scripts/benchmark_coach_audio_db.py --proxy-port
+PORT --output FILE`. AUDLI_AUDIO_BENCH_ROOT selects the baseline application tree.
 
-Targeted audio/offload/cache/authorization/lifecycle tests:179 passed,1 skipped.
-PostgreSQL plus release-safety, restricted-role, cancellation, rollback, idempotency and
-audio regressions:369 passed,2 skipped. Eight new transaction-proof lifecycle cases pass,
-including live expiry, mutable context, savepoint rollback and connection invalidation.
-Full backend:2090 passed,79 skipped. Existing query budgets are lowered, not waived.
+## Exact ordinary statement budget
 
-## Administrative query distinction
+Auth scope1 + claim9 + preparation7 + post-TTS checkpoint/atomic save12 + owned audio
+load1 + receipt15 =45. Feedback adds4. The joined preparation removes5 ordinary or8
+feedback reads, the atomic save removes1 duplicate owner check, and receipt finalization
+removes6 same-transaction fencing statements: ordinary33, feedback34. The cue lookup
+itself remains one owned SELECT; it is not an N+1 query. Cold restored files and closing
+grace can add their existing authorized reads/budget transaction.
 
-COPY audio_assets ran as postgres and matches previous logical backup/export commands.
-Eleven retained local backup archives predate these lessons. The fingerprint cursor
-and canonical row-JSON hashing match our prior diagnostic execution (October14).
-Per-execution timestamps are unavailable in pg_stat_statements (stats sinceOctober6),
-and successful SELECT/COPY statements aren't recorded under current DDL-only logging.
-Exact overlap/network contention therefore cannot be reconstructed or ruled out.
+## Reconciled validation
 
-The full WITH gr query is WITH grand_total/base/query_results over pg_stat_statements,
-pg_authid and index_advisor, explicitly marked source:dashboard and executed as
-supabase_read_only_user. Catalog table metadata is administrative introspection.
-These are not learner-handler SQL. The lesson windows have no PostgreSQL/Supavisor
-error-severity events or Render pool errors. No exports, fingerprints or data deletion
-were run during this optimization; only bounded read-only metadata/log inspection.
+Targeted SQLite/PostgreSQL audio, ownership, lifecycle checkpoint, offload, query-budget,
+transaction-proof and packaged claims regressions: **181 passed,1 skipped**. The
+strengthened real-HTTP duplicate/stale-checkpoint case passed again separately. It
+checks202 for the same in-flight operation,409 for a competing operation and completed
+stream receipt, provider-free explicit replay, unchanged lesson revision, stale revision
+rejection and released ownership.
+
+Transaction tests cover commit/rollback/savepoint boundaries, changed owner/context,
+expiry during a previously fenced transaction, live receipt UPDATE expiry and invalidated
+connection cleanup without reconnecting. Existing pre/post-TTS checkpoint tests reject
+stale audio while retaining assessment evidence. No transactions are split and no
+provider wait holds a request connection.
+
+Required remote CI must run on the reconciled head; older green checks are insufficient.
+No merge or production deployment is authorized by this PR.

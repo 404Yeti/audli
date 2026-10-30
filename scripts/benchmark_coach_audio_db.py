@@ -49,7 +49,7 @@ def describe(values):
     return dict(n=len(values),mean_ms=round(statistics.mean(values),2),median_ms=round(statistics.median(values),2),max_ms=round(max(values),2))
 
 
-async def measure(url, seeds, directory, proxy_port):
+async def measure(url, seeds, directory, proxy_port, closing_grace=False):
     runtime = make_url(url).set(username='audli_audio_bench',password='disposable-only',port=proxy_port)
     repo = PostgresRepository(runtime.render_as_string(hide_password=False),None)
     provider_connections=[];provider_tts=[];tts_delays=[268,531,663,422,297,448];assess_delays=[6464,3606,4829,3211,3337,3720]
@@ -121,8 +121,8 @@ async def measure(url, seeds, directory, proxy_port):
                     answer=upload.json()
                     result=await client.post(f"/api/attempts/{answer['id']}/assess",headers={'Authorization':'Bearer '+token,'X-Audli-Operation-Id':uuid4().hex},json={'text':answer['transcription']['text'],'confirmed':True,'followup_id':followup,'hands_free':True});assert result.status_code==200,result.text
                     body=result.json();cue='feedback' if body['result'] else body['active_followup']['id']
-                    # Reproduce the production sixth cue's bounded closing-grace transaction.
-                    if len(rows)==5:app.state.limits.clock=lambda:lesson_started+timedelta(seconds=600,milliseconds=100)
+                    # Optional coverage of the bounded closing-grace budget transaction.
+                    if closing_grace and len(rows)==5:app.state.limits.clock=lambda:lesson_started+timedelta(seconds=600,milliseconds=100)
                     response=await client.post(f'/api/exercises/{exercise}/coach-audio',headers={'Authorization':'Bearer '+token,'X-Audli-Operation-Id':uuid4().hex,'Accept':'audio/*'},json={'cue_id':cue,'lesson_id':lesson,'lesson_revision':0});assert response.status_code==200,response.text
                     rows.append((perf_counter()-started)*1000)
                     followup=body.get('active_followup',{});followup=followup['id'] if followup else None
@@ -132,13 +132,13 @@ async def measure(url, seeds, directory, proxy_port):
       with repo.engine.connect() as db:
         counts={table:int(db.execute(text('SELECT count(*) FROM '+table)).scalar_one()) for table in ['attempts','evaluation_results','adaptation_events']}
         active_slots=int(db.execute(text('SELECT count(*) FROM poc_account_slots WHERE active IS NOT NULL')).scalar_one())
-      return {'scope':'local mocked upload-start to coaching-body-ready, not production speech-end latency','database_rtt_ms':72,'final_feedback_closing_grace':True,'claims':'claims','schema':8,'restricted_login':True,'full_turn':describe(rows),'audio_http':describe([r['total_ms'] for r in coaches]),'audio_database':describe([sum(q['ms'] for q in r['sql']) for r in coaches]),'audio_query_counts':[len(r['sql']) for r in coaches],'tts_provider':describe(provider_tts),'max_event_loop_lag_ms':round(max(lag),2),'peak_checked_out':peak,'provider_connections_max':max(provider_connections),'connections_after':repo.engine.pool.checkedout(),'active_slots_after':active_slots,'persisted':counts,'sql_profile':statements,'turns_ms':rows}
+      return {'scope':'local mocked upload-start to coaching-body-ready, not production speech-end latency','database_rtt_ms':72,'final_feedback_closing_grace':closing_grace,'claims':'claims','schema':8,'restricted_login':True,'full_turn':describe(rows),'audio_http':describe([r['total_ms'] for r in coaches]),'audio_database':describe([sum(q['ms'] for q in r['sql']) for r in coaches]),'audio_query_counts':[len(r['sql']) for r in coaches],'tts_provider':describe(provider_tts),'max_event_loop_lag_ms':round(max(lag),2),'peak_checked_out':peak,'provider_connections_max':max(provider_connections),'connections_after':repo.engine.pool.checkedout(),'active_slots_after':active_slots,'persisted':counts,'sql_profile':statements,'turns_ms':rows}
     finally:
         repo.close();await identity.aclose()
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True);parser.add_argument('--proxy-port',type=int,default=55498);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True);parser.add_argument('--proxy-port',type=int,default=55498);parser.add_argument('--closing-grace',action='store_true');args=parser.parse_args()
     assert make_url(ADMIN).host in ('127.0.0.1','localhost')
     with production_shaped() as (url,admin,owner),tempfile.TemporaryDirectory(prefix='audli-audio-bench-') as directory:
         seeds=[]
@@ -152,8 +152,8 @@ def main():
         with admin.begin() as db:db.exec_driver_sql("CREATE ROLE audli_audio_bench LOGIN PASSWORD 'disposable-only' NOSUPERUSER NOBYPASSRLS NOINHERIT")
         try:
             apply_candidate(owner,include_review=True,client_roles=tuple(v for k,v in ROLES.items() if k!='postgres'),server_role='audli_audio_bench')
-            result=asyncio.run(measure(url,seeds,directory,args.proxy_port))
-            result['source_hashes']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/'app/conversation_api.py',ROOT/'app/storage/repository.py',ROOT/'app/claims/assessment_claims/bridge.py']}
+            result=asyncio.run(measure(url,seeds,directory,args.proxy_port,args.closing_grace))
+            result['source_hashes']=[{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'path':str(p.relative_to(ROOT))} for p in [ROOT/'app/conversation_api.py',ROOT/'app/storage/repository.py',ROOT/'app/claims/assessment_claims/bridge.py']]
             args.output.write_text(json.dumps(result,indent=2)+'\n')
             print(json.dumps({k:v for k,v in result.items() if k not in ('sql_profile','turns_ms')}))
         finally:

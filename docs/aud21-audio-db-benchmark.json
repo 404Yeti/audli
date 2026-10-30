@@ -1,28 +1,31 @@
 {
+  "baseline_revision": "59485903479a28e3c7b03e4094c187147e77edc1",
+  "baseline_source": "PR118 application tree matches deployed merge",
+  "method": "Local disposable PostgreSQL17/schema008/restricted LOGIN/72ms RTT/deterministic providers; six sequential synthetic assessed turns. No closing-grace clock override. Full HTTP turn excludes browser VAD and phone/network.",
   "before": {
     "scope": "local mocked upload-start to coaching-body-ready, not production speech-end latency",
     "database_rtt_ms": 72,
-    "final_feedback_closing_grace": true,
+    "final_feedback_closing_grace": false,
     "claims": "claims",
     "schema": 8,
     "restricted_login": true,
     "full_turn": {
       "n": 6,
-      "mean_ms": 12935.24,
-      "median_ms": 12715.23,
-      "max_ms": 14940.18
+      "mean_ms": 12809.36,
+      "median_ms": 12369.66,
+      "max_ms": 14927.45
     },
     "audio_http": {
       "n": 6,
-      "mean_ms": 4770.67,
-      "median_ms": 4594.51,
-      "max_ms": 5567.05
+      "mean_ms": 4651.08,
+      "median_ms": 4577.62,
+      "max_ms": 5078.86
     },
     "audio_database": {
       "n": 6,
-      "mean_ms": 3852.44,
-      "median_ms": 3650.0,
-      "max_ms": 4572.17
+      "mean_ms": 3750.66,
+      "median_ms": 3648.85,
+      "max_ms": 3961.38
     },
     "audio_query_counts": [
       45,
@@ -30,15 +33,15 @@
       49,
       45,
       45,
-      56
+      49
     ],
     "tts_provider": {
       "n": 6,
-      "mean_ms": 439.05,
-      "median_ms": 436.04,
-      "max_ms": 663.97
+      "mean_ms": 438.89,
+      "median_ms": 435.8,
+      "max_ms": 663.29
     },
-    "max_event_loop_lag_ms": 18.28,
+    "max_event_loop_lag_ms": 15.89,
     "peak_checked_out": 1,
     "provider_connections_max": 0,
     "connections_after": 0,
@@ -48,14 +51,6 @@
       "evaluation_results": 2,
       "adaptation_events": 2
     },
-    "turns_ms": [
-      14940.1828379996,
-      12197.686674000579,
-      13871.380691998638,
-      11699.377399003424,
-      11670.043531004922,
-      13232.767870002135
-    ],
     "source_hashes": [
       {
         "sha256": "1ad071081099025bbb946a328588af9b486505198597544fa5d00f5cd223e932",
@@ -66,7 +61,7 @@
         "path": "app/storage/repository.py"
       },
       {
-        "sha256": "478ae7e548bbb2bca02ba57f25719d7af82d6f3c2c99402c23f79970576c0e6d",
+        "sha256": "28e53b6cab0c39ff4543b606a41a3891a9b413a27090bb1f61d9480c70a3dbf5",
         "path": "app/claims/assessment_claims/bridge.py"
       }
     ]
@@ -74,27 +69,27 @@
   "after": {
     "scope": "local mocked upload-start to coaching-body-ready, not production speech-end latency",
     "database_rtt_ms": 72,
-    "final_feedback_closing_grace": true,
+    "final_feedback_closing_grace": false,
     "claims": "claims",
     "schema": 8,
     "restricted_login": true,
     "full_turn": {
       "n": 6,
-      "mean_ms": 11933.91,
-      "median_ms": 11678.68,
-      "max_ms": 14015.02
+      "mean_ms": 11823.39,
+      "median_ms": 11327.13,
+      "max_ms": 14009.51
     },
     "audio_http": {
       "n": 6,
-      "mean_ms": 3775.06,
-      "median_ms": 3673.24,
-      "max_ms": 4412.11
+      "mean_ms": 3655.26,
+      "median_ms": 3664.64,
+      "max_ms": 3922.08
     },
     "audio_database": {
       "n": 6,
-      "mean_ms": 2867.75,
-      "median_ms": 2741.52,
-      "max_ms": 3428.14
+      "mean_ms": 2763.3,
+      "median_ms": 2740.98,
+      "max_ms": 2816.76
     },
     "audio_query_counts": [
       33,
@@ -102,15 +97,15 @@
       34,
       33,
       33,
-      41
+      34
     ],
     "tts_provider": {
       "n": 6,
-      "mean_ms": 438.89,
-      "median_ms": 435.98,
-      "max_ms": 663.81
+      "mean_ms": 438.88,
+      "median_ms": 435.58,
+      "max_ms": 663.6
     },
-    "max_event_loop_lag_ms": 21.42,
+    "max_event_loop_lag_ms": 17.98,
     "peak_checked_out": 1,
     "provider_connections_max": 0,
     "connections_after": 0,
@@ -120,14 +115,6 @@
       "evaluation_results": 2,
       "adaptation_events": 2
     },
-    "turns_ms": [
-      14015.02219899703,
-      11280.703404998349,
-      12709.800352000457,
-      10752.443752004183,
-      10768.843952995667,
-      12076.657277997583
-    ],
     "source_hashes": [
       {
         "sha256": "66aa2f37f9acb896e809ce6521a21b46f60ea46259de10f897081ff3969e5ee9",
@@ -138,7 +125,7 @@
         "path": "app/storage/repository.py"
       },
       {
-        "sha256": "0aa34973df1f66421b101285253a26f6a0e67279b1f2b4a38c715ca3ab957b1c",
+        "sha256": "082cf5e3636970d994984f6548c91bfb666a10d9eceae6e09481d1ff5027ffe1",
         "path": "app/claims/assessment_claims/bridge.py"
       }
     ]

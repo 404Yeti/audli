@@ -62,8 +62,8 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
         # Old evaluator-report audio must never replay as terminal feedback.
         return tutor_cue_cache_id(tutor_settings(settings, repo.profile().tutor_voice), cue_id, text)
 
-    def previous_advice(exercise_id):
-        lesson = repo.lesson_for_exercise(exercise_id)
+    def previous_advice(exercise_id, snapshot=None):
+        lesson = snapshot['lesson'] if snapshot is not None else repo.lesson_for_exercise(exercise_id)
         if not lesson:
             return []
         tips = []
@@ -73,18 +73,18 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
             tips.extend(evidence_tip(*gap) for gap in evidence_gaps(item['evaluation'], item['content']))
         return tips
 
-    def cue(exercise_id, cue_id):
-        conversation = repo.conversation(exercise_id)
-        completed = repo.completed(exercise_id)
+    def cue(exercise_id, cue_id, snapshot=None):
+        conversation = snapshot['conversation'] if snapshot is not None else repo.conversation(exercise_id)
+        completed = snapshot['completed'] if snapshot is not None else repo.completed(exercise_id)
         if cue_id == 'feedback':
             if not completed:
                 raise HTTPException(403, 'Complete assessment before feedback.')
-            result = repo.result(completed)
+            result = snapshot['result'] if snapshot is not None else repo.result(completed)
             model = EvidenceEvaluation if result['evaluation'].get('version') == 'v0.2' else Evaluation
             evaluation = model.model_validate(result['evaluation'])
-            content = ExerciseContent.model_validate_json(exercise_or_404(exercise_id)['content'])
+            content = ExerciseContent.model_validate_json((snapshot['exercise'] if snapshot is not None else exercise_or_404(exercise_id))['content'])
             return final_feedback(evaluation, SimpleNamespace(**result['adaptation']), settings.max_feedback_words, content,
-                                  previous_advice(exercise_id))
+                                  previous_advice(exercise_id, snapshot))
         if not conversation:
             raise HTTPException(409, 'Listen to the clip first.')
         if cue_id == 'summary':
@@ -228,10 +228,12 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
 
     @app.post('/api/exercises/{exercise_id}/coach-audio')
     async def coach_audio(exercise_id: str, body: CueRequest, request: Request):
-        def check_checkpoint():
+        def check_checkpoint(snapshot=None):
             if body.lesson_id is None:
                 return  # Existing JSON/audio clients retain their owned cue contract.
-            lesson = repo.lesson(body.lesson_id)
+            lesson = snapshot['lesson'] if snapshot is not None else None
+            if lesson is None or lesson.id != body.lesson_id:
+                lesson = repo.lesson(body.lesson_id)
             if not lesson:
                 raise HTTPException(404, 'Lesson not found.')
             if (lesson.status != 'active' or lesson.phase != 'EXERCISE'
@@ -239,10 +241,12 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                 raise HTTPException(409, 'Reload your current lesson checkpoint.')
         async with timed_lock(settings, lock, 'turn.coach_audio'):
             def prepare():
-                exercise_or_404(exercise_id)
-                check_checkpoint()
-                text = cue(exercise_id, body.cue_id)
-                tutor = TutorSpeech(settings, ai(), repo.profile().tutor_voice, 'feedback')
+                snapshot = repo.coach_audio_snapshot(exercise_id)
+                if snapshot is None:
+                    raise HTTPException(404, 'Exercise not found.')
+                check_checkpoint(snapshot)
+                text = cue(exercise_id, body.cue_id, snapshot)
+                tutor = TutorSpeech(settings, ai(), snapshot['tutor_voice'], 'feedback')
                 cache_id = tutor_cue_cache_id(tutor.settings, body.cue_id, text)
                 name = repo.coach_audio(exercise_id, cache_id)
                 # Exactly the original condition; the limit is consulted only when it would call the provider.
@@ -251,7 +255,7 @@ def register_conversation_routes(app, repo, ai, lock, settings, audio_dir, exerc
                     try:
                         # Final feedback belongs to the closing sequence; every other cue is practice.
                         app.state.limits.admit('wrapup' if body.cue_id == 'feedback' else 'practice', 'coach_audio',
-                                               repo.lesson_for_exercise(exercise_id))
+                                               snapshot['lesson'])
                     except LimitRefused:
                         try:
                             saved = bool(name) and restore_audio(name).exists()

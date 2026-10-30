@@ -546,6 +546,40 @@ class SQLProgressRepository:
             if not (checkpoint_only and self.update_conversation_checkpoint(db, conversation)):
                 self.write_conversation(db, conversation)
 
+    def coach_audio_snapshot(self, exercise_id):
+        """One owned read for this audio request's immutable cue preparation.
+
+        No connection escapes this method or survives a provider wait. Authoritative
+        post-provider checkpoint/fence checks still run in their existing transactions.
+        """
+        from app.lesson import Lesson
+        query = select(*s.exercises.c,
+            s.profiles.c.data.label('_profile'), s.conversations.c.data.label('_conversation'),
+            s.attempts.c.id.label('_completed'), s.evaluations.c.data.label('_evaluation'),
+            s.events.c.data.label('_adaptation'), s.lessons.c.data.label('_lesson')).select_from(
+                s.exercises.join(s.profiles, s.profiles.c.user_id == s.exercises.c.user_id)
+                .outerjoin(s.conversations, s.conversations.c.exercise_id == s.exercises.c.id)
+                .outerjoin(s.attempts, and_(s.attempts.c.exercise_id == s.exercises.c.id,
+                                          s.attempts.c.status == 'evaluated'))
+                .outerjoin(s.evaluations, s.evaluations.c.attempt_id == s.attempts.c.id)
+                .outerjoin(s.events, s.events.c.attempt_id == s.attempts.c.id)
+                .outerjoin(s.lesson_exercises, and_(s.lesson_exercises.c.exercise_id == s.exercises.c.id,
+                                                   s.lesson_exercises.c.user_id == self.learner_id))
+                .outerjoin(s.lessons, and_(s.lessons.c.id == s.lesson_exercises.c.lesson_id,
+                                         s.lessons.c.user_id == self.learner_id)))
+        with self.read() as db:
+            row = db.execute(query.where(s.exercises.c.id == exercise_id,
+                                         s.exercises.c.user_id == self.learner_id)).mappings().one_or_none()
+        if row is None:
+            return None
+        row = dict(row)
+        profile, conversation, completed, evaluation, adaptation, lesson = (
+            row.pop(key) for key in ('_profile', '_conversation', '_completed', '_evaluation', '_adaptation', '_lesson'))
+        return dict(exercise=api_row(row), tutor_voice=profile.get('tutor_voice', 'original'),
+                    conversation=Conversation.model_validate(conversation) if conversation else None,
+                    completed=completed, result=dict(evaluation=evaluation, adaptation=adaptation) if evaluation and adaptation else None,
+                    lesson=Lesson.model_validate(lesson) if lesson else None)
+
     def coach_audio(self, exercise_id, cue_id):
         with self.read() as db:
             return db.execute(select(s.coach_audio.c.audio_name).join(s.exercises).where(and_(
@@ -576,10 +610,11 @@ class SQLProgressRepository:
     def save_coach_audio(self, exercise_id, cue_id, audio_name, audio=None):
         with self.transaction() as db:
             self.owned_exercise(db, exercise_id)
-            self.check_audio_owner(db, audio_name)
-            self.upsert(db, s.coach_audio, dict(exercise_id=exercise_id, cue_id=cue_id, audio_name=audio_name), ['exercise_id', 'cue_id'])
             if audio is not None:
-                self.save_audio(db, audio_name, audio)
+                self.save_audio(db, audio_name, audio)  # Includes the ownership check, once.
+            else:
+                self.check_audio_owner(db, audio_name)
+            self.upsert(db, s.coach_audio, dict(exercise_id=exercise_id, cue_id=cue_id, audio_name=audio_name), ['exercise_id', 'cue_id'])
 
     def optional_roadmap(self):
         """Recoverable best-effort refresh, outside authoritative lesson transactions."""

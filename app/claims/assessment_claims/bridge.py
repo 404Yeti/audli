@@ -166,6 +166,16 @@ class Bridge:
                 try:lesson_id=str(UUID(candidate))
                 except ValueError:lesson_id=None
                 await database_call(settle,self.proxy.current.get(),self.settings,lesson_id)
+            # A current plan can be projected from a fresh, bounded read transaction.
+            # Dirty/missing plans fall through to the existing fenced writer protocol.
+            # No mutable state or authorization decision is cached across requests.
+            if self.mode == 'claims' and method == 'GET' and path == '/api/plan' and self.settings.planner_enabled:
+                scope.pop('_audli_readonly_plan', None)
+                repo = self.proxy.current.get()
+                projection = await database_call(lambda: repo.roadmap(projection=True, readonly=True))
+                if projection is not None:
+                    scope['_audli_readonly_plan'] = projection
+                    return await self.app(scope, receive, send)
             # Planner GET lazily reconciles/persists a roadmap. It is a writer.
             owned_get=method=='GET' and (path.endswith('/audio') or '/tutor-voice/preview/' in path or path=='/api/plan')
             if (method in ('GET','HEAD','OPTIONS') and not owned_get) or self.migrated.fullmatch(path):

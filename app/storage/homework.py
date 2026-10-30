@@ -1,7 +1,7 @@
 """Owned transactions; provider waits happen outside database transactions."""
 from datetime import timedelta
 from uuid import uuid4
-from sqlalchemy import select, update
+from sqlalchemy import select, update, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from app.storage import schema as s
@@ -17,10 +17,14 @@ def row_lock(repo, db):
     db.execute(select(s.profiles.c.user_id).where(s.profiles.c.user_id == repo.learner_id).with_for_update()).scalar_one()
 
 
-def view(db, row):
+_UNLOADED = object()
+
+
+def view(db, row, loaded_content=_UNLOADED):
     content = None
     if row['content_id']:
-        data = db.execute(select(s.listening_content.c.data).where(s.listening_content.c.id == row['content_id'])).scalar_one()
+        data = (db.execute(select(s.listening_content.c.data).where(s.listening_content.c.id == row['content_id'])).scalar_one()
+                if loaded_content is _UNLOADED else loaded_content)
         content = ListeningContent.model_validate(data)
     return Assignment(id=row['id'], lesson_id=row['lesson_id'], status=row['status'], objective=row['objective'], topic=row['topic'], content=content,
         discovery_in_progress=bool(row['lease_until'] and aware(row['lease_until']) > utcnow()),
@@ -28,9 +32,12 @@ def view(db, row):
 
 
 def list_assignments(repo):
-    with repo.engine.connect() as db:
+    with repo.read() as db:
         rows = db.execute(select(s.homework).where(owner(repo)).order_by(s.homework.c.created_at.desc()).limit(12)).mappings().all()
-        return [view(db, row) for row in rows]
+        identifiers = {row['content_id'] for row in rows if row['content_id']}
+        contents = dict(db.execute(select(s.listening_content.c.id, s.listening_content.c.data)
+            .where(s.listening_content.c.id.in_(identifiers))).all()) if identifiers else {}
+        return [view(db, row, contents.get(row['content_id'])) for row in rows]
 
 
 def offer(repo, lesson_id):
@@ -45,9 +52,10 @@ def offer(repo, lesson_id):
         if row:
             return view(db, row)
         at = utcnow()
-        db.execute(s.homework.insert().values(id=str(uuid4()), user_id=repo.learner_id, lesson_id=lesson_id,
-            status='offered', objective=objective(lesson['data']['focus']), attempts=0, created_at=at, updated_at=at))
-        return view(db, db.execute(select(s.homework).where(owner(repo), s.homework.c.lesson_id == lesson_id)).mappings().one())
+        inserted = db.execute(s.homework.insert().values(id=str(uuid4()), user_id=repo.learner_id, lesson_id=lesson_id,
+            status='offered', objective=objective(lesson['data']['focus']), attempts=0, created_at=at, updated_at=at)
+            .returning(*s.homework.c)).mappings().one()
+        return view(db, inserted)
 
 
 def reserve(repo, assignment_id, accept, topic, daily_limit):
@@ -82,33 +90,64 @@ def finish(repo, assignment_id, token, candidates):
         if row['lease_token'] != token:
             return view(db, row)
         selected_id = None
+        selected_content = None
+        keys = {(content.provider, content.provider_id) for content in candidates}
+        existing = {(item.provider, item.provider_id): item.id for item in db.execute(
+            select(s.listening_content.c.provider, s.listening_content.c.provider_id, s.listening_content.c.id)
+            .where(tuple_(s.listening_content.c.provider, s.listening_content.c.provider_id).in_(keys)))} if keys else {}
+        used = set(db.execute(select(s.homework.c.content_id).where(owner(repo),
+            s.homework.c.content_id.in_(existing.values()))).scalars()) if existing else set()
         for content in candidates:
-            insert = pg_insert if repo.engine.dialect.name == 'postgresql' else sqlite_insert
-            # Different accounts can discover the same item concurrently. Never
-            # replace the shared primary key in an upsert conflict.
-            db.execute(insert(s.listening_content).values(id=content.id, provider=content.provider,
-                provider_id=content.provider_id, data=content.model_dump(mode='json'),
-                validated_at=content.validated_at).on_conflict_do_nothing())
-            stored_id = db.execute(select(s.listening_content.c.id).where(s.listening_content.c.provider == content.provider,
-                s.listening_content.c.provider_id == content.provider_id)).scalar_one()
-            if db.execute(select(s.homework.c.id).where(owner(repo), s.homework.c.content_id == stored_id)).first():
+            stored_id = existing.get((content.provider, content.provider_id))
+            if stored_id in used:
                 continue
+            if stored_id is None:
+                insert = pg_insert if repo.engine.dialect.name == 'postgresql' else sqlite_insert
+                # Resolve a cross-account discovery race without replacing the shared PK.
+                stored_id = db.execute(insert(s.listening_content).values(id=content.id, provider=content.provider,
+                    provider_id=content.provider_id, data=content.model_dump(mode='json'),
+                    validated_at=content.validated_at).on_conflict_do_nothing()
+                    .returning(s.listening_content.c.id)).scalar_one_or_none()
+                if stored_id is None:
+                    stored_id = db.execute(select(s.listening_content.c.id).where(s.listening_content.c.provider == content.provider,
+                        s.listening_content.c.provider_id == content.provider_id)).scalar_one()
             selected_id = stored_id
             content.id = selected_id
+            selected_content = content.model_dump(mode='json')
             db.execute(update(s.listening_content).where(s.listening_content.c.id == selected_id).values(
-                data=content.model_dump(mode='json'), validated_at=content.validated_at))
+                data=selected_content, validated_at=content.validated_at))
             break
-        db.execute(update(s.homework).where(owner(repo), s.homework.c.id == assignment_id).values(content_id=selected_id,
-            status='assigned' if selected_id else 'unavailable', lease_token=None, lease_until=None, updated_at=utcnow()))
-        return view(db, db.execute(select(s.homework).where(owner(repo), s.homework.c.id == assignment_id)).mappings().one())
+        changed = db.execute(update(s.homework).where(owner(repo), s.homework.c.id == assignment_id).values(content_id=selected_id,
+            status='assigned' if selected_id else 'unavailable', lease_token=None, lease_until=None, updated_at=utcnow())
+            .returning(*s.homework.c)).mappings().one()
+        return view(db, changed, selected_content)
 
 
 def get(repo, assignment_id):
-    with repo.engine.connect() as db:
-        row = db.execute(select(s.homework).where(owner(repo), s.homework.c.id == assignment_id)).mappings().first()
+    with repo.read() as db:
+        row = db.execute(select(*s.homework.c, s.listening_content.c.data.label('_content'))
+            .select_from(s.homework.outerjoin(s.listening_content, s.listening_content.c.id == s.homework.c.content_id))
+            .where(owner(repo), s.homework.c.id == assignment_id)).mappings().first()
         if not row:
             raise LookupError()
-        return view(db, row)
+        return view(db, row, row['_content'])
+
+
+def decision_context(repo, assignment_id):
+    """Fresh owned assignment/lesson/profile, never retained across provider work."""
+    from app.lesson import Lesson
+    from app.models import LearnerProfile
+    with repo.read() as db:
+        row = db.execute(select(*s.homework.c, s.listening_content.c.data.label('_content'),
+            s.lessons.c.data.label('_lesson'), s.profiles.c.data.label('_profile')).select_from(
+                s.homework.join(s.profiles, s.profiles.c.user_id == s.homework.c.user_id)
+                .outerjoin(s.lessons, (s.lessons.c.id == s.homework.c.lesson_id) & (s.lessons.c.user_id == repo.learner_id))
+                .outerjoin(s.listening_content, s.listening_content.c.id == s.homework.c.content_id))
+            .where(owner(repo), s.homework.c.id == assignment_id)).mappings().first()
+        if row is None:
+            raise LookupError()
+        return (view(db, row, row['_content']), Lesson.model_validate(row['_lesson']) if row['_lesson'] else None,
+                LearnerProfile.model_validate(row['_profile']))
 
 
 def change_status(repo, assignment_id, status):

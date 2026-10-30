@@ -6,14 +6,12 @@ from app.lesson import Lesson
 from app.storage.repository import aware
 from app.planner import Roadmap, PlannerFeedback, PlanningContext, outlines, qualifying_count
 
-def reconcile(repo, db, profile):
-    row = db.execute(select(s.roadmaps.c.data).where(s.roadmaps.c.user_id == repo.learner_id)).scalar_one_or_none()
-    roadmap = Roadmap.model_validate(row) if row else Roadmap()
-    completed = [Lesson.model_validate(data) for data in db.execute(select(s.lessons.c.data)
-        .where(and_(s.lessons.c.user_id == repo.learner_id, s.lessons.c.status == 'completed'))
-        .order_by(s.lessons.c.started_at, s.lessons.c.id)).scalars()]
+def reconcile(repo, db, profile, stored, completed, readonly=False):
+    roadmap = Roadmap.model_validate(stored) if stored else Roadmap()
     ids = [lesson.id for lesson in completed]
     activated = roadmap.activation_at is None
+    if activated and readonly:
+        return None
     if activated:
         # The durable migration timestamp survives a failed/lazy first refresh.
         roadmap.activation_at = aware(db.execute(select(s.versions.c.applied_at)
@@ -32,6 +30,8 @@ def reconcile(repo, db, profile):
         'recent_adaptations': list(db.execute(select(s.events.c.data).select_from(s.events.join(s.attempts, s.events.c.attempt_id == s.attempts.c.id).join(s.exercises, s.attempts.c.exercise_id == s.exercises.c.id))
             .where(s.exercises.c.user_id == repo.learner_id).order_by(s.events.c.created_at.desc(), s.events.c.id.desc()).limit(6)).scalars())})
     if activated or ids != roadmap.completed_ids or context != roadmap.context or len(roadmap.upcoming) != 3:
+        if readonly:
+            return None
         roadmap.completed_ids = ids
         roadmap.context = context
         roadmap.pending = None
@@ -49,11 +49,33 @@ def due(roadmap):
     milestone = count // 3 * 3
     return milestone if milestone and not any(item.after_lesson == milestone and item.activation_at == roadmap.activation_at for item in roadmap.feedback) else None
 
-def access(repo, revision=None, pending=None, feedback=None, claim_lesson=None):
+def access(repo, revision=None, pending=None, feedback=None, claim_lesson=None, projection=False, readonly=False):
+    if readonly and (not projection or any(value is not None for value in (revision, pending, feedback, claim_lesson))):
+        raise ValueError('Read-only plan projection cannot change a checkpoint.')
     with repo.transaction(planner=True) as db:
-        row = db.execute(select(s.profiles.c.data).where(s.profiles.c.user_id == repo.learner_id).with_for_update()).scalar_one()
-        profile = LearnerProfile.model_validate(row)
-        roadmap = reconcile(repo, db, profile)
+        profile_data = db.execute(select(s.profiles.c.data).where(
+            s.profiles.c.user_id == repo.learner_id).with_for_update()).scalar_one()
+        # Read the roadmap AFTER acquiring the profile lock: a joined SELECT can
+        # retain a pre-wait roadmap snapshot and duplicate check-in admission.
+        stored = db.execute(select(s.roadmaps.c.data).where(
+            s.roadmaps.c.user_id == repo.learner_id)).scalar_one_or_none()
+        if readonly:
+            # The short profile row lock serializes this snapshot with progress/profile writes.
+            # All remaining statements must be plain SELECTs, including future changes.
+            from app.storage.repository import guard_reads
+            guard_reads(repo.engine)
+            db.execution_options(audli_read_only=True)
+            from app.claims.durable_claims.store import slots
+            active = db.execute(select(slots.c.active).where(slots.c.owner == repo.learner_id)).scalar_one_or_none()
+            if active is not None:
+                return None  # Preserve active/quarantined-operation admission behavior.
+        profile = LearnerProfile.model_validate(profile_data)
+        completed = [Lesson.model_validate(data) for data in db.execute(select(s.lessons.c.data)
+            .where(and_(s.lessons.c.user_id == repo.learner_id, s.lessons.c.status == 'completed'))
+            .order_by(s.lessons.c.started_at, s.lessons.c.id)).scalars()]
+        roadmap = reconcile(repo, db, profile, stored, completed, readonly=readonly)
+        if roadmap is None:
+            return None
         if claim_lesson is not None:
             milestone = due(roadmap)
             if (not milestone or qualifying_count(roadmap) != milestone
@@ -79,4 +101,9 @@ def access(repo, revision=None, pending=None, feedback=None, claim_lesson=None):
             else:
                 roadmap.pending = pending
             persist(repo, db, roadmap)
+        if projection:
+            opened = db.execute(select(s.lessons.c.id).where(s.lessons.c.user_id == repo.learner_id,
+                s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)).limit(1)).first() is not None
+            return dict(roadmap=roadmap, ready=profile.onboarding_status == 'complete', opened=opened,
+                        completed=list(reversed(completed)))
         return roadmap

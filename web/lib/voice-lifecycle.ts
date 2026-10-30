@@ -19,6 +19,7 @@ export function useVoiceLifecycle() {
   const [state, setState] = useState<MascotState>('Idle');
   const [activity, setActivity] = useState(false);
   const [backupVoice, setBackupVoice] = useState(false);
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
   const owner = useRef<LessonLifetime | null>(null);
   const auth = useRef(currentAuthRevision());
@@ -29,7 +30,7 @@ export function useVoiceLifecycle() {
   const disposeRecording = useRef<(() => void) | null>(null);
   const replayBlob = useRef<Blob | null>(null);
   function clearReplay() { replayBlob.current = null; }
-  const playback = useRef<{ operation: LessonOperation; failed: () => void } | null>(null);
+  const playback = useRef<{ operation: LessonOperation; failed: () => void; retry: () => void } | null>(null);
   useEffect(() => {
     const notice = () => setBackupVoice(true);
     window.addEventListener('audli-backup-voice', notice);
@@ -47,18 +48,20 @@ export function useVoiceLifecycle() {
     if (auth.current === currentAuthRevision()) owner.current = new LessonLifetime();
     latency.current.reset(); setState('Idle'); setActivity(false); setBackupVoice(false);
   }
-  async function speak(operation: LessonOperation, url: string, kind: 'meaningful' | 'acknowledgment' | 'retry' = 'meaningful') {
+  async function speak(operation: LessonOperation, url: string, kind: 'meaningful' | 'acknowledgment' | 'retry' = 'meaningful', recoverBlocked = false) {
     operation.assertCurrent(() => URL.revokeObjectURL(url));
     const element = audio.current;
     if (!element) { URL.revokeObjectURL(url); throw new Error('Voice playback is unavailable.'); }
     try {
       await operation.wait(() => new Promise<void>((resolve, reject) => {
         let settled = false;
+        let starting = false, blocked = false;
         let playbackMeasured = false;
         let playbackStartedAt: number | null = null;
-        const cleanup = () => { settled = true; element.removeEventListener('ended', ended); element.removeEventListener('error', failed); element.removeEventListener('playing', playing); element.removeEventListener('pause', paused); operation.signal.removeEventListener('abort', cancelled); if (playback.current?.failed === failed) playback.current = null; };
+        const cleanup = () => { settled = true; element.removeEventListener('ended', ended); element.removeEventListener('error', failed); element.removeEventListener('playing', playing); element.removeEventListener('pause', paused); operation.signal.removeEventListener('abort', cancelled); if (playback.current?.failed === failed) { playback.current = null; setPlaybackBlocked(false); } };
         const playing = () => {
           if (!operation.current) return;
+          blocked = false; setPlaybackBlocked(false);
           setActivity(true);
           if (playbackMeasured) return;
           playbackMeasured = true;
@@ -71,14 +74,33 @@ export function useVoiceLifecycle() {
         const failed = () => { if (settled) return; cleanup(); reject(new Error('Audli’s voice could not play. Retry audio.')); };
         const cancelled = () => { cleanup(); element.pause(); reject(new DOMException('Playback cancelled.', 'AbortError')); };
         element.addEventListener('ended', ended, { once: true }); element.addEventListener('error', failed, { once: true });
-        element.addEventListener('playing', playing); element.addEventListener('pause', paused); playback.current = { operation, failed };
+        const playFailed = (error: unknown) => {
+          starting = false;
+          if (settled || !operation.current) return;
+          if (recoverBlocked && error instanceof Error && error.name === 'NotAllowedError') {
+            blocked = true; setPlaybackBlocked(true); setState('Idle'); setActivity(false);
+          } else failed(); // Browser exception text is never learner feedback.
+        };
+        const play = () => {
+          if (settled || starting || !operation.current) return;
+          starting = true;
+          try {
+            // Run synchronously in the recovery click, before any await. Reuse the
+            // source, URL, operation and continuation; never fetch speech again.
+            const promise = element.play();
+            void operation.wait(() => measureTurn('playback_start', () => promise), () => element.pause()).then(() => {
+              starting = false;
+              if (!settled && operation.current) {
+                blocked = false; setPlaybackBlocked(false); setState('Speaking'); setActivity(true);
+              }
+            }).catch(playFailed);
+          } catch (error) { playFailed(error); }
+        };
+        element.addEventListener('playing', playing); element.addEventListener('pause', paused);
+        playback.current = { operation, failed, retry: () => { if (blocked) play(); } };
         operation.signal.addEventListener('abort', cancelled, { once: true });
         element.src = url;
-        void operation.wait(() => measureTurn('playback_start', () => element.play()), () => element.pause()).then(() => {
-          if (!settled && operation.current) {
-            setState('Speaking'); setActivity(true);
-          }
-        }).catch(error => { if (!settled) { cleanup(); reject(error); } });
+        play();
       }));
     } finally {
       // A cancelled old prompt must not clear a newer clip on this shared player.
@@ -131,7 +153,7 @@ export function useVoiceLifecycle() {
         throw new Error('Your lesson changed. Retry conversation to restore your saved progress.');
     });
   }
-  async function lessonSpeech(operation: LessonOperation, lessonId: string, revision: number, action = 'audio') {
+  async function lessonSpeech(operation: LessonOperation, lessonId: string, revision: number, action = 'audio', recoverBlocked = false) {
     setState('Thinking');
     const body = await measureTurn('tts_readiness', async () => {
       const response = await operation.wait(() => authenticatedFetch(`/api/lessons/${encodeURIComponent(lessonId)}/${action}`, {
@@ -143,7 +165,7 @@ export function useVoiceLifecycle() {
     });
     operation.assertCurrent();
     replayBlob.current = body;
-    await speak(operation, URL.createObjectURL(body));
+    await speak(operation, URL.createObjectURL(body), 'meaningful', recoverBlocked);
   }
   async function prepareAcknowledgment(operation: LessonOperation, cue: AcknowledgmentCue = 'assessment') {
     if (acknowledgment.current[cue]) return;
@@ -271,8 +293,8 @@ export function useVoiceLifecycle() {
                 if (interval) clearInterval(interval); capture?.stop();
               }
             }, 50);
-          }).catch(error => { cleanup(); reject(error); });
-        } catch (error) { cleanup(); reject(error); }
+          }).catch(() => { cleanup(); reject(new Error('Microphone turn detection could not start. Please retry.')); });
+        } catch { cleanup(); reject(new Error('Microphone turn detection could not start. Please retry.')); }
       }));
     } catch (error) { input.getTracks().forEach(track => track.stop()); throw error; }
     finally { if (operation.current) { setState('Thinking'); setActivity(false); } }
@@ -286,5 +308,6 @@ export function useVoiceLifecycle() {
   async function replayQuestion(operation: LessonOperation) {
     if (replayBlob.current) await speak(operation, URL.createObjectURL(replayBlob.current));
   }
-  return { state, activity, backupVoice, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, replayQuestion, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
+  function resumePlayback() { playback.current?.retry(); }
+  return { state, activity, backupVoice, playbackBlocked, resumePlayback, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, replayQuestion, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
 }

@@ -19,7 +19,8 @@
       "feat/rive-success-homework-investigation": false,
       "codex/AUD-94-migration-safety": false,
       "codex/AUD-94-p0-remediation": false,
-      "codex/AUD-94-integrated-rc": false
+      "codex/AUD-94-integrated-rc": false,
+      "codex/AUD-95-playback-recovery": false
     }
   }
 }

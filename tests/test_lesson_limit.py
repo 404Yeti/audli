@@ -20,7 +20,17 @@ from app.storage import schema as s
 from app.storage.repository import aware
 from app.storage.migrations import postgres_lesson_limit_migration
 from conftest import ASGIClient, FakeProvider
-from test_persistence import repository_factory
+from test_persistence import repository_factory as base_repository_factory
+
+@pytest.fixture
+def repository_factory(base_repository_factory):
+    # Exercise the configurable one-completion boundary in this policy suite.
+    def build(*args, **kwargs):
+        repo = base_repository_factory(*args, **kwargs)
+        repo.lesson_completed_limit = 1
+        return repo
+    return build
+
 
 T0 = datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
 
@@ -37,7 +47,7 @@ def ledger(repo):
 
 
 def finish(repo, lesson):
-    lesson.status, lesson.phase = 'completed', 'COMPLETED'
+    lesson.status, lesson.phase, lesson.completed_at = 'completed', 'COMPLETED', lesson.started_at
     repo.save_lesson(lesson, lesson.revision)
 
 
@@ -109,28 +119,23 @@ def test_observe_logs_would_refuse_without_blocking_or_extending_the_window(repo
     repo.create_lesson(second, limit_mode='observe')
     assert count(repo) == 2  # Never blocks.
     row = ledger(repo)
-    assert row['last_lesson_id'] == first.id and row['next_eligible_at'] == T0 + WINDOW
+    assert row['last_lesson_id'] == second.id and row['next_eligible_at'] == T0 + WINDOW
     messages = [record.getMessage() for record in caplog.records if 'would_refuse' in record.getMessage()]
     assert len(messages) == 1 and repo.learner_id not in messages[0]
 
 
-def test_entitlement_survives_onboarding_restart_and_lesson_cleanup(repository_factory):
+def test_incomplete_reset_frees_learning_allowance_but_preserves_ledger(repository_factory):
     repo = repository_factory()
     lesson = make(T0)
     repo.create_lesson(lesson, limit_mode='enforce')
-    reset_onboarding(repo, repo.profile().onboarding.revision)  # Deletes open lesson rows.
-    assert repo.lesson(lesson.id) is None
+    reset_onboarding(repo, repo.profile().onboarding.revision)
+    assert repo.lesson(lesson.id) is None and ledger(repo)['last_lesson_id'] == lesson.id
+    next_lesson = make(T0 + timedelta(hours=2))
+    repo.create_lesson(next_lesson, limit_mode='enforce')
+    finish(repo, next_lesson)
     with pytest.raises(LessonCooldown):
-        repo.create_lesson(make(T0 + timedelta(hours=2)), limit_mode='enforce')
-    done = make(T0 + timedelta(hours=30))
-    repo.create_lesson(done, limit_mode='enforce')
-    finish(repo, done)
-    with repo.engine.begin() as db:  # Retention-style cleanup of every lesson record.
-        db.execute(s.lesson_exercises.delete())
-        db.execute(s.lessons.delete().where(s.lessons.c.user_id == repo.learner_id))
-    assert count(repo) == 0 and ledger(repo)['last_lesson_id'] == done.id
-    with pytest.raises(LessonCooldown):
-        repo.create_lesson(make(T0 + timedelta(hours=31)), limit_mode='enforce')
+        repo.create_lesson(make(T0 + timedelta(hours=3)), limit_mode='enforce')
+    assert repo.lesson(next_lesson.id).status == 'completed'
 
 
 def test_existing_learner_uses_latest_lesson_start_without_a_ledger_row(repository_factory):
@@ -211,7 +216,7 @@ def test_void_is_limited_to_the_unstarted_current_lesson(repository_factory):
     assert row['voided_at'] is not None and row['next_eligible_at'] == row['last_started_at']
     started = make(T0 + timedelta(minutes=1))  # The verified failure freed the allowance.
     lesson_row = repo.lesson(lesson.id)
-    lesson_row.status = 'completed'; lesson_row.phase = 'COMPLETED'
+    lesson_row.status = 'expired'  # A failed untouched lesson did not complete.
     repo.save_lesson(lesson_row, lesson_row.revision)
     repo.create_lesson(started, limit_mode='enforce')
     # A lesson with progress (revision > 0) can never be voided.
@@ -251,7 +256,7 @@ def api(repository_factory, tmp_path, audio_bytes):
         provider = FakeProvider()
         async def speak(text, speech_rate=.9): return audio_bytes
         provider.speak = speak
-        return repo, ASGIClient(create_app(Settings(data_dir=tmp_path, lesson_limit_mode=mode, _env_file=None), provider, repo), provider)
+        return repo, ASGIClient(create_app(Settings(data_dir=tmp_path, lesson_limit_mode=mode, lesson_completed_limit=1, _env_file=None), provider, repo), provider)
     return build
 
 
@@ -286,7 +291,7 @@ def test_api_observe_never_blocks_a_second_lesson(api):
     assert cooling['reason'] == 'cooldown' and cooling['next_available_at'] and cooling['retry_after_seconds'] > 0
     second = client.post('/api/lessons/start')
     assert second.status_code == 200 and second.json()['id'] != first['id']  # Observe only logs.
-    assert ledger(repo)['last_lesson_id'] == first['id']
+    assert ledger(repo)['last_lesson_id'] == second.json()['id']
 
 
 def test_observe_without_migration_006_fails_closed_but_off_starts(tmp_path):
@@ -484,7 +489,7 @@ def test_eligibility_reports_the_last_lesson_so_home_can_tell_done_from_expired(
     assert repo.eligibility('enforce', T0 + timedelta(minutes=1)).last_lesson.status == 'active'
     # Past the closing grace the server reports it as expired even before the lazy write happens.
     assert repo.eligibility('enforce', T0 + timedelta(minutes=14)).last_lesson.status == 'expired'
-    assert repo.eligibility('enforce', T0 + timedelta(minutes=14)).reason == 'cooldown'
+    assert repo.eligibility('enforce', T0 + timedelta(minutes=14)).reason == 'eligible'
     repo.expire_lesson(lesson.id, T0 + timedelta(minutes=14))
     assert repo.eligibility('enforce', T0 + timedelta(hours=1)).last_lesson.status == 'expired'
     assert repo.eligibility('off', T0).last_lesson is None

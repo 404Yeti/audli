@@ -56,7 +56,7 @@ def build(repository_factory, tmp_path, audio_bytes, clock):
             provider.spoken.append(text)
             return audio_bytes
         provider.speak = speak
-        client = ASGIClient(create_app(Settings(data_dir=tmp_path, lesson_limit_mode=mode, _env_file=None), provider, repo), provider)
+        client = ASGIClient(create_app(Settings(data_dir=tmp_path, lesson_limit_mode=mode, lesson_completed_limit=1, _env_file=None), provider, repo), provider)
         client.repo = repo
         return client
     return make
@@ -188,7 +188,7 @@ def test_abandoned_lesson_expires_server_side_and_keeps_work_without_counting_as
     assert client.get(f"/api/lessons/{lesson['id']}").json()['status'] == 'expired'
     assert client.get('/api/review').json()['summary']['completed_lessons'] == 0
     assert client.repo.lesson(completed=True) is None
-    refused(client.post('/api/lessons/start'), 'lesson_cooldown')
+    assert client.post('/api/lessons/start').status_code == 200
 
 
 def test_stale_session_cannot_use_an_expired_lesson(build, clock, audio_bytes):
@@ -285,7 +285,8 @@ def test_entitlement_survives_onboarding_reset_through_the_api(build, clock, aud
     lesson = start(client)
     reset_onboarding(client.repo, client.repo.profile().onboarding.revision)  # Cleanup path that deletes open lessons.
     clock.advance(minutes=1)
-    refused(client.post('/api/lessons/start'), 'lesson_cooldown')
+    # Reset onboarding still requires completing onboarding again, not a learning cooldown.
+    assert client.get('/api/eligibility').json()['reason'] == 'eligible'
     assert client.repo.lesson(lesson['id']) is None
 
 
@@ -328,7 +329,7 @@ def test_success_between_failures_resets_the_counter_and_abandonment_never_voids
     clock.advance(minutes=14)  # Pure abandonment.
     assert client.get('/api/lessons/current').json() is None
     assert ledger(client)['voided_at'] is None
-    refused(client.post('/api/lessons/start'), 'lesson_cooldown')
+    assert client.post('/api/lessons/start').status_code == 200
 
 
 def test_progress_or_other_lessons_can_never_be_voided(build, clock, audio_bytes):

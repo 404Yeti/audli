@@ -92,6 +92,8 @@ class SQLProgressRepository:
     written in the same transaction and support history, ownership and future policy.
     """
     limit_mode = 'off'  # AUD-47; set from settings by create_app and inherited by every request scope.
+    lesson_completed_limit = 10
+    developer_user_id = None
     require_auth_user = False  # AUD-34: initialization must find the live Auth user (set by create_app when deletion is enabled).
 
     def __init__(self, engine, learner_id: str | None):
@@ -136,6 +138,8 @@ class SQLProgressRepository:
         """A new request scope; never mutate the pool owner's identity or dispose it."""
         scoped = SQLProgressRepository(self.engine, learner_id)
         scoped.limit_mode = self.limit_mode
+        scoped.lesson_completed_limit = self.lesson_completed_limit
+        scoped.developer_user_id = self.developer_user_id
         scoped.require_auth_user = self.require_auth_user
         scoped.read_autocommit = self.read_autocommit
         # Auth has already verified this identity. Existing accounts need a read,
@@ -637,50 +641,54 @@ class SQLProgressRepository:
             raise RuntimeError('AUDLI_REVIEW_IMPROVEMENT_ENABLED requires migration 007 (review_improvements); '
                                'apply it as the database owner or leave the feature off.')
 
-    def _entitlement(self, db):
-        """Effective 24-hour window. The ledger is authoritative; a lesson row started later than the ledger
-        (written by a release that predates it) is honored until the next claim re-syncs the ledger."""
-        ledger = db.execute(select(s.lesson_entitlements).where(
-            s.lesson_entitlements.c.user_id == self.learner_id)).mappings().first()
-        latest = db.execute(select(s.lessons.c.id, s.lessons.c.started_at).where(s.lessons.c.user_id == self.learner_id)
-            .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
-        if latest is not None and (ledger is None or aware(latest['started_at']) > aware(ledger['last_started_at'])):
-            started = aware(latest['started_at'])
-            return dict(last_started_at=started, next_eligible_at=started + WINDOW,
-                        last_lesson_id=latest['id'], voided_at=None, in_ledger=ledger is not None)
-        if ledger is None:
+    def _completion_cooldown(self, db, at):
+        """Count canonical completed lessons, never starts or partial evidence.
+
+        No new ledger/schema: completion is already persisted by fenced transitions.
+        The profile lock in create_lesson serializes this check with account mutations.
+        Legacy completed rows without completed_at use their recorded start timestamp.
+        """
+        if self.developer_user_id is not None and self.learner_id == self.developer_user_id:
             return None
-        return dict(last_started_at=aware(ledger['last_started_at']), next_eligible_at=aware(ledger['next_eligible_at']),
-                    last_lesson_id=ledger['last_lesson_id'], voided_at=ledger['voided_at'], in_ledger=True)
+        rows = db.execute(select(s.lessons.c.started_at, s.lessons.c.data).where(and_(
+            s.lessons.c.user_id == self.learner_id, s.lessons.c.status == 'completed'))).mappings()
+        completions = []
+        for row in rows:
+            value = row['data'].get('completed_at')
+            completed = aware(datetime.fromisoformat(value)) if value else aware(row['started_at'])
+            if completed > at - WINDOW:
+                completions.append(completed)
+        if len(completions) < self.lesson_completed_limit:
+            return None
+        # If the configured limit decreased, enough completions must leave the window.
+        return sorted(completions)[-self.lesson_completed_limit] + WINDOW
 
     def claim_lesson_start(self, db, lesson, mode):
-        """Record the start in the learner's durable ledger inside the lesson-creation transaction.
+        """Check learning quota and bind wrap-up counters in the creation transaction.
 
-        off: untouched. observe: the ledger tracks the as-if-enforced window and a start inside it is only
-        logged. enforce (not yet selectable by configuration) refuses it with LessonCooldown."""
+        The schema-006 window anchor remains valid for its existing trigger. Within
+        that window only the current lesson/counters change; it no longer charges
+        learning allowance. No trigger, privileges or fencing changes are required.
+        """
         if mode == 'off':
             return None
         at = aware(lesson.started_at)
-        current = self._entitlement(db)
-        if current is not None and at < current['next_eligible_at']:
+        until = self._completion_cooldown(db, at)
+        if until is not None:
             if mode == 'enforce':
-                raise LessonCooldown(current['next_eligible_at'])
-            LOG.info('lesson_limit would_refuse code=lesson_cooldown where=lesson.start learner=%s next_eligible_at=%s',
-                     learner_tag(self.learner_id), current['next_eligible_at'].isoformat())
-            return 'would_refuse'
-        values = dict(user_id=self.learner_id, last_started_at=at, next_eligible_at=at + WINDOW,
+                raise LessonCooldown(until)
+            LOG.info('lesson_limit would_refuse code=lesson_cooldown where=lesson.start')
+        current = db.execute(select(s.lesson_entitlements).where(
+            s.lesson_entitlements.c.user_id == self.learner_id)).mappings().first()
+        anchor = aware(current['last_started_at']) if current and at < aware(current['next_eligible_at']) else at
+        end = aware(current['next_eligible_at']) if current and at < aware(current['next_eligible_at']) else at + WINDOW
+        values = dict(user_id=self.learner_id, last_started_at=anchor, next_eligible_at=end,
                       last_lesson_id=lesson.id, voided_at=None, first_speech_failures=0, grace_actions=0, updated_at=utcnow())
         insert = postgres_insert if self.engine.dialect.name == 'postgresql' else sqlite_insert
         statement = insert(s.lesson_entitlements).values(**values)
-        # One atomic statement: the window may only advance when it has already elapsed.
-        result = db.execute(statement.on_conflict_do_update(index_elements=['user_id'],
-            set_={key: getattr(statement.excluded, key) for key in values if key != 'user_id'},
-            where=s.lesson_entitlements.c.next_eligible_at <= at).returning(s.lesson_entitlements.c.user_id))
-        if result.first() is None:
-            if mode == 'enforce':
-                raise LessonCooldown(self._entitlement(db)['next_eligible_at'])
-            return 'would_refuse'
-        return 'claimed'
+        db.execute(statement.on_conflict_do_update(index_elements=['user_id'],
+            set_={key: getattr(statement.excluded, key) for key in values if key != 'user_id'}))
+        return 'would_refuse' if until else 'claimed'
 
     def take_grace_slot(self, lesson_id, limit=None, at=None):
         """Take one provider-backed wrap-up slot for THIS lesson after its deadline. Returns the new count, or None
@@ -706,10 +714,10 @@ class SQLProgressRepository:
         if mode == 'off':
             return evaluate(mode, at, None, None, None)
         with self.read() as db:
-            current = self._entitlement(db)
+            until = self._completion_cooldown(db, at)
             row = db.execute(select(s.lessons.c.id, s.lessons.c.status, s.lessons.c.started_at).where(and_(
                 s.lessons.c.user_id == self.learner_id, s.lessons.c.status.in_(s.OPEN_LESSON_STATUSES)))).mappings().first()
-            newest = db.execute(select(s.lessons.c.id, s.lessons.c.status).where(s.lessons.c.user_id == self.learner_id)
+            newest = db.execute(select(s.lessons.c.id, s.lessons.c.status, s.lessons.c.started_at).where(s.lessons.c.user_id == self.learner_id)
                 .order_by(s.lessons.c.started_at.desc(), s.lessons.c.id.desc()).limit(1)).mappings().first()
         opened = None
         if row:
@@ -718,17 +726,16 @@ class SQLProgressRepository:
                                 expires_at=started + timedelta(seconds=LESSON_MAX_SECONDS),
                                 grace_ends_at=started + timedelta(seconds=LESSON_MAX_SECONDS + GRACE_SECONDS))
             if mode == 'enforce' and at >= opened.grace_ends_at:
-                opened = None  # Server-side expiry is pending; the learner is in cooldown, not mid-lesson.
-                newest = {'id': row['id'], 'status': 'expired'}
+                opened = None  # Pending expiry; never offer resume after the closing grace.
+                newest = {**row, 'status': 'expired'}
         last = LastLesson(id=newest['id'], status=newest['status']) if newest else None
-        return evaluate(mode, at, current and current['next_eligible_at'], current and current['last_started_at'], opened, last)
+        return evaluate(mode, at, until, aware(newest['started_at']) if newest else None, opened, last)
 
     def cooldown_until(self, at=None):
         """The instant the next lesson opens, or None when the learner may start one."""
         at = at or utcnow()
         with self.read() as db:
-            current = self._entitlement(db)
-        return current['next_eligible_at'] if current is not None and at < current['next_eligible_at'] else None
+            return self._completion_cooldown(db, at)
 
     def latest_lesson(self):
         from app.lesson import Lesson

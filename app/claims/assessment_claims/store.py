@@ -314,6 +314,8 @@ class StageStore:
             def read(self):yield db
         bound=Bound(self.repo.engine,self.owner)
         bound.limit_mode=self.repo.limit_mode;bound.require_auth_user=self.repo.require_auth_user
+        bound.lesson_completed_limit=self.repo.lesson_completed_limit
+        bound.developer_user_id=self.repo.developer_user_id
         return bound
 
     def settle(self,exercise):

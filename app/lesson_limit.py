@@ -80,7 +80,7 @@ def window_phase(lesson, at: datetime) -> Literal['open', 'closing', 'over']:
 
 
 MESSAGES = {
-    'lesson_cooldown': 'You’ve finished today’s listening lesson. Your next one opens soon; your saved lessons, feedback and progress are still here.',
+    'lesson_cooldown': 'You’ve reached your current completed-lesson allowance. Another lesson opens soon; your saved lessons, feedback and progress are still here.',
     'lesson_time_expired': 'Today’s 10-minute lesson time is up. Your saved work is safe, and your next lesson opens soon.',
     'lesson_required': 'Start your daily lesson to practice with Audli.',
 }

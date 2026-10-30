@@ -77,6 +77,94 @@ async function runToCompletion(page:Page){
   await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
 }
 
+// AUD-95: exercise policy rejection explicitly; ordinary voice fixtures allow play().
+async function blockedGreeting(page: Page) {
+  await page.evaluate(() => {
+    const normal = HTMLMediaElement.prototype.play;
+    const gate = { allow: false, pending: false, calls: [] as { src: string; active: boolean }[], release: undefined as (() => void) | undefined };
+    (window as unknown as { greetingGate: typeof gate }).greetingGate = gate;
+    HTMLMediaElement.prototype.play = function () {
+      gate.calls.push({ src: this.src, active: navigator.userActivation.isActive });
+      if (!gate.allow) return Promise.reject(new DOMException('Private browser policy detail', 'NotAllowedError'));
+      if (gate.pending) return new Promise<void>(resolve => { gate.release = resolve; }).then(() => normal.call(this));
+      return normal.call(this);
+    };
+  });
+}
+async function allowGreeting(page: Page, pending = false) {
+  await page.evaluate(pending => { const gate = (window as unknown as { greetingGate: { allow: boolean; pending: boolean } }).greetingGate; gate.allow = true; gate.pending = pending; }, pending);
+}
+async function greetingCalls(page: Page) {
+  return page.evaluate(() => (window as unknown as { greetingGate: { calls: { src: string; active: boolean }[] } }).greetingGate.calls);
+}
+
+test('AUD-95 delayed greeting resumes the same audio directly from a tap without another request', async ({page}) => {
+  const fixture = await setup(page, false, false); await blockedGreeting(page); await page.clock.install();
+  let release: (() => void) | undefined;
+  await page.route('**/api/lessons/structured/audio', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.fallback(); });
+  await page.getByRole('button', {name: 'Start today’s session'}).click();
+  await expect.poll(() => !!release).toBe(true); await page.clock.runFor(6000); release!();
+  const button = page.getByRole('button', {name: 'Tap to play Audli', exact: true}); await expect(button).toBeVisible();
+  await expect(page.getByRole('status').filter({hasText: 'Audli’s voice is ready'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Retry conversation'})).toHaveCount(0);
+  const first = (await greetingCalls(page))[0]; const requests = fixture.requests.length;
+  expect((await probe(page)).mediaCalls).toBe(1); expect((await probe(page)).recorders).toBe(0);
+  expect((await probe(page)).revoked).not.toContain(first.src);
+  await allowGreeting(page); await button.click(); await expect(button).toHaveCount(0);
+  const calls = await greetingCalls(page); expect(calls).toHaveLength(2); expect(calls[1]).toEqual({src: first.src, active: true});
+  expect(fixture.requests).toHaveLength(requests); expect(fixture.requests.filter(path => path === '/api/lessons/start')).toHaveLength(1);
+  expect(fixture.requests.filter(path => path.endsWith('/audio'))).toHaveLength(1);
+  expect((await probe(page)).recorders).toBe(0); expect(fixture.snapshot().revision).toBe(0);
+  await endAudio(page); await expect.poll(async () => (await probe(page)).recorders).toBe(1);
+  await page.getByRole('button', {name: 'End', exact: true}).click(); await page.getByRole('button', {name: 'End session', exact: true}).click();
+});
+
+test('AUD-95 repeated playback denial stays friendly and End releases retained audio', async ({page}) => {
+  const fixture = await setup(page, false, false); await blockedGreeting(page);
+  await page.getByRole('button', {name: 'Start today’s session'}).click();
+  const button = page.getByRole('button', {name: 'Tap to play Audli', exact: true}); await expect(button).toBeVisible();
+  const src = (await greetingCalls(page))[0].src;
+  await button.click(); await expect.poll(async () => (await greetingCalls(page)).length).toBe(2); await expect(button).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('Private browser policy detail');
+  await page.getByRole('button', {name: 'End', exact: true}).click(); await page.getByRole('button', {name: 'End session', exact: true}).click(); await expect(button).toHaveCount(0);
+  expect((await probe(page)).revoked).toContain(src); expect((await probe(page)).recorders).toBe(0);
+  expect(fixture.requests.filter(path => path.endsWith('/attempts'))).toHaveLength(0);
+  expect(fixture.requests.filter(path => path === '/api/lessons/start')).toHaveLength(1);
+});
+
+test('AUD-95 concurrent recovery taps and late play completion cannot survive cancellation', async ({page}) => {
+  const fixture = await setup(page, false, false); await blockedGreeting(page);
+  await page.getByRole('button', {name: 'Start today’s session'}).click();
+  const button = page.getByRole('button', {name: 'Tap to play Audli', exact: true}); await expect(button).toBeVisible(); await allowGreeting(page, true);
+  await button.dblclick(); expect(await greetingCalls(page)).toHaveLength(2);
+  await page.getByRole('button', {name: 'End', exact: true}).click(); await page.getByRole('button', {name: 'End session', exact: true}).click();
+  await page.evaluate(() => (window as unknown as {greetingGate:{release?:()=>void}}).greetingGate.release?.());
+  await expect(button).toHaveCount(0); expect((await probe(page)).recorders).toBe(0);
+  expect(fixture.requests.filter(path => path.endsWith('/attempts'))).toHaveLength(0);
+});
+
+test('AUD-95 microphone denial remains separate and creates no lesson or playback recovery', async ({page}) => {
+  const fixture = await setup(page);
+  await page.evaluate(() => { navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Private microphone detail', 'NotAllowedError'); }; });
+  await page.getByRole('button', {name: 'Start today’s session'}).click();
+  await expect(page.locator('main').getByRole('alert')).toContainText('Audli needs microphone access');
+  await expect(page.locator('body')).not.toContainText('Private microphone detail');
+  await expect(page.getByRole('button', {name: 'Tap to play Audli'})).toHaveCount(0);
+  expect(fixture.requests.filter(path => path === '/api/lessons/start')).toHaveLength(0);
+});
+
+for (const suspended of [true, false]) test(`AUD-95 AudioContext ${suspended ? 'suspension times out' : 'rejection is sanitized'} without uploading`, async ({page}) => {
+  const fixture = await setup(page, false, false); await page.clock.install();
+  await page.evaluate(suspended => { AudioContext.prototype.resume = () => suspended ? new Promise<void>(() => {}) : Promise.reject(new DOMException('Private context detail', 'InvalidStateError')); }, suspended);
+  await page.getByRole('button', {name: 'Start today’s session'}).click(); await expect.poll(async () => (await probe(page)).plays.length).toBe(1);
+  await endAudio(page); await expect.poll(async () => (await probe(page)).mediaCalls).toBe(2);
+  if (suspended) await page.clock.runFor(5100);
+  await expect(page.locator('main').getByRole('alert')).toContainText('Microphone turn detection could not start');
+  await expect(page.locator('body')).not.toContainText('Private context detail');
+  expect((await probe(page)).tracks).toBe(2); expect((await probe(page)).recorders).toBe(0);
+  expect(fixture.requests.filter(path => path.endsWith('/attempts'))).toHaveLength(0);
+});
+
 for(const lost of [false,true])test(`accent clarification stays voice driven${lost?' after a committed upload loses its response':''}`,async({page})=>{
   const fixture=await setup(page,false,true,undefined,false,false,false,undefined,true,lost);
   await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();

@@ -312,7 +312,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
         let retries = 0;
         let serverPending = value.pending; // what the server holds before another recording
         if (value.pending) personalCapture.current = null;
-        if (!value.pending) await voice.lessonSpeech(operation, value.id, value.revision);
+        if (!value.pending) await voice.lessonSpeech(operation, value.id, value.revision, 'audio', value.phase === 'WELCOME');
         while (operation.current) {
           if (!value.pending) {
             if (!personalCapture.current) {
@@ -559,6 +559,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
   if (active) return <><SessionShell windowNote={eligibility.snapshot?.value.enforced === true} backupVoice={voice.backupVoice} state={voice.state} activity={voice.activity} layout={reviewLesson ? 'interaction' : lifecycle.phase === 'TOPIC_SETUP' ? classroomLayout : undefined} topic={topic} startedAt={startedAt ?? undefined} onEnd={end} onReplay={voice.state === 'Speaking' ? voice.replay : undefined}>
     {lifecycle.phase === 'TOPIC_SETUP' && topicPlan && <LessonTopicCheckin initial={topicPlan} autoVoice voice={voice} onLayout={setClassroomLayout} onFinished={() => topicDone.current?.()}/>}
     {reviewLesson && <HomeworkReview key={reviewLesson} lessonId={reviewLesson} voice={voice} onFinished={() => { reviewDone.current?.(); reviewDone.current = null; }}/>}
+    {voice.playbackBlocked && <div className="delivery-notice"><p role="status">Audli’s voice is ready. Tap below to listen.</p><button className="primary" onClick={voice.resumePlayback}>Tap to play Audli</button></div>}
     <p className="sr-only">{prompt}</p>{notice && <DeliveryNotice notice={notice} prompt={prompt} onSendAgain={sendAgain} onRecordAgain={recordAgain} onContinue={continueAfterReload} onReplay={replayQuestion} disabled={busy}/>}{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;

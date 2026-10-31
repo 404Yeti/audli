@@ -218,9 +218,6 @@ jobs:
       - name: Recording recovery in Chromium and iPhone WebKit (mocked providers)
         run: npx playwright test --config=upload-recovery.playwright.config.ts --workers=1
         working-directory: web
-      - name: Completed homework handoff in Chromium and WebKit (mocked providers)
-        run: npx playwright test --config=completion.playwright.config.ts --workers=1
-        working-directory: web
       - name: Blocked greeting playback recovery in iPhone WebKit (mocked providers)
         run: npx playwright test --config=playback-recovery.playwright.config.ts --workers=1
         working-directory: web

@@ -87,3 +87,29 @@ def test_plan_and_homework_database_boundaries_and_provider_release(repository_f
     finally:event.remove(repo.engine,'before_cursor_execute',observe)
     assert seen and set(seen)=={not offload}
     assert repo.engine.pool.checkedout()==0
+
+
+def test_success_restoration_reads_are_owned_concurrent_and_do_not_mutate(repository_factory,tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    repo=repository_factory();ready(repo);saved=assignment(repo,1)
+    provider=FakeProvider()
+    app=create_app(Settings(provider='demo',data_dir=tmp_path,homework_enabled=True,_env_file=None),provider,repo)
+    client=ASGIClient(app,provider)
+    writes=[]
+    def observe(db,cursor,statement,*args):
+        if statement.lstrip().split()[0].upper() in ('INSERT','UPDATE','DELETE'):
+            writes.append(statement.split()[0])
+    event.listen(repo.engine,'before_cursor_execute',observe)
+    try:
+        def restore(_):
+            response=client.get('/api/homework')
+            assert response.status_code==200
+            assert saved.id in {item['id'] for item in response.json()['assignments']}
+            response=client.get(f'/api/homework/{saved.id}')
+            assert response.status_code==200 and response.json()['status']=='assigned'
+        with ThreadPoolExecutor(max_workers=3) as workers:list(workers.map(restore,range(6)))
+    finally:event.remove(repo.engine,'before_cursor_execute',observe)
+    assert writes==[]
+    assert store.get(repo,saved.id)==saved
+    other=repository_factory(str(uuid4()));assert store.list_assignments(other)==[]
+    with pytest.raises(LookupError):store.get(other,saved.id)

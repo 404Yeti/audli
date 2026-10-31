@@ -41,9 +41,10 @@ import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
 type Profile = { accent_preferences?: AccentPreferences; name: string; goal: string; focus?: string; interests?: string[]; target_situations?: string[]; completed_attempts: number };
 type ProfileResponse = { destination: string; profile: Profile; provider: string; recognition_min_confidence?: number };
 type Exercise = { id: string; audio_url: string; completed_attempt_id: string | null };
-type Attempt = { id: string; transcription: Recognition; confirmed_text?: string | null };
+type Attempt = { id: string; transcription: Recognition; confirmed_text?: string | null; assessment_rejected?: boolean };
 type Conversation = { state: ConversationPhase; cue_id: string | null; prompt: string | null; active_followup: { id: string } | null; pending_attempt: Attempt | null; result: unknown; topic?: string | null };
 const fetchClosing = (operation: LessonOperation, id: string) => authenticatedFetch(`/api/lessons/${id}/farewell-audio`, { method: 'POST', signal: AbortSignal.any([operation.signal, AbortSignal.timeout(20000)]) }, operation);
+const recognitionRetryPrompt = "I didn't quite catch that. Could you say it again?";
 const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 export default function AudliPage() { return <AuthGate><ApplicationFlow/></AuthGate>; }
 
@@ -236,22 +237,21 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
           // A correction explicitly confirmed before AUD-17 is already a server checkpoint.
           const confirmed = attempt.confirmed_text?.trim();
           const corrected = confirmed && confirmed !== attempt.transcription.text.trim() ? confirmed : null;
-          if (!corrected && !reliableRecognition(attempt.transcription, minimum.current)) {
+          if (attempt.assessment_rejected || (!corrected && !reliableRecognition(attempt.transcription, minimum.current))) {
             if (++retries > 2) throw new Error('Your microphone is hard to hear. Check it, then retry this turn.');
-            setPrompt("I didn't quite catch that. Could you say it again?");
+            setPrompt(recognitionRetryPrompt);
             await voice.retrySpeech(operation); attempt = await captureAnswer(operation, exercise, attempt.id); continue;
           }
           voice.thinking(); setPrompt('');
           try {
-            state = await voice.acknowledged(operation, `${account.scope}:attempt:${attempt!.id}`, () => measureTurn('assessment', () => operation.api<Conversation>(`/attempts/${attempt!.id}/assess`, json({ text: corrected ?? attempt!.transcription.text, confirmed: true, hands_free: !corrected, followup_id: state.active_followup?.id ?? null }))), state.active_followup ? 'followup' : 'assessment', setPrompt, saved => {
-              if (saved.cue_id && (saved.state === 'GIVING_FEEDBACK' || saved.state === 'AWAITING_FOLLOWUP'))
-                voice.prepareCoachSpeech(operation, exercise.id, saved.cue_id, coachingCheckpoint(exercise));
-            });
+            // Assessment owns the account operation. Optional speech must not
+            // launch competing provider work or delay required recovery/coaching.
+            state = await measureTurn('assessment', () => operation.api<Conversation>(`/attempts/${attempt!.id}/assess`, json({ text: corrected ?? attempt!.transcription.text, confirmed: true, hands_free: !corrected, followup_id: state.active_followup?.id ?? null })));
             retries = 0; break;
           } catch (error) {
             if (!(error instanceof ApiError) || !error.uncertain) throw error;
             if (++retries > 2) throw new Error('Recognition needs another try. Check your microphone, then retry this turn.');
-            setPrompt("I didn't quite catch that. Could you say it again?");
+            setPrompt(recognitionRetryPrompt);
             await voice.retrySpeech(operation); attempt = await captureAnswer(operation, exercise, attempt.id);
           }
         }
@@ -334,7 +334,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
           }
           setPrompt('');
           value = value.phase === 'WELCOME' ? await measureTurn('checkin_response', () => lessonAction(operation, value, 'answer')) :
-            await voice.acknowledged(operation, `${account.scope}:reflection:${value.id}:${value.revision}`, () => measureTurn('profile_extraction', () => lessonAction(operation, value, 'answer')), 'reflection', setPrompt);
+            await measureTurn('profile_extraction', () => lessonAction(operation, value, 'answer'));
           break;
         }
       } else {
@@ -563,7 +563,7 @@ function Product({ onRestart, reducedMotion, setReducedMotion }: { onRestart: (o
     {lifecycle.phase === 'TOPIC_SETUP' && topicPlan && <LessonTopicCheckin initial={topicPlan} autoVoice voice={voice} onLayout={setClassroomLayout} onFinished={() => topicDone.current?.()}/>}
     {reviewLesson && <HomeworkReview key={reviewLesson} lessonId={reviewLesson} voice={voice} onFinished={() => { reviewDone.current?.(); reviewDone.current = null; }}/>}
     {voice.playbackBlocked && <div className="delivery-notice"><p role="status">Audli’s voice is ready. Tap below to listen.</p><button className="primary" onClick={voice.resumePlayback}>Tap to play Audli</button></div>}
-    <p className="sr-only">{prompt}</p>{notice && <DeliveryNotice notice={notice} prompt={prompt} onSendAgain={sendAgain} onRecordAgain={recordAgain} onContinue={continueAfterReload} onReplay={replayQuestion} disabled={busy}/>}{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
+    <p className={prompt === recognitionRetryPrompt ? 'recovery-instruction' : 'sr-only'} aria-live="polite">{prompt}</p>{notice && <DeliveryNotice notice={notice} prompt={prompt} onSendAgain={sendAgain} onRecordAgain={recordAgain} onContinue={continueAfterReload} onReplay={replayQuestion} disabled={busy}/>}{error && <div role="alert" className="session-error">{error}<p>{prompt}</p><button className="secondary" onClick={retry}>Retry conversation</button>{(retained.current || personalCapture.current) && <button className="secondary" onClick={() => { retained.current = null; personalCapture.current = null; void retry(); }}>Record again</button>}</div>}
     {eligibleExercise && <details className="session-transcript"><summary>Transcript</summary>{transcript ? <p>{transcript.script}</p> : <button className="text-button" onClick={() => void reviewTranscript(eligibleExercise)}>Read transcript</button>}</details>}
   </SessionShell><audio ref={voice.audio} className="session-audio" aria-label="Audli session audio"/></>;
   if (completion && lifecycle.phase === 'SUCCESS' && lifecycle.lessonId === completion.id) return <LessonSuccess lesson={completion} scope={account.scope} reducedMotion={reducedMotion} voice={voice} audio={voice.audio} onHome={returnHome} homework={resolvedHomework}/>;

@@ -84,12 +84,22 @@ class StageStore:
                 value=self.view(r)
             return dict(**reference,status='complete',result=value)
 
-    def view(self,r):
+    def view(self,r,db=None):
         c=Conversation.model_validate(r['conversation']['data']) if r['conversation'] else None
         result=r['result'];pending=None
         if c and not result and c.pending_attempt_id:
             a=next((a for a in r['attempts'] if a['id']==c.pending_attempt_id),None)
-            if a:pending={k:a[k] for k in ('id','transcription','confirmed_text')}
+            if a:
+                pending={k:a[k] for k in ('id','transcription','confirmed_text')}
+                # A completed assessment without an accepted turn is a known
+                # rejection, not an unassessed recording. Scope to this owner,
+                # exercise and current pending attempt in the same read transaction.
+                if db is not None:
+                    pending['assessment_rejected']=not any(t.attempt_id==a['id'] for t in c.turns) and db.execute(
+                        select(operations.c.id).where(operations.c.owner==self.owner,
+                            operations.c.exercise==r['exercise']['id'],operations.c.kind=='assess',
+                            operations.c.status=='complete',operations.c.input['attempt_id'].astext==a['id']).limit(1)
+                    ).first() is not None
         state=c.state if c else ('READY_FOR_NEXT' if result else 'LISTENING')
         cue='feedback' if result else c.active_followup.id if c and c.active_followup else 'summary'
         prompt=result['evaluation']['feedback'] if result else "There's one thing I'd like to check. "+c.active_followup.question if c and c.active_followup else 'Tell me what you understood. Use your own words; grammar does not matter.'

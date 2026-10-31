@@ -227,7 +227,7 @@ function AssignmentCard({ initial, disabled = false, autoVoice = false, sharedVo
   </article>;
 }
 
-type HomeworkProps = { lessonId?: string; disabled?: boolean; autoVoice?: boolean; sharedVoice?: SharedVoice; inline?: boolean; onLayout?: (mode: ClassroomLayout) => void; onFinished?: (responded?: boolean) => void; onResolved?: (assignment?: HomeworkAssignment) => void; finished?: boolean };
+type HomeworkProps = { resolvedAssignment?: HomeworkAssignment | null; lessonId?: string; disabled?: boolean; autoVoice?: boolean; sharedVoice?: SharedVoice; inline?: boolean; onLayout?: (mode: ClassroomLayout) => void; onFinished?: (responded?: boolean) => void; onResolved?: (assignment?: HomeworkAssignment) => void; finished?: boolean };
 
 export function ListeningHomework(props: HomeworkProps) {
   const account = useAccount();
@@ -250,7 +250,7 @@ export function ListeningHomework(props: HomeworkProps) {
   return <EnabledListeningHomework key={account.scope} {...props} onResolved={onResolved && settle}/>;
 }
 
-function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = false, sharedVoice, inline = false, onLayout, onFinished, onResolved, finished }: HomeworkProps) {
+function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = false, sharedVoice, inline = false, onLayout, onFinished, onResolved, finished, resolvedAssignment }: HomeworkProps) {
   const [items, setItems] = useState<HomeworkAssignment[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -261,7 +261,16 @@ function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = fals
       // A lesson's card needs only its own assignment: the account flag already says the feature is on, so the
       // listing request is skipped there (it was a blocking round trip before the learner saw anything).
       let assignments: HomeworkAssignment[];
-      if (lessonId) assignments = [await request<HomeworkAssignment>(`/lessons/${lessonId}/homework`, {}, signal)];
+      if (finished) {
+        // Success is presentation only. A handoff (including explicit absence)
+        // needs no request; refresh uses the existing owner-scoped read endpoint.
+        if (resolvedAssignment !== undefined) {
+          assignments = resolvedAssignment && resolvedAssignment.lesson_id === lessonId ? [resolvedAssignment] : [];
+        } else {
+          const view = await request<HomeworkView>('/homework', undefined, signal);
+          assignments = view.enabled ? view.assignments.filter(item => item.lesson_id === lessonId) : [];
+        }
+      } else if (lessonId) assignments = [await request<HomeworkAssignment>(`/lessons/${lessonId}/homework`, {}, signal)];
       else {
         const view = await request<HomeworkView>('/homework', undefined, signal);
         if (signal.aborted) return;

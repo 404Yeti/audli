@@ -265,7 +265,7 @@ function EnabledListeningHomework({ lessonId, disabled = false, autoVoice = fals
         // Success is presentation only. A handoff (including explicit absence)
         // needs no request; refresh uses the existing owner-scoped read endpoint.
         if (resolvedAssignment !== undefined) {
-          assignments = resolvedAssignment?.lesson_id === lessonId ? [resolvedAssignment] : [];
+          assignments = resolvedAssignment && resolvedAssignment.lesson_id === lessonId ? [resolvedAssignment] : [];
         } else {
           const view = await request<HomeworkView>('/homework', undefined, signal);
           assignments = view.enabled ? view.assignments.filter(item => item.lesson_id === lessonId) : [];

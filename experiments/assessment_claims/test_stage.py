@@ -442,3 +442,42 @@ def test_uncertain_finalizer_replays_uncertainty_not_success(fixture):
     value=assessment(st,ex,lease).model_copy(update={'transcription_concern':True})
     assert st.finish(lease,value)==st.finish(lease,value)=={'uncertain':True}
     assert counts(st)['conversation_turns']==0 and st.repo.profile().completed_attempts==0
+
+
+def resume_view(st, ex):
+    with st.repo.transaction() as db:
+        return st.view(st.read(db, ex, '00000000-0000-0000-0000-000000000000'), db)
+
+
+def test_resume_distinguishes_rejection_from_running_cancelled_and_new_recording(fixture):
+    st, ex, other, other_ex, now = fixture
+    a = upload(st, ex)
+    assert resume_view(st, ex)['pending_attempt']['assessment_rejected'] is False
+    request = body(st, ex, a)
+    _, _, lease = st.claim(ex, 'assess', request)
+    assert resume_view(st, ex)['pending_attempt']['assessment_rejected'] is False
+    value = assessment(st, ex, lease).model_copy(update={'transcription_concern': True})
+    st.abandon(lease)
+    assert resume_view(st, ex)['pending_attempt']['assessment_rejected'] is False
+    _, _, lease = st.claim(ex, 'assess', request)
+    st.finish(lease, value)
+    before = counts(st)
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        resumed = list(workers.map(lambda _: resume_view(st, ex), range(8)))
+    assert all(v['pending_attempt']['assessment_rejected'] is True for v in resumed)
+    assert st.claim(ex, 'assess', request)[0] == 'uncertain'
+    assert counts(st) == before
+    isolated = StageStore(other, st.settings, clock=lambda: now[0])
+    with pytest.raises(DBAPIError):
+        resume_view(isolated, ex)
+    new = upload_replacing(st, ex, a)
+    assert new != a
+    assert resume_view(st, ex)['pending_attempt']['assessment_rejected'] is False
+    assert counts(st)['conversation_turns'] == 0
+
+
+def upload_replacing(st, ex, previous):
+    request = {'upload_id': 'abcdef0123456789', 'bytes_hash': sha256(b'new synthetic').hexdigest(), 'replaces_attempt_id': previous}
+    kind, _, lease = st.claim(ex, 'upload', request)
+    assert kind == 'owned'
+    return st.finish(lease, T)['id']

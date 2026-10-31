@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { authenticatedFetch, currentAuthRevision, LessonLifetime, limitErrorFrom, type LessonOperation } from './api';
+import { authenticatedFetch, currentAuthRevision, LessonLifetime, limitErrorFrom, isLimitError, type LessonOperation } from './api';
 import { captureRecording, recordingDiagnostic, InterruptedRecording } from './recording';
 import { microphoneError } from './session';
 import { turnDetector } from './hands-free';
@@ -10,8 +10,6 @@ import { PreparedAudio } from './prepared-audio';
 import type { LessonCheckpoint } from './lesson-lifecycle';
 import type { MascotState } from '../components/audli-mascot';
 installTurnReporting();
-type AcknowledgmentCue = 'assessment' | 'followup' | 'reflection';
-const acknowledgmentText = { assessment: 'Okay, I heard you.', followup: 'Okay, I’ve heard that.', reflection: 'Let me keep that in mind.' };
 type CoachingCheckpoint = { lesson_id: string; lesson_revision: number };
 
 /** One account-bound lifetime owns playback, turn detection and all continuations. */
@@ -24,8 +22,6 @@ export function useVoiceLifecycle() {
   const owner = useRef<LessonLifetime | null>(null);
   const auth = useRef(currentAuthRevision());
   const latency = useRef(speechLatency());
-  const acknowledgment = useRef<Partial<Record<AcknowledgmentCue, Blob>>>({});
-  const acknowledgedTurns = useRef(new Set<string>());
   const coaching = useRef(new WeakMap<LessonOperation, Map<string, { audio: PreparedAudio; background: boolean }>>());
   const disposeRecording = useRef<(() => void) | null>(null);
   const replayBlob = useRef<Blob | null>(null);
@@ -167,58 +163,23 @@ export function useVoiceLifecycle() {
     replayBlob.current = body;
     await speak(operation, URL.createObjectURL(body), 'meaningful', recoverBlocked);
   }
-  async function prepareAcknowledgment(operation: LessonOperation, cue: AcknowledgmentCue = 'assessment') {
-    if (acknowledgment.current[cue]) return;
-    try {
-      const response = await operation.wait(() => authenticatedFetch('/api/recognition/acknowledgment-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cue }), signal: operation.signal }, operation));
-      if (response.ok) acknowledgment.current[cue] = await operation.wait(() => response.blob());
-    } catch { operation.assertCurrent(); } // Optional cue never blocks authoritative assessment.
-  }
-  async function acknowledged<T>(operation: LessonOperation, key: string, work: () => Promise<T>, cue: AcknowledgmentCue, onCue: (text: string) => void, onSaved?: (value: T) => void): Promise<T> {
-    let settled = false;
-    let acknowledgmentPlaying = false;
-    const task = (async () => {
-      try {
-        const value = await work(); settled = true; operation.assertCurrent();
-        if (acknowledgmentPlaying) onSaved?.(value);
-        return { ok: true as const, value };
-      } catch (error) { settled = true; return { ok: false as const, error }; }
-    })();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await operation.wait(() => Promise.race([task, new Promise<void>(resolve => { timer = setTimeout(resolve, 1200); })]));
-    } finally { if (timer) clearTimeout(timer); }
-    let alreadyPlayed = acknowledgedTurns.current.has(key);
-    try { alreadyPlayed ||= sessionStorage.getItem('audli-cue:' + key) === 'played'; } catch { /* Optional cue memory. */ }
-    if (!settled && !alreadyPlayed) {
-      // Optional cue readiness must never hold up completed assessment/coaching.
-      await operation.wait(() => Promise.race([task, prepareAcknowledgment(operation, cue)]));
-      const blob = acknowledgment.current[cue];
-      if (!settled && blob) {
-        operation.assertCurrent(); acknowledgedTurns.current.add(key);
-        try { sessionStorage.setItem('audli-cue:' + key, 'played'); } catch { /* Optional cue memory. */ }
-        onCue(acknowledgmentText[cue]);
-        acknowledgmentPlaying = true;
-        try { await speak(operation, URL.createObjectURL(blob), 'acknowledgment'); }
-        catch { operation.assertCurrent(); }
-        finally { acknowledgmentPlaying = false; }
-        if (operation.current) setState('Thinking');
-      }
-    }
-    // Attach the rejection handler immediately so a fast failure cannot go unhandled.
-    const result = await task; operation.assertCurrent();
-    if (!result.ok) throw result.error;
-    return result.value;
-  }
   async function retrySpeech(operation: LessonOperation) {
     setState('Retry');
-    const response = await operation.wait(() => authenticatedFetch('/api/recognition/retry-audio', { method: 'POST', signal: operation.signal }, operation));
-    if (response.status === 429) { const limited = await limitErrorFrom(response); if (limited) throw limited; }
-    if (!response.ok || response.status === 202) throw new Error('Audli’s retry voice is unavailable. Please retry audio.');
-    const body = await operation.wait(() => response.blob());
-    operation.assertCurrent();
-    await speak(operation, URL.createObjectURL(body), 'retry');
+    try {
+      const response = await operation.wait(() => authenticatedFetch('/api/recognition/retry-audio', { method: 'POST', signal: operation.signal }, operation));
+      if (response.status === 429) { const limited = await limitErrorFrom(response); if (limited) throw limited; }
+      if (!response.ok || response.status === 202) return;
+      const body = await operation.wait(() => response.blob());
+      operation.assertCurrent();
+      await speak(operation, URL.createObjectURL(body), 'retry');
+    } catch (error) {
+      operation.assertCurrent();
+      if (isLimitError(error)) throw error;
+      // The caller already displays the recovery instruction. Optional voice
+      // failure must not hide it or prevent a fresh recording.
+    }
   }
+
   async function listen(operation: LessonOperation): Promise<Blob> {
     operation.assertCurrent(); audio.current?.pause();
     if (document.visibilityState === 'hidden') throw new Error('Return to Audli and retry your recording.');
@@ -309,5 +270,5 @@ export function useVoiceLifecycle() {
     if (replayBlob.current) await speak(operation, URL.createObjectURL(replayBlob.current));
   }
   function resumePlayback() { playback.current?.retry(); }
-  return { state, activity, backupVoice, playbackBlocked, resumePlayback, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, prepareAcknowledgment, acknowledged, retrySpeech, listen, replay, replayQuestion, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
+  return { state, activity, backupVoice, playbackBlocked, resumePlayback, audio, begin, stop, speak, prepareCoachSpeech, coachSpeech, lessonSpeech, retrySpeech, listen, replay, replayQuestion, idle: () => { setState('Idle'); setActivity(false); }, thinking: () => setState('Thinking') };
 }

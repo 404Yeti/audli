@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { LessonCheckpoint } from '../lib/lesson-lifecycle';
-import { installVoice, promptWav, probe, endAudio } from './voice-fixture';
+import { installVoice, promptWav, probe, endAudio, type Probe } from './voice-fixture';
 type MascotFrame = { count:number; white:number; bounds:number[]; width:number; height:number; angle:number|null };
 type MascotCapture = { frames:MascotFrame[]; raf:number };
 
@@ -274,8 +274,8 @@ test('refresh retries an unheard introduction and resumes the same exercise',asy
   expect((await probe(page)).bodyPending).toBe(true);
   expect(fixture.snapshot().introduction_pending).toBe(true);
   await page.reload();
-  expect((await probe(page)).bodyPending).toBe(false);
-  expect((await probe(page)).bodyPending).toBe(false);
+  await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
+  await page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody!());
   for(let i=0;i<30;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
   await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   expect(fixture.requests.filter(path=>path.endsWith('/introduction-audio'))).toHaveLength(2);

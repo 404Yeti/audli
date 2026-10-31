@@ -152,7 +152,7 @@ def install(app,settings,provider,mode='claims',old_workers=0):
         # an existing question, pending answer or accepted evidence is permitted.
         def read():
             st=store()
-            with st.repo.transaction() as db:return st.view(st.read(db,exercise_id,'00000000-0000-0000-0000-000000000000'))
+            with st.repo.transaction() as db:return st.view(st.read(db,exercise_id,'00000000-0000-0000-0000-000000000000'),db)
         return await error_guard(lambda:database_call(read))
 
     async def conversation_lesson(ex):

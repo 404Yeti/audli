@@ -6,7 +6,7 @@ type MascotCapture = { frames:MascotFrame[]; raf:number };
 
 async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 'exercise' | 'closing', delayIntroduction=false, delayCue=false, missingInterests=false, accentRequest?:string, accentConsent=false, loseAttemptResponse=false, accentFallback=false) {
   await installVoice(page,{autoPlayback,delayBody:delayIntroduction?'/introduction-audio':delayCue?'/recognition/acknowledgment-audio':undefined});
-  let value:LessonCheckpoint|null=null,exerciseState='LISTENING',pendingAttempt=false;
+  let value:LessonCheckpoint|null=null,exerciseState='LISTENING',pendingAttempt=false,assessmentRejected=false;
   const requests:string[]=[],spoken:string[]=[],phases:string[]=[];
   let failedGeneration = false;
   let accentReplies = 0, lostResponse = false;
@@ -57,18 +57,18 @@ async function setup(page: Page, returning=false, autoPlayback=true, recovery?: 
         else {value!.elapsed_seconds=530;phase('CLOSING','Today, we listened to work meetings. You caught the main idea. Listen for dates and times next time. Thanks for listening with me.');}}
       return route.fulfill({json:snapshot()});
     }
-    const conversation=()=>({state:exerciseState,cue_id:exerciseState==='LISTENING'?null:clip.completed_attempt_id?'feedback':'summary',prompt:clip.completed_attempt_id?'You understood the meeting changed; listen for the new deadline next time.':'Tell me what you understood.',active_followup:null,pending_attempt:pendingAttempt?{id:'answer',transcription:{text:'The meeting changed',confidence:.99,uncertainty:[]}}:null,result:clip.completed_attempt_id?{}:null,topic:clip.topic});
+    const conversation=()=>({state:exerciseState,cue_id:exerciseState==='LISTENING'?null:clip.completed_attempt_id?'feedback':'summary',prompt:clip.completed_attempt_id?'You understood the meeting changed; listen for the new deadline next time.':'Tell me what you understood.',active_followup:null,pending_attempt:pendingAttempt?{id:'answer',assessment_rejected:assessmentRejected,transcription:{text:'The meeting changed',confidence:.99,uncertainty:[]}}:null,result:clip.completed_attempt_id?{}:null,topic:clip.topic});
     if(path.endsWith('/conversation/listened'))exerciseState='AWAITING_SUMMARY';
     if(path.endsWith('/assess')){exerciseState='GIVING_FEEDBACK';clip.completed_attempt_id='answer';pendingAttempt=false;}
     if(path.endsWith('/ready'))exerciseState='READY_FOR_NEXT';
     if(path.endsWith('/conversation')||path.endsWith('/listened')||path.endsWith('/assess')||path.endsWith('/ready'))return route.fulfill({json:conversation()});
-    if(path.endsWith('/attempts')){pendingAttempt=true;return route.fulfill({json:{id:'answer',transcription:{text:'The meeting changed',confidence:.99,uncertainty:[]}}});}
+    if(path.endsWith('/attempts')){pendingAttempt=true;assessmentRejected=false;return route.fulfill({json:{id:'answer',transcription:{text:'The meeting changed',confidence:.99,uncertainty:[]}}});}
     if(path.endsWith('/coach-audio'))return audio(conversation().prompt);
     if(path.endsWith('/transcript'))return route.fulfill(clip.completed_attempt_id?{json:{title:'Meeting',script:'Completed passage'}}:{status:403,json:{detail:'Complete assessment first.'}});
     return audio('Listening passage');
   });
   await page.goto('/');await expect(page.getByRole('button',{name:'Start today’s session'})).toBeEnabled();
-  return {requests,spoken,phases,snapshot};
+  return {requests,spoken,phases,snapshot,reject:()=>{assessmentRejected=true;pendingAttempt=true;exerciseState='ASSESSING';}};
 }
 
 async function runToCompletion(page:Page){
@@ -251,7 +251,7 @@ test('refresh resumes the authoritative personal checkpoint and acknowledgment w
   expect(fixture.requests.filter(path=>path==='/api/lessons/structured/attempts')).toHaveLength(1);
 });
 
-test('End during delayed reflection acknowledgment cancels playback and cannot launch a clip',async({page})=>{
+test('End during delayed reflection cancels continuation and cannot launch a clip',async({page})=>{
   const fixture=await setup(page,true,true);let release:(()=>Promise<void>)|undefined;
   await page.route('**/api/lessons/structured/answer',async route=>{
     if(fixture.snapshot().phase!=='REVIEW')return route.fallback();
@@ -260,7 +260,7 @@ test('End during delayed reflection acknowledgment cancels playback and cannot l
   await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();
   for(let i=0;i<20&&!release;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);}
   await expect.poll(()=>!!release).toBe(true);await page.clock.runFor(1300);
-  await expect.poll(()=>fixture.spoken.includes('Let me keep that in mind.')).toBe(true);
+  expect(fixture.requests).not.toContain('/api/recognition/acknowledgment-audio');
   await page.getByRole('button',{name:'End',exact:true}).click();await page.getByRole('button',{name:'End session',exact:true}).click();
   await expect.poll(()=>fixture.snapshot().status).toBe('paused');const count=fixture.requests.length;await release!();await page.waitForTimeout(100);
   expect(fixture.requests.length).toBe(count);expect(fixture.requests.some(path=>path.endsWith('/exercise'))).toBe(false);
@@ -282,7 +282,7 @@ test('refresh retries an unheard introduction and resumes the same exercise',asy
   expect(fixture.requests.filter(path=>path.endsWith('/exercise'))).toHaveLength(1);
 });
 
-test('processing acknowledgment is delayed and deduplicated across retry; topic is visible while assessment is pending',async({page})=>{
+test('assessment retry keeps topic visible and never starts optional acknowledgment',async({page})=>{
   const fixture=await setup(page);let release:(()=>Promise<void>)|undefined,calls=0;
   await page.route('**/api/attempts/answer/assess',async route=>{
     const current=++calls;
@@ -293,11 +293,11 @@ test('processing acknowledgment is delayed and deduplicated across retry; topic 
   await expect.poll(()=>!!release).toBe(true);
   expect(fixture.spoken).not.toContain('Okay, I heard you.');
   await expect(page.getByRole('note',{name:'Exercise topic'})).toHaveText('Topic: Pottery making');
-  await page.clock.runFor(1300);await expect.poll(()=>fixture.spoken.filter(text=>text==='Okay, I heard you.').length).toBe(1);
+  await page.clock.runFor(1300);expect(fixture.requests).not.toContain('/api/recognition/acknowledgment-audio');
   await page.clock.runFor(100);await release!();release=undefined;
   await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
   await page.getByRole('button',{name:'Retry conversation'}).click();await expect.poll(()=>!!release).toBe(true);
-  await page.clock.runFor(1500);expect(fixture.spoken.filter(text=>text==='Okay, I heard you.')).toHaveLength(1);
+  await page.clock.runFor(1500);expect(fixture.spoken.filter(text=>text==='Okay, I heard you.')).toHaveLength(0);
   await release!();
   await expect(page.getByText('Topic: Pottery making',{exact:true})).toBeVisible();
   await expect(page.locator('.session-topic')).toHaveAttribute('aria-live','polite');
@@ -424,19 +424,19 @@ for (const width of [320, 390, 430]) test(`large transparent one-shot celebratio
   await page.screenshot({ path: `../docs/screenshots/AUD-65-results-${width}.png` });
 });
 
-test('slow optional acknowledgment audio never blocks completed assessment or coaching',async({page})=>{
+test('unavailable optional acknowledgment is never requested during assessment',async({page})=>{
   await setup(page,false,true,undefined,false,true);
   let release:(()=>Promise<void>)|undefined;
   await page.route('**/api/attempts/answer/assess',async route=>{await new Promise<void>(resolve=>{release=async()=>{await route.fallback();resolve();};});});
   await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();
   for(let i=0;i<25&&!release;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);}
   await expect.poll(()=>!!release).toBe(true);await page.clock.runFor(1300);
-  await expect.poll(async()=>(await probe(page)).bodyPending).toBe(true);
+  expect((await probe(page)).bodyPending).toBe(false);
   await release!();
   for(let i=0;i<15;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
   await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
   const before=(await probe(page)).plays.length;
-  await page.evaluate(()=> (window as unknown as {voiceProbe:Probe}).voiceProbe.releaseBody!());
+  expect((await probe(page)).bodyPending).toBe(false);
   await page.waitForTimeout(100);
   expect((await probe(page)).plays).toHaveLength(before);
 });
@@ -503,7 +503,7 @@ test('turn telemetry counts meaningful coaching after assessment, separately fro
   await expect.poll(() => !!release).toBe(true);
   const before = stages.filter(stage => stage === 'turn_to_playback').length;
   await page.clock.runFor(1400);
-  await expect.poll(() => stages.includes('acknowledgment_playback')).toBe(true);
+  expect(stages).not.toContain('acknowledgment_playback');
   expect(stages.filter(stage => stage === 'turn_to_playback')).toHaveLength(before);
   await release!();
   for (let i=0;i<5;i++) {await page.clock.runFor(1000);await page.waitForTimeout(30);}
@@ -517,108 +517,78 @@ async function heldAssessment(page: Page) {
   const fixture = await setup(page, false, false);
   let release: (() => Promise<void>) | undefined;
   await page.route('**/api/attempts/answer/assess', async route => {
-    await new Promise<void>(resolve => { release = async () => { await route.fallback(); resolve(); }; });
+    await new Promise<void>(resolve => { release = async () => { await route.fallback().catch(()=>{}); resolve(); }; });
   });
   await page.clock.install();
   await page.getByRole('button', {name:'Start today’s session'}).click();
   for (let i=0;i<30&&!release;i++) {
-    await page.clock.runFor(1000);
-    await page.waitForTimeout(30);
+    await page.clock.runFor(1000); await page.waitForTimeout(30);
     if (!release && await page.locator('audio').evaluate(element => !(element as HTMLAudioElement).paused)) await endAudio(page);
   }
   await expect.poll(() => !!release).toBe(true);
-  await page.clock.runFor(1400);
-  await expect.poll(() => fixture.spoken.includes('Okay, I heard you.')).toBe(true);
-  await expect.poll(() => page.locator('audio').evaluate(element => (element as HTMLAudioElement).paused)).toBe(false);
+  await page.clock.runFor(5000);
+  expect(fixture.requests).not.toContain('/api/recognition/acknowledgment-audio');
   return {fixture, release:release!, coachRequests:()=>fixture.requests.filter(path=>path.endsWith('/coach-audio')).length};
 }
 
-test('saved coaching prepares during acknowledgment but plays serially once', async ({page}) => {
-  // Mock microphone/providers and virtual time: scheduling evidence, not acoustic latency.
-  const timings: {stage:string;elapsedMs:number}[]=[];
-  page.on('console',async message=>{
-    if(!message.text().startsWith('[Audli turn]'))return;
-    const sample=await message.args()[1]?.jsonValue().catch(()=>null);
-    if(sample && ['acknowledgment_duration','coaching_readiness','coaching_wait_after_ack'].includes(sample.stage))timings.push(sample);
-  });
+test('delayed assessment starts required coaching once without optional ownership', async ({page}) => {
   const {fixture,release,coachRequests}=await heldAssessment(page);
   const before=coachRequests(), plays=(await probe(page)).plays.length;
-  const readyBefore=timings.filter(sample=>sample.stage==='coaching_readiness').length;
   await release();
   await expect.poll(coachRequests).toBe(before+1);
-  await expect.poll(()=>timings.filter(sample=>sample.stage==='coaching_readiness').length).toBeGreaterThan(readyBefore);
-  await page.clock.runFor(5000);await page.waitForTimeout(100);
-  expect((await probe(page)).plays).toHaveLength(plays);
-  expect(fixture.requests.some(path=>path.endsWith('/ready')||path.endsWith('/advance'))).toBe(false);
-  await endAudio(page);
   await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+1);
-  expect(coachRequests()).toBe(before+1);
-  await expect.poll(()=>timings.some(sample=>sample.stage==='coaching_wait_after_ack')).toBe(true);
-  console.log('Controlled virtual-time coaching handoff:',JSON.stringify(timings));
+  expect(fixture.requests).not.toContain('/api/recognition/acknowledgment-audio');
+  expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
   expect(fixture.requests.some(path=>path.endsWith('/ready'))).toBe(false);
   await endAudio(page);
   await expect.poll(()=>fixture.requests.filter(path=>path.endsWith('/ready')).length).toBe(1);
 });
 
-test('slow prepared coaching waits after acknowledgment without skipping feedback',async({page})=>{
-  const {fixture,release,coachRequests}=await heldAssessment(page);
-  let finish: (()=>Promise<void>)|undefined;
-  await page.route('**/api/exercises/clip/coach-audio',async route=>{
-    await new Promise<void>(resolve=>{finish=async()=>{await route.fallback();resolve();};});
-  });
-  const plays=(await probe(page)).plays.length;
-  await release();await expect.poll(()=>!!finish).toBe(true);
-  await endAudio(page);await page.clock.runFor(3000);await page.waitForTimeout(100);
-  expect((await probe(page)).plays).toHaveLength(plays);
-  expect(fixture.requests.some(path=>path.endsWith('/ready'))).toBe(false);
-  await finish!();await expect.poll(async()=>(await probe(page)).plays.length).toBe(plays+1);
-  expect(coachRequests()).toBe(2); // summary and feedback, one each
-});
-
-test('failed background coaching retries without repeating saved assessment',async({page})=>{
+for(const interrupt of ['end','reload'] as const)test(`delayed assessment respects ${interrupt}`,async({page})=>{
   const {fixture,release}=await heldAssessment(page);
-  let requests=0;
-  await page.route('**/api/exercises/clip/coach-audio',async route=>{
-    requests++;
-    if(requests===1)return route.fulfill({status:503,json:{detail:'Speech unavailable. Retry conversation.'}});
-    await route.fallback();
-  });
-  await release();await expect.poll(()=>requests).toBe(1);
-  await expect(page.getByRole('button',{name:'Retry conversation'})).toHaveCount(0);
-  await endAudio(page);await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
-  expect(fixture.snapshot().exercise?.completed_attempt_id).toBe('answer');
-  await page.getByRole('button',{name:'Retry conversation'}).click();
-  await expect.poll(()=>requests).toBe(2);
-  await expect.poll(()=>fixture.spoken.filter(text=>text.startsWith('You understood')).length).toBe(1);
-  expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
-});
-
-for(const interrupt of ['end','stale','reload'] as const)test(`prepared coaching respects ${interrupt}`,async({page})=>{
-  const {fixture,release,coachRequests}=await heldAssessment(page);
-  const before=coachRequests();await release();await expect.poll(coachRequests).toBe(before+1);
-  await page.waitForTimeout(100);
-  const plays=(await probe(page)).plays.length;
   if(interrupt==='end'){
     await page.getByRole('button',{name:'End',exact:true}).click();
     await page.getByRole('button',{name:'End session',exact:true}).click();
-    await page.clock.runFor(2000);
-    expect((await probe(page)).plays).toHaveLength(plays);
     await expect.poll(()=>fixture.snapshot().status).toBe('paused');
-  }else if(interrupt==='stale'){
-    await page.route('**/api/lessons/structured',route=>route.fulfill({json:{...fixture.snapshot(),revision:fixture.snapshot().revision+1}}));
-    await endAudio(page);
-    await expect(page.getByRole('button',{name:'Retry conversation'})).toBeVisible();
+    const plays=(await probe(page)).plays.length;
+    await release();await page.clock.runFor(2000);
     expect((await probe(page)).plays).toHaveLength(plays);
   }else{
-    await page.reload();
-    // Unexpected refresh restores the saved active conversation automatically.
+    await page.unroute('**/api/attempts/answer/assess');
+    await release();await page.reload();
     await expect.poll(async()=>(await probe(page)).plays.length).toBe(1);
-    await page.waitForTimeout(100);
-    expect((await probe(page)).plays).toHaveLength(1);
-    expect(fixture.spoken.filter(text=>text==='Okay, I heard you.')).toHaveLength(1);
-    expect(fixture.requests.filter(path=>path.endsWith('/assess'))).toHaveLength(1);
   }
-  expect(fixture.requests.some(path=>path.endsWith('/ready')||path.endsWith('/advance'))).toBe(false);
+  expect(fixture.requests).not.toContain('/api/recognition/acknowledgment-audio');
+});
+
+for(const refresh of [false,true])test(`rejected assessment recovers with text when retry voice fails${refresh?' after refresh':''}`,async({page})=>{
+  const fixture=await setup(page);
+  let assessments=0,uploads=0,release: (()=>Promise<void>)|undefined;
+  await page.route('**/api/attempts/answer/assess',async route=>{
+    if(++assessments===1){fixture.reject();return route.fulfill({status:422,json:{uncertain:true,detail:'Please record again.'}});}
+    return route.fallback();
+  });
+  await page.route('**/api/recognition/retry-audio',route=>route.fulfill({status:409,json:{detail:'Voice unavailable'}}));
+  await page.route('**/api/exercises/clip/attempts',async route=>{
+    if(++uploads===1)return route.fallback();
+    await new Promise<void>(resolve=>{release=async()=>{await route.fallback().catch(()=>{});resolve();};});
+  });
+  await page.clock.install();await page.getByRole('button',{name:'Start today’s session'}).click();
+  for(let i=0;i<35&&!release;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);}
+  await expect.poll(()=>!!release).toBe(true);
+  expect(assessments).toBe(1);
+  await expect(page.getByText("I didn't quite catch that. Could you say it again?",{exact:true})).toBeVisible();
+  if(refresh){
+    release=undefined;await page.reload();
+    for(let i=0;i<15&&!release;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);}
+    await expect.poll(()=>!!release).toBe(true);
+    expect(assessments).toBe(1); // Known rejected pending answer is never assessed again.
+  }
+  await release!();
+  for(let i=0;i<20;i++){await page.clock.runFor(1000);await page.waitForTimeout(30);if(await page.getByRole('heading',{name:'Great job!'}).count())break;}
+  await expect(page.getByRole('heading',{name:'Great job!'})).toBeVisible();
+  expect(assessments).toBe(2);
+  expect(fixture.requests).not.toContain('/api/recognition/acknowledgment-audio');
 });
 
 for(const interrupt of [false,true])test(`opening reciprocity plays before advancing${interrupt?' and End discards late audio':''}`,async({page})=>{

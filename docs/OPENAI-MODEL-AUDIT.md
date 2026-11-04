@@ -10,6 +10,9 @@ the raw text. Where a page did not say something, the summary said "not on page"
 indicated but not independently confirmed; the live matrix (below) is what proves it. The installed SDK (`openai` 2.54.0) was inspected
 directly: it supports the `languages` transcription parameter, `responses.create` with `text.format`, `reasoning`, `store`, and `chat.completions`.
 
+## Confirmed by the live run (2026-11-04, US$0.20)
+See `docs/LISTENING-M04-LIVE-RESULTS.md`. Confirmed with real calls: all five model ids exist for the key; strict `json_schema` on the Responses API (`gpt-6-luna`, `gpt-6.1-terra`) and on Chat Completions (`gpt-4.1-mini`); `reasoning.effort = none`; `store: false`; `gpt-transcribe` with `languages=['en']` and its empty `languages` result on noise/silence/tone; the older transcription model with `language`; `json_object` generation (needs the word JSON in the input). **Not testable by calls and still taken from the docs summaries:** prices, retirement dates, zero-retention behaviour.
+
 ## Retirement status (docs)
 | Model | Used by | Shutdown | Replacement named by OpenAI |
 |---|---|---|---|

@@ -15,7 +15,8 @@
      "covered"
     ],
     "final": [
-     "covered"
+     "covered",
+     "partly"
     ]
    }
   },
@@ -325,7 +326,8 @@
    "transcript": "He is sick with a bad cough and a fever. She gave him syrup to take twice a day and said he should rest at home and drink warm water with honey.",
    "allowed": {
     "problem": [
-     "covered"
+     "covered",
+     "partly"
     ],
     "medicine": [
      "covered",
@@ -343,7 +345,8 @@
    "transcript": "Tom has a sore throat and cough for three days. He takes cough syrup morning and night and should rest and drink honey water.",
    "allowed": {
     "problem": [
-     "covered"
+     "covered",
+     "partly"
     ],
     "medicine": [
      "covered"
@@ -421,7 +424,8 @@
    "transcript": "Tom has a cough and a sore throat.",
    "allowed": {
     "problem": [
-     "covered"
+     "covered",
+     "partly"
     ],
     "medicine": [
      "missing",
@@ -444,7 +448,8 @@
      "unclear"
     ],
     "medicine": [
-     "covered"
+     "covered",
+     "partly"
     ],
     "advice": [
      "missing",

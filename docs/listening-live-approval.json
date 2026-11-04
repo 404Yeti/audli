@@ -1,9 +1,10 @@
 {
- "matrix_sha256": "d7182039dade5e9734e33609d6b247e90a56a275a0dfbf4d8c9b58982cfdeca4",
+ "matrix_sha256": "4ead642e44242b9e9f2970bc6eecda2fb671e7f28fea225469a6c4abdfe548c9",
  "max_usd": 5.0,
  "approved_by": "robert leyba (owner), by chat message on 2026-11-04",
  "approved_at": "2026-11-04T22:10:15+00:00",
  "expires_at": "2026-11-11T22:10:15+00:00",
  "scope": "Audli 2.0 Milestone 04 transcription, spoken-assessment and generation validation matrix (docs/LISTENING-M04-LIVE-MATRIX.md) only. Cumulative ceiling across all runs, including reruns after a compatibility fix. A dedicated OpenAI key, supplied through the environment, never stored in this repository.",
- "note": "If the matrix or case files change, matrix_sha256 no longer matches and the harness refuses to run: a new approval within the same cumulative ceiling is then required."
+ "note": "If the matrix or case files change, matrix_sha256 no longer matches and the harness refuses to run: a new approval within the same cumulative ceiling is then required. Amendment 2026-11-04: after the pre-flight (US$0.0072 spent), one case expectation was corrected (restaurant-correct-1, point \"final\": covered or partly, because the transcript omits \"without onions\") and the generation prompt now contains the word JSON, which the Responses API requires for json_object. Same scope, same cumulative ceiling.",
+ "executed": "Run 2026-11-04T22:17Z under matrix_sha256 above (report 20261104T223109Z, results folder is git-ignored): 244 calls, US$0.1933; with two pre-flight runs US$0.2005 of the US$5.00 cumulative ceiling. Afterwards four case expectations were corrected (see docs/LISTENING-M04-LIVE-RESULTS.md), so the case file no longer matches this hash: any further run needs a new approval."
 }

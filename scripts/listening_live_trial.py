@@ -237,7 +237,7 @@ def run_generation(row: dict, cases: dict, ledger: Ledger, make_http) -> dict:
                                  'Two speakers, 12 to 16 short sentences, a multiple choice question with one correct option, a spoken question with 3 key points, '
                                  'a fill-in-the-blank with one ___ gap, and a 4-item sequencing question whose first listed order is not the correct one. '
                                  'Return JSON only. Example:\n' + example,
-                    input=f"CEFR level {case['level']}. Topic: {case['topic']}.")
+                    input=f"Return the lesson as JSON. CEFR level {case['level']}. Topic: {case['topic']}.")      # json_object requires the word JSON in the input
                 lesson = LessonContent.model_validate_json(response.output_text)
                 problems = check_level_fit(lesson)
                 results.append({'case': case['id'], 'repeat': repeat, 'valid': True, 'level_fit': not problems, 'problems': problems})
@@ -249,7 +249,10 @@ def run_generation(row: dict, cases: dict, ledger: Ledger, make_http) -> dict:
                     raise
                 if isinstance(error, ProviderPermanent):
                     ledger.settle(worst, 0.0)
-                    return {'incompatible': error.code, 'case': case['id'], 'valid': 0, 'of': 0}
+                    # The provider's own description of what it refused (parameter names, not our content): this is what lets a compatibility fault be fixed.
+                    detail = {'status': getattr(raw, 'status_code', None), 'code': getattr(raw, 'code', None), 'param': getattr(raw, 'param', None),
+                              'message': str(getattr(raw, 'message', ''))[:300]}
+                    return {'incompatible': error.code, 'case': case['id'], 'valid': 0, 'of': 0, 'provider_said': detail}
                 results.append({'case': case['id'], 'repeat': repeat, 'valid': False, 'level_fit': False, 'problems': [error.code]})
             ledger.settle(worst, usage.cost(row['model']))
     return {'valid': sum(r['valid'] for r in results), 'level_fit': sum(r['level_fit'] for r in results), 'of': len(results), 'results': results}
@@ -276,8 +279,29 @@ def preflight(matrix: dict, cases: dict, audio_dir: Path | None, ledger: Ledger,
         small = {**row, 'repeats': 1, 'clips': 1}
         result = {'assess': lambda: run_assessment(small, one, ledger, make_http), 'transcribe': lambda: run_transcription(small, audio_dir, ledger, make_http),
                   'generate': lambda: run_generation(small, one, ledger, make_http)}[row['task']]()
-        rows[row['id']] = {k: v for k, v in result.items() if k != 'results'}
+        rows[row['id']] = result                     # one call per row: keep the verdicts so a miss can be told from a fault
     return {'models': found, 'rows': rows, 'ok': not any('incompatible' in r for r in rows.values()) and all(v == 'available' for v in found.values())}
+
+
+def rescore(report_path: Path) -> dict:
+    """Re-judge the stored assessment verdicts of a finished run against the CURRENT case expectations. Free: no call is made.
+    Used to show, side by side, what a run scored as pre-registered and after an expectation was corrected."""
+    report = json.loads(report_path.read_text())
+    cases = {c['id']: c for c in load()[1]['assessment']}
+    out = {}
+    for row_id, row in report['rows'].items():
+        if 'results' not in row or not row['results'] or 'case' not in row['results'][0] or 'states' not in row['results'][0]:
+            continue
+        counts = {}
+        for r in row['results']:
+            case = cases[r['case']]
+            ok = 'error' not in r['states'] and all(r['states'][i] in case['allowed'][i] for i in case['allowed'])
+            bucket = counts.setdefault(r['category'], [0, 0])
+            bucket[0] += ok
+            bucket[1] += 1
+        out[row_id] = {'recorded': row['passed'], 'rescored': sum(b[0] for b in counts.values()), 'of': sum(b[1] for b in counts.values()),
+                       'by_category': {k: f'{v[0]}/{v[1]}' for k, v in counts.items()}}
+    return out
 
 
 def make_audio(directory: Path) -> None:
@@ -307,10 +331,15 @@ def main(argv: list[str] | None = None, http_factory=None) -> int:
     parser.add_argument('--approval')
     parser.add_argument('--audio-dir', type=Path)
     parser.add_argument('--make-audio', type=Path)
+    parser.add_argument('--preflight-only', action='store_true')
+    parser.add_argument('--rescore', type=Path, help='re-judge a finished run against the current case expectations (no call)')
     parser.add_argument('--out', type=Path, default=ROOT / 'docs' / 'listening-live-results')
     args = parser.parse_args(argv)
     if args.make_audio:
         make_audio(args.make_audio)
+        return 0
+    if args.rescore:
+        print(json.dumps(rescore(args.rescore), indent=1))
         return 0
     matrix, cases = load()
     rows, total = plan(matrix, cases)
@@ -336,6 +365,13 @@ def main(argv: list[str] | None = None, http_factory=None) -> int:
             target.write_text(json.dumps(report, indent=1))
             print(f'PRE-FLIGHT FAILED ({ledger.calls} calls, about US${ledger.spent - already:.4f}); see {target}')
             return 2
+        if args.preflight_only:
+            report.update(stopped='pre-flight only, as requested', calls=ledger.calls, spent_usd_estimate=round(ledger.spent - already, 4))
+            args.out.mkdir(parents=True, exist_ok=True)
+            target = args.out / f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.json"
+            target.write_text(json.dumps(report, indent=1))
+            print(f'PRE-FLIGHT ONLY ({ledger.calls} calls, about US${ledger.spent - already:.4f}); see {target}')
+            return 0
         for row in matrix['rows']:
             runner = {'assess': lambda: run_assessment(row, cases, ledger, make_http), 'transcribe': lambda: run_transcription(row, args.audio_dir, ledger, make_http),
                       'generate': lambda: run_generation(row, cases, ledger, make_http)}[row['task']]

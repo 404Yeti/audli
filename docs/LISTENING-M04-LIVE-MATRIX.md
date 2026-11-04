@@ -1,7 +1,7 @@
-# Live validation matrix for the Audli 2.0 models (APPROVED 2026-11-04, NOT YET RUN)
+# Live validation matrix for the Audli 2.0 models (APPROVED and RUN 2026-11-04: see LISTENING-M04-LIVE-RESULTS.md)
 
 Approved by the owner in chat on 2026-11-04 with a cumulative ceiling of US$5.00 and a dedicated key; the approval is recorded in `docs/listening-live-approval.json`, bound to the
-exact matrix hash. **Nothing in this file has been executed against OpenAI yet: the dedicated key has not been supplied to the environment.** Running it spends real money.
+exact matrix hash. **It was run on 2026-11-04 for about US$0.20; results and caveats are in `docs/LISTENING-M04-LIVE-RESULTS.md`.** The approval no longer matches the case file (four expectations were corrected afterwards), so any further run needs a new approval.
 Budget requested: **ceiling US$5.00** (the hard maximum the harness accepts). Worst-case estimate of everything below: **US$1.65**; expected: about US$0.40.
 
 ## What it will run (`docs/listening-live-matrix.json` + `docs/listening-live-cases.json`)

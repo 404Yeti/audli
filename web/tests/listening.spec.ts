@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Needs its own backend with the seed lesson: only runs under listening.playwright.config.ts, never in the default mocked suite.
+test.skip(!process.env.AUDLI_LISTENING_E2E, 'run with listening.playwright.config.ts');
+
 const TITLE = 'Ordering food at a restaurant';
 const QUESTION = "Why can't Maria have the mushroom pasta?";
 const audioTime = (page: Page) => page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).currentTime);

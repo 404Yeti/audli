@@ -239,6 +239,11 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
         run: npx playwright test --config=lesson-media.playwright.config.ts
         working-directory: web
+      - name: Audli 2.0 listening lesson through real HTTP in Chromium and WebKit
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: npx playwright test --config=listening.playwright.config.ts
+        working-directory: web
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

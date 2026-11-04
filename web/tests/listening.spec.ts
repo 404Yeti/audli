@@ -12,6 +12,7 @@ async function openLesson(page: Page) {
   await page.goto('/listening');
   await page.getByRole('link', { name: new RegExp(TITLE) }).click();
   await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
+  await freshAttempt(page);          // the server and learner persist across tests and browser projects
 }
 async function waitForAudio(page: Page) {
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
@@ -36,6 +37,7 @@ test.describe.serial('2.0 listening lesson', () => {
     const card = page.getByRole('link', { name: new RegExp(TITLE) });
     await expect(card).toContainText('B1');
     await card.click();
+    await freshAttempt(page);
     await expect(page.getByText('Listen for')).toBeVisible();
     await waitForAudio(page);
     // audio first: no transcript until the learner asks for it
@@ -110,9 +112,6 @@ test.describe.serial('2.0 listening lesson', () => {
 
   test('a new attempt can be answered correctly and is scored correct', async ({ page }) => {
     await openLesson(page);
-    await expect(page.getByRole('button', { name: 'Listen again' })).toBeVisible();   // the previous attempt's result
-    await page.getByRole('button', { name: 'Listen again' }).click();
-    await expect(page.getByRole('button', { name: 'Start exercises' })).toBeVisible();
     await page.getByRole('button', { name: 'Start exercises' }).click();
     await page.getByLabel('The restaurant has run out of mushrooms.').check();
     await page.getByRole('button', { name: 'Check answer' }).click();
@@ -125,7 +124,6 @@ test.describe.serial('2.0 listening lesson', () => {
 
   test('phone and desktop layouts fit, with comfortable touch targets', async ({ page }) => {
     await openLesson(page);
-    await page.getByRole('button', { name: 'Listen again' }).click();
     const start = page.getByRole('button', { name: 'Start exercises' });
     await expect(start).toBeVisible();
     const box = (await start.boundingBox())!;

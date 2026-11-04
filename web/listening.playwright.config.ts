@@ -7,6 +7,8 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:3104', viewport: { width: 390, height: 844 } },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
+    // AUDLI_REPEAT=1 runs the suite a second time on the same server, the way CI's second browser project does.
+    ...(process.env.AUDLI_REPEAT ? [{ name: 'chromium-again', dependencies: ['chromium'], use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } }] : []),
     ...(process.env.AUDLI_WEBKIT || process.env.CI ? [{ name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 390, height: 844 } } }] : []),
   ],
   webServer: [

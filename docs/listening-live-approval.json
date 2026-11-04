@@ -1,0 +1,9 @@
+{
+ "matrix_sha256": "d7182039dade5e9734e33609d6b247e90a56a275a0dfbf4d8c9b58982cfdeca4",
+ "max_usd": 5.0,
+ "approved_by": "robert leyba (owner), by chat message on 2026-11-04",
+ "approved_at": "2026-11-04T22:10:15+00:00",
+ "expires_at": "2026-11-11T22:10:15+00:00",
+ "scope": "Audli 2.0 Milestone 04 transcription, spoken-assessment and generation validation matrix (docs/LISTENING-M04-LIVE-MATRIX.md) only. Cumulative ceiling across all runs, including reruns after a compatibility fix. A dedicated OpenAI key, supplied through the environment, never stored in this repository.",
+ "note": "If the matrix or case files change, matrix_sha256 no longer matches and the harness refuses to run: a new approval within the same cumulative ceiling is then required."
+}

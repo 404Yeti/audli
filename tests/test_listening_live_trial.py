@@ -77,6 +77,8 @@ def test_the_ledger_stops_before_a_call_that_could_pass_the_ceiling():
 
 
 def handler(request):
+    if request.method == 'GET' and '/models/' in request.url.path:
+        return httpx.Response(200, json={'id': request.url.path.rsplit('/', 1)[1], 'object': 'model', 'created': 0, 'owned_by': 'openai'})
     path, body = request.url.path, (json.loads(request.content) if request.headers.get('content-type', '').startswith('application/json') else {})
     if path.endswith('/audio/transcriptions'):
         return httpx.Response(200, json={'text': 'hello', 'languages': [], 'usage': {'type': 'duration', 'seconds': 8}})
@@ -111,7 +113,9 @@ def test_an_approved_run_uses_the_production_adapters_measures_cost_and_writes_n
     out = tmp_path / 'results'
     assert trial.main(['--run', '--approval', approval(tmp_path), '--audio-dir', str(audio), '--out', str(out)], http_factory=factory) == 0
     report = json.loads(next(out.glob('*.json')).read_text())
-    assert report['calls'] == len(seen) == 90 + 30 + 30 + 30 + 2 + 2 + 12 + 12 and 'stopped' not in report
+    models = [p for p in seen if '/models/' in p]
+    assert len(models) == 5 and report['preflight']['ok'] and set(report['preflight']['models'].values()) == {'available'}       # each model id looked up for free first
+    assert report['calls'] == len(seen) - 5 == 8 + 90 + 30 + 30 + 30 + 2 + 2 + 12 + 12 and 'stopped' not in report              # 8 pre-flight calls, then the matrix
     assert 0 < report['spent_usd_estimate'] < 1 and report['spent_usd_estimate'] < report['ceiling_usd']      # measured usage replaced the worst-case reservations
     a1 = report['rows']['A1']
     assert a1['of'] == 90 and a1['inconsistent_cases'] == 0 and a1['malformed'] == 0 and set(a1['by_category']) == {'correct', 'incorrect', 'incomplete', 'ambiguous', 'unintelligible'}
@@ -132,3 +136,53 @@ def test_a_run_that_would_pass_the_ceiling_stops_and_says_so(tmp_path, monkeypat
                http_factory=lambda usage: httpx.Client(transport=httpx.MockTransport(handler), event_hooks={'response': [usage.hook]}))
     report = json.loads(next(out.glob('*.json')).read_text())
     assert 'could exceed the ceiling' in report['stopped'] and report['spent_usd_estimate'] <= 0.01 < total
+
+
+def run_with(tmp_path, monkeypatch, responder, **approval_change):
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-test-not-real')
+    seen = []
+
+    def factory(usage):
+        return httpx.Client(transport=httpx.MockTransport(lambda r: (seen.append(r.url.path), responder(r))[1]), event_hooks={'response': [usage.hook]})
+    out = tmp_path / 'results'
+    code = trial.main(['--run', '--approval', approval(tmp_path, **approval_change), '--out', str(out)], http_factory=factory)
+    return code, json.loads(max(out.glob('*.json')).read_text()), seen
+
+
+def test_a_retired_or_unknown_model_stops_the_run_after_the_free_lookups_and_pre_flight(tmp_path, monkeypatch):
+    def responder(request):
+        if '/models/gpt-6-luna' in request.url.path:
+            return httpx.Response(404, json=error_body_404())
+        return handler(request)
+    code, report, seen = run_with(tmp_path, monkeypatch, responder)
+    assert code == 2 and 'NOT run' in report['stopped'] and report['rows'] == {}
+    assert report['preflight']['models']['gpt-6-luna'] == 'provider_model' and report['preflight']['ok'] is False
+    assert {r for r, v in report['preflight']['rows'].items() if 'incompatible' in v} >= {'A1', 'A2', 'G2'}
+    assert report['calls'] < 10 and len(seen) < 20                                      # nothing like a matrix of identical failures
+
+
+def error_body_404():
+    return {'error': {'message': 'The model does not exist', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}}
+
+
+def test_a_parameter_the_provider_rejects_stops_that_row_at_its_first_call_and_the_run(tmp_path, monkeypatch):
+    def responder(request):
+        if request.url.path.endswith('/responses') and json.loads(request.content).get('reasoning'):
+            return httpx.Response(400, json={'error': {'message': "Unsupported value: 'reasoning.effort'", 'type': 'invalid_request_error', 'param': 'reasoning.effort', 'code': 'unsupported_value'}})
+        return handler(request)
+    code, report, seen = run_with(tmp_path, monkeypatch, responder)
+    assert code == 2 and report['preflight']['rows']['A2'] == {'incompatible': 'provider_bad_request', 'case': report['preflight']['rows']['A2']['case'], 'passed': 0, 'of': 0}
+    assert report['rows'] == {} and 'sk-test' not in json.dumps(report)
+
+
+def test_spend_is_cumulative_across_runs_under_one_approval(tmp_path, monkeypatch):
+    out = tmp_path / 'results'
+    out.mkdir()
+    (out / 'earlier.json').write_text(json.dumps({'spent_usd_estimate': 4.9}))
+    assert trial.prior_spend(out) == pytest.approx(4.9)
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-test-not-real')
+    with pytest.raises(SystemExit, match='what is left'):
+        trial.main(['--run', '--approval', approval(tmp_path), '--out', str(out)])
+    (out / 'earlier.json').write_text(json.dumps({'spent_usd_estimate': 0.5}))
+    code, report, _ = run_with(tmp_path, monkeypatch, handler)
+    assert code == 0 and report['spent_usd_estimate'] < 1 and trial.prior_spend(out) >= 0.5

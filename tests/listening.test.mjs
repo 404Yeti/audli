@@ -64,3 +64,10 @@ test('option states: choosing before feedback, then right/wrong/dimmed after', (
   const right = { selected_option_id: 'b', is_correct: true, correct_option_id: 'b', explanation: 'x' };
   assert.deepEqual(['a', 'b', 'c'].map(id => optionState(id, 'b', right)), ['dimmed', 'correct', 'dimmed']);
 });
+
+import { listeningEnabled } from '../web/lib/listening-flag.ts';
+test('the 2.0 pages are off unless the flag is exactly "true"', () => {
+  for (const value of [undefined, '', 'false', 'TRUE', '1', 'yes', ' true']) assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: value }), false, String(value));
+  assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: 'true' }), true);
+  assert.equal(listeningEnabled({}), false);
+});

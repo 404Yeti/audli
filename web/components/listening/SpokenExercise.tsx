@@ -79,6 +79,7 @@ export function SpokenExercise({ exercise, busy, error, onSend, onSkip }: {
         <button type="button" className={styles.secondary} onClick={again} disabled={busy}>Record again</button>
       </> : null}
     </div>
+    {!canRecord ? <p className={styles.playerMsg} role="status">Recording isn’t available in this browser. You can upload an audio file instead, or skip this question.</p> : null}
     {note ? <p className={styles.playerMsg} role="alert">{note}</p> : null}
     {error ? <p className={styles.playerMsg} role="alert">{error}</p> : null}
     {onSkip ? <button type="button" className={styles.linkBtn} onClick={onSkip} disabled={busy || stage === 'recording'}>Skip this question</button> : null}

@@ -2,7 +2,7 @@
 
 Run under the owner's approval (`docs/listening-live-approval.json`): cumulative ceiling US$5.00, dedicated key supplied through the environment (never printed or stored).
 **Actual spend: about US$0.2005** in total (two pre-flights US$0.0036 each + the full matrix US$0.1933), computed from the token and audio-second usage the provider reported
-times the price table in `app/listening/models.py`. It is not an invoice: check the OpenAI dashboard. 252 calls in all. No learner data was involved: every input is a synthetic
+times the price table in `app/listening/models.py`. It is not an invoice: check the OpenAI dashboard. 260 calls in all (8 + 8 + 244). No learner data was involved: every input is a synthetic
 transcript from `docs/listening-live-cases.json` or a locally generated clip (espeak-ng speech, noise, silence, tone).
 
 ## Compatibility (what the pre-flight and the run proved)

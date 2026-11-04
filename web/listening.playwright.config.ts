@@ -1,0 +1,17 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/** Real FastAPI + SQLite + seeded lesson + real browser. No mocked API, no AI provider, no microphone. */
+export default defineConfig({
+  testDir: './tests', testMatch: 'listening.spec.ts', timeout: 180000, workers: 1, expect: { timeout: 30000 },
+  use: { baseURL: 'http://127.0.0.1:3104', viewport: { width: 390, height: 844 } },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
+    ...(process.env.AUDLI_WEBKIT ? [{ name: 'webkit', use: { ...devices['Desktop Safari'], viewport: { width: 390, height: 844 } } }] : []),
+  ],
+  webServer: [
+    { command: '../.venv/bin/uvicorn --app-dir .. tests.listening_acceptance_server:app --loop asyncio --host 127.0.0.1 --port 8104',
+      url: 'http://127.0.0.1:8104/api/auth/config', timeout: 60000, reuseExistingServer: false },
+    { command: 'npm run dev -- --port 3104 --webpack', url: 'http://127.0.0.1:3104', timeout: 360000, reuseExistingServer: false,
+      env: { AUDLI_BROWSER_TEST: '1', BACKEND_URL: 'http://127.0.0.1:8104' } },
+  ],
+});

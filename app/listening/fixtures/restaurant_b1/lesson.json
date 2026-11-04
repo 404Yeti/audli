@@ -1,0 +1,127 @@
+{
+  "slug": "ordering-food-at-a-restaurant",
+  "title": "Ordering food at a restaurant",
+  "topic": "Ordering food at a restaurant",
+  "language": "en",
+  "cefr": "B1",
+  "listen_for": "What does Maria order, and what changes her first choice?",
+  "speakers": [
+    {
+      "id": "sam",
+      "name": "Sam",
+      "role": "waiter"
+    },
+    {
+      "id": "maria",
+      "name": "Maria",
+      "role": "customer"
+    }
+  ],
+  "sentences": [
+    {
+      "index": 0,
+      "speaker": "sam",
+      "text": "Good evening! Do you have a reservation?"
+    },
+    {
+      "index": 1,
+      "speaker": "maria",
+      "text": "Yes, a table for two under Maria Costa."
+    },
+    {
+      "index": 2,
+      "speaker": "sam",
+      "text": "Perfect. Please follow me, and here are your menus."
+    },
+    {
+      "index": 3,
+      "speaker": "maria",
+      "text": "Thank you. Could I have a glass of water, please?"
+    },
+    {
+      "index": 4,
+      "speaker": "sam",
+      "text": "Of course. Are you ready to order, or would you like a few more minutes?"
+    },
+    {
+      "index": 5,
+      "speaker": "maria",
+      "text": "I think I'm ready. I'd like the mushroom pasta, please."
+    },
+    {
+      "index": 6,
+      "speaker": "sam",
+      "text": "I'm very sorry, but we have just run out of mushrooms tonight."
+    },
+    {
+      "index": 7,
+      "speaker": "maria",
+      "text": "Oh, that's a shame. What would you recommend instead?"
+    },
+    {
+      "index": 8,
+      "speaker": "sam",
+      "text": "The chicken with roasted vegetables is very popular, and the tomato pasta is lovely too."
+    },
+    {
+      "index": 9,
+      "speaker": "maria",
+      "text": "Is the chicken spicy? I don't really like spicy food."
+    },
+    {
+      "index": 10,
+      "speaker": "sam",
+      "text": "Not at all. It comes with lemon and fresh herbs."
+    },
+    {
+      "index": 11,
+      "speaker": "maria",
+      "text": "That sounds good. I'll have the chicken, please, but without onions."
+    },
+    {
+      "index": 12,
+      "speaker": "sam",
+      "text": "No problem. Would you like anything else while you wait?"
+    },
+    {
+      "index": 13,
+      "speaker": "maria",
+      "text": "Just some bread, please. My friend is running a few minutes late."
+    },
+    {
+      "index": 14,
+      "speaker": "sam",
+      "text": "I'll bring it right away. Your food will take about fifteen minutes."
+    },
+    {
+      "index": 15,
+      "speaker": "maria",
+      "text": "That's fine. We're not in a hurry."
+    }
+  ],
+  "exercise": {
+    "prompt": "Why can't Maria have the mushroom pasta?",
+    "options": [
+      {
+        "id": "a",
+        "text": "The pasta is too spicy for her."
+      },
+      {
+        "id": "b",
+        "text": "The restaurant has run out of mushrooms."
+      },
+      {
+        "id": "c",
+        "text": "The kitchen is too busy to cook it."
+      },
+      {
+        "id": "d",
+        "text": "Her friend does not want to share it."
+      }
+    ]
+  },
+  "key": {
+    "correct_option_id": "b",
+    "explanation": "Sam says they have just run out of mushrooms tonight, so Maria chooses the chicken instead."
+  }
+}

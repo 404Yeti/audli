@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     # AUD-34: permanent account deletion. OFF = no delete route, no UI. ON requires Supabase Auth and PostgreSQL.
     account_deletion_enabled: bool = False
     review_improvement_enabled: bool = False
+    # Audli 2.0 structured listening lessons. OFF = no route, no table access. ON needs migration 009 on PostgreSQL.
+    listening_enabled: bool = False
+    listening_storage: Literal['local', 's3'] = 'local'
+    listening_signing_secret: SecretStr | None = None
+    listening_s3_endpoint: str = ''
+    listening_s3_bucket: str = ''
+    listening_s3_region: str = 'auto'
+    listening_s3_access_key: SecretStr | None = None
+    listening_s3_secret_key: SecretStr | None = None
     review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h
     review_improvement_max_concurrent: int = Field(default=2, ge=1, le=8)
     review_improvement_timeout_seconds: float = Field(default=30, gt=0, le=60)
@@ -137,6 +146,20 @@ class Settings(BaseSettings):
     @property
     def browser_origins(self) -> tuple[str, ...]:
         return tuple(self.allowed_origins.split(',')) if self.allowed_origins else ()
+
+    @model_validator(mode='after')
+    def listening_configuration(self):
+        if not self.listening_enabled:
+            return self
+        if self.environment == 'production' and self.listening_storage != 's3':
+            raise ValueError('Production listening lessons require S3-compatible object storage (AUDLI_LISTENING_STORAGE=s3)')
+        if self.listening_storage == 's3':
+            if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
+                    or not self.listening_s3_access_key or not self.listening_s3_secret_key):
+                raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
+        if self.listening_signing_secret and len(self.listening_signing_secret.get_secret_value()) < 16:
+            raise ValueError('AUDLI_LISTENING_SIGNING_SECRET must be at least 16 characters')
+        return self
 
     @model_validator(mode='after')
     def thresholds(self):

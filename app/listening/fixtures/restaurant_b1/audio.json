@@ -1,0 +1,92 @@
+{
+  "accent": "american",
+  "voice": "espeak-ng en-us (development fixture)",
+  "provider": "fixture",
+  "content_type": "audio/mpeg",
+  "file": "audio.mp3",
+  "sha256": "8b5ae507998d89288f019fe20fd2cd90216132680a3acd5633b1825d6366c232",
+  "size_bytes": 639476,
+  "duration_ms": 79852,
+  "cues": [
+    {
+      "index": 0,
+      "start_ms": 300,
+      "end_ms": 3713
+    },
+    {
+      "index": 1,
+      "start_ms": 4163,
+      "end_ms": 7476
+    },
+    {
+      "index": 2,
+      "start_ms": 7926,
+      "end_ms": 12568
+    },
+    {
+      "index": 3,
+      "start_ms": 13018,
+      "end_ms": 17080
+    },
+    {
+      "index": 4,
+      "start_ms": 17530,
+      "end_ms": 22641
+    },
+    {
+      "index": 5,
+      "start_ms": 23091,
+      "end_ms": 27653
+    },
+    {
+      "index": 6,
+      "start_ms": 28102,
+      "end_ms": 32719
+    },
+    {
+      "index": 7,
+      "start_ms": 33169,
+      "end_ms": 37434
+    },
+    {
+      "index": 8,
+      "start_ms": 37884,
+      "end_ms": 44405
+    },
+    {
+      "index": 9,
+      "start_ms": 44855,
+      "end_ms": 49277
+    },
+    {
+      "index": 10,
+      "start_ms": 49727,
+      "end_ms": 54095
+    },
+    {
+      "index": 11,
+      "start_ms": 54545,
+      "end_ms": 59966
+    },
+    {
+      "index": 12,
+      "start_ms": 60416,
+      "end_ms": 64868
+    },
+    {
+      "index": 13,
+      "start_ms": 65318,
+      "end_ms": 70457
+    },
+    {
+      "index": 14,
+      "start_ms": 70907,
+      "end_ms": 76106
+    },
+    {
+      "index": 15,
+      "start_ms": 76556,
+      "end_ms": 79402
+    }
+  ]
+}

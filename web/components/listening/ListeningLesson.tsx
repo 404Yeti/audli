@@ -45,6 +45,13 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
   }, [find, apply]);
   const open = async (fresh = false) => { setLoad({ kind: 'loading' }); setError(null); setActive(null); apply(await find(fresh)); };
 
+  const phaseNow = load.kind === 'ready' ? phaseOf(load.view.attempt.status, started) : null;
+  const lastPhase = useRef<string | null>(null);
+  useEffect(() => {
+    if (phaseNow && lastPhase.current && lastPhase.current !== phaseNow) document.getElementById('lesson-main')?.focus();
+    lastPhase.current = phaseNow;
+  }, [phaseNow]);
+
   const onActive = useCallback((index: number | null) => setActive(index), []);
   const onPlaying = useCallback((value: boolean) => setPlaying(value), []);
 

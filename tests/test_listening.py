@@ -600,3 +600,170 @@ def test_missing_postgres_tables_fail_closed():
     engine = create_engine('sqlite://')
     prepare(engine)                                    # SQLite creates its own local tables
     assert 'listening_attempts' in __import__('sqlalchemy').inspect(engine).get_table_names()
+
+
+# ---- request-body limits ----------------------------------------------------------------------------------------------------
+
+def raw_post(client, path, **kwargs):
+    return client.post(path, **kwargs)
+
+
+def test_listening_json_bodies_are_small_but_ordinary_requests_work(local):
+    client, _, lesson_id, _, _ = local
+    path = f'/api/listening/lessons/{lesson_id}/attempts'
+    assert raw_post(client, path, json={'client_request_id': 'request-small-1'}).status_code == 200
+    padded = {'client_request_id': 'request-big-0001', 'accent': 'american', 'pad': 'x' * 5000}
+    assert raw_post(client, path, json=padded).status_code == 413          # declared length over 4 KiB
+    assert raw_post(client, path, content=b'{"client_request_id":"request-big-0002","pad":"' + b'x' * 20_000 + b'"}',
+                    headers={'content-type': 'application/json'}).status_code == 413
+    # a chunked body with no Content-Length is bounded while it is read, not trusted
+    async def chunks():
+        for _ in range(8):
+            yield b'x' * 1024
+    assert raw_post(client, path, content=chunks(), headers={'content-type': 'application/json'}).status_code == 413
+    answer_path = f'/api/listening/attempts/{uuid4()}/answers'
+    assert raw_post(client, answer_path, content=b'y' * 5000, headers={'content-type': 'application/json'}).status_code == 413
+    assert raw_post(client, path, json={'client_request_id': 'request-small-2'}).status_code == 200      # still usable afterwards
+
+
+@pytest.mark.parametrize('kwargs', [
+    {'content': b'{not json', 'headers': {'content-type': 'application/json'}},
+    {'content': b'[]', 'headers': {'content-type': 'application/json'}},
+    {'content': b'null', 'headers': {'content-type': 'application/json'}},
+    {'content': b'', 'headers': {'content-type': 'application/json'}},
+    {'content': b'client_request_id=request-form-1', 'headers': {'content-type': 'application/x-www-form-urlencoded'}},
+    {'content': b'{"client_request_id":"request-text-1"}', 'headers': {'content-type': 'text/plain'}},
+    {'json': {'client_request_id': 'short'}}, {'json': {'client_request_id': 'request-ok-1', 'accent': 'Not An Accent!'}},
+    {'json': {'client_request_id': 'request-ok-2', 'unexpected': 1}}, {'json': {'client_request_id': 12345678}},
+])
+def test_malformed_or_unsupported_listening_payloads_are_rejected_without_side_effects(local, kwargs):
+    client, repo, lesson_id, _, _ = local
+    response = raw_post(client, f'/api/listening/lessons/{lesson_id}/attempts', **kwargs)
+    assert response.status_code == 422, response.text
+    with repo.engine.connect() as db:
+        assert db.execute(select(l.attempts.c.id)).all() == []
+
+
+def test_the_existing_1x_body_limits_are_unchanged(local):
+    client, _, _, _, _ = local
+    # 1.x: routes ending in /attempts still take audio-sized bodies; every other JSON route stays at 40 KB.
+    upload = client.post(f'/api/exercises/{uuid4()}/attempts', content=b'x' * 100_000, headers={'content-type': 'application/octet-stream'})
+    assert upload.status_code != 413
+    assert client.post('/api/exercises/not-real/attempts', content=b'x' * (12 * 1024 * 1024 + 70_000),
+                       headers={'content-type': 'application/octet-stream'}).status_code == 413
+    assert client.post('/api/onboarding/answer', content=b'{"text":"' + b'x' * 41_000 + b'"}',
+                       headers={'content-type': 'application/json'}).status_code == 413
+    assert client.post('/api/onboarding/answer', json={'text': 'hello there', 'confirmed': True}).status_code != 413
+
+
+def test_cross_site_listening_writes_are_still_refused(local):
+    client, _, lesson_id, _, _ = local
+    response = raw_post(client, f'/api/listening/lessons/{lesson_id}/attempts', json={'client_request_id': 'request-origin-1'},
+                        headers={'origin': 'https://evil.example'})
+    assert response.status_code == 403
+
+
+# ---- object-storage failure handling (mocked transport: behaviour only, NOT evidence of real S3 transport) ---------------------
+
+@pytest.mark.parametrize('status', [401, 403, 500, 503])
+def test_storage_errors_are_raised_never_mistaken_for_a_missing_object(status):
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(status)))
+    store_ = S3ObjectStore('https://s3.example.com', 'audli-audio', 'auto', 'a', 'b', client=client)
+    with pytest.raises(httpx.HTTPStatusError):
+        store_.exists('lessons/x/a.mp3')                 # a 403 must not read as "not there"
+    with pytest.raises(httpx.HTTPStatusError):
+        store_.put('lessons/x/a.mp3', b'bytes', 'audio/mpeg')
+
+
+def test_put_sends_the_content_type_and_a_missing_object_is_reported(tmp_path):
+    seen = []
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: (seen.append(r), httpx.Response(404 if r.method == 'HEAD' else 200))[1]))
+    store_ = S3ObjectStore('https://s3.example.com', 'audli-audio', 'auto', 'a', 'b', client=client)
+    assert store_.exists('lessons/x/a.mp3') is False
+    store_.put('lessons/x/a.mp3', b'bytes', 'audio/mpeg')
+    assert seen[1].headers['content-type'] == 'audio/mpeg' and 'content-type' in seen[1].headers['authorization']
+
+
+def test_loopback_http_is_only_for_an_explicit_test_flag():
+    for endpoint in ('http://127.0.0.1:9000', 'http://localhost:9000'):
+        with pytest.raises(ValueError):
+            S3ObjectStore(endpoint, 'audli-audio', 'auto', 'a', 'b')
+        assert S3ObjectStore(endpoint, 'audli-audio', 'auto', 'a', 'b', allow_http_loopback=True).base.startswith('http://')
+    with pytest.raises(ValueError):
+        S3ObjectStore('http://s3.example.com', 'audli-audio', 'auto', 'a', 'b', allow_http_loopback=True)   # never a remote host
+
+
+def test_seeding_refuses_to_publish_when_the_upload_cannot_be_confirmed(make_repository, tmp_path):
+    from app.listening.api import prepare
+
+    class Lossy:
+        def exists(self, key): return False
+        def put(self, key, data, content_type): pass
+        def signed_url(self, key, ttl_seconds=300, now=None): return ''
+    repo = make_repository(str(uuid4()))
+    prepare(repo.engine)
+    with pytest.raises(RuntimeError, match='could not be confirmed'):
+        seed(repo.engine, Lossy())
+    with repo.engine.connect() as db:
+        assert db.execute(select(l.versions.c.id)).all() == []
+
+
+def test_a_missing_stored_object_is_a_clean_404_not_a_server_fault(local, tmp_path):
+    import shutil
+    client, _, lesson_id, _, _ = local
+    attempt = start(client, lesson_id).json()['attempt']['id']
+    url = client.get(f'/api/listening/attempts/{attempt}/audio').json()['url']
+    assert client.get(url).status_code == 200
+    shutil.rmtree(tmp_path / 'listening_objects')            # the stored object disappears behind a still-valid link
+    assert client.get(url).status_code == 404                # the player turns this into "audio couldn't load", never a 500
+
+
+# ---- the complete Milestone 01 journey ---------------------------------------------------------------------------------------
+
+class Tripwire:
+    """A provider that fails the test the moment anything asks it to generate, transcribe, speak, assess or converse."""
+    calls = 0
+
+    def __getattr__(self, name):
+        if name in ('generate', 'transcribe', 'speak', 'tutor_speak', 'speech', 'assess', 'evaluate', 'extract_profile', 'respond_checkin', 'structured'):
+            def fail(*args, **kwargs):
+                Tripwire.calls += 1
+                raise AssertionError(f'The 2.0 journey must not call the AI provider ({name})')
+            return fail
+        raise AttributeError(name)
+
+
+def test_complete_journey_authenticated_no_ai_isolated_immutable_and_key_never_leaks(make_repository, tmp_path):
+    Tripwire.calls = 0
+    repo = make_repository(None)
+    app = create_app(settings_for(tmp_path, listening_enabled=True), Tripwire(), repository=repo,
+                     auth_client=httpx.AsyncClient(transport=httpx.MockTransport(auth_response)))
+    lesson_id, version_id = published(repo, tmp_path)
+    a, b = AccountClient(app, None, 'valid-a'), AccountClient(app, None, 'valid-b')
+    anonymous = AccountClient(app, None, 'invalid')
+    assert anonymous.get('/api/listening/lessons').status_code == 401                         # authenticate first
+    catalog = a.get('/api/listening/lessons').json()                                          # open the saved B1 lesson
+    assert [(c['title'], c['cefr']) for c in catalog] == [('Ordering food at a restaurant', 'B1')]
+    view = start(a, lesson_id, 'journey-request-1').json()
+    again = start(a, lesson_id, 'journey-request-1').json()                                   # accidental duplicate
+    assert view['attempt']['id'] == again['attempt']['id']
+    audio = a.get(f"/api/listening/attempts/{view['attempt']['id']}/audio").json()            # play audio
+    assert a.get(audio['url']).status_code == 200
+    assert len(view['lesson']['sentences']) == len(view['audio']['cues']) == 16                # synchronized transcript data
+    assert 'correct_option_id' not in json.dumps(view) and view['exercises'][0]['feedback'] is None
+    assert b.get(f"/api/listening/attempts/{view['attempt']['id']}").status_code == 404       # another account sees nothing
+    result = answer(a, view, WRONG).json()                                                    # deterministic feedback
+    assert result['exercises'][0]['feedback']['is_correct'] is False and result['attempt']['status'] == 'completed'
+    recovered_id = a.get(f'/api/listening/lessons/{lesson_id}/attempts/current').json()['attempt_id']   # refresh
+    assert a.get(f'/api/listening/attempts/{recovered_id}').json() == result
+    with repo.engine.connect() as db:                                                         # immutable and unduplicated
+        assert db.execute(select(l.versions.c.status, l.versions.c.id)).all() == [('published', version_id)]
+        assert len(db.execute(select(l.attempts.c.id)).all()) == 1 and len(db.execute(select(l.responses.c.attempt_id)).all()) == 1
+    assert Tripwire.calls == 0                                                                # no AI provider was ever asked
+
+
+def test_the_feature_flag_defaults_to_off_everywhere_it_is_configured():
+    assert Settings(_env_file=None).listening_enabled is False
+    example = (ROOT / '.env.example').read_text()
+    assert 'AUDLI_LISTENING_ENABLED=false' in example
+    assert not any(line.startswith('AUDLI_LISTENING_ENABLED=true') for line in example.splitlines())

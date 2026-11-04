@@ -86,13 +86,15 @@ def _hmac(key: bytes, message: str) -> bytes:
 class S3ObjectStore:
     """SigV4 for S3-compatible endpoints (path-style addressing; works with AWS, R2, MinIO). Not exercised against a live bucket
     in this repository's tests: the signing is checked against AWS's published example, the network calls are not."""
-    def __init__(self, endpoint: str, bucket: str, region: str, access_key: str, secret_key: str, client=None, path_style: bool = True):
+    def __init__(self, endpoint: str, bucket: str, region: str, access_key: str, secret_key: str, client=None, path_style: bool = True, allow_http_loopback: bool = False):
         parts = urlsplit(endpoint)
-        if parts.scheme != 'https' or not parts.netloc or parts.path not in ('', '/') or parts.query or parts.fragment:
+        # https only. Plain http is accepted for a loopback emulator in tests (never via settings: config requires https).
+        loopback_http = allow_http_loopback and parts.scheme == 'http' and parts.hostname in ('127.0.0.1', 'localhost', '::1')
+        if (parts.scheme != 'https' and not loopback_http) or not parts.netloc or parts.path not in ('', '/') or parts.query or parts.fragment:
             raise ValueError('S3 endpoint must be an https origin')
         if not re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]', bucket):
             raise ValueError('Invalid bucket name')
-        self.host, self.base, self.bucket, self.region = parts.netloc, f'https://{parts.netloc}', bucket, region
+        self.host, self.base, self.bucket, self.region = parts.netloc, f'{parts.scheme}://{parts.netloc}', bucket, region
         self.access_key, self.secret_key, self.client, self.path_style = access_key, secret_key, client, path_style
 
     def _signing_key(self, day: str) -> bytes:

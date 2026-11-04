@@ -31,5 +31,7 @@ def seed(engine, objects: ObjectStore, name: str = 'restaurant_b1') -> tuple[str
     content, audio, data = load_fixture(name)
     if not objects.exists(audio.object_key):
         objects.put(audio.object_key, data, audio.content_type)
+        if not objects.exists(audio.object_key):      # never publish a version whose audio is not actually stored
+            raise RuntimeError('Audio upload could not be confirmed; nothing was published.')
     with engine.begin() as db:
         return store.publish_version(db, content, audio)

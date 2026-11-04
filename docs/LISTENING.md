@@ -67,14 +67,33 @@ cd web && npx playwright test -c listening.playwright.config.ts --project=chromi
 5. Set `AUDLI_LISTENING_ENABLED=true`.
 
 ## Design decisions worth knowing
-- **Own migration ledger.** `app/claims/runtime.py` treats `max(schema_migrations.version) >= 8` as "claims schema present" and refuses to
-  start without claims mode, and migration 008 asserts the ledger is exactly 1–7. Recording 009 there would break 1.x startup and 008,
-  so 009 records itself in `listening_migrations`. If you later want one ledger, change that gate deliberately and separately.
+- **Own migration ledger (decision, with evidence).** Three places depend on the shared `schema_migrations` ledger:
+  `app/claims/runtime.py` refuses to start when `max(version) >= 8` unless a claims mode is on (and requires exactly `== 8` in claims
+  modes), `ACCEPTED_POSTGRES_VERSIONS` in `app/storage/adapters.py` is an exact allow-list, and migration 008 asserts the ledger is exactly
+  1-7. Recording 009 there would break 1.x startup in every mode, so it was rejected rather than patching the claims gate. 009 therefore records
+  itself in `listening_migrations` and requires only 001-007. `tests/test_listening_migration.py` proves, on real PostgreSQL with the real
+  008 SQL: fresh install, upgrade with data preserved, repeated runs (no-op / refused with nothing changed), partial installs refused,
+  009-then-008 and 008-then-009 both succeed with `schema_migrations` ending at exactly 1-8, and 1.x startup works in every state. Future
+  2.0 migrations are appended to `LISTENING_MIGRATIONS` in `scripts/migrate_postgres.py`; there is no other migration framework.
+- **Claims mode is not supported yet.** The claims runtime requires a restricted non-owner database role with a reviewed per-table
+  privilege and policy matrix. The 2.0 tables have no such grants, so `prepare()` refuses to start with a fixed message when the role cannot
+  read them. Enable the flag only with the backend owner role (`AUDLI_DURABLE_OPERATIONS=off`) until grants and policies are reviewed.
+- **Request bodies.** 1.x gives every route ending in `/attempts` the audio-upload allowance (about 12 MB). `/api/listening/` is
+  excluded from that: its JSON bodies are capped at 4 KiB, enforced while streaming (declared length and chunked bodies). 1.x limits are
+  unchanged and pinned by tests.
 - **Content-addressed audio.** Versions with identical audio share one object; the store refuses a key reused with different bytes.
 - **Alignment is measured, not estimated**, for the fixture: each sentence is synthesized separately and the offsets are exact.
   Provider audio will need its own alignment source (timestamps from the provider or per-sentence synthesis); that is not built.
 - **Signed URL expiry** is handled in the player: on an audio error it fetches a fresh link once and resumes from the same position.
 - **Account deletion** is unchanged and complete for learner rows. It does not enumerate these tables; it relies on `ON DELETE CASCADE`.
+
+## Release blockers (must be cleared before the flag is turned on in production)
+1. **Real S3-compatible transport is not verified.** SigV4 presigning matches AWS's published example and failure handling is unit tested with a
+   mocked transport, which is *not* transport evidence. `tests/test_listening_s3_live.py` is the real test (upload, private access, signed
+   download, Range, expiry, bad credentials/bucket) and is skipped until a disposable endpoint is supplied via `AUDLI_TEST_S3_*`.
+2. **iPhone Safari.** Not tested on a device; WebKit could not run in the build environment.
+3. **Real voice recording** for the seed lesson (the checked-in audio is an espeak-ng development fixture).
+4. Production migration 009 and bucket creation (operator steps above).
 
 ## Known limitations
 Only the multiple-choice step exists. No spoken response, fill-in, sequencing, debrief or success screen, no catalog search or

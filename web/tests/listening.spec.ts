@@ -15,6 +15,15 @@ async function waitForAudio(page: Page) {
   await page.waitForFunction(() => { const a = document.querySelector('audio') as HTMLAudioElement | null; return !!a && a.readyState >= 1 && a.duration > 60; });
 }
 
+/** Start from a new, unanswered attempt whatever the previous test left behind. */
+async function freshAttempt(page: Page) {
+  const again = page.getByRole('button', { name: 'Listen again' });
+  const start = page.getByRole('button', { name: 'Start exercises' });
+  await expect(again.or(start)).toBeVisible();
+  if (await again.isVisible()) await again.click();
+  await expect(start).toBeVisible();
+}
+
 test.describe.serial('2.0 listening lesson', () => {
   test('the catalog offers the saved B1 lesson and nothing from the old engine runs', async ({ page }) => {
     const calls: string[] = [];
@@ -119,6 +128,13 @@ test.describe.serial('2.0 listening lesson', () => {
     const box = (await start.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.y + box.height).toBeLessThanOrEqual(844);          // the primary action is on screen without scrolling
+    await expect(start).toHaveCSS('color', 'rgb(255, 255, 255)'); // visible label: white on the dark button (global CSS once made it invisible)
+    await expect(start).toHaveCSS('background-color', 'rgb(14, 27, 54)');
+    const close = (await page.getByRole('link', { name: 'Leave lesson' }).boundingBox())!;
+    expect(close.x).toBeLessThan(24);                             // top bar: close at the left edge, progress segments filling the row
+    const segments = page.getByRole('list', { name: 'Lesson progress' }).getByRole('listitem');
+    await expect(segments).toHaveCount(3);
+    for (let i = 0; i < 3; i++) expect((await segments.nth(i).boundingBox())!.width).toBeGreaterThan(30);
     for (const name of ['Play', 'Back 10 seconds', 'Forward 10 seconds']) {
       const target = (await page.getByRole('button', { name, exact: true }).boundingBox())!;
       expect(Math.min(target.width, target.height)).toBeGreaterThanOrEqual(44);
@@ -142,5 +158,82 @@ test.describe.serial('2.0 listening lesson', () => {
     expect(Number(url.searchParams.get('exp')) * 1000 - Date.now()).toBeLessThanOrEqual(301_000);
     expect((await request.get(src)).status()).toBe(200);
     expect((await request.get(src.replace(/sig=[0-9a-f]/, 'sig=0'))).status()).toBe(404);
+  });
+});
+
+import AxeBuilder from '@axe-core/playwright';
+
+test.describe.serial('2.0 listening lesson: accessibility and keyboard', () => {
+  test('no automatically detectable accessibility violations in any phase', async ({ page }) => {
+    await openLesson(page);
+    await freshAttempt(page);
+    const scan = async (label: string) => {
+      const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      expect(result.violations.map(v => `${label}: ${v.id} ${v.nodes.map(n => `${n.target} ${n.any[0]?.message ?? ''}`).join(' | ')}`), label).toEqual([]);
+    };
+    await scan('listen');
+    await page.getByRole('button', { name: 'Guided' }).click();
+    await scan('guided transcript');
+    await page.getByRole('button', { name: 'Challenge' }).click();
+    await page.getByRole('button', { name: 'Start exercises' }).click();
+    await scan('question');
+    await page.getByLabel('The restaurant has run out of mushrooms.').check();
+    await page.getByRole('button', { name: 'Check answer' }).click();
+    await expect(page.getByText('1 of 1 correct')).toBeVisible();
+    await scan('result');
+  });
+
+  test('the whole lesson can be completed with the keyboard alone, and focus is not lost', async ({ page }) => {
+    await openLesson(page);
+    await freshAttempt(page);
+    await waitForAudio(page);
+    const play = page.getByRole('button', { name: 'Play', exact: true });
+    await play.focus();
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeFocused();       // the same control keeps focus and now offers Pause
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeFocused();
+    const seek = page.getByRole('slider', { name: 'Seek' });
+    await seek.focus();
+    const before = await audioTime(page);
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => audioTime(page)).toBeGreaterThan(before);
+    const start = page.getByRole('button', { name: 'Start exercises' });
+    await start.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByText(QUESTION)).toBeVisible();
+    await expect(page.locator('#lesson-main')).toBeFocused();                      // focus moved to the new content, not left on a removed button
+    await page.keyboard.press('Tab');                                              // into the page; reach the radio group without a mouse
+    const radios = page.getByRole('radio');
+    await radios.first().focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(radios.nth(1)).toBeChecked();                                     // native radio keyboard behaviour
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('button', { name: 'Check answer' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Check answer' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status').filter({ hasText: /Correct|Not quite/ }).first()).toBeVisible();
+    await expect(page.getByText('1 of 1 correct').or(page.getByText('0 of 1 correct'))).toBeVisible();
+  });
+
+  test('loading, failure and recovery states are shown and recoverable', async ({ page }) => {
+    await page.route('**/api/listening/lessons', route => route.abort());
+    await page.goto('/listening');
+    await expect(page.getByRole('alert').filter({ hasText: 'couldn’t load your lesson' })).toBeVisible();
+    await page.unroute('**/api/listening/lessons');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('link', { name: new RegExp(TITLE) })).toBeVisible();
+    // an answer that fails to save keeps the choice and offers a retry
+    await page.getByRole('link', { name: new RegExp(TITLE) }).click();
+    await freshAttempt(page);
+    await page.getByRole('button', { name: 'Start exercises' }).click();
+    await page.getByLabel('The restaurant has run out of mushrooms.').check();
+    await page.route('**/api/listening/attempts/*/answers', route => route.abort());
+    await page.getByRole('button', { name: 'Check answer' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'couldn’t save that answer' })).toBeVisible();
+    await expect(page.getByLabel('The restaurant has run out of mushrooms.')).toBeChecked();
+    await page.unroute('**/api/listening/attempts/*/answers');
+    await page.getByRole('button', { name: 'Check answer' }).click();
+    await expect(page.getByText(/of 1 correct/)).toBeVisible();
   });
 });

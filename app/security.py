@@ -17,6 +17,9 @@ def parse_browser_origin(value: str) -> tuple[str, str, int]:
     port = parsed.port
     return parsed.scheme, parsed.hostname, port if port is not None else (443 if parsed.scheme == 'https' else 80)
 
+LISTENING_JSON_LIMIT = 4096
+
+
 class LocalRequestGuard:
     """Bound request bodies before multipart parsing and reject cross-site writes."""
     def __init__(self, app, max_audio_bytes: int, allowed_origins: tuple[str, ...] = ()):
@@ -37,7 +40,12 @@ class LocalRequestGuard:
                 permitted = False
             if not permitted:
                 return await JSONResponse({'detail':'This browser origin is not permitted.'},status_code=403)(scope,receive,send)
-        maximum = self.max_audio_bytes + 65536 if scope['path'].endswith('/attempts') else 40000
+        # 2.0 listening routes only take tiny JSON bodies, so they never inherit the audio-upload allowance that 1.x gives
+        # every route ending in /attempts. 1.x limits are unchanged.
+        if scope['path'].startswith('/api/listening/'):
+            maximum = LISTENING_JSON_LIMIT
+        else:
+            maximum = self.max_audio_bytes + 65536 if scope['path'].endswith('/attempts') else 40000
         try:
             declared = int(headers.get(b'content-length', b'0'))
         except ValueError:

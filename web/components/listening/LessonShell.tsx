@@ -13,7 +13,7 @@ export function LessonShell({ phase, wide = false, actions, children }: { phase:
         {phase ? <LessonProgress phase={phase} /> : <span style={{ flex: 1 }} />}
       </div>
     </header>
-    <main className={`${styles.main} ${wide ? styles.mainWide : ''}`}>{children}</main>
+    <main id="lesson-main" tabIndex={-1} className={`${styles.main} ${wide ? styles.mainWide : ''}`}>{children}</main>
     {actions ? <div className={styles.actions}><div className={styles.actionsInner}>{actions}</div></div> : null}
   </div>;
 }

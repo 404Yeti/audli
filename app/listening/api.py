@@ -164,6 +164,15 @@ def prepare(engine) -> None:
         present = set(inspect(db).get_table_names(schema='public'))
     if not set(schema.NAMES) <= present:
         raise RuntimeError('Audli listening lessons need migration 009. Apply docs/postgres-009.sql as the backend database owner.')
+    with engine.connect() as db:
+        from sqlalchemy import text
+        lacking = db.execute(text(
+            "SELECT count(*) FROM unnest(CAST(:names AS text[])) AS n(name) WHERE NOT (has_table_privilege(current_user, 'public.' || n.name, 'SELECT') "
+            "AND (n.name NOT IN ('listening_attempts', 'listening_responses') OR has_table_privilege(current_user, 'public.' || n.name, 'INSERT')))"),
+            {'names': list(schema.NAMES)}).scalar_one()
+    if lacking:
+        # e.g. the restricted claims-mode role: the 2.0 tables have no reviewed grants or policies for it yet.
+        raise RuntimeError('The database role lacks privileges on the Audli listening tables. Run with the backend owner role, or add reviewed grants first.')
 
 
 def register_listening_routes(app, repo, settings, objects):

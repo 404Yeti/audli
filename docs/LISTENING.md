@@ -46,7 +46,7 @@ update of a response; any change to an attempt's identity or a completed attempt
 .venv/bin/pip install -r requirements.txt && (cd web && npm install)
 AUDLI_LISTENING_ENABLED=true .venv/bin/python -m scripts.seed_listening_lesson      # publishes the seed lesson (idempotent)
 AUDLI_LISTENING_ENABLED=true .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-cd web && npm run dev                                                                   # http://127.0.0.1:3000/listening
+cd web && NEXT_PUBLIC_AUDLI_LISTENING=true npm run dev                                 # http://127.0.0.1:3000/listening (without the flag the pages answer 404)
 ```
 Local mode needs no Supabase. With `AUDLI_AUTH_MODE=supabase` the same routes require a verified, confirmed Auth user.
 
@@ -66,7 +66,7 @@ cd web && npx playwright test -c listening.playwright.config.ts --project=chromi
    `AUDLI_LISTENING_S3_ENDPOINT` (https), `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`. Production refuses to start otherwise.
 4. Publish the lesson (`python -m scripts.seed_listening_lesson`) with a **real** voice recording. The checked-in audio is a robotic
    espeak-ng development fixture, deliberately not a quality benchmark.
-5. Set `AUDLI_LISTENING_ENABLED=true`.
+5. Set `AUDLI_LISTENING_ENABLED=true` on the backend **and** `NEXT_PUBLIC_AUDLI_LISTENING=true` on the web build. Both default to off; with either off nothing of 2.0 is reachable (the backend registers no route, the web answers 404 for `/listening`).
 
 ## Design decisions worth knowing
 - **Own migration ledger (decision, with evidence).** Three places depend on the shared `schema_migrations` ledger:

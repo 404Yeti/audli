@@ -125,3 +125,10 @@ test('recorder, gap and prompt helpers', () => {
   assert.deepEqual(splitPrompt('No gap'), ['No gap', '']);
   assert.equal(clock(0), '0:00'); assert.equal(clock(65.9), '1:05');
 });
+
+import { listeningEnabled } from '../web/lib/listening-flag.ts';
+test('the 2.0 pages are off unless the flag is exactly "true"', () => {
+  for (const value of [undefined, '', 'false', 'TRUE', '1', 'yes', ' true']) assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: value }), false, String(value));
+  assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: 'true' }), true);
+  assert.equal(listeningEnabled({}), false);
+});

@@ -124,7 +124,13 @@ test.describe.serial('2.0 complete lesson journey', () => {
   });
 
   test('a blocked microphone leaves the file upload and skip options in place', async ({ page }) => {
-    await page.addInitScript(() => { navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('denied', 'NotAllowedError')); });
+    // Some engines (WebKit in CI) have no MediaRecorder at all; give this scenario one so it tests the permission path in every engine.
+    await page.addInitScript(() => {
+      if (typeof (window as unknown as { MediaRecorder?: unknown }).MediaRecorder === 'undefined') {
+        (window as unknown as { MediaRecorder: unknown }).MediaRecorder = class { static isTypeSupported() { return false; } };
+      }
+      navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('denied', 'NotAllowedError'));
+    });
     await begin(page);
     await chooseCorrect(page);
     await next(page);
@@ -133,6 +139,17 @@ test.describe.serial('2.0 complete lesson journey', () => {
     await expect(page.locator('input[type=file]')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Skip this question' })).toBeVisible();
     await sendFile(page);                                                     // the upload still works
+  });
+
+  test('a browser that cannot record says so and still offers upload and skip', async ({ page }) => {
+    await page.addInitScript(() => { delete (window as unknown as { MediaRecorder?: unknown }).MediaRecorder; });
+    await begin(page);
+    await chooseCorrect(page);
+    await next(page);
+    await expect(page.getByRole('status').filter({ hasText: 'Recording isn’t available in this browser' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start recording' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Skip this question' })).toBeVisible();
+    await sendFile(page);
   });
 
   test('the real recorder works where the browser has a microphone device', async ({ page, browserName }) => {

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './listening.module.css';
 import { captureRecording, recordingPreview, type RecordingPreview } from '../../lib/recording.ts';
-import { clock, MAX_ANSWER_SECONDS, MIN_ANSWER_SECONDS, type Exercise } from '../../lib/listening-core.ts';
+import { clock, MAX_ANSWER_SECONDS, MIN_ANSWER_SECONDS, PROVIDER_DISCLOSURE, type Exercise } from '../../lib/listening-core.ts';
 
 type Stage = 'ready' | 'starting' | 'recording' | 'recorded';
 type Capture = ReturnType<typeof captureRecording>;
@@ -83,7 +83,7 @@ export function SpokenExercise({ exercise, busy, error, onSend, onSkip }: {
     {note ? <p className={styles.playerMsg} role="alert">{note}</p> : null}
     {error ? <p className={styles.playerMsg} role="alert">{error}</p> : null}
     {onSkip ? <button type="button" className={styles.linkBtn} onClick={onSkip} disabled={busy || stage === 'recording'}>Skip this question</button> : null}
-    <p className={styles.note}>Your recording is used only to turn your answer into text, then it is deleted.</p>
+    <p className={styles.note} data-testid="provider-disclosure">{PROVIDER_DISCLOSURE}</p>
   </section>;
 }
 

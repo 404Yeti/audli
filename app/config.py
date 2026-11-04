@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     listening_assessment_api: Literal['responses', 'chat'] = 'responses'
     listening_assessment_reasoning: Literal['', 'none', 'minimal', 'low', 'medium'] = ''   # '' = do not send the parameter
     listening_generation_model: str = 'gpt-6.1-terra'        # not used by any request path yet: lesson generation is evaluated, not shipped
+    # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.
+    listening_ai_enabled: bool = True                                           # False = no new AI request is accepted or dispatched
+    listening_ai_daily_budget_usd: float = Field(default=2.0, ge=0, le=1000)    # reserved per UTC day across every 2.0 AI operation
     listening_provider_timeout_seconds: float = Field(default=45, gt=0, le=120)
     listening_spoken_daily_limit: int = Field(default=30, ge=1, le=500)   # recordings accepted per learner per rolling 24h
     review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h

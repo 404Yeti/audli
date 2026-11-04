@@ -93,7 +93,7 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
     try { setLoad({ kind: 'ready', resumed, view: await call() }); setReviewing(exerciseId); }
     catch (cause) {
       if (cause instanceof ApiError && cause.status === 409) { try { setLoad({ kind: 'ready', resumed, view: await getAttempt(view.attempt.id) }); return; } catch { /* fall through */ } }
-      setError(cause instanceof ApiError && cause.status >= 400 && cause.status < 500 && cause.status !== 409 && cause.status !== 401
+      setError(cause instanceof ApiError && ((cause.status >= 400 && cause.status < 500 && cause.status !== 409 && cause.status !== 401) || cause.status === 503)
         ? cause.message : 'We couldn’t save that. Check your connection and try again.');
     } finally { setBusy(false); }
   }

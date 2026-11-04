@@ -10,6 +10,7 @@ from app.listening import schema as l
 _KIND_009 = ("CHECK (kind IN ('multiple_choice','spoken','fill_blank','sequencing') AND position >= 1)", "CHECK (kind = 'multiple_choice' AND position >= 1)")
 _FIRST = [t for t in l.OWNED if not t.info.get('since')]
 _SECOND = [t for t in l.OWNED if t.info.get('since') == 10]
+_THIRD = [t for t in l.OWNED if t.info.get('since') == 11]
 
 
 def postgres_listening_migration() -> str:
@@ -86,4 +87,37 @@ BEGIN
     END IF;
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (10, now());', 'COMMIT;']
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_migration_011() -> str:
+    """Global AI spending ceiling and kill switch: one additive table. NEVER run at application startup."""
+    dialect = postgresql.dialect()
+    names = ', '.join(t.name for t in _THIRD)
+    lines = [
+        '\n'.join(['-- Migration 011: Audli 2.0 AI spending ceiling and kill switch (one additive table).',
+        '-- Requires 010 (recorded in listening_migrations). Leaves schema_migrations untouched.']),
+        'BEGIN;', "SET LOCAL lock_timeout='5s';", 'LOCK TABLE public.listening_migrations IN EXCLUSIVE MODE;',
+        """DO $$ BEGIN
+ IF NOT (ARRAY[9, 10] <@ ARRAY(SELECT version FROM public.listening_migrations)) THEN
+  RAISE EXCEPTION 'Expected migrations 009 and 010 first';
+ END IF;
+ IF 11 IN (SELECT version FROM public.listening_migrations) OR to_regclass('public.listening_ai_limits') IS NOT NULL THEN
+  RAISE EXCEPTION 'Migration 011 is already applied or partially present; review before retrying';
+ END IF;
+END $$;""",
+    ]
+    lines += [str(CreateTable(t).compile(dialect=dialect)).strip() + ';' for t in _THIRD]
+    for table in _THIRD:
+        lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
+    lines += [f"""DO $audli$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE {names} FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE {names} FROM authenticated;
+    END IF;
+END
+$audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (11, now());', 'COMMIT;']
     return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'

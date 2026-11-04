@@ -71,8 +71,8 @@ def test_default_migration_never_applies_009_and_the_opt_in_is_repeatable(databa
     assert migrate(settings) is False
     assert migrate(settings, listening=True) is True
     assert migrate(settings, listening=True) is False            # repeated execution is a safe no-op
-    assert ledgers(database()) == ([1, 2, 3, 4, 5, 6, 7], [9, 10])
-    assert [v for v, _ in LISTENING_MIGRATIONS] == [9, 10]
+    assert ledgers(database()) == ([1, 2, 3, 4, 5, 6, 7], [9, 10, 11])
+    assert [v for v, _ in LISTENING_MIGRATIONS] == [9, 10, 11]
 
 
 def test_fresh_database_starts_1x_and_2x(database):
@@ -89,7 +89,8 @@ def test_009_and_the_real_008_apply_in_either_order(database, order):
     for name in order:
         run_file(engine, name)
     run_file(engine, 'postgres-010.sql')
-    assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10])
+    run_file(engine, 'postgres-011.sql')
+    assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11])
     # The claims runtime's gate reads max(schema_migrations.version); 009 must leave it exactly where 008 put it.
     with engine.connect() as db:
         assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() == 8
@@ -173,12 +174,12 @@ def test_a_restricted_role_without_reviewed_grants_fails_closed_at_startup(datab
         prepare(restricted)
     with admin.begin() as db:
         db.exec_driver_sql(f'GRANT SELECT ON {", ".join(l.NAMES)} TO {role}')
-        db.exec_driver_sql(f'GRANT INSERT ON listening_attempts, listening_responses, listening_answers, listening_spoken, listening_jobs TO {role}')
+        db.exec_driver_sql(f'GRANT INSERT ON listening_attempts, listening_responses, listening_answers, listening_spoken, listening_jobs, listening_ai_limits TO {role}')
     restricted.dispose()
-    with pytest.raises(RuntimeError, match='lacks privileges'):  # the spoken answer and the worker also need UPDATE
+    with pytest.raises(RuntimeError, match='lacks privileges'):  # the spoken answer, the worker and the spending ledger also need UPDATE
         prepare(restricted)
     with admin.begin() as db:
-        db.exec_driver_sql(f'GRANT UPDATE ON listening_spoken, listening_jobs TO {role}')
+        db.exec_driver_sql(f'GRANT UPDATE ON listening_spoken, listening_jobs, listening_ai_limits TO {role}')
     restricted.dispose()
     prepare(restricted)                                          # with explicit grants it starts
 
@@ -203,7 +204,7 @@ def test_010_needs_009_first_and_is_not_part_of_the_default_run(database):
     run_file(engine, 'postgres-009.sql')
     assert not set(l.NAMES_010) & tables(engine)
     migrate(database.settings(), listening=True)                  # applies only what is missing: 010
-    assert set(l.NAMES_010) <= tables(engine) and ledgers(engine)[1] == [9, 10]
+    assert set(l.NAMES_010) <= tables(engine) and ledgers(engine)[1] == [9, 10, 11]
 
 
 def test_a_database_on_009_upgrades_to_010_without_touching_milestone_01_data(database):
@@ -217,6 +218,7 @@ def test_a_database_on_009_upgrades_to_010_without_touching_milestone_01_data(da
     with engine.begin() as db:
         version_id, _ = store.publish_version(db, content, audio)
     run_file(engine, 'postgres-010.sql')
+    run_file(engine, 'postgres-011.sql')
     with engine.connect() as db:
         assert db.execute(text('SELECT count(*) FROM listening_exercises')).scalar_one() == 1
         assert db.execute(text('SELECT status FROM listening_lesson_versions WHERE id = :v'), {'v': version_id}).scalar_one() == 'published'
@@ -269,3 +271,31 @@ def test_010_tables_are_private_and_the_database_guards_hold(database):
         with engine.begin() as db:                                          # an unknown exercise kind is refused by the database
             db.execute(text("INSERT INTO listening_exercises (id, version_id, position, kind, prompt, options) "
                             "VALUES (gen_random_uuid(), :v, 9, 'essay', 'q', '[]'::jsonb)"), {'v': version_id})
+
+
+# ---- migration 011 -----------------------------------------------------------------------------------------------------------
+
+def test_011_needs_010_and_is_applied_only_by_the_opt_in(database):
+    migrate(database.settings())
+    engine = database()
+    run_file(engine, 'postgres-009.sql')
+    with pytest.raises(DBAPIError, match='009 and 010 first'):
+        run_file(engine, 'postgres-011.sql')
+    run_file(engine, 'postgres-010.sql')
+    assert not set(l.NAMES_011) & tables(engine)
+    migrate(database.settings(), listening=True)                  # applies only what is missing: 011
+    assert set(l.NAMES_011) <= tables(engine) and ledgers(engine)[1] == [9, 10, 11]
+
+
+def test_a_repeated_011_is_refused_and_the_table_is_private_and_constrained(database):
+    migrate(database.settings(), listening=True)
+    engine = database()
+    with pytest.raises(DBAPIError, match='already applied or partially present'):
+        run_file(engine, 'postgres-011.sql')
+    with engine.connect() as db:
+        assert db.execute(text("SELECT relrowsecurity FROM pg_class WHERE relname = 'listening_ai_limits'")).scalar_one() is True
+        assert db.execute(text("SELECT count(*) FROM information_schema.role_table_grants WHERE table_name = 'listening_ai_limits' "
+                               "AND grantee IN ('PUBLIC','anon','authenticated')")).scalar_one() == 0
+    with pytest.raises(DBAPIError):
+        with engine.begin() as db:                                  # the ledger can never go negative
+            db.execute(text("INSERT INTO listening_ai_limits VALUES ('2026-01-01', -1, 0, false, now())"))

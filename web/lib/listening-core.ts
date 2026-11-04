@@ -209,3 +209,6 @@ export function resumePosition(exercises: Exercise[]): { started: boolean; next:
   const next = firstUndecided(exercises);
   return { started: exercises.some(isDecided), next: next ? next.position : null };
 }
+
+/** Shown on the recording screen, before and after recording. Plain facts: where the audio goes, and how long it stays. */
+export const PROVIDER_DISCLOSURE = 'Your spoken answer is sent to an external AI provider (OpenAI) to turn it into text and check it. The temporary audio is deleted as soon as it has been transcribed; the text stays in your summary.';

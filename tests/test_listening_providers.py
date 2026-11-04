@@ -99,13 +99,19 @@ def test_cost_helpers_use_the_published_price_table():
     assert set(RETIRING) >= {'gpt-4o-mini-transcribe', 'gpt-4.1-mini', 'gpt-4o-mini'} and 'gpt-6-luna' in TEXT_PRICES and 'gpt-transcribe' in AUDIO_PRICES
 
 
-def test_building_openai_providers_needs_a_key_and_uses_the_plan():
+def test_building_openai_providers_needs_a_key_a_guard_and_uses_the_plan():
+    from app.listening.ai_budget import GuardedAssessor, GuardedTranscriber
+    guard = object()
     with pytest.raises(RuntimeError):
-        build_providers(Settings(listening_provider='openai', _env_file=None))
+        build_providers(Settings(listening_provider='openai', _env_file=None), guard)
     settings = Settings(listening_provider='openai', OPENAI_API_KEY='sk-test-not-real', _env_file=None)
-    heard, judge = build_providers(settings)
-    assert isinstance(heard, OpenAITranscriber) and isinstance(judge, OpenAIAssessor)
-    assert (heard.plan.model, judge.plan.model) == ('gpt-transcribe', 'gpt-6-luna') and judge.client.max_retries == 0 and judge.client.timeout == 45
+    with pytest.raises(RuntimeError, match='spending guard'):
+        build_providers(settings)
+    heard, judge = build_providers(settings, guard)
+    assert isinstance(heard, GuardedTranscriber) and isinstance(judge, GuardedAssessor)
+    assert isinstance(heard.inner, OpenAITranscriber) and isinstance(judge.inner, OpenAIAssessor)
+    assert (heard.inner.plan.model, judge.inner.plan.model) == ('gpt-transcribe', 'gpt-6-luna')
+    assert judge.inner.client.max_retries == 0 and judge.inner.client.timeout == 45
 
 
 # ---- transcription ---------------------------------------------------------------------------------------------------------------

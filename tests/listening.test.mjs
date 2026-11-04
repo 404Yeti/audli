@@ -162,3 +162,11 @@ test('a returning learner skips the intro only when an answer is already saved, 
   assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1 })]), { started: false, next: 1 });
   assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1, feedback: { is_correct: false } })]), { started: true, next: null });
 });
+
+import { PROVIDER_DISCLOSURE } from '../web/lib/listening-core.ts';
+test('the recording screen discloses the external provider and what happens to the audio', () => {
+  assert.match(PROVIDER_DISCLOSURE, /external AI provider/);
+  assert.match(PROVIDER_DISCLOSURE, /OpenAI/);
+  assert.match(PROVIDER_DISCLOSURE, /temporary audio is deleted as soon as it has been transcribed/);
+  assert.ok(PROVIDER_DISCLOSURE.length < 260);          // concise enough to read before recording
+});

@@ -57,6 +57,7 @@ def main(argv: list[str]) -> int:
     from app.config import Settings
     from app.listening.api import prepare
     from app.listening.objects import build_store
+    from app.listening.ai_budget import AiGuard
     from app.listening.models import ModelPlan
     from app.listening.providers import build_providers
     from app.repository import create_repository
@@ -68,7 +69,9 @@ def main(argv: list[str]) -> int:
     engine = create_repository(settings).engine
     prepare(engine)
     objects = build_store(settings, Path(settings.data_dir))
-    transcriber, assessor = build_providers(settings)
+    guard = AiGuard(engine, settings)
+    transcriber, assessor = build_providers(settings, guard)
+    log.info('AI spending guard: %s', guard.status())
     for model, date in ModelPlan.from_settings(settings).retiring().items():
         log.warning('configured model %s is scheduled for shutdown on %s', model, date)
     stop = threading.Event()

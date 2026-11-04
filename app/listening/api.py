@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
 from app.listening import spoken, store
+from app.listening.ai_budget import AiGuard
 from app.listening.recordings import RecordingRejected, validate_recording
 from app.listening.domain import Cue
 from app.listening.objects import LocalObjectStore
@@ -237,21 +238,30 @@ def prepare(engine) -> None:
     with engine.connect() as db:
         present = set(inspect(db).get_table_names(schema='public'))
     if not set(schema.NAMES) <= present:
-        raise RuntimeError('Audli listening lessons need migrations 009 and 010. Apply docs/postgres-009.sql and docs/postgres-010.sql as the backend database owner.')
+        raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql as the backend database owner.')
     with engine.connect() as db:
         from sqlalchemy import text
         lacking = db.execute(text(
             "SELECT count(*) FROM unnest(CAST(:names AS text[])) AS n(name) WHERE NOT (has_table_privilege(current_user, 'public.' || n.name, 'SELECT') "
-            "AND (n.name NOT IN ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs') "
+            "AND (n.name NOT IN ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs', 'listening_ai_limits') "
             "OR has_table_privilege(current_user, 'public.' || n.name, 'INSERT')) "
-            "AND (n.name NOT IN ('listening_spoken', 'listening_jobs') OR has_table_privilege(current_user, 'public.' || n.name, 'UPDATE')))"),
+            "AND (n.name NOT IN ('listening_spoken', 'listening_jobs', 'listening_ai_limits') OR has_table_privilege(current_user, 'public.' || n.name, 'UPDATE')))"),
             {'names': list(schema.NAMES)}).scalar_one()
     if lacking:
         # e.g. the restricted claims-mode role: the 2.0 tables have no reviewed grants or policies for it yet.
         raise RuntimeError('The database role lacks privileges on the Audli listening tables. Run with the backend owner role, or add reviewed grants first.')
 
 
+PAUSED = 'Spoken answers are paused for a little while. You can skip this question and carry on; your other answers are saved.'
+
+
 def register_listening_routes(app, repo, settings, objects):
+    def require_ai() -> None:
+        """No new AI work is accepted while the kill switch is on or today's ceiling cannot cover one more answer. Fails closed."""
+        accepting, _ = AiGuard(repo.engine, settings).accepting()      # built per request: in accounts mode `repo` only exists inside one
+        if not accepting:
+            raise HTTPException(503, PAUSED)
+
     @app.get('/api/listening/lessons', response_model=list[CatalogItem])
     def catalog():
         with repo.read() as db:
@@ -310,6 +320,8 @@ def register_listening_routes(app, repo, settings, objects):
     def retry_spoken(attempt_id: str, exercise_id: str):
         attempt_id, exercise_id, user_id = _uuid(attempt_id), _uuid(exercise_id), repo.learner_id
 
+        require_ai()
+
         def write():
             with repo.transaction() as db:
                 _guard(lambda: spoken.retry_assessment(db, user_id, attempt_id, exercise_id))
@@ -325,6 +337,7 @@ def register_listening_routes(app, repo, settings, objects):
         def work():
             with repo.read() as db:
                 _guard(lambda: spoken.check_target(db, user_id, attempt_id, exercise_id))     # nobody else's ids reach the decoder
+            require_ai()
             try:
                 recording = validate_recording(data, declared)
             except RecordingRejected as error:

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.listening.domain import POINT_STATES, normalize_text
-from app.listening.models import AssessmentModel, ModelPlan, TranscriptionModel
+from app.listening.models import AUDIO_PRICES, TEXT_PRICES, AssessmentModel, ModelPlan, TranscriptionModel, audio_cost, text_cost
 
 
 class ProviderTemporary(Exception):
@@ -122,9 +122,10 @@ def make_client(api_key: str, timeout: float, http_client=None):
 
 class OpenAITranscriber:
     def __init__(self, client, plan: TranscriptionModel):
-        self.client, self.plan = client, plan
+        self.client, self.plan, self.last_cost_micro = client, plan, None
 
     def transcribe(self, audio: bytes, content_type: str) -> Transcript:
+        self.last_cost_micro = None
         extension = {'audio/webm': 'webm', 'audio/mp4': 'mp4', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/ogg': 'ogg'}.get(content_type, 'webm')
         language = {'languages': ['en']} if self.plan.language_parameter == 'languages' else {'language': 'en'}
         try:
@@ -132,6 +133,9 @@ class OpenAITranscriber:
                                                              response_format='json', timeout=self.plan.timeout, **language)
         except Exception as error:
             raise translate_error(error) from None
+        usage = getattr(result, 'usage', None)
+        if getattr(usage, 'type', None) == 'duration' and self.plan.model in AUDIO_PRICES:
+            self.last_cost_micro = round(audio_cost(self.plan.model, float(usage.seconds)) * 1_000_000)       # measured, for the spending ledger
         text = getattr(result, 'text', None)
         if not isinstance(text, str):
             raise ProviderTemporary('unreadable transcription response', 'provider_unavailable')
@@ -169,9 +173,16 @@ def parse_verdicts(text: str) -> list[dict]:
 
 class OpenAIAssessor:
     def __init__(self, client, plan: AssessmentModel):
-        self.client, self.plan = client, plan
+        self.client, self.plan, self.last_cost_micro = client, plan, None
+
+    def _measure(self, usage) -> None:
+        tokens_in = getattr(usage, 'input_tokens', getattr(usage, 'prompt_tokens', None))
+        tokens_out = getattr(usage, 'output_tokens', getattr(usage, 'completion_tokens', None))
+        if isinstance(tokens_in, int) and isinstance(tokens_out, int) and self.plan.model in TEXT_PRICES:
+            self.last_cost_micro = round(text_cost(self.plan.model, tokens_in, tokens_out) * 1_000_000)
 
     def assess(self, request: AssessmentInput) -> list[dict]:
+        self.last_cost_micro = None
         schema = verdict_schema([p['id'] for p in request.points])
         payload = json.dumps({'passage_title': request.title, 'script': request.script, 'question': request.question,
                               'key_points': request.points, 'learner_text': request.transcript})
@@ -187,6 +198,7 @@ class OpenAIAssessor:
             model=self.plan.model, instructions=SYSTEM, input=payload, store=False, max_output_tokens=self.plan.max_output_tokens,
             text={'format': {'type': 'json_schema', 'name': 'key_point_verdicts', 'strict': True, 'schema': schema}},
             timeout=self.plan.timeout, **options)
+        self._measure(getattr(response, 'usage', None))
         for item in getattr(response, 'output', None) or []:
             for part in getattr(item, 'content', None) or []:
                 if getattr(part, 'type', None) == 'refusal':
@@ -201,6 +213,7 @@ class OpenAIAssessor:
             model=self.plan.model, messages=[{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': payload}], store=False,
             max_completion_tokens=self.plan.max_output_tokens, timeout=self.plan.timeout,
             response_format={'type': 'json_schema', 'json_schema': {'name': 'key_point_verdicts', 'strict': True, 'schema': schema}}, **options)
+        self._measure(getattr(response, 'usage', None))
         choice = response.choices[0]
         if getattr(choice.message, 'refusal', None):
             raise ProviderPermanent('model refused', 'provider_refused')
@@ -209,13 +222,17 @@ class OpenAIAssessor:
         return choice.message.content or ''
 
 
-def build_providers(settings, http_client=None) -> tuple[Transcriber, Assessor]:
+def build_providers(settings, guard=None, http_client=None) -> tuple[Transcriber, Assessor]:
     if settings.listening_provider == 'fake':
         if settings.environment == 'production':
             raise RuntimeError('The fake listening providers cannot run in production.')
         return FakeTranscriber(settings.listening_fake_transcript or FakeTranscriber().text, settings.listening_fake_delay_seconds), FakeAssessor()
     if settings.openai_api_key is None:
         raise RuntimeError('OPENAI_API_KEY is required for the listening worker with AUDLI_LISTENING_PROVIDER=openai.')
+    if guard is None:
+        raise RuntimeError('Real AI providers need the spending guard (app.listening.ai_budget.AiGuard); refusing to build them without one.')
+    from app.listening.ai_budget import GuardedAssessor, GuardedTranscriber
     plan = ModelPlan.from_settings(settings)
     client = make_client(settings.openai_api_key.get_secret_value(), plan.assessment.timeout, http_client)
-    return OpenAITranscriber(client, plan.transcription), OpenAIAssessor(client, plan.assessment)
+    return (GuardedTranscriber(OpenAITranscriber(client, plan.transcription), guard, plan.transcription.model),
+            GuardedAssessor(OpenAIAssessor(client, plan.assessment), guard, plan.assessment.model, plan.assessment.max_output_tokens))

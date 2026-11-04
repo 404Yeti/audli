@@ -232,6 +232,8 @@ def _public_failure(code: str | None) -> str | None:
     """Learners may know their recording was lost or the check was unavailable, not which provider setting is wrong."""
     if code in (None, 'recording_missing', 'upload_incomplete', 'lease_expired', 'provider_unavailable', 'unusable_assessment'):
         return code
+    if code in ('ai_budget', 'ai_halted'):
+        return 'provider_unavailable'                  # paused or over budget: to the learner it is simply unavailable right now
     return 'provider_error'
 
 

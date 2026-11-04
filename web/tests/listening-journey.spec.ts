@@ -152,6 +152,36 @@ test.describe.serial('2.0 complete lesson journey', () => {
     await sendFile(page);
   });
 
+  test('the recording screen discloses the external AI provider before and after recording', async ({ page }) => {
+    await begin(page);
+    await chooseCorrect(page);
+    await next(page);
+    const note = page.getByTestId('provider-disclosure');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('sent to an external AI provider (OpenAI)');
+    await expect(note).toContainText('temporary audio is deleted as soon as it has been transcribed');
+    await page.locator('input[type=file]').setInputFiles({ name: 'answer.wav', mimeType: 'audio/wav', buffer: wav() });
+    await expect(page.getByLabel('Listen to your recording')).toBeVisible();
+    await expect(note).toBeVisible();                                           // still there when the learner is about to send
+  });
+
+  test('when spoken answers are paused the learner is told plainly and can skip, with nothing lost', async ({ page }) => {
+    await page.route('**/api/listening/attempts/*/exercises/*/recording*', route => route.fulfill({ status: 503, contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Spoken answers are paused for a little while. You can skip this question and carry on; your other answers are saved.' }) }));
+    await begin(page);
+    await chooseCorrect(page);
+    await next(page);
+    await page.locator('input[type=file]').setInputFiles({ name: 'answer.wav', mimeType: 'audio/wav', buffer: wav() });
+    await page.getByRole('button', { name: 'Send answer' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Spoken answers are paused' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send answer' })).toBeEnabled();         // nothing was consumed; they may try again later
+    await page.getByRole('button', { name: 'Skip this question' }).click();
+    await expect(page.getByRole('heading', { name: 'Skipped' })).toBeVisible();
+    await next(page);
+    await fill(page, 'herbs');
+    await expect(page.getByRole('status').filter({ hasText: 'Correct' }).first()).toBeVisible();
+  });
+
   test('the real recorder works where the browser has a microphone device', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Only Chromium has a fake microphone in CI; other engines use the upload path above.');
     await begin(page);

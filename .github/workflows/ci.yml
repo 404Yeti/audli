@@ -2,7 +2,7 @@ name: Audli CI
 
 on:
   pull_request:
-    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety, feat/audli-2-listening-foundation, feat/audli-2-complete-lesson-journey]
+    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety, feat/audli-2-listening-foundation, feat/audli-2-complete-lesson-journey, feat/audli-2-product-experience]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]

@@ -4,6 +4,7 @@ It is a different process from the API on purpose: transcription and assessment 
 and a restart of either side loses nothing, because jobs, leases and results live in the database. Run as many workers as you like;
 the database hands each job to exactly one at a time and fences out any worker that lost its lease.
 """
+import logging
 import os
 import signal
 import socket
@@ -14,6 +15,8 @@ from pathlib import Path
 
 from app.listening import jobs, spoken
 from app.storage.repository import utcnow
+
+log = logging.getLogger('audli.listening.worker')
 
 
 def worker_id() -> str:
@@ -26,7 +29,11 @@ def run_once(engine, objects, transcriber, assessor, owner: str, now=None) -> st
         job = jobs.claim(db, owner, now=now)
     if job is None:
         return None
-    return spoken.process(engine, job, objects, transcriber, assessor, now=now)
+    started = time.monotonic()
+    outcome = spoken.process(engine, job, objects, transcriber, assessor, now=now)
+    # Metrics only: never the transcript, the audio, a learner id or a provider message.
+    log.info('job=%s kind=%s attempt=%d/%d outcome=%s seconds=%.1f', job.id, job.kind, job.attempts, job.max_attempts, outcome, time.monotonic() - started)
+    return outcome
 
 
 def run(engine, objects, transcriber, assessor, owner: str | None = None, once: bool = False, poll_seconds: float = 2.0,
@@ -50,8 +57,10 @@ def main(argv: list[str]) -> int:
     from app.config import Settings
     from app.listening.api import prepare
     from app.listening.objects import build_store
+    from app.listening.models import ModelPlan
     from app.listening.providers import build_providers
     from app.repository import create_repository
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
     settings = Settings()
     if not settings.listening_enabled:
         print('AUDLI_LISTENING_ENABLED is off; the listening worker has nothing to do.', file=sys.stderr)
@@ -60,6 +69,8 @@ def main(argv: list[str]) -> int:
     prepare(engine)
     objects = build_store(settings, Path(settings.data_dir))
     transcriber, assessor = build_providers(settings)
+    for model, date in ModelPlan.from_settings(settings).retiring().items():
+        log.warning('configured model %s is scheduled for shutdown on %s', model, date)
     stop = threading.Event()
     for name in ('SIGTERM', 'SIGINT'):
         signal.signal(getattr(signal, name), lambda *_: stop.set())

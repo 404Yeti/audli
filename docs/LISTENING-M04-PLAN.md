@@ -4,6 +4,8 @@ Nothing here has been run against a paid provider, a hosted service, a real devi
 docs pages as retrieved on 2026-11-04 through a fetch tool that summarises pages; **treat each as unconfirmed until the live trial below
 or a direct read of the page**. Nothing in this plan is approved spend.
 
+> **Superseded in part:** findings A1-A6 and A8 are addressed by the model modernization branch; see `docs/OPENAI-MODEL-AUDIT.md` and `docs/LISTENING-M04-LIVE-MATRIX.md` (budget now sized there). A7 (global ceiling and kill switch) and A9 (provider disclosure line) remain open.
+
 ## 1. Audit of the OpenAI adapters (`app/listening/providers.py`)
 
 | # | Finding | Evidence | Risk | Fix |

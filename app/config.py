@@ -35,8 +35,14 @@ class Settings(BaseSettings):
     listening_provider: Literal['fake', 'openai'] = 'fake'
     listening_fake_transcript: str = Field(default='', max_length=500)
     listening_fake_delay_seconds: float = Field(default=0, ge=0, le=60)    # development/browser tests only: makes 'pending' observable
-    listening_transcription_model: str = 'gpt-4o-mini-transcribe'
-    listening_assessment_model: str = 'gpt-4o-mini'
+    # Models by task (app/listening/models.py is the one place that reads these). Every value can be overridden by environment, so a
+    # rollback is a configuration change: e.g. AUDLI_LISTENING_ASSESSMENT_MODEL=gpt-4.1-mini AUDLI_LISTENING_ASSESSMENT_API=chat.
+    listening_transcription_model: str = 'gpt-transcribe'
+    listening_assessment_model: str = 'gpt-6-luna'
+    listening_assessment_api: Literal['responses', 'chat'] = 'responses'
+    listening_assessment_reasoning: Literal['', 'none', 'minimal', 'low', 'medium'] = ''   # '' = do not send the parameter
+    listening_generation_model: str = 'gpt-6.1-terra'        # not used by any request path yet: lesson generation is evaluated, not shipped
+    listening_provider_timeout_seconds: float = Field(default=45, gt=0, le=120)
     listening_spoken_daily_limit: int = Field(default=30, ge=1, le=500)   # recordings accepted per learner per rolling 24h
     review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h
     review_improvement_max_concurrent: int = Field(default=2, ge=1, le=8)

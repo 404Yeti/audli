@@ -83,7 +83,8 @@ against the real API and the real worker process.
 
 **Not verified (do these before any release):**
 1. **The OpenAI transcription and assessment adapters have never talked to OpenAI.** Their request shape and error handling are tested
-   against a mock only; model names are configuration defaults, unchecked. A reviewed, budgeted live trial is needed.
+   against a mock only. Models are configured by task (`app/listening/models.py`, `docs/OPENAI-MODEL-AUDIT.md`); the live matrix
+   (`docs/LISTENING-M04-LIVE-MATRIX.md`) is written but not approved or run.
 2. **A real microphone and real iPhone Safari.** Chromium uses a fake device in CI; WebKit in CI uses the file-upload path because it has no
    microphone. Safari's recorder (MP4/AAC) is accepted by the validator in principle but untested on a device.
 3. **Real S3 compatibility** for put/get/delete of recordings (the earlier S3 caveats in LISTENING.md still apply; `get`/`delete` have only

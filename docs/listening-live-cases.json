@@ -1,0 +1,636 @@
+{
+ "version": 1,
+ "about": "Cases for the approved live validation matrix (docs/LISTENING-M04-LIVE-MATRIX.md). Text cases need no audio. `allowed` lists the verdict states an assessment may return per key point; anything else is a miss. Never contains a key, audio or learner data.",
+ "assessment": [
+  {
+   "id": "restaurant-correct-1",
+   "lesson": "restaurant_b1",
+   "category": "correct",
+   "transcript": "Maria wanted the mushroom pasta but the waiter said they had no mushrooms left, so she ordered the chicken instead.",
+   "allowed": {
+    "first": [
+     "covered"
+    ],
+    "reason": [
+     "covered"
+    ],
+    "final": [
+     "covered"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-correct-2",
+   "lesson": "restaurant_b1",
+   "category": "correct",
+   "transcript": "She first asked for pasta with mushrooms. They were out of mushrooms tonight. In the end she chose chicken and asked for no onions.",
+   "allowed": {
+    "first": [
+     "covered"
+    ],
+    "reason": [
+     "covered"
+    ],
+    "final": [
+     "covered"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-correct-3",
+   "lesson": "restaurant_b1",
+   "category": "correct",
+   "transcript": "At first the customer wanted mushroom pasta, the restaurant had run out of mushrooms, and she took the chicken with vegetables.",
+   "allowed": {
+    "first": [
+     "covered"
+    ],
+    "reason": [
+     "covered"
+    ],
+    "final": [
+     "covered",
+     "partly"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-incorrect-1",
+   "lesson": "restaurant_b1",
+   "category": "incorrect",
+   "transcript": "Maria ordered a steak and the waiter said the kitchen was closed so she went home.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-incorrect-2",
+   "lesson": "restaurant_b1",
+   "category": "incorrect",
+   "transcript": "She wanted fish soup and they had too many customers, so she ordered a salad with extra onions.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-incorrect-3",
+   "lesson": "restaurant_b1",
+   "category": "incorrect",
+   "transcript": "The waiter was rude and Maria left without eating anything.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-incomplete-1",
+   "lesson": "restaurant_b1",
+   "category": "incomplete",
+   "transcript": "Maria wanted the mushroom pasta.",
+   "allowed": {
+    "first": [
+     "covered"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-incomplete-2",
+   "lesson": "restaurant_b1",
+   "category": "incomplete",
+   "transcript": "They ran out of mushrooms.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear",
+     "partly"
+    ],
+    "reason": [
+     "covered"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-incomplete-3",
+   "lesson": "restaurant_b1",
+   "category": "incomplete",
+   "transcript": "In the end she had the chicken without onions.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "covered"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-ambiguous-1",
+   "lesson": "restaurant_b1",
+   "category": "ambiguous",
+   "transcript": "She got the thing she wanted, or maybe something else, I am not sure what happened.",
+   "allowed": {
+    "first": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "reason": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "final": [
+     "partly",
+     "unclear",
+     "missing"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-ambiguous-2",
+   "lesson": "restaurant_b1",
+   "category": "ambiguous",
+   "transcript": "There was a problem with the food so she changed her mind.",
+   "allowed": {
+    "first": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "reason": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "final": [
+     "partly",
+     "unclear",
+     "missing"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-ambiguous-3",
+   "lesson": "restaurant_b1",
+   "category": "ambiguous",
+   "transcript": "The waiter told her something about the kitchen and she picked a different dish.",
+   "allowed": {
+    "first": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "reason": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "final": [
+     "partly",
+     "unclear",
+     "missing"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-unintelligible-1",
+   "lesson": "restaurant_b1",
+   "category": "unintelligible",
+   "transcript": "Mm uh the um hmm.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-unintelligible-2",
+   "lesson": "restaurant_b1",
+   "category": "unintelligible",
+   "transcript": "I do not know. I did not understand it.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "restaurant-unintelligible-3",
+   "lesson": "restaurant_b1",
+   "category": "unintelligible",
+   "transcript": "Yesterday I went to the beach and the weather was nice.",
+   "allowed": {
+    "first": [
+     "missing",
+     "unclear"
+    ],
+    "reason": [
+     "missing",
+     "unclear"
+    ],
+    "final": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-correct-1",
+   "lesson": "pharmacy_a2",
+   "category": "correct",
+   "transcript": "Tom has a cough, a sore throat and a small fever. The pharmacist gives him cough syrup, a spoonful in the morning and at night, and tells him to drink warm water with honey and rest.",
+   "allowed": {
+    "problem": [
+     "covered"
+    ],
+    "medicine": [
+     "covered"
+    ],
+    "advice": [
+     "covered"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-correct-2",
+   "lesson": "pharmacy_a2",
+   "category": "correct",
+   "transcript": "He is sick with a bad cough and a fever. She gave him syrup to take twice a day and said he should rest at home and drink warm water with honey.",
+   "allowed": {
+    "problem": [
+     "covered"
+    ],
+    "medicine": [
+     "covered",
+     "partly"
+    ],
+    "advice": [
+     "covered"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-correct-3",
+   "lesson": "pharmacy_a2",
+   "category": "correct",
+   "transcript": "Tom has a sore throat and cough for three days. He takes cough syrup morning and night and should rest and drink honey water.",
+   "allowed": {
+    "problem": [
+     "covered"
+    ],
+    "medicine": [
+     "covered"
+    ],
+    "advice": [
+     "covered",
+     "partly"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-incorrect-1",
+   "lesson": "pharmacy_a2",
+   "category": "incorrect",
+   "transcript": "Tom broke his arm and the pharmacist told him to take painkillers and go to the hospital.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-incorrect-2",
+   "lesson": "pharmacy_a2",
+   "category": "incorrect",
+   "transcript": "He has a headache and the pharmacist sold him vitamins and told him to exercise.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-incorrect-3",
+   "lesson": "pharmacy_a2",
+   "category": "incorrect",
+   "transcript": "Tom wanted a toothbrush and paid eight euros.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-incomplete-1",
+   "lesson": "pharmacy_a2",
+   "category": "incomplete",
+   "transcript": "Tom has a cough and a sore throat.",
+   "allowed": {
+    "problem": [
+     "covered"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-incomplete-2",
+   "lesson": "pharmacy_a2",
+   "category": "incomplete",
+   "transcript": "She gave him syrup for the morning and the night.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "covered"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-incomplete-3",
+   "lesson": "pharmacy_a2",
+   "category": "incomplete",
+   "transcript": "The pharmacist said he should drink warm water with honey and rest at home.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "covered"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-ambiguous-1",
+   "lesson": "pharmacy_a2",
+   "category": "ambiguous",
+   "transcript": "He was not feeling well and she gave him something and some advice.",
+   "allowed": {
+    "problem": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "medicine": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "advice": [
+     "partly",
+     "unclear",
+     "missing"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-ambiguous-2",
+   "lesson": "pharmacy_a2",
+   "category": "ambiguous",
+   "transcript": "Tom talked to the pharmacist about his health and bought some medicine.",
+   "allowed": {
+    "problem": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "medicine": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "advice": [
+     "partly",
+     "unclear",
+     "missing"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-ambiguous-3",
+   "lesson": "pharmacy_a2",
+   "category": "ambiguous",
+   "transcript": "There was a small problem, so she helped him with it.",
+   "allowed": {
+    "problem": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "medicine": [
+     "partly",
+     "unclear",
+     "missing"
+    ],
+    "advice": [
+     "partly",
+     "unclear",
+     "missing"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-unintelligible-1",
+   "lesson": "pharmacy_a2",
+   "category": "unintelligible",
+   "transcript": "Uh hmm mm okay um.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-unintelligible-2",
+   "lesson": "pharmacy_a2",
+   "category": "unintelligible",
+   "transcript": "Sorry, I did not hear it very well.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  },
+  {
+   "id": "pharmacy-unintelligible-3",
+   "lesson": "pharmacy_a2",
+   "category": "unintelligible",
+   "transcript": "My favourite football team won the match on Saturday.",
+   "allowed": {
+    "problem": [
+     "missing",
+     "unclear"
+    ],
+    "medicine": [
+     "missing",
+     "unclear"
+    ],
+    "advice": [
+     "missing",
+     "unclear"
+    ]
+   }
+  }
+ ],
+ "generation": [
+  {
+   "id": "gen-1",
+   "level": "A2",
+   "topic": "booking a train ticket"
+  },
+  {
+   "id": "gen-2",
+   "level": "A2",
+   "topic": "asking for directions in a new city"
+  },
+  {
+   "id": "gen-3",
+   "level": "B1",
+   "topic": "a job interview for a shop assistant"
+  },
+  {
+   "id": "gen-4",
+   "level": "B1",
+   "topic": "returning a faulty phone to a store"
+  },
+  {
+   "id": "gen-5",
+   "level": "B1",
+   "topic": "planning a weekend trip with a friend"
+  },
+  {
+   "id": "gen-6",
+   "level": "A2",
+   "topic": "ordering coffee and a snack at a cafe"
+  }
+ ]
+}

@@ -16,3 +16,6 @@ web/playwright-report/
 *.dump
 migration006.env
 .config/audli/
+
+# live provider validation results (verdicts only, but never committed by default)
+docs/listening-live-results/

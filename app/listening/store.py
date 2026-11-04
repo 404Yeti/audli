@@ -228,11 +228,18 @@ def _owned_attempt(db, user_id: str, attempt_id: str, lock: bool = False):
     return row
 
 
+def _public_failure(code: str | None) -> str | None:
+    """Learners may know their recording was lost or the check was unavailable, not which provider setting is wrong."""
+    if code in (None, 'recording_missing', 'upload_incomplete', 'lease_expired', 'provider_unavailable', 'unusable_assessment'):
+        return code
+    return 'provider_error'
+
+
 def _spoken_view(row, rubric: dict) -> dict:
     """What the learner may see of their spoken answer. Key points appear only once an assessment exists for this answer."""
     state = row['status']
     out = {'status': state, 'retryable': False, 'transcript': row['transcript'], 'insufficient': False, 'points': None,
-           'covered': None, 'partly': None, 'total_points': None, 'failure_code': row['failure_code'] if state == 'failed' else None}
+           'covered': None, 'partly': None, 'total_points': None, 'failure_code': _public_failure(row['failure_code']) if state == 'failed' else None}
     if state == 'failed':
         out['retryable'] = row['generation'] < MAX_SPOKEN_TRIES    # assess again if the transcript exists, otherwise record again
     if state == 'assessed':

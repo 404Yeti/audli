@@ -88,9 +88,13 @@ cd web && npx playwright test -c listening.playwright.config.ts --project=chromi
 - **Account deletion** is unchanged and complete for learner rows. It does not enumerate these tables; it relies on `ON DELETE CASCADE`.
 
 ## Release blockers (must be cleared before the flag is turned on in production)
-1. **Real S3-compatible transport is not verified.** SigV4 presigning matches AWS's published example and failure handling is unit tested with a
-   mocked transport, which is *not* transport evidence. `tests/test_listening_s3_live.py` is the real test (upload, private access, signed
-   download, Range, expiry, bad credentials/bucket) and is skipped until a disposable endpoint is supplied via `AUDLI_TEST_S3_*`.
+1. **S3 transport: partly verified, presigned downloads are not.** Against a local, signature-verifying emulator (moto with IAM enforcement, loopback,
+   throwaway credentials), `tests/test_listening_s3_live.py` passes: upload with content type, HEAD, missing object reported as missing, unsigned
+   access refused (403), forged signature refused, wrong secret / wrong access key / nonexistent bucket refused, and a refused HEAD raised rather than read as
+   "missing". **Not verified against a server:** presigned GET download, Range, expiry and tamper rejection, because that emulator answers 500 to *any*
+   query-string-authenticated request, including the reference AWS SDK's own (MinIO's binary download is gone: HTTP 410; another emulator binary was
+   blocked by the environment). Offline, our presigned URLs are byte-identical to the official SDK's for 32 key/lifetime/endpoint combinations and match AWS's
+   published example. Run the `AUDLI_TEST_S3_PRESIGN=1` test against a disposable bucket on the real provider before enabling the flag.
 2. **iPhone Safari.** Not tested on a device; WebKit could not run in the build environment.
 3. **Real voice recording** for the seed lesson (the checked-in audio is an espeak-ng development fixture).
 4. Production migration 009 and bucket creation (operator steps above).

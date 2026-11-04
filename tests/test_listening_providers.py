@@ -102,8 +102,11 @@ def test_cost_helpers_use_the_published_price_table():
 def test_building_openai_providers_needs_a_key_a_guard_and_uses_the_plan():
     from app.listening.ai_budget import GuardedAssessor, GuardedTranscriber
     guard = object()
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match='OPENAI_API_KEY is required'):
         build_providers(Settings(listening_provider='openai', _env_file=None), guard)
+    for blank in ('', '   '):                                  # CI and some hosts export the variable as an empty string
+        with pytest.raises(RuntimeError, match='OPENAI_API_KEY is required'):
+            build_providers(Settings(listening_provider='openai', OPENAI_API_KEY=blank, _env_file=None), guard)
     settings = Settings(listening_provider='openai', OPENAI_API_KEY='sk-test-not-real', _env_file=None)
     with pytest.raises(RuntimeError, match='spending guard'):
         build_providers(settings)

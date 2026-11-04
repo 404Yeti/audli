@@ -227,7 +227,7 @@ def build_providers(settings, guard=None, http_client=None) -> tuple[Transcriber
         if settings.environment == 'production':
             raise RuntimeError('The fake listening providers cannot run in production.')
         return FakeTranscriber(settings.listening_fake_transcript or FakeTranscriber().text, settings.listening_fake_delay_seconds), FakeAssessor()
-    if settings.openai_api_key is None:
+    if settings.openai_api_key is None or not settings.openai_api_key.get_secret_value().strip():      # an empty variable is a missing key
         raise RuntimeError('OPENAI_API_KEY is required for the listening worker with AUDLI_LISTENING_PROVIDER=openai.')
     if guard is None:
         raise RuntimeError('Real AI providers need the spending guard (app.listening.ai_budget.AiGuard); refusing to build them without one.')

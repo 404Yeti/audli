@@ -1,0 +1,93 @@
+{
+ "matrix_sha256": "d7182039dade5e9734e33609d6b247e90a56a275a0dfbf4d8c9b58982cfdeca4",
+ "started_at": "2026-11-04T22:12:58.410491+00:00",
+ "ceiling_usd": 5.0,
+ "rows": {},
+ "preflight": {
+  "models": {
+   "gpt-6-luna": "available",
+   "gpt-6.1-terra": "available",
+   "gpt-4.1-mini": "available",
+   "gpt-transcribe": "available",
+   "gpt-4o-mini-transcribe": "available"
+  },
+  "rows": {
+   "A1": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 4.12,
+    "latency_p95": 4.12
+   },
+   "A2": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 2.52,
+    "latency_p95": 2.52
+   },
+   "A3": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 4.24,
+    "latency_p95": 4.24
+   },
+   "A4": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 2.91,
+    "latency_p95": 2.91
+   },
+   "T1": {
+    "passed": 1,
+    "of": 1
+   },
+   "T2": {
+    "passed": 1,
+    "of": 1
+   },
+   "G1": {
+    "incompatible": "provider_bad_request",
+    "case": "gen-1",
+    "valid": 0,
+    "of": 0
+   },
+   "G2": {
+    "incompatible": "provider_bad_request",
+    "case": "gen-1",
+    "valid": 0,
+    "of": 0
+   }
+  },
+  "ok": false
+ },
+ "stopped": "pre-flight found an incompatible model or parameter; the full matrix was NOT run",
+ "calls": 8,
+ "spent_usd_estimate": 0.0036
+}

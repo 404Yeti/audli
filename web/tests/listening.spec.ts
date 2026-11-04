@@ -153,12 +153,20 @@ test.describe.serial('2.0 listening lesson', () => {
 
   test('the signed audio link is short-lived and refuses tampering', async ({ page, request }) => {
     await openLesson(page);
+    await waitForAudio(page);                 // the player fetches its signed link asynchronously: wait for it, do not race it
     const src = await page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).src);
     const url = new URL(src);
     expect(url.pathname.startsWith('/api/listening/media/')).toBe(true);
     expect(Number(url.searchParams.get('exp')) * 1000 - Date.now()).toBeLessThanOrEqual(301_000);
     expect((await request.get(src)).status()).toBe(200);
-    expect((await request.get(src.replace(/sig=[0-9a-f]/, 'sig=0'))).status()).toBe(404);
+    // Tamper deterministically: always change the first signature character to a different one (replacing it with a fixed
+    // character leaves the URL unchanged one time in sixteen), and also try an all-zero signature.
+    const signature = url.searchParams.get('sig')!;
+    const flipped = (signature[0] === '0' ? '1' : '0') + signature.slice(1);
+    expect(flipped).not.toBe(signature);
+    expect((await request.get(src.replace(signature, flipped))).status()).toBe(404);
+    expect((await request.get(src.replace(signature, '0'.repeat(signature.length)))).status()).toBe(404);
+    expect((await request.get(src.replace(/exp=\d+/, `exp=${Number(url.searchParams.get('exp')) + 60}`))).status()).toBe(404);   // lifetime extended
   });
 });
 

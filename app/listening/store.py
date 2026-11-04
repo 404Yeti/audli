@@ -108,20 +108,101 @@ def _latest_published(lesson_id: str):
             .order_by(t.versions.c.version_no.desc()).limit(1))
 
 
-def list_catalog(db) -> list[dict]:
+def _decided_counts(db, attempt_ids: list[str]) -> dict[str, int]:
+    """Questions the learner has answered (or skipped, or sent a recording for) in each attempt."""
+    counts = {i: 0 for i in attempt_ids}
+    if not attempt_ids:
+        return counts
+    for table, extra in ((t.responses, None), (t.answers, None), (t.spoken, t.spoken.c.status.in_(('skipped', 'pending', 'assessed', 'failed')))):
+        query = select(table.c.attempt_id, func.count()).where(table.c.attempt_id.in_(attempt_ids)).group_by(table.c.attempt_id)
+        for attempt_id, n in db.execute(query if extra is None else query.where(extra)).all():
+            counts[attempt_id] += n
+    return counts
+
+
+def _scored_totals(db, version_ids: list[str]) -> dict[str, int]:
+    """How many questions per lesson version are scored by application code (everything except the spoken answer)."""
+    if not version_ids:
+        return {}
+    rows = db.execute(select(t.exercises.c.version_id, func.count()).where(and_(t.exercises.c.version_id.in_(version_ids), t.exercises.c.kind != 'spoken'))
+                      .group_by(t.exercises.c.version_id)).all()
+    return {v: n for v, n in rows}
+
+
+def _spoken_states(db, attempt_ids: list[str]) -> dict[str, str]:
+    if not attempt_ids:
+        return {}
+    return {a: s for a, s in db.execute(select(t.spoken.c.attempt_id, t.spoken.c.status).where(
+        and_(t.spoken.c.attempt_id.in_(attempt_ids), t.spoken.c.status != 'receiving'))).all()}
+
+
+def list_catalog(db, user_id: str | None = None) -> list[dict]:
+    """Published lessons (latest version each). With a learner id, each lesson also says where that learner is with it."""
     latest = (select(t.versions.c.lesson_id, func.max(t.versions.c.version_no).label('n')).where(t.versions.c.status == 'published')
               .group_by(t.versions.c.lesson_id).subquery())
     rows = db.execute(select(t.lessons.c.id.label('lesson_id'), t.lessons.c.slug, t.versions.c.id.label('version_id'), t.versions.c.title,
         t.versions.c.topic, t.versions.c.cefr, t.versions.c.listen_for)
         .join(latest, latest.c.lesson_id == t.lessons.c.id)
         .join(t.versions, and_(t.versions.c.lesson_id == latest.c.lesson_id, t.versions.c.version_no == latest.c.n))
-        .order_by(t.versions.c.title)).mappings().all()
+        .order_by(t.versions.c.cefr, t.versions.c.title)).mappings().all()
     result = []
     for row in rows:
         variants = db.execute(select(t.audio.c.accent, t.audio.c.duration_ms).where(t.audio.c.version_id == row['version_id'])
                               .order_by(t.audio.c.accent)).all()
         result.append({**row, 'accents': [v.accent for v in variants], 'duration_ms': max((v.duration_ms for v in variants), default=0)})
+    if user_id is not None:
+        _add_progress(db, user_id, result)
     return result
+
+
+def _add_progress(db, user_id: str, items: list[dict]) -> None:
+    mine = db.execute(select(t.attempts.c.id, t.attempts.c.status, t.attempts.c.version_id, t.attempts.c.total, t.attempts.c.correct,
+                             t.attempts.c.created_at, t.attempts.c.completed_at, t.versions.c.lesson_id)
+                      .join(t.versions, t.versions.c.id == t.attempts.c.version_id).where(t.attempts.c.user_id == user_id)
+                      .order_by(t.attempts.c.created_at.desc())).mappings().all()
+    by_lesson: dict[str, list] = {}
+    for attempt in mine:
+        by_lesson.setdefault(attempt['lesson_id'], []).append(attempt)
+    shown = {}
+    for item in items:
+        attempts = by_lesson.get(item['lesson_id'], [])
+        # The open attempt wins (that is what "Continue" resumes); otherwise the most recent finished one.
+        pick = next((a for a in attempts if a['status'] == 'in_progress'), attempts[0] if attempts else None)
+        shown[item['lesson_id']] = pick
+    ids = [a['id'] for a in shown.values() if a]
+    decided, scored, spoken = _decided_counts(db, ids), _scored_totals(db, [a['version_id'] for a in shown.values() if a]), _spoken_states(db, ids)
+    for item in items:
+        pick = shown[item['lesson_id']]
+        item.update({'status': 'new', 'attempt_id': None, 'answered': 0, 'total': 0, 'correct': None, 'scored': None, 'spoken_status': None,
+                     'last_activity_at': None, 'completed_count': sum(1 for a in by_lesson.get(item['lesson_id'], []) if a['status'] == 'completed')})
+        if pick:
+            item.update({'status': 'in_progress' if pick['status'] == 'in_progress' else 'completed', 'attempt_id': pick['id'],
+                         'answered': decided[pick['id']], 'total': pick['total'], 'spoken_status': spoken.get(pick['id']),
+                         'last_activity_at': pick['completed_at'] or pick['created_at']})
+            if pick['status'] == 'completed':
+                item.update({'correct': pick['correct'], 'scored': scored.get(pick['version_id'])})
+
+
+def progress_summary(db, user_id: str, limit: int = 8) -> dict:
+    """Only facts: how many lessons the learner finished and the results of their finished attempts. No streaks, no levels, no mastery."""
+    attempts = db.execute(select(t.attempts.c.id, t.attempts.c.status, t.attempts.c.version_id, t.attempts.c.correct, t.attempts.c.created_at,
+                                 t.attempts.c.completed_at, t.versions.c.lesson_id, t.versions.c.title, t.versions.c.cefr)
+                          .join(t.versions, t.versions.c.id == t.attempts.c.version_id).where(t.attempts.c.user_id == user_id)).mappings().all()
+    finished = [a for a in attempts if a['status'] == 'completed']
+    scored = _scored_totals(db, list({a['version_id'] for a in finished}))
+    recent = sorted(attempts, key=lambda a: a['completed_at'] or a['created_at'], reverse=True)[:limit]
+    spoken = _spoken_states(db, [a['id'] for a in recent])
+    available = db.execute(select(func.count(func.distinct(t.versions.c.lesson_id))).where(t.versions.c.status == 'published')).scalar_one()
+    return {
+        'lessons_available': available,
+        'lessons_completed': len({a['lesson_id'] for a in finished}),
+        'attempts_completed': len(finished),
+        'questions_correct': sum(a['correct'] or 0 for a in finished),
+        'questions_scored': sum(scored.get(a['version_id'], 0) for a in finished),
+        'recent': [{'attempt_id': a['id'], 'lesson_id': a['lesson_id'], 'title': a['title'], 'cefr': a['cefr'], 'status': a['status'],
+                    'when': a['completed_at'] or a['created_at'], 'correct': a['correct'], 'scored': scored.get(a['version_id']) if a['status'] == 'completed' else None,
+                    'spoken_status': spoken.get(a['id'])} for a in recent],
+    }
 
 
 def _public_audio(db, version_id: str) -> list[dict]:

@@ -8,6 +8,7 @@ from app.listening.domain import LessonContent, Cue, check_level_fit
 from app.listening.objects import ObjectStore
 
 FIXTURES = Path(__file__).parent / 'fixtures'
+LESSONS = ('restaurant_b1', 'pharmacy_a2')     # every checked-in lesson, in library order
 
 
 def load_fixture(name: str = 'restaurant_b1', journey: bool = True) -> tuple[LessonContent, store.AudioFile, bytes]:
@@ -38,3 +39,8 @@ def seed(engine, objects: ObjectStore, name: str = 'restaurant_b1', journey: boo
             raise RuntimeError('Audio upload could not be confirmed; nothing was published.')
     with engine.begin() as db:
         return store.publish_version(db, content, audio)
+
+
+def seed_all(engine, objects: ObjectStore) -> list[tuple[str, bool]]:
+    """Publish every checked-in lesson (idempotent)."""
+    return [seed(engine, objects, name) for name in LESSONS]

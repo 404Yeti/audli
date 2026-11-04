@@ -1,0 +1,173 @@
+{
+  "slug": "at-the-pharmacy",
+  "title": "At the pharmacy",
+  "topic": "Buying medicine at a pharmacy",
+  "language": "en",
+  "cefr": "A2",
+  "listen_for": "What is wrong with Tom, and what does the pharmacist tell him to do?",
+  "speakers": [
+    {
+      "id": "lena",
+      "name": "Lena",
+      "role": "pharmacist"
+    },
+    {
+      "id": "tom",
+      "name": "Tom",
+      "role": "customer"
+    }
+  ],
+  "sentences": [
+    {
+      "index": 0,
+      "speaker": "lena",
+      "text": "Hello! How can I help you today?"
+    },
+    {
+      "index": 1,
+      "speaker": "tom",
+      "text": "Hi. I have a bad cough and a sore throat."
+    },
+    {
+      "index": 2,
+      "speaker": "lena",
+      "text": "I'm sorry to hear that. How long have you had it?"
+    },
+    {
+      "index": 3,
+      "speaker": "tom",
+      "text": "About three days. I also have a small fever."
+    },
+    {
+      "index": 4,
+      "speaker": "lena",
+      "text": "Do you have any allergies to medicine?"
+    },
+    {
+      "index": 5,
+      "speaker": "tom",
+      "text": "Yes, I am allergic to penicillin."
+    },
+    {
+      "index": 6,
+      "speaker": "lena",
+      "text": "Thank you for telling me. This cough syrup is safe for you."
+    },
+    {
+      "index": 7,
+      "speaker": "tom",
+      "text": "Great. How often should I take it?"
+    },
+    {
+      "index": 8,
+      "speaker": "lena",
+      "text": "Take one spoonful in the morning and one at night."
+    },
+    {
+      "index": 9,
+      "speaker": "tom",
+      "text": "Good. Do I need anything else?"
+    },
+    {
+      "index": 10,
+      "speaker": "lena",
+      "text": "Drink warm water with honey, and rest at home for two days."
+    },
+    {
+      "index": 11,
+      "speaker": "tom",
+      "text": "Thank you. How much is it?"
+    },
+    {
+      "index": 12,
+      "speaker": "lena",
+      "text": "Eight euros fifty, please."
+    },
+    {
+      "index": 13,
+      "speaker": "tom",
+      "text": "Here you are. Have a nice day!"
+    }
+  ],
+  "exercise": {
+    "prompt": "What is Tom allergic to?",
+    "options": [
+      {
+        "id": "a",
+        "text": "Aspirin"
+      },
+      {
+        "id": "b",
+        "text": "Penicillin"
+      },
+      {
+        "id": "c",
+        "text": "Honey"
+      },
+      {
+        "id": "d",
+        "text": "Cough syrup"
+      }
+    ]
+  },
+  "key": {
+    "correct_option_id": "b",
+    "explanation": "When Lena asks about allergies, Tom says he is allergic to penicillin."
+  },
+  "spoken": {
+    "prompt": "In your own words, what is wrong with Tom, and what does the pharmacist tell him to do?",
+    "points": [
+      {
+        "id": "problem",
+        "text": "Tom has a cough, a sore throat and a small fever"
+      },
+      {
+        "id": "medicine",
+        "text": "She gives him cough syrup to take in the morning and at night"
+      },
+      {
+        "id": "advice",
+        "text": "He should drink warm water with honey and rest at home"
+      }
+    ]
+  },
+  "fill_blank": {
+    "prompt": "Complete what Lena says: “Drink warm water with ___, and rest at home for two days.”"
+  },
+  "fill_key": {
+    "accepted": [
+      "honey"
+    ],
+    "explanation": "Lena tells Tom to drink warm water with honey."
+  },
+  "sequencing": {
+    "prompt": "Put these moments from the pharmacy in the order they happened.",
+    "items": [
+      {
+        "id": "pay",
+        "text": "Tom pays for the medicine"
+      },
+      {
+        "id": "dose",
+        "text": "Lena explains how often to take the syrup"
+      },
+      {
+        "id": "cough",
+        "text": "Tom says he has a cough"
+      },
+      {
+        "id": "allergy",
+        "text": "Lena asks about allergies"
+      }
+    ]
+  },
+  "sequence_key": {
+    "order": [
+      "cough",
+      "allergy",
+      "dose",
+      "pay"
+    ],
+    "explanation": "Tom describes his cough first, then Lena asks about allergies, explains the syrup, and Tom pays last."
+  }
+}

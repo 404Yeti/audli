@@ -22,7 +22,18 @@ export type AttemptView = {
   audio: { id: string; accent: string; duration_ms: number; cues: Cue[] };
   exercises: Exercise[];
 };
-export type CatalogItem = { lesson_id: string; slug: string; title: string; topic: string; cefr: string; listen_for: string; accents: string[]; duration_ms: number };
+export type CatalogItem = {
+  lesson_id: string; slug: string; title: string; topic: string; cefr: string; listen_for: string; accents: string[]; duration_ms: number;
+  status: 'new' | 'in_progress' | 'completed'; attempt_id: string | null; answered: number; total: number; correct: number | null; scored: number | null;
+  spoken_status: 'pending' | 'assessed' | 'failed' | 'skipped' | null; last_activity_at: string | null; completed_count: number;
+};
+export type RecentItem = {
+  attempt_id: string; lesson_id: string; title: string; cefr: string; status: 'in_progress' | 'completed'; when: string;
+  correct: number | null; scored: number | null; spoken_status: CatalogItem['spoken_status'];
+};
+export type Progress = {
+  lessons_available: number; lessons_completed: number; attempts_completed: number; questions_correct: number; questions_scored: number; recent: RecentItem[];
+};
 export type Phase = 'listen' | 'question' | 'result';
 
 export const SPEEDS = [1, 1.25, 0.75] as const;
@@ -152,4 +163,49 @@ export function cleanGap(value: string): string {
 export function splitPrompt(prompt: string): [string, string] {
   const at = prompt.indexOf('___');
   return at < 0 ? [prompt, ''] : [prompt.slice(0, at), prompt.slice(at + 3)];
+}
+
+// ---- library and progress ------------------------------------------------------------------------------------------------------
+
+/** What the card's button says. Opening a finished lesson shows its results; it never silently starts over. */
+export function lessonAction(item: Pick<CatalogItem, 'status' | 'title'>): string {
+  return item.status === 'in_progress' ? 'Continue' : item.status === 'completed' ? 'See results' : 'Start';
+}
+
+/** The learner's real state with a lesson, in words. */
+export function statusLine(item: CatalogItem): string {
+  if (item.status === 'in_progress') return `In progress · ${item.answered} of ${item.total} answered`;
+  if (item.status === 'completed') return item.correct !== null && item.scored ? `Finished · ${item.correct} of ${item.scored} correct` : 'Finished';
+  return 'New';
+}
+
+export const SPOKEN_NOTE: Record<NonNullable<CatalogItem['spoken_status']>, string> = {
+  pending: 'Spoken answer: being checked', assessed: 'Spoken answer: checked', failed: 'Spoken answer: couldn’t be checked', skipped: 'Spoken answer: skipped',
+};
+
+/** "Today", "Yesterday" or a short date: never a guess about the future, and never a made-up streak. */
+export function whenLabel(iso: string, now: number = Date.now()): string {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '';
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date(now)) - startOfDay(then)) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return then.toLocaleDateString('en', { day: 'numeric', month: 'short' });
+}
+
+export function lengthLabel(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  return minutes < 1 ? 'Under 1 min' : `About ${minutes} min`;
+}
+
+export function progressLine(p: Progress): string {
+  if (p.lessons_completed === 0) return 'Nothing finished yet. Pick a lesson to begin.';
+  return `${p.lessons_completed} of ${p.lessons_available} ${p.lessons_available === 1 ? 'lesson' : 'lessons'} finished`;
+}
+
+/** Where a returning learner should land: straight into the questions once any answer exists, otherwise on the listening screen. */
+export function resumePosition(exercises: Exercise[]): { started: boolean; next: number | null } {
+  const next = firstUndecided(exercises);
+  return { started: exercises.some(isDecided), next: next ? next.position : null };
 }

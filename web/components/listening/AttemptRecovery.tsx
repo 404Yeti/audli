@@ -14,6 +14,6 @@ export function AttemptRecovery({ state, onRetry }: { state: 'loading' | 'error'
   </div>;
 }
 
-export function ResumedBanner() {
-  return <p className={styles.banner} role="status">Welcome back — we saved your place.</p>;
+export function ResumedBanner({ question, total }: { question?: number | null; total?: number }) {
+  return <p className={styles.banner} role="status">{question && total ? `Welcome back — you’re on question ${question} of ${total}. Your answers are saved.` : 'Welcome back — we saved your place.'}</p>;
 }

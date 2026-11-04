@@ -1,10 +1,9 @@
 import { expect, type Page } from '@playwright/test';
 
 /** The server and learner persist across tests and browser projects, so every test first settles whatever attempt is open. */
-export async function settleOpenAttempt(page: Page) {
+export async function settleOpenAttempt(page: Page, lessonId: string) {
   const api = page.request;
-  const lessons = await (await api.get('/api/listening/lessons')).json();
-  const current = await (await api.get(`/api/listening/lessons/${lessons[0].lesson_id}/attempts/current`)).json();
+  const current = await (await api.get(`/api/listening/lessons/${lessonId}/attempts/current`)).json();
   if (!current.attempt_id) return;
   const view = await (await api.get(`/api/listening/attempts/${current.attempt_id}`)).json();
   if (view.attempt.status === 'completed') return;
@@ -20,7 +19,7 @@ export async function settleOpenAttempt(page: Page) {
 /** Start from a new, unanswered attempt whatever the previous test left behind. */
 export async function freshAttempt(page: Page) {
   await expect(page).toHaveURL(/\/listening\/[0-9a-f-]{36}/);      // a click may still be navigating: do not reload the catalog by mistake
-  await settleOpenAttempt(page);
+  await settleOpenAttempt(page, page.url().match(/\/listening\/([0-9a-f-]{36})/)![1]);
   await page.reload();
   const again = page.getByRole('button', { name: 'Listen again' });
   const start = page.getByRole('button', { name: 'Start exercises' });
@@ -28,3 +27,6 @@ export async function freshAttempt(page: Page) {
   if (await again.isVisible()) await again.click();
   await expect(start).toBeVisible();
 }
+
+/** A lesson card in the library (the "Recent activity" rows link to the same lessons, so scope to the Lessons list). */
+export const lessonCard = (page: Page, name: RegExp) => page.getByRole('list', { name: 'Lessons' }).getByRole('link', { name });

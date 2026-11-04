@@ -15,7 +15,7 @@ import { AttemptRecovery, ResumedBanner } from './AttemptRecovery';
 import { AudliMascot } from '../audli-mascot';
 import { ApiError } from '../../lib/api.ts';
 import { currentAttemptId, getAttempt, rememberStarted, retrySpoken, sendRecording, skipSpoken, startAttempt, submitAnswer, wasStarted, type AnswerBody } from '../../lib/listening.ts';
-import { firstUndecided, hasPendingAssessment, newRequestId, phaseOf, pollDelayMs, type AttemptView, type Exercise } from '../../lib/listening-core.ts';
+import { firstUndecided, hasPendingAssessment, newRequestId, phaseOf, pollDelayMs, resumePosition, type AttemptView, type Exercise } from '../../lib/listening-core.ts';
 
 type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; view: AttemptView; resumed: boolean };
 
@@ -42,7 +42,7 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
     } catch { return { kind: 'error' }; }
   }, [lessonId]);
   const apply = useCallback((result: Load) => {
-    if (result.kind === 'ready') setStarted(wasStarted(result.view.attempt.id));
+    if (result.kind === 'ready') setStarted(wasStarted(result.view.attempt.id) || resumePosition(result.view.exercises).started);   // saved answers mean we skip the intro
     setLoad(result);
   }, []);
   useEffect(() => {
@@ -123,7 +123,7 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
 
   const spokenPending = hasPendingAssessment(view.exercises);
   return <LessonShell phase={phase} wide={showTranscript} actions={actions}>
-    {resumed ? <ResumedBanner /> : null}
+    {resumed && phase !== 'result' && !reviewing ? <ResumedBanner question={resumePosition(view.exercises).next} total={view.attempt.total} /> : null}
     {phase !== 'question' ? <div className={styles.mode}>
       <div className={styles.modeGroup} role="group" aria-label="Transcript">
         <button type="button" className={styles.modeBtn} aria-pressed={!guided} onClick={() => setGuided(false)}>Challenge</button>

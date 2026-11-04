@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { freshAttempt } from './listening-fixture';
+import { freshAttempt, lessonCard } from './listening-fixture';
 
 // Needs its own backend with the seed lesson: only runs under listening.playwright.config.ts, never in the default mocked suite.
 test.skip(!process.env.AUDLI_LISTENING_E2E, 'run with listening.playwright.config.ts');
@@ -11,7 +11,7 @@ const noHorizontalScroll = (page: Page) => page.evaluate(() => document.document
 
 async function openLesson(page: Page) {
   await page.goto('/listening');
-  await page.getByRole('link', { name: new RegExp(TITLE) }).click();
+  await lessonCard(page, new RegExp(TITLE)).click();
   await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
   await freshAttempt(page);          // the server and learner persist across tests and browser projects
 }
@@ -26,7 +26,7 @@ test.describe.serial('2.0 listening lesson', () => {
     page.on('request', request => { const url = new URL(request.url()); if (url.pathname.startsWith('/api/')) calls.push(url.pathname); });
     await page.goto('/listening');
     await expect(page.getByRole('heading', { name: 'Listening lessons' })).toBeVisible();
-    const card = page.getByRole('link', { name: new RegExp(TITLE) });
+    const card = lessonCard(page, new RegExp(TITLE));
     await expect(card).toContainText('B1');
     await card.click();
     await freshAttempt(page);
@@ -222,9 +222,9 @@ test.describe.serial('2.0 listening lesson: accessibility and keyboard', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'couldn’t load your lesson' })).toBeVisible();
     await page.unroute('**/api/listening/lessons');
     await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.getByRole('link', { name: new RegExp(TITLE) })).toBeVisible();
+    await expect(lessonCard(page, new RegExp(TITLE))).toBeVisible();
     // an answer that fails to save keeps the choice and offers a retry
-    await page.getByRole('link', { name: new RegExp(TITLE) }).click();
+    await lessonCard(page, new RegExp(TITLE)).click();
     await freshAttempt(page);
     await page.getByRole('button', { name: 'Start exercises' }).click();
     await page.getByLabel('The restaurant has run out of mushrooms.').check();

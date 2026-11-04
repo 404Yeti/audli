@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { freshAttempt } from './listening-fixture';
+import { freshAttempt, lessonCard } from './listening-fixture';
 
 // Needs its own backend and worker: only runs under listening.playwright.config.ts, never in the default mocked suite.
 test.skip(!process.env.AUDLI_LISTENING_E2E, 'run with listening.playwright.config.ts');
@@ -22,7 +22,7 @@ function wav(seconds = 3): Buffer {
 
 async function begin(page: Page) {
   await page.goto('/listening');
-  await page.getByRole('link', { name: new RegExp(TITLE) }).click();
+  await lessonCard(page, new RegExp(TITLE)).click();
   await freshAttempt(page);
   await page.getByRole('button', { name: 'Start exercises' }).click();
 }

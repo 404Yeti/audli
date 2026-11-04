@@ -5,11 +5,13 @@ import { LessonProgress } from './LessonProgress';
 import type { Phase } from '../../lib/listening-core.ts';
 
 /** Top bar, progress and the page frame. Actions render in a sticky bar so the primary button stays reachable on a phone. */
-export function LessonShell({ phase, wide = false, actions, children }: { phase: Phase | null; wide?: boolean; actions?: ReactNode; children: ReactNode }) {
+export function LessonShell({ phase, wide = false, actions, children, closeHref = '/listening', closeLabel = 'Leave lesson' }: {
+  phase: Phase | null; wide?: boolean; actions?: ReactNode; children: ReactNode; closeHref?: string; closeLabel?: string;
+}) {
   return <div className={styles.root}>
     <header className={styles.top}>
       <div className={styles.topInner}>
-        <Link href="/listening" className={styles.close} aria-label="Leave lesson">×</Link>
+        <Link href={closeHref} className={styles.close} aria-label={closeLabel}>×</Link>
         {phase ? <LessonProgress phase={phase} /> : <span style={{ flex: 1 }} />}
       </div>
     </header>

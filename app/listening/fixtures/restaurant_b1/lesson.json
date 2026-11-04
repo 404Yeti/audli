@@ -123,5 +123,61 @@
   "key": {
     "correct_option_id": "b",
     "explanation": "Sam says they have just run out of mushrooms tonight, so Maria chooses the chicken instead."
+  },
+  "spoken": {
+    "prompt": "In your own words, what does Maria order, and why does she change her first choice?",
+    "points": [
+      {
+        "id": "first",
+        "text": "Maria first wanted the mushroom pasta"
+      },
+      {
+        "id": "reason",
+        "text": "The restaurant had run out of mushrooms"
+      },
+      {
+        "id": "final",
+        "text": "She ordered the chicken instead, without onions"
+      }
+    ]
+  },
+  "fill_blank": {
+    "prompt": "Complete what Sam says about the chicken: “It comes with lemon and fresh ___.”"
+  },
+  "fill_key": {
+    "accepted": [
+      "herbs"
+    ],
+    "explanation": "Sam says the chicken comes with lemon and fresh herbs."
+  },
+  "sequencing": {
+    "prompt": "Put these moments from the dinner in the order they happened.",
+    "items": [
+      {
+        "id": "chicken",
+        "text": "Maria chooses the chicken without onions"
+      },
+      {
+        "id": "bread",
+        "text": "Maria asks for some bread"
+      },
+      {
+        "id": "water",
+        "text": "Maria asks for a glass of water"
+      },
+      {
+        "id": "mushrooms",
+        "text": "Sam says they have run out of mushrooms"
+      }
+    ]
+  },
+  "sequence_key": {
+    "order": [
+      "water",
+      "mushrooms",
+      "chicken",
+      "bread"
+    ],
+    "explanation": "First the water, then the news about the mushrooms, then the chicken, and the bread last."
   }
 }

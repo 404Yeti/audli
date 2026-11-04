@@ -10,9 +10,12 @@ from app.listening.objects import ObjectStore
 FIXTURES = Path(__file__).parent / 'fixtures'
 
 
-def load_fixture(name: str = 'restaurant_b1') -> tuple[LessonContent, store.AudioFile, bytes]:
+def load_fixture(name: str = 'restaurant_b1', journey: bool = True) -> tuple[LessonContent, store.AudioFile, bytes]:
+    """journey=False yields the Milestone 01 shape (one multiple-choice question); the product always seeds the full journey."""
     folder = FIXTURES / name
     content = LessonContent.model_validate_json((folder / 'lesson.json').read_text())
+    if not journey:
+        content = content.model_copy(update={'spoken': None, 'fill_blank': None, 'fill_key': None, 'sequencing': None, 'sequence_key': None})
     problems = check_level_fit(content)
     if problems:
         raise ValueError('Script does not fit its level: ' + '; '.join(problems))
@@ -27,8 +30,8 @@ def load_fixture(name: str = 'restaurant_b1') -> tuple[LessonContent, store.Audi
     return content, audio, data
 
 
-def seed(engine, objects: ObjectStore, name: str = 'restaurant_b1') -> tuple[str, bool]:
-    content, audio, data = load_fixture(name)
+def seed(engine, objects: ObjectStore, name: str = 'restaurant_b1', journey: bool = True) -> tuple[str, bool]:
+    content, audio, data = load_fixture(name, journey)
     if not objects.exists(audio.object_key):
         objects.put(audio.object_key, data, audio.content_type)
         if not objects.exists(audio.object_key):      # never publish a version whose audio is not actually stored

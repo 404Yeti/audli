@@ -10,7 +10,8 @@ from uuid import uuid4
 from sqlalchemy import select, func, and_, update, insert, case
 
 from app.listening import schema as t
-from app.listening.domain import LessonContent, Cue, validate_alignment, score_multiple_choice, AnswerKey
+from app.listening.domain import (LessonContent, Cue, validate_alignment, score_multiple_choice, AnswerKey, FillKey, SequenceKey, score_fill_blank,
+                                  score_sequence, sequence_positions_correct, normalize_text)
 from app.storage.repository import utcnow
 
 
@@ -57,6 +58,20 @@ def _add_audio(db, version_id: str, sentence_count: int, audio: AudioFile) -> st
     return variant_id
 
 
+def _extra_exercises(content: LessonContent):
+    """Milestone 02 exercises in journey order (positions 2-4). Their keys are stored as private rubrics, never as exercise options."""
+    out = []
+    if content.spoken:
+        out.append((2, 'spoken', content.spoken.prompt, [], {'points': [p.model_dump() for p in content.spoken.points]}))
+    if content.fill_blank:
+        out.append((len(out) + 2, 'fill_blank', content.fill_blank.prompt, [],
+                    {'accepted': content.fill_key.accepted, 'explanation': content.fill_key.explanation}))
+    if content.sequencing:
+        out.append((len(out) + 2, 'sequencing', content.sequencing.prompt, [i.model_dump() for i in content.sequencing.items],
+                    {'order': content.sequence_key.order, 'explanation': content.sequence_key.explanation}))
+    return out
+
+
 def publish_version(db, content: LessonContent, audio: AudioFile) -> tuple[str, bool]:
     """Publish content as an immutable version (idempotent by content hash). Returns (version_id, created)."""
     digest = content.content_hash()
@@ -77,6 +92,10 @@ def publish_version(db, content: LessonContent, audio: AudioFile) -> tuple[str, 
     db.execute(insert(t.exercises).values(id=exercise_id, version_id=version_id, position=1, kind='multiple_choice',
         prompt=content.exercise.prompt, options=[o.model_dump() for o in content.exercise.options]))
     db.execute(insert(t.keys).values(exercise_id=exercise_id, correct_option_id=content.key.correct_option_id, explanation=content.key.explanation))
+    for position, kind, prompt, options, rubric in _extra_exercises(content):
+        extra_id = str(uuid4())
+        db.execute(insert(t.exercises).values(id=extra_id, version_id=version_id, position=position, kind=kind, prompt=prompt, options=options))
+        db.execute(insert(t.rubrics).values(exercise_id=extra_id, data=rubric))
     _add_audio(db, version_id, len(content.sentences), audio)
     db.execute(update(t.versions).where(t.versions.c.id == version_id).values(status='published', published_at=utcnow()))
     return version_id, True
@@ -128,6 +147,26 @@ def _owned_attempt(db, user_id: str, attempt_id: str, lock: bool = False):
     return row
 
 
+def _spoken_view(row, rubric: dict) -> dict:
+    """What the learner may see of their spoken answer. Key points appear only once an assessment exists for this answer."""
+    state = row['status']
+    out = {'status': state, 'retryable': False, 'transcript': row['transcript'], 'insufficient': False, 'points': None,
+           'covered': None, 'partly': None, 'total_points': None, 'failure_code': row['failure_code'] if state == 'failed' else None}
+    if state == 'failed':
+        out['retryable'] = row['generation'] < MAX_SPOKEN_TRIES    # assess again if the transcript exists, otherwise record again
+    if state == 'assessed':
+        result = row['assessment'] or {}
+        if result.get('insufficient'):
+            out['insufficient'] = True
+        else:
+            text = {p['id']: p['text'] for p in rubric['points']}
+            out['points'] = [{'id': v['id'], 'text': text.get(v['id'], ''), 'state': v['state'], 'quote': v['quote']} for v in result.get('points', [])]
+            out['covered'] = sum(1 for v in out['points'] if v['state'] == 'covered')
+            out['partly'] = sum(1 for v in out['points'] if v['state'] == 'partly')
+            out['total_points'] = len(out['points'])
+    return out
+
+
 def attempt_view(db, user_id: str, attempt_id: str) -> dict:
     attempt = _owned_attempt(db, user_id, attempt_id)
     version = db.execute(select(t.versions).where(t.versions.c.id == attempt['version_id'])).mappings().one()
@@ -137,16 +176,40 @@ def attempt_view(db, user_id: str, attempt_id: str) -> dict:
         select(t.responses.c.exercise_id, t.responses.c.option_id, t.responses.c.is_correct, t.keys.c.correct_option_id, t.keys.c.explanation)
         .join(t.keys, t.keys.c.exercise_id == t.responses.c.exercise_id)
         .where(t.responses.c.attempt_id == attempt_id)).mappings().all()}
+    given = {r['exercise_id']: r for r in db.execute(
+        select(t.answers.c.exercise_id, t.answers.c.answer, t.answers.c.is_correct, t.rubrics.c.data)
+        .join(t.rubrics, t.rubrics.c.exercise_id == t.answers.c.exercise_id).where(t.answers.c.attempt_id == attempt_id)).mappings().all()}
+    spoken = {r['exercise_id']: r for r in db.execute(select(t.spoken).where(t.spoken.c.attempt_id == attempt_id)).mappings().all()}
+    rubrics = {r.exercise_id: r.data for r in db.execute(select(t.rubrics.c.exercise_id, t.rubrics.c.data).where(
+        t.rubrics.c.exercise_id.in_([q['id'] for q in questions if q['kind'] == 'spoken']))).all()} if spoken else {}
     audio = next((a for a in _public_audio(db, version['id']) if a['id'] == attempt['audio_variant_id']), None)
+
+    def exercise(q) -> dict:
+        out = {**q, 'feedback': None, 'fill': None, 'sequence': None, 'spoken': None}
+        if q['id'] in answered:
+            a = answered[q['id']]
+            out['feedback'] = {'selected_option_id': a['option_id'], 'is_correct': a['is_correct'],
+                               'correct_option_id': a['correct_option_id'], 'explanation': a['explanation']}
+        elif q['id'] in given:
+            a, rubric = given[q['id']], given[q['id']]['data']
+            if q['kind'] == 'fill_blank':
+                out['fill'] = {'answer': a['answer']['text'], 'is_correct': a['is_correct'], 'accepted': rubric['accepted'][0],
+                               'explanation': rubric['explanation']}
+            else:
+                order = a['answer']['order']
+                out['sequence'] = {'order': order, 'is_correct': a['is_correct'], 'correct_order': rubric['order'],
+                                   'positions_correct': sum(1 for x, y in zip(order, rubric['order']) if x == y), 'explanation': rubric['explanation']}
+        elif q['id'] in spoken and q['kind'] == 'spoken':
+            out['spoken'] = _spoken_view(spoken[q['id']], rubrics.get(q['id'], {'points': []}))
+        return out
     return {
         'attempt': {'id': attempt['id'], 'status': attempt['status'], 'total': attempt['total'], 'correct': attempt['correct'],
+                    'scored': sum(1 for q in questions if q['kind'] != 'spoken'),
                     'created_at': attempt['created_at'], 'completed_at': attempt['completed_at']},
         'lesson': {'lesson_id': version['lesson_id'], 'version_id': version['id'], 'version_no': version['version_no'],
                    **{k: version[k] for k in ('title', 'topic', 'cefr', 'listen_for', 'speakers', 'sentences')}},
         'audio': audio,
-        'exercises': [{**q, 'feedback': ({'selected_option_id': answered[q['id']]['option_id'], 'is_correct': answered[q['id']]['is_correct'],
-                                          'correct_option_id': answered[q['id']]['correct_option_id'], 'explanation': answered[q['id']]['explanation']}
-                                         if q['id'] in answered else None)} for q in questions],
+        'exercises': [exercise(q) for q in questions],
     }
 
 
@@ -192,13 +255,45 @@ def create_attempt(db, user_id: str, lesson_id: str, client_request_id: str, acc
     return attempt_id, True
 
 
-def submit_answer(db, user_id: str, attempt_id: str, exercise_id: str, option_id: str) -> bool:
+MAX_SPOKEN_TRIES = 3
+
+
+def _settle(db, attempt) -> None:
+    """Complete the attempt when every exercise has a learner decision. A spoken answer that is still being assessed counts as decided:
+    the learner must be able to move on, and the assessment is reported separately."""
+    if attempt['status'] != 'in_progress':
+        return
+    mc = db.execute(select(func.count(), func.coalesce(func.sum(case((t.responses.c.is_correct, 1), else_=0)), 0))
+                    .where(t.responses.c.attempt_id == attempt['id'])).first()
+    other = db.execute(select(func.count(), func.coalesce(func.sum(case((t.answers.c.is_correct, 1), else_=0)), 0))
+                       .where(t.answers.c.attempt_id == attempt['id'])).first()
+    voiced = db.execute(select(func.count()).where(and_(t.spoken.c.attempt_id == attempt['id'],
+                                                         t.spoken.c.status.in_(('skipped', 'pending', 'assessed', 'failed'))))).scalar_one()
+    if mc[0] + other[0] + voiced >= attempt['total']:
+        db.execute(update(t.attempts).where(t.attempts.c.id == attempt['id']).values(
+            status='completed', correct=int(mc[1] + other[1]), completed_at=utcnow()))
+
+
+def submit_answer(db, user_id: str, attempt_id: str, exercise_id: str, option_id: str | None = None, text: str | None = None,
+                  order: list[str] | None = None) -> bool:
     """Record one answer exactly once. Returns True for a replay of the identical answer; a different second answer is refused."""
     attempt = _owned_attempt(db, user_id, attempt_id, lock=True)
-    exercise = db.execute(select(t.exercises.c.id, t.exercises.c.options).where(and_(
+    exercise = db.execute(select(t.exercises.c.id, t.exercises.c.kind, t.exercises.c.options).where(and_(
         t.exercises.c.id == exercise_id, t.exercises.c.version_id == attempt['version_id']))).mappings().first()
     if not exercise:
         raise NotFound('Question not found in this attempt.')
+    kind = exercise['kind']
+    if kind == 'spoken':
+        raise Invalid('Record your answer, or skip this question.')
+    if (kind == 'multiple_choice') != (option_id is not None) or (kind == 'fill_blank') != (text is not None) or (kind == 'sequencing') != (order is not None):
+        raise Invalid('That answer does not match the question.')
+    if kind == 'multiple_choice':
+        return _answer_choice(db, attempt, exercise, option_id)
+    return _answer_other(db, attempt, exercise, text, order)
+
+
+def _answer_choice(db, attempt, exercise, option_id: str) -> bool:
+    attempt_id, exercise_id = attempt['id'], exercise['id']
     if option_id not in {o['id'] for o in exercise['options']}:
         raise Invalid('Choose one of the listed answers.')
     existing = db.execute(select(t.responses.c.option_id).where(and_(t.responses.c.attempt_id == attempt_id, t.responses.c.exercise_id == exercise_id))).scalar_one_or_none()
@@ -212,8 +307,32 @@ def submit_answer(db, user_id: str, attempt_id: str, exercise_id: str, option_id
     correct = score_multiple_choice(AnswerKey(**key), option_id)
     db.execute(insert(t.responses).values(attempt_id=attempt_id, exercise_id=exercise_id, version_id=attempt['version_id'],
         option_id=option_id, is_correct=correct, submitted_at=utcnow()))
-    done = db.execute(select(func.count(), func.coalesce(func.sum(case((t.responses.c.is_correct, 1), else_=0)), 0))
-                      .where(t.responses.c.attempt_id == attempt_id)).first()
-    if done[0] >= attempt['total']:
-        db.execute(update(t.attempts).where(t.attempts.c.id == attempt_id).values(status='completed', correct=int(done[1]), completed_at=utcnow()))
+    _settle(db, attempt)
+    return False
+
+
+def _answer_other(db, attempt, exercise, text: str | None, order: list[str] | None) -> bool:
+    attempt_id, exercise_id = attempt['id'], exercise['id']
+    if text is not None:
+        text = ' '.join(text.split())
+        if not 1 <= len(text) <= 80:
+            raise Invalid('Type a word or short phrase for the gap.')
+        answer = {'text': text}
+    else:
+        if sorted(order) != sorted(o['id'] for o in exercise['options']):
+            raise Invalid('Order every item exactly once.')
+        answer = {'order': list(order)}
+    existing = db.execute(select(t.answers.c.answer).where(and_(t.answers.c.attempt_id == attempt_id, t.answers.c.exercise_id == exercise_id))).scalar_one_or_none()
+    if existing is not None:
+        same = normalize_text(existing['text']) == normalize_text(text) if text is not None else existing.get('order') == order
+        if same:
+            return True
+        raise Conflict('This question was already answered.')
+    if attempt['status'] != 'in_progress':
+        raise Conflict('This attempt is already complete.')
+    rubric = db.execute(select(t.rubrics.c.data).where(t.rubrics.c.exercise_id == exercise_id)).scalar_one()
+    correct = score_fill_blank(FillKey(**rubric), text) if text is not None else score_sequence(SequenceKey(**rubric), order)
+    db.execute(insert(t.answers).values(attempt_id=attempt_id, exercise_id=exercise_id, version_id=attempt['version_id'], answer=answer,
+                                        is_correct=correct, submitted_at=utcnow()))
+    _settle(db, attempt)
     return False

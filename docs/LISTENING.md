@@ -1,5 +1,7 @@
 # Audli 2.0 listening lessons (Milestone 01)
 
+> Milestone 02 extends this to four exercises with a background-assessed spoken answer: see [LISTENING-M02.md](LISTENING-M02.md).
+
 One saved, reusable B1 listening lesson with private audio, a synchronized optional transcript, a multiple-choice question,
 deterministic feedback and a recoverable attempt. It runs beside the 1.x tutor and shares nothing with its conversation engine.
 
@@ -100,6 +102,6 @@ cd web && npx playwright test -c listening.playwright.config.ts --project=chromi
 4. Production migration 009 and bucket creation (operator steps above).
 
 ## Known limitations
-Only the multiple-choice step exists. No spoken response, fill-in, sequencing, debrief or success screen, no catalog search or
+Milestone 01 shipped only the multiple-choice step (the spoken response, fill-in, sequencing and summary arrive in Milestone 02). No success screen, no catalog search or
 recommendations, one accent, one lesson. Local JWT verification was deferred (1.x still calls Supabase per request). Real S3
 transport and WebKit/iPhone Safari were not exercised; see the pull request for exactly what was and was not verified.

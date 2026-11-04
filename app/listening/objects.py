@@ -10,6 +10,7 @@ keys are never listed in learner responses. Two backends share one interface:
 import hashlib
 import hmac
 import re
+import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,9 +25,15 @@ def valid_key(key: str) -> bool:
     return bool(KEY.match(key)) and '..' not in key and '//' not in key and not key.endswith('/')
 
 
+class ObjectMissing(Exception):
+    """The object is not there (as opposed to the store being unreachable, which raises the transport's own error)."""
+
+
 class ObjectStore(Protocol):
     def put(self, key: str, data: bytes, content_type: str) -> None: ...
     def exists(self, key: str) -> bool: ...
+    def get(self, key: str) -> bytes: ...
+    def delete(self, key: str) -> None: ...    # idempotent: deleting a missing object succeeds
     def signed_url(self, key: str, ttl_seconds: int = 300, now: float | None = None) -> str: ...
 
 
@@ -54,12 +61,24 @@ class LocalObjectStore:
     def put(self, key: str, data: bytes, content_type: str) -> None:
         path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(path.name + '.tmp')
-        temporary.write_bytes(data)
-        temporary.replace(path)
+        temporary = path.with_name(f'{path.name}.{secrets.token_hex(6)}.tmp')    # unique, so concurrent writers of one key never collide
+        try:
+            temporary.write_bytes(data)
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def exists(self, key: str) -> bool:
         return self._path(key).is_file()
+
+    def get(self, key: str) -> bytes:
+        path = self._path(key)
+        if not path.is_file():
+            raise ObjectMissing(key)
+        return path.read_bytes()
+
+    def delete(self, key: str) -> None:
+        self._path(key).unlink(missing_ok=True)
 
     def sign(self, key: str, expires: int) -> str:
         return hmac.new(self.secret, f'{key}\n{expires}'.encode(), hashlib.sha256).hexdigest()
@@ -159,6 +178,29 @@ class S3ObjectStore:
             return False
         response.raise_for_status()
         return True
+
+    def get(self, key: str) -> bytes:
+        import httpx
+        if not valid_key(key):
+            raise ValueError('Invalid object key')
+        headers = self._signed_headers('GET', key, b'', None, datetime.now(timezone.utc))
+        headers.pop('host')
+        response = (self.client or httpx).get(self.base + self._canonical_path(key), headers=headers, timeout=30)
+        if response.status_code == 404:
+            raise ObjectMissing(key)
+        response.raise_for_status()
+        return response.content
+
+
+    def delete(self, key: str) -> None:
+        import httpx
+        if not valid_key(key):
+            raise ValueError('Invalid object key')
+        headers = self._signed_headers('DELETE', key, b'', None, datetime.now(timezone.utc))
+        headers.pop('host')
+        response = (self.client or httpx).delete(self.base + self._canonical_path(key), headers=headers, timeout=15)
+        if response.status_code not in (200, 202, 204, 404):
+            response.raise_for_status()
 
 
 def build_store(settings, data_dir: Path) -> ObjectStore:

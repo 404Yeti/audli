@@ -1,0 +1,93 @@
+# Audli 2.0 Milestone 02: the four-exercise journey
+
+Builds on [Milestone 01](LISTENING.md) (PR #121). Branch `feat/audli-2-complete-lesson-journey`, targeting `feat/audli-2-listening-foundation`.
+
+## Learner journey
+Listen → optional transcript → **1 Multiple choice** → **2 Spoken answer** → **3 Fill in the blank** → **4 Put in order** → **Summary**.
+
+* Multiple choice, fill in the blank and sequencing are scored by application code only (`domain.py`). A fill-in answer ignores case,
+  punctuation and spacing but not the word; a sequence is right only if every item is in place (the summary also says how many were).
+* The spoken answer is recorded in the browser (or uploaded as a file), listened back to, and sent. **The lesson carries on at once**; the
+  result is checked in the background and appears in the summary, which refreshes by itself. A learner can also skip the question.
+* The summary shows what really happened to each question: correct, not quite, **being checked**, **checked**, **couldn't check**
+  (with *Check again* or *Record again*), **skipped**, or not answered. Only the three deterministic questions are counted ("3 of 3 correct").
+  The spoken answer is never folded into a score and no mastery claim is made anywhere.
+* Refresh at any point: the attempt resumes at the first unanswered question; a finished attempt reopens on the summary.
+
+## What the assessment is, and is not
+A model only **classifies** each key point of the question (`covered` / `partly` / `missing` / `unclear`) and quotes the learner. Everything
+the learner reads is built from the lesson's own key points and from quotes that `domain.ground_assessment` has verified are really in the
+learner's transcript (whole-word match). A claim of understanding without a verifiable quote is downgraded to `unclear`. Too little speech
+(under three words) is stored as **insufficient evidence — unknown, not a zero**. The model never writes learner-facing prose, never
+sees an answer key it could echo (it sees the key points, which are only shown to the learner after assessment), and the learner's words are
+passed as data with an instruction to ignore instructions inside them.
+Grammar and pronunciation are not assessed.
+
+## Architecture
+```
+browser ─ POST …/recording ─▶ API (validate → claim → store temp object → mark pending + enqueue, one transaction)
+                                         │                         PostgreSQL: listening_spoken, listening_jobs
+worker process  (python -m app.listening.worker) ◀── claim with lease + fence ──┘
+   transcribe → save the learner's words → DELETE the recording → classify key points → save result (fenced)
+```
+* **Separate process, no new infrastructure.** `app/listening/worker.py`. The API never calls a provider and never waits for one.
+  Run several workers if you like. `--once` drains the queue and exits.
+* **Durable jobs** (`listening_jobs`, `app/listening/jobs.py`): idempotent enqueue by `dedupe_key`; one atomic claim
+  (`UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED)` on PostgreSQL); a **lease** (120 s, extended by heartbeats between stages);
+  a **fencing token** bumped on every claim. Every result write calls `assert_current` in the same transaction, so a worker whose lease
+  expired and was taken over can never overwrite the new holder's result (`lost`). Retries back off 15 s, 30 s, 60 s … (max 4 tries);
+  jobs that expire after their last try are failed by the maintenance sweep and their answer is marked failed.
+* **Idempotency**: `upload_id` per recording (a repeated or concurrent identical upload is one answer and one job), one immutable answer
+  per question for the deterministic exercises, at most 3 tries per spoken question, and a per-learner daily cap on accepted recordings
+  (`AUDLI_LISTENING_SPOKEN_DAILY_LIMIT`, default 30) as a spend guard.
+* **Recordings are private and short-lived.** Validated first (declared type, signature, ffmpeg decode, 2–60 s, not silent, ≤ 5 MiB),
+  stored under `listening-tmp/<attempt>/<question>/…` with an unguessable name, never served to anyone, **deleted as soon as the transcript is
+  saved**, or when the job settles as failed. The database key is claimed *before* the object is written, so a crash cannot leave an
+  object nothing knows about: the worker's sweep expires uploads that never completed (10 min), deletes recordings of settled answers, and
+  deletes anything older than 1 hour. Only the learner's own words (the transcript) are kept, and are shown to them as "What Audli heard".
+  No audio is ever logged. Failed or abandoned jobs are cleaned the same way. Account deletion cascades through attempts to these rows.
+* **Account isolation**: every route is scoped by the verified learner id and the URL's attempt/question must belong together; another
+  account's ids are indistinguishable from missing ones (404). Tests cover upload, skip, retry, read and answer across two accounts.
+
+## Data (migration 010, `docs/postgres-010.sql`, generated by `app/listening/migrations.py`)
+Additive: `listening_exercise_rubrics` (private keys for the new kinds), `listening_answers`, `listening_spoken`, `listening_jobs`, and one
+widened CHECK (`listening_exercises.kind`). Recorded in `listening_migrations` as version 10 (never `schema_migrations`), applied only by
+`python -m scripts.migrate_postgres --listening` after 009. **009 is untouched** (a test pins its checksum). Content publishes as a **new
+immutable version**: existing Milestone 01 attempts keep the version they were shown, new attempts get the four-exercise version.
+The same RLS posture applies (RLS on, `PUBLIC`/`anon`/`authenticated` revoked).
+
+## Endpoints added
+| Method and path | Purpose |
+| --- | --- |
+| `POST /attempts/{id}/answers` | now also `{ "text" }` (fill in the blank) and `{ "order": [...] }` (sequencing) |
+| `POST /attempts/{id}/exercises/{eid}/recording?upload_id=…` | raw audio body; accepted ⇒ pending |
+| `POST /attempts/{id}/exercises/{eid}/skip` | mark the spoken question skipped (idempotent) |
+| `POST /attempts/{id}/exercises/{eid}/retry` | assess the saved words again after a failure (no audio needed) |
+
+## Run it locally
+```bash
+AUDLI_LISTENING_ENABLED=true .venv/bin/python -m scripts.seed_listening_lesson     # publishes the four-exercise version
+AUDLI_LISTENING_ENABLED=true .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+AUDLI_LISTENING_ENABLED=true .venv/bin/python -m app.listening.worker               # in another terminal; fake AI providers by default
+```
+Local development uses `AUDLI_LISTENING_PROVIDER=fake` (deterministic stand-ins, **refused in production**; set
+`AUDLI_LISTENING_FAKE_TRANSCRIPT` to choose what it "hears"). No key and no paid call is involved. An existing local SQLite file from
+Milestone 01 must be deleted once (SQLite cannot widen the old CHECK); the code says so.
+
+## Verified, and not verified
+Verified by automated tests: see the pull request for counts. Unit and API tests (SQLite and real PostgreSQL), job claim concurrency across
+threads on both, lease expiry and fenced takeover, a zombie worker unable to overwrite a result, retries with backoff, exhaustion, missing
+recordings, cleanup sweeps, validation of uploads, account isolation, grounding, insufficient evidence, request shape of the OpenAI
+adapters against a mocked HTTP transport, S3 read/delete against a mocked transport, and the whole journey in real Chromium and WebKit
+against the real API and the real worker process.
+
+**Not verified (do these before any release):**
+1. **The OpenAI transcription and assessment adapters have never talked to OpenAI.** Their request shape and error handling are tested
+   against a mock only; model names are configuration defaults, unchecked. A reviewed, budgeted live trial is needed.
+2. **A real microphone and real iPhone Safari.** Chromium uses a fake device in CI; WebKit in CI uses the file-upload path because it has no
+   microphone. Safari's recorder (MP4/AAC) is accepted by the validator in principle but untested on a device.
+3. **Real S3 compatibility** for put/get/delete of recordings (the earlier S3 caveats in LISTENING.md still apply; `get`/`delete` have only
+   been tested against a mocked transport). Also add a bucket lifecycle rule expiring `listening-tmp/` after one day as a backstop.
+4. Production migration 010 (after 009), a deployed worker process, and the worker's database role grants (SELECT/INSERT/UPDATE on the
+   2.0 tables). No hosted configuration was changed.
+5. Spoken-answer quality: the key points and classification quality have not been evaluated on real learner speech.

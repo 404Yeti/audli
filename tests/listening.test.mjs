@@ -64,3 +64,64 @@ test('option states: choosing before feedback, then right/wrong/dimmed after', (
   const right = { selected_option_id: 'b', is_correct: true, correct_option_id: 'b', explanation: 'x' };
   assert.deepEqual(['a', 'b', 'c'].map(id => optionState(id, 'b', right)), ['dimmed', 'correct', 'dimmed']);
 });
+
+// ---- Milestone 02: the four-exercise journey ---------------------------------------------------------------------------------------
+import { isDecided, firstUndecided, hasPendingAssessment, pollDelayMs, moveItem, outcomeOf, scoreLine, pickRecorderType, cleanGap, splitPrompt, clock } from '../web/lib/listening-core.ts';
+
+const ex = (kind, extra = {}) => ({ id: kind, position: 1, kind, prompt: 'q', options: [], feedback: null, fill: null, sequence: null, spoken: null, ...extra });
+const spoken = status => ({ status, retryable: false, transcript: null, insufficient: false, points: null, covered: null, partly: null, total_points: null, failure_code: null });
+
+test('a question is decided once answered, and a recording still being received is not', () => {
+  assert.equal(isDecided(ex('multiple_choice')), false);
+  assert.equal(isDecided(ex('multiple_choice', { feedback: { is_correct: true } })), true);
+  assert.equal(isDecided(ex('fill_blank', { fill: { is_correct: false } })), true);
+  assert.equal(isDecided(ex('sequencing', { sequence: { is_correct: false } })), true);
+  assert.equal(isDecided(ex('spoken', { spoken: spoken('receiving') })), false);
+  for (const status of ['pending', 'assessed', 'failed', 'skipped']) assert.equal(isDecided(ex('spoken', { spoken: spoken(status) })), true, status);
+});
+
+test('the learner continues past a pending spoken answer to the next unanswered question', () => {
+  const list = [ex('multiple_choice', { feedback: { is_correct: true } }), ex('spoken', { spoken: spoken('pending') }), ex('fill_blank'), ex('sequencing')];
+  assert.equal(firstUndecided(list).kind, 'fill_blank');
+  assert.equal(hasPendingAssessment(list), true);
+  assert.equal(hasPendingAssessment([ex('spoken', { spoken: spoken('assessed') })]), false);
+  assert.equal(firstUndecided(list.map(e => e.kind === 'spoken' ? e : { ...e, feedback: { is_correct: true } })), undefined);
+});
+
+test('polling backs off and stays bounded', () => {
+  assert.deepEqual([0, 1, 2, 5, 50].map(pollDelayMs), [3000, 4000, 5000, 8000, 8000]);
+});
+
+test('moving an item swaps neighbours and never leaves the list', () => {
+  const order = ['a', 'b', 'c'];
+  assert.deepEqual(moveItem(order, 0, 1), ['b', 'a', 'c']);
+  assert.deepEqual(moveItem(order, 2, -1), ['a', 'c', 'b']);
+  assert.equal(moveItem(order, 0, -1), order);
+  assert.equal(moveItem(order, 2, 1), order);
+  assert.equal(moveItem(order, 9, 1), order);
+  assert.deepEqual(order, ['a', 'b', 'c']);       // never mutates its input
+});
+
+test('the debrief reports each state as it really is and counts only scored questions', () => {
+  assert.equal(outcomeOf(ex('multiple_choice', { feedback: { is_correct: false } })), 'incorrect');
+  assert.equal(outcomeOf(ex('fill_blank', { fill: { is_correct: true } })), 'correct');
+  assert.equal(outcomeOf(ex('spoken', { spoken: spoken('pending') })), 'pending');
+  assert.equal(outcomeOf(ex('spoken', { spoken: spoken('skipped') })), 'skipped');
+  assert.equal(outcomeOf(ex('spoken', { spoken: spoken('failed') })), 'failed');
+  assert.equal(outcomeOf(ex('spoken', { spoken: spoken('receiving') })), 'unanswered');
+  const view = exercises => ({ exercises });
+  const right = { is_correct: true }, wrong = { is_correct: false };
+  assert.equal(scoreLine(view([ex('multiple_choice', { feedback: right }), ex('spoken', { spoken: spoken('pending') }), ex('fill_blank', { fill: wrong }), ex('sequencing', { sequence: right })])), '2 of 3 correct');
+  assert.equal(scoreLine(view([ex('multiple_choice', { feedback: right }), ex('fill_blank'), ex('sequencing')])), '1 of 1 correct so far');
+});
+
+test('recorder, gap and prompt helpers', () => {
+  assert.equal(pickRecorderType(t => t === 'audio/mp4'), 'audio/mp4');
+  assert.equal(pickRecorderType(() => false), undefined);
+  assert.equal(pickRecorderType(() => true), 'audio/webm;codecs=opus');
+  assert.equal(cleanGap('  fresh   herbs \n'), 'fresh herbs');
+  assert.equal(cleanGap('x'.repeat(200)).length, 80);
+  assert.deepEqual(splitPrompt('It comes with fresh ___.'), ['It comes with fresh ', '.']);
+  assert.deepEqual(splitPrompt('No gap'), ['No gap', '']);
+  assert.equal(clock(0), '0:00'); assert.equal(clock(65.9), '1:05');
+});

@@ -1,14 +1,30 @@
 // API calls for the 2.0 listening lesson. Authentication comes from the shared token provider behind api().
-import { api, resolveApiUrl } from './api.ts';
+import { ApiError, api, authenticatedFetch, resolveApiUrl } from './api.ts';
 import { newRequestId, type AttemptView, type CatalogItem } from './listening-core.ts';
 
 export const listCatalog = () => api<CatalogItem[]>('/listening/lessons');
 export const currentAttemptId = (lessonId: string) =>
   api<{ attempt_id: string | null }>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts/current`).then(r => r.attempt_id);
 export const getAttempt = (attemptId: string) => api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}`);
-export const submitAnswer = (attemptId: string, exerciseId: string, optionId: string) =>
+/** One answer: `{ option_id }` (multiple choice), `{ text }` (fill in the blank) or `{ order }` (sequencing). */
+export type AnswerBody = { option_id: string } | { text: string } | { order: string[] };
+export const submitAnswer = (attemptId: string, exerciseId: string, answer: AnswerBody) =>
   api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}/answers`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ exercise_id: exerciseId, option_id: optionId }) });
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ exercise_id: exerciseId, ...answer }) });
+
+const spokenPath = (attemptId: string, exerciseId: string, action: string) =>
+  `/listening/attempts/${encodeURIComponent(attemptId)}/exercises/${encodeURIComponent(exerciseId)}/${action}`;
+export const skipSpoken = (attemptId: string, exerciseId: string) => api<AttemptView>(spokenPath(attemptId, exerciseId, 'skip'), { method: 'POST' });
+export const retrySpoken = (attemptId: string, exerciseId: string) => api<AttemptView>(spokenPath(attemptId, exerciseId, 'retry'), { method: 'POST' });
+
+/** Sends one recording. `uploadId` names this recording, so sending it again after a dropped connection never makes a second answer. */
+export async function sendRecording(attemptId: string, exerciseId: string, blob: Blob, uploadId: string): Promise<AttemptView> {
+  const url = `/api${spokenPath(attemptId, exerciseId, 'recording')}?upload_id=${encodeURIComponent(uploadId)}`;
+  const response = await authenticatedFetch(url, { method: 'POST', headers: { 'Content-Type': blob.type.split(';')[0] || 'audio/webm' }, body: blob });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new ApiError(typeof data?.detail === 'string' ? data.detail : 'We couldn’t send your recording.', response.status);
+  return data as AttemptView;
+}
 
 const requestKey = (lessonId: string) => `audli.listening.request.${lessonId}`;
 

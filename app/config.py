@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     listening_s3_region: str = 'auto'
     listening_s3_access_key: SecretStr | None = None
     listening_s3_secret_key: SecretStr | None = None
+    # Milestone 02: the separate worker process (python -m app.listening.worker) is the only caller of these providers.
+    listening_provider: Literal['fake', 'openai'] = 'fake'
+    listening_fake_transcript: str = Field(default='', max_length=500)
+    listening_fake_delay_seconds: float = Field(default=0, ge=0, le=60)    # development/browser tests only: makes 'pending' observable
+    listening_transcription_model: str = 'gpt-4o-mini-transcribe'
+    listening_assessment_model: str = 'gpt-4o-mini'
+    listening_spoken_daily_limit: int = Field(default=30, ge=1, le=500)   # recordings accepted per learner per rolling 24h
     review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h
     review_improvement_max_concurrent: int = Field(default=2, ge=1, le=8)
     review_improvement_timeout_seconds: float = Field(default=30, gt=0, le=60)
@@ -157,6 +164,8 @@ class Settings(BaseSettings):
             if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
                     or not self.listening_s3_access_key or not self.listening_s3_secret_key):
                 raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
+        if self.environment == 'production' and self.listening_provider == 'fake':
+            raise ValueError('Production listening lessons require AUDLI_LISTENING_PROVIDER=openai')
         if self.listening_signing_secret and len(self.listening_signing_secret.get_secret_value()) < 16:
             raise ValueError('AUDLI_LISTENING_SIGNING_SECRET must be at least 16 characters')
         return self

@@ -170,3 +170,10 @@ test('the recording screen discloses the external provider and what happens to t
   assert.match(PROVIDER_DISCLOSURE, /temporary audio is deleted as soon as it has been transcribed/);
   assert.ok(PROVIDER_DISCLOSURE.length < 260);          // concise enough to read before recording
 });
+
+import { listeningEnabled } from '../web/lib/listening-flag.ts';
+test('the 2.0 pages are off unless the flag is exactly "true"', () => {
+  for (const value of [undefined, '', 'false', 'TRUE', '1', 'yes', ' true']) assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: value }), false, String(value));
+  assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: 'true' }), true);
+  assert.equal(listeningEnabled({}), false);
+});

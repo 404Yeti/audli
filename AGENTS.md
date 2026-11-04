@@ -56,7 +56,7 @@ docker compose up --build
 
 # Audli 2.0 listening lessons (local)
 AUDLI_LISTENING_ENABLED=true .venv/bin/python -m scripts.seed_listening_lesson
-AUDLI_LISTENING_ENABLED=true .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000   # then open http://127.0.0.1:3000/listening
+AUDLI_LISTENING_ENABLED=true .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000   # then, with NEXT_PUBLIC_AUDLI_LISTENING=true cd web && npm run dev, open http://127.0.0.1:3000/listening (404 without that flag)
 .venv/bin/pytest -q tests/test_listening.py        # add AUDLI_TEST_POSTGRES_URL=<disposable cluster> for the real-PostgreSQL run
 cd web && node --experimental-strip-types ../tests/listening.test.mjs
 cd web && npx playwright test -c listening.playwright.config.ts --project=chromium

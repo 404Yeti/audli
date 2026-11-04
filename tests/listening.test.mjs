@@ -162,3 +162,10 @@ test('a returning learner skips the intro only when an answer is already saved, 
   assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1 })]), { started: false, next: 1 });
   assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1, feedback: { is_correct: false } })]), { started: true, next: null });
 });
+
+import { listeningEnabled } from '../web/lib/listening-flag.ts';
+test('the 2.0 pages are off unless the flag is exactly "true"', () => {
+  for (const value of [undefined, '', 'false', 'TRUE', '1', 'yes', ' true']) assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: value }), false, String(value));
+  assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: 'true' }), true);
+  assert.equal(listeningEnabled({}), false);
+});

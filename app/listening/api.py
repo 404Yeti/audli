@@ -267,6 +267,10 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
     log.warning('Audli 2.0 routes registered: storage=%s allow-list=%s entries (%s)', settings.listening_storage, len(allowed),
              ', '.join(sorted(a[:8] for a in allowed)) or 'open to every signed-in learner')
 
+    if settings.listening_storage == 'local' and settings.auth_mode == 'supabase':
+        # Signed links would point at this container's own disk, where published lesson audio does not exist: every lesson would show "The audio couldn't load".
+        log.warning('Audli 2.0 lesson audio is set to LOCAL storage while accounts are on; set AUDLI_LISTENING_STORAGE=s3 or published audio will not play')
+
     def require_allowed() -> None:
         """While 2.0 is limited to named test accounts, everyone else sees exactly what they would see if it did not exist."""
         if allowed and repo.learner_id not in allowed:

@@ -91,3 +91,11 @@ def test_a_refused_account_is_logged_once_by_prefix_only_and_startup_says_what_i
     refusals = [r.getMessage() for r in caplog.records if 'refused' in r.getMessage()]
     assert len(refusals) == 1 and USER_B[:8] in refusals[0] and USER_B not in refusals[0]
     assert a.get('/api/listening/lessons').status_code == 200 and len([r for r in caplog.records if 'refused' in r.getMessage()]) == 1
+
+
+def test_local_lesson_storage_with_signed_in_accounts_is_called_out_at_startup(stack, caplog):
+    import logging
+    caplog.set_level(logging.WARNING, logger='audli.listening')
+    build, _ = stack
+    build(listening_allowed_learners=USER_A)                          # the test settings use accounts + local storage
+    assert any('LOCAL storage' in r.getMessage() and 'AUDLI_LISTENING_STORAGE=s3' in r.getMessage() for r in caplog.records)

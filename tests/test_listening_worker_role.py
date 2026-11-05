@@ -128,3 +128,15 @@ def test_the_guard_still_fails_closed_under_the_restricted_role_when_the_ceiling
     guard.reserve('assessment', 2000)
     with pytest.raises(BudgetRefused):
         guard.reserve('assessment', 1)
+
+
+def test_the_api_role_sql_covers_every_listening_table_and_never_deletes():
+    from app.listening.roles import API_TABLES, EXAMPLE_API_ROLE, api_role_sql
+    from app.listening.schema import metadata
+    assert (ROOT / 'docs/postgres-listening-api-role.sql').read_text() == api_role_sql(EXAMPLE_API_ROLE)
+    assert set(API_TABLES) == {name for name in metadata.tables if name.startswith('listening_')}
+    sql = api_role_sql()
+    assert 'GRANT SELECT, INSERT, UPDATE ON' in sql and 'DELETE' not in sql.upper().replace('DROP POLICY IF EXISTS', '') and 'TRUNCATE' not in sql.upper()
+    assert all(f'REVOKE ALL ON' in sql and role in sql for role in ('anon', 'authenticated', 'service_role'))
+    with pytest.raises(ValueError):
+        api_role_sql('x; DROP TABLE users')

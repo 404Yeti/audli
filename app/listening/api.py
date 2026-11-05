@@ -29,6 +29,37 @@ class CatalogItem(BaseModel):
     listen_for: str
     accents: list[str]
     duration_ms: int
+    # Where this learner is with the lesson (filled in per account; a lesson nobody has opened is simply "new").
+    status: str = 'new'                  # new | in_progress | completed
+    attempt_id: str | None = None
+    answered: int = 0
+    total: int = 0
+    correct: int | None = None           # among the scored questions, finished attempts only
+    scored: int | None = None
+    spoken_status: str | None = None     # pending | assessed | failed | skipped | None
+    last_activity_at: datetime | None = None
+    completed_count: int = 0
+
+
+class RecentOut(BaseModel):
+    attempt_id: str
+    lesson_id: str
+    title: str
+    cefr: str
+    status: str
+    when: datetime
+    correct: int | None
+    scored: int | None
+    spoken_status: str | None
+
+
+class ProgressOut(BaseModel):
+    lessons_available: int
+    lessons_completed: int
+    attempts_completed: int
+    questions_correct: int
+    questions_scored: int
+    recent: list[RecentOut]
 
 
 class AudioInfo(BaseModel):
@@ -224,7 +255,12 @@ def register_listening_routes(app, repo, settings, objects):
     @app.get('/api/listening/lessons', response_model=list[CatalogItem])
     def catalog():
         with repo.read() as db:
-            return store.list_catalog(db)
+            return store.list_catalog(db, repo.learner_id)
+
+    @app.get('/api/listening/progress', response_model=ProgressOut)
+    def progress():
+        with repo.read() as db:
+            return store.progress_summary(db, repo.learner_id)
 
     @app.get('/api/listening/lessons/{lesson_id}/attempts/current', response_model=CurrentAttempt)
     def current_attempt(lesson_id: str):

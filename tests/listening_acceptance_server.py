@@ -20,12 +20,12 @@ os.environ.update(AUDLI_ENVIRONMENT='development', AUDLI_PERSISTENCE='sqlite', A
 
 from app.config import Settings
 from app.listening.objects import build_store
-from app.listening.seed import seed
+from app.listening.seed import seed_all
 from app.main import create_app
 
 _settings = Settings(_env_file=None)
 app = create_app(_settings)
-seed(app.state.repository.engine, build_store(_settings, _settings.data_dir))
+seed_all(app.state.repository.engine, build_store(_settings, _settings.data_dir))
 
 
 # The worker is its own process, started after the lesson is seeded so both share one database and one set of files.

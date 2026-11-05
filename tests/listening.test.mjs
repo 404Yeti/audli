@@ -126,6 +126,43 @@ test('recorder, gap and prompt helpers', () => {
   assert.equal(clock(0), '0:00'); assert.equal(clock(65.9), '1:05');
 });
 
+// ---- Milestone 03: library, saved sessions, progress -------------------------------------------------------------------------------
+import { lessonAction, statusLine, whenLabel, lengthLabel, progressLine, resumePosition } from '../web/lib/listening-core.ts';
+
+const item = extra => ({ lesson_id: 'l', slug: 's', title: 'T', topic: 't', cefr: 'B1', listen_for: 'x', accents: [], duration_ms: 79_000, status: 'new',
+  attempt_id: null, answered: 0, total: 4, correct: null, scored: null, spoken_status: null, last_activity_at: null, completed_count: 0, ...extra });
+
+test('a lesson card says what is true and offers the right action, never a silent restart', () => {
+  assert.deepEqual([lessonAction(item()), lessonAction(item({ status: 'in_progress' })), lessonAction(item({ status: 'completed' }))], ['Start', 'Continue', 'See results']);
+  assert.equal(statusLine(item()), 'New');
+  assert.equal(statusLine(item({ status: 'in_progress', answered: 2 })), 'In progress · 2 of 4 answered');
+  assert.equal(statusLine(item({ status: 'completed', correct: 2, scored: 3 })), 'Finished · 2 of 3 correct');
+  assert.equal(statusLine(item({ status: 'completed', correct: null, scored: null })), 'Finished');
+});
+
+test('dates are plain and lengths are rounded honestly', () => {
+  const noon = new Date(2026, 10, 4, 12).getTime();
+  assert.equal(whenLabel(new Date(2026, 10, 4, 1).toISOString(), noon), 'Today');
+  assert.equal(whenLabel(new Date(2026, 10, 3, 23).toISOString(), noon), 'Yesterday');
+  assert.match(whenLabel(new Date(2026, 9, 20).toISOString(), noon), /20/);
+  assert.equal(whenLabel('not a date', noon), '');
+  assert.equal(lengthLabel(79_000), 'About 1 min'); assert.equal(lengthLabel(56_000), 'About 1 min'); assert.equal(lengthLabel(20_000), 'Under 1 min');
+});
+
+test('progress only states what happened', () => {
+  const base = { lessons_available: 2, lessons_completed: 0, attempts_completed: 0, questions_correct: 0, questions_scored: 0, recent: [] };
+  assert.equal(progressLine(base), 'Nothing finished yet. Pick a lesson to begin.');
+  assert.equal(progressLine({ ...base, lessons_completed: 1 }), '1 of 2 lessons finished');
+  assert.equal(progressLine({ ...base, lessons_available: 1, lessons_completed: 1 }), '1 of 1 lesson finished');
+});
+
+test('a returning learner skips the intro only when an answer is already saved, and resumes at the first open question', () => {
+  const list = [ex('multiple_choice', { position: 1, feedback: { is_correct: true } }), ex('spoken', { position: 2 }), ex('fill_blank', { position: 3 })];
+  assert.deepEqual(resumePosition(list), { started: true, next: 2 });
+  assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1 })]), { started: false, next: 1 });
+  assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1, feedback: { is_correct: false } })]), { started: true, next: null });
+});
+
 import { listeningEnabled } from '../web/lib/listening-flag.ts';
 test('the 2.0 pages are off unless the flag is exactly "true"', () => {
   for (const value of [undefined, '', 'false', 'TRUE', '1', 'yes', ' true']) assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: value }), false, String(value));

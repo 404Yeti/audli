@@ -5,7 +5,7 @@ Production needs migration 009 and S3 storage configured; this script never runs
 from app.config import Settings
 from app.listening.api import prepare
 from app.listening.objects import build_store
-from app.listening.seed import seed
+from app.listening.seed import seed_all
 from app.storage.adapters import create_repository
 
 
@@ -16,8 +16,8 @@ def main() -> None:
     database = create_repository(settings)
     try:
         prepare(database.engine)
-        version_id, created = seed(database.engine, build_store(settings, settings.data_dir))
-        print(('Published' if created else 'Already published') + f' lesson version {version_id}')
+        for version_id, created in seed_all(database.engine, build_store(settings, settings.data_dir)):
+            print(('Published' if created else 'Already published') + f' lesson version {version_id}')
     finally:
         database.close()
 

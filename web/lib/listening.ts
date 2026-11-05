@@ -1,8 +1,9 @@
 // API calls for the 2.0 listening lesson. Authentication comes from the shared token provider behind api().
 import { ApiError, api, authenticatedFetch, resolveApiUrl } from './api.ts';
-import { newRequestId, type AttemptView, type CatalogItem } from './listening-core.ts';
+import { newRequestId, type AttemptView, type CatalogItem, type Progress } from './listening-core.ts';
 
 export const listCatalog = () => api<CatalogItem[]>('/listening/lessons');
+export const getProgress = () => api<Progress>('/listening/progress');
 export const currentAttemptId = (lessonId: string) =>
   api<{ attempt_id: string | null }>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts/current`).then(r => r.attempt_id);
 export const getAttempt = (attemptId: string) => api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}`);

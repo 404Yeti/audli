@@ -6,7 +6,7 @@ robotic development fixture, recorded as provider 'fixture'; it is not a product
 
 Needs the espeak-ng command line on PATH (or ESPEAK_NG=/path/to/espeak-ng; dev-only, never a runtime dependency). Writes
 audio.mp3 and audio.json next to lesson.json.
-    .venv/bin/python -m scripts.build_listening_fixture
+    .venv/bin/python -m scripts.build_listening_fixture [restaurant_b1 | pharmacy_a2]
 """
 import hashlib
 import json
@@ -22,8 +22,10 @@ from imageio_ffmpeg import get_ffmpeg_exe
 
 from app.listening.domain import LessonContent
 
-FIXTURE = Path(__file__).resolve().parents[1] / 'app' / 'listening' / 'fixtures' / 'restaurant_b1'
-VOICES = {'sam': ('en-us', 135, 45), 'maria': ('en-us+f3', 140, 60)}   # (voice, words per minute, pitch)
+FIXTURES = Path(__file__).resolve().parents[1] / 'app' / 'listening' / 'fixtures'
+FIXTURE = FIXTURES / (sys.argv[1] if len(sys.argv) > 1 else 'restaurant_b1')
+# (voice, words per minute, pitch) per speaker id
+VOICES = {'sam': ('en-us', 135, 45), 'maria': ('en-us+f3', 140, 60), 'lena': ('en-us+f4', 135, 55), 'tom': ('en-us+m3', 130, 40)}
 PAUSE_MS, LEAD_MS, TAIL_MS = 450, 300, 400
 
 

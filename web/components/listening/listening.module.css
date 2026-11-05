@@ -160,3 +160,19 @@
 .pointState { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-700); }
 .evidence { font-size: 14px; color: var(--ink-700); font-style: italic; }
 .failed { display: grid; gap: 10px; }
+
+/* Milestone 03: library, progress, recent activity */
+.libHead { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.libMascot { width: 72px; flex: none; }
+.panel { background: var(--white); border-radius: 16px; padding: 16px; box-shadow: var(--shadow-card); display: grid; gap: 6px; margin-top: 16px; }
+.cardTop { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.cardMeta { font-size: 14px; font-weight: 600; color: var(--ink-700); }
+.cardBottom { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cardAction { font-weight: 800; color: var(--blue-600); min-height: 24px; }
+.lessonCard:focus-visible { box-shadow: var(--focus); }
+.recent { margin: 0; padding: 0; list-style: none; display: grid; }
+.recentRow { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--ink-100); text-decoration: none; color: inherit; }
+.recent li:last-child .recentRow { border-bottom: 0; }
+.skeleton { pointer-events: none; }
+.skelLine { display: block; height: 18px; border-radius: 8px; background: var(--ink-100); } .skelShort { width: 55%; }
+@media (prefers-reduced-motion: no-preference) { .skelLine { animation: skelPulse 1.4s ease-in-out infinite; } @keyframes skelPulse { 50% { opacity: .5; } } }

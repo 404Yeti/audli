@@ -9,6 +9,8 @@ store: publishing is seed.py's job, as a new immutable lesson version.
 """
 import hashlib
 import struct
+import sys
+from array import array
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -46,7 +48,17 @@ def _ffmpeg() -> str:
     return get_ffmpeg_exe()
 
 
-def decode(data: bytes, rate: int = RATE) -> list[int]:
+def _little_endian(pcm) -> bytes:
+    if not isinstance(pcm, array):
+        pcm = array('h', pcm)
+    elif sys.byteorder == 'big':
+        pcm = array('h', pcm)
+    if sys.byteorder == 'big':
+        pcm.byteswap()
+    return pcm.tobytes()
+
+
+def decode(data: bytes, rate: int = RATE):
     with tempfile.TemporaryDirectory() as directory:
         source = Path(directory) / 'in.mp3'
         source.write_bytes(data)
@@ -54,19 +66,24 @@ def decode(data: bytes, rate: int = RATE) -> list[int]:
                               capture_output=True, timeout=60)
     if done.returncode != 0 or not done.stdout:
         raise AudioQualityError('a clip could not be decoded')
-    return list(struct.unpack(f'<{len(done.stdout) // 2}h', done.stdout))
+    samples = array('h')                            # 2 bytes a sample, not a Python int object each: a two-minute lesson must fit beside the API in a 512 MB container
+    samples.frombytes(done.stdout[: len(done.stdout) // 2 * 2])
+    if sys.byteorder == 'big':
+        samples.byteswap()
+    return samples
 
 
-def trim(samples: list[int]) -> list[int]:
+def trim(samples):
     """Keep a short, consistent margin of silence at both ends so pacing does not depend on the provider's padding."""
-    loud = [i for i, s in enumerate(samples) if abs(s) > 400]
-    if not loud:
+    first = next((i for i, s in enumerate(samples) if abs(s) > 400), None)
+    if first is None:
         raise AudioQualityError('a clip is silent')
+    last = len(samples) - 1 - next(i for i, s in enumerate(reversed(samples)) if abs(s) > 400)
     pad = RATE * EDGE_MS // 1000
-    return samples[max(0, loud[0] - pad): min(len(samples), loud[-1] + pad)]
+    return samples[max(0, first - pad): min(len(samples), last + pad)]
 
 
-def check_clip(text: str, samples: list[int]) -> None:
+def check_clip(text: str, samples) -> None:
     seconds, words = len(samples) / RATE, max(1, len(text.split()))
     low, high = SECONDS_PER_WORD
     if max(abs(s) for s in samples) < MIN_PEAK:
@@ -75,10 +92,10 @@ def check_clip(text: str, samples: list[int]) -> None:
         raise AudioQualityError(f'a clip has an implausible length ({seconds:.1f}s for {words} words): {text[:40]!r}')
 
 
-def encode(pcm: list[int]) -> bytes:
+def encode(pcm) -> bytes:
     with tempfile.TemporaryDirectory() as directory:
         raw, out = Path(directory) / 'a.raw', Path(directory) / 'a.mp3'
-        raw.write_bytes(struct.pack(f'<{len(pcm)}h', *pcm))
+        raw.write_bytes(_little_endian(pcm))
         subprocess.run([_ffmpeg(), '-v', 'error', '-y', '-f', 's16le', '-ar', str(RATE), '-ac', '1', '-i', str(raw), '-b:a', '96k', '-map_metadata', '-1',
                         '-id3v2_version', '0', '-write_id3v1', '0', str(out)], check=True, timeout=120)
         return out.read_bytes()
@@ -88,7 +105,7 @@ def build_audio(content: LessonContent, provider, voices: dict[str, str]) -> Bui
     missing = {s.id for s in content.speakers} - set(voices)
     if missing:
         raise ValueError(f'No voice chosen for: {", ".join(sorted(missing))}')
-    silence = lambda ms: [0] * (RATE * ms // 1000)
+    silence = lambda ms: array("h", bytes(2 * max(0, RATE * ms // 1000)))
     pcm, cues = silence(LEAD_MS), []
     for sentence in content.sentences:
         clip = trim(decode(provider.synthesize(sentence.text, voices[sentence.speaker])))

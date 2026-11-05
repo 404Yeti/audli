@@ -281,13 +281,33 @@ def test_the_kill_switch_pauses_generation_and_the_job_waits_instead_of_failing(
     assert view(lab, lab.owner, request_id)['phase'] == 'queued' and d.speech.spent == 0
 
 
-def test_a_temporary_speech_failure_is_retried_and_the_finished_audio_is_never_paid_for_twice(lab):
+def test_a_speech_failure_after_some_sentences_were_paid_for_is_not_retried_and_the_spend_stays_counted(lab):
     flaky = FakeSpeech()
     original = flaky.synthesize
-    state = {'fail': True}
 
     def synth(text, voice):
-        if state['fail'] and len(flaky.calls) >= 3:
+        if len(flaky.calls) >= 3:
+            raise SpeechTemporary('network')
+        return original(text, voice)
+    flaky.synthesize = synth
+    d = lab.deps(speech=flaky)
+    request_id = start(lab, d)
+    assert run(lab, d) == 'failed'                                              # production run 2: 746 credits were charged for a lesson that never finished
+    assert view(lab, lab.owner, request_id)['phase'] == 'failed'
+    with lab.engine.connect() as db:
+        actual = db.execute(select(t.generation_requests.c.actual_credits).where(t.generation_requests.c.id == request_id)).scalar_one()
+    assert actual and actual > 0
+    month = utcnow().strftime('%Y-%m')
+    assert limits(lab)[month][1] == actual                                      # the month counter keeps what the provider charged, not zero
+
+
+def test_a_speech_failure_before_anything_was_charged_is_retried(lab):
+    flaky = FakeSpeech()
+    state = {'fail': True}
+    original = flaky.synthesize
+
+    def synth(text, voice):
+        if state['fail']:
             raise SpeechTemporary('network')
         return original(text, voice)
     flaky.synthesize = synth
@@ -295,7 +315,7 @@ def test_a_temporary_speech_failure_is_retried_and_the_finished_audio_is_never_p
     request_id = start(lab, d)
     assert run(lab, d) == 'retry'
     state['fail'] = False
-    with lab.engine.begin() as db:                                              # make the retry eligible now
+    with lab.engine.begin() as db:
         db.execute(t.jobs.update().values(run_after=utcnow() - timedelta(seconds=1)))
     assert run(lab, d, 'w2') == 'done'
     assert view(lab, lab.owner, request_id)['phase'] == 'ready'
@@ -387,3 +407,17 @@ def test_a_generation_job_that_ran_out_of_tries_is_settled_by_the_generator_and_
     assert gj.maintenance(d, ('interpret', 'generate')) == 1
     assert view(lab, lab.owner, request_id)['phase'] == 'failed'
     assert limits(lab)[day][0] == 0                                          # the reservation was given back
+
+
+def test_building_a_two_minute_lesson_fits_in_a_small_container():
+    """Production runs 2 and 3: the generator was killed for memory while joining a two-minute lesson (Python int lists took ~470 MB of a 512 MB container)."""
+    import tracemalloc
+    from app.listening import audio_build
+    raw = FakeScriptWriter().write(SPEC, g.estimate_chars(2), None)
+    content = g.assemble(SPEC, raw, 'req', g.estimate_chars(2))
+    tracemalloc.start()
+    built = audio_build.build_audio(content, FakeSpeech(), {s.id: 'v' for s in content.speakers})
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert built.duration_ms > 90_000
+    assert peak < 120 * 1024 * 1024, f'{peak / 1e6:.0f} MB'

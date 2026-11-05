@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-from app.listening import jobs
+from app.listening import generation_jobs as genjobs, jobs
 from app.listening.generation import Deps, FakeInterpreter, FakeScriptWriter, Ledger, CREDIT_MULTIPLIER, voices_from
 from app.listening.generation_jobs import MeteredSpeech, process
 from app.listening.speech import ElevenLabsSpeech, FakeSpeech, SpeechBudget
@@ -18,11 +18,13 @@ from app.listening.worker import make_engine, worker_id
 
 log = logging.getLogger('audli.listening.generator')
 KINDS = ('interpret', 'generate')
+LEASE_SECONDS = 900                    # synthesising a two-minute lesson takes minutes; the generator has no heartbeat, so the lease must outlast the longest job
+MAINTENANCE_SECONDS = 30
 
 
 def run_once(deps: Deps, owner: str, now=None) -> str | None:
     with deps.engine.begin() as db:
-        job = jobs.claim(db, owner, now=now, kind=KINDS)
+        job = jobs.claim(db, owner, lease_seconds=LEASE_SECONDS, now=now, kind=KINDS)
     if job is None:
         return None
     started = time.monotonic()
@@ -33,7 +35,15 @@ def run_once(deps: Deps, owner: str, now=None) -> str | None:
 
 def run(deps: Deps, owner: str | None = None, once: bool = False, poll_seconds: float = 2.0, stop: threading.Event | None = None) -> int:
     owner, stop, handled = owner or worker_id(), stop or threading.Event(), 0
+    last_maintenance = 0.0
     while not stop.is_set():
+        if time.monotonic() - last_maintenance >= MAINTENANCE_SECONDS:
+            last_maintenance = time.monotonic()
+            try:
+                if genjobs.maintenance(deps, KINDS):
+                    log.warning('settled generation jobs that had run out of tries')
+            except Exception:
+                log.exception('generation maintenance failed')
         if run_once(deps, owner) is not None:
             handled += 1
             continue
@@ -63,7 +73,7 @@ def build_deps(settings, engine) -> Deps:
     client = make_client(settings.openai_api_key.get_secret_value(), settings.listening_provider_timeout_seconds)
     speech = ElevenLabsSpeech(settings.elevenlabs_api_key.get_secret_value(), model=settings.listening_gen_speech_model, budget=SpeechBudget(1), timeout=60)
     return Deps(engine=engine, settings=settings, ledger=Ledger(engine, settings), objects=objects, speech=MeteredSpeech(speech, multiplier),
-                writer=OpenAIScriptWriter(client, plan.model, plan.timeout, plan.max_output_tokens),
+                writer=OpenAIScriptWriter(client, plan.model, max(plan.timeout, 110.0), plan.max_output_tokens),
                 interpreter=OpenAIInterpreter(client, plan.model, plan.timeout),
                 voices=voices_from(settings), halted=guard.halted)
 

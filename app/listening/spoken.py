@@ -250,7 +250,7 @@ def maintenance(engine, objects, now=None) -> dict:
     now = now or utcnow()
     counts = {'reaped': 0, 'abandoned': 0, 'deleted': 0}
     with engine.begin() as db:
-        for payload in jobs.reap_exhausted(db, now):
+        for payload in jobs.reap_exhausted(db, now, kinds=('spoken',)):
             db.execute(update(t.spoken).where(and_(t.spoken.c.attempt_id == payload['attempt_id'], t.spoken.c.exercise_id == payload['exercise_id'],
                        t.spoken.c.generation == payload['generation'], t.spoken.c.status == 'pending'))
                        .values(status='failed', failure_code='lease_expired', updated_at=now))

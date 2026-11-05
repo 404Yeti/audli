@@ -146,6 +146,15 @@ def process(deps: Deps, job: jobs.Job, now=None) -> str:
         return 'failed'
 
 
+def maintenance(deps: Deps, kinds: tuple[str, ...], now=None) -> int:
+    """Settle generation jobs that ran out of tries with their lease expired (a crashed or stalled generator): fail the request, release its reservation."""
+    with deps.engine.begin() as db:
+        payloads = jobs.reap_exhausted(db, now, kinds=kinds)
+    for payload in payloads:
+        _give_up(deps, str(payload.get('request_id', '')), 'provider_unavailable')
+    return len(payloads)
+
+
 def _give_up(deps: Deps, request_id: str, code: str) -> None:
     """Mark the request failed and give back whatever was reserved but not spent. Credits already used stay counted."""
     try:

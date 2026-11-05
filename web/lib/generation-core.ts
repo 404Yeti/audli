@@ -62,7 +62,7 @@ export function stepStates(phase: Phase): StepState[] {
 export const SLOW_AFTER_MS = 60_000;
 export const POLL_MS = 2000;
 export const isLive = (phase: Phase): boolean => ['queued', 'script', 'audio', 'transcript_sync', 'exercises'].includes(phase);
-export const specLine = (s: Spec, maxLabel = true): string => `${s.cefr} · ${accentLabel(s.accent)} · ${FORMAT_LABEL[s.format]} · about ${s.minutes} min`;
+export const specLine = (s: Spec): string => `${s.cefr} · ${accentLabel(s.accent)} · ${FORMAT_LABEL[s.format]} · about ${s.minutes} min`;
 
 /** Why creation is unavailable, in the learner's words, and what they can do. */
 export function unavailableCopy(reason: string | null, perDay: number): { title: string; text: string } {

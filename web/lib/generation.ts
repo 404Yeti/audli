@@ -12,5 +12,5 @@ export const createGeneration = (spec: Spec, text: string | null, requestId: str
 export const getGeneration = (id: string) => api<GenerationView>(`/listening/generation/requests/${encodeURIComponent(id)}`);
 
 const KEY = 'audli.generation.current';
-export function rememberRequest(id: string | null) { try { id ? sessionStorage.setItem(KEY, id) : sessionStorage.removeItem(KEY); } catch { /* per-viewer convenience only */ } }
+export function rememberRequest(id: string | null) { try { if (id) sessionStorage.setItem(KEY, id); else sessionStorage.removeItem(KEY); } catch { /* per-viewer convenience only */ } }
 export function rememberedRequest(): string | null { try { return sessionStorage.getItem(KEY); } catch { return null; } }

@@ -8,16 +8,17 @@ const SPEC = { topic: 'ordering coffee in New York', cefr: 'B1', accent: 'americ
 const REQUEST = '99999999-9999-4999-8999-999999999999';
 const view = (extra: Record<string, unknown>) => ({ id: REQUEST, kind: 'generate', phase: 'queued', spec: SPEC, notes: [], question: null, title: null, lesson_id: null, failure: null, unavailable_reason: null, updated_at: null, ...extra });
 const AVAILABLE = { available: true, reason: null, max_minutes: 2, accents: ['american', 'british', 'australian'], per_learner_daily: 2 };
+type Posted = { spec: Record<string, unknown>; client_request_id: string; text: string | null };
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 const available = (page: Page, body: unknown = AVAILABLE) => page.route('**/api/listening/generation/availability', route => route.fulfill({ json: body }));
 
 test.describe('AI lesson generator screens (real pages, controlled responses)', () => {
   test('describe a lesson, review the interpreted settings, create it, watch it build, and open it when ready', async ({ page }) => {
     await available(page);
-    let posted: any = null;
+    let posted: Posted | null = null;
     let polls = 0;
     await page.route('**/api/listening/generation/interpret', route => route.fulfill({ json: view({ id: 'int-1', kind: 'interpret', phase: 'interpreted', notes: ['minutes_limited:2', 'defaulted:format'] }) }));
-    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON(); await route.fulfill({ json: view({ phase: 'queued' }) }); });
+    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON() as Posted; await route.fulfill({ json: view({ phase: 'queued' }) }); });
     await page.route(`**/api/listening/generation/requests/${REQUEST}`, route => {
       polls += 1;
       return route.fulfill({ json: polls < 2 ? view({ phase: 'script' }) : polls < 3 ? view({ phase: 'audio', title: 'Ordering coffee in New York' }) : view({ phase: 'ready', title: 'Ordering coffee in New York', lesson_id: 'lesson-1' }) });
@@ -33,8 +34,8 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
     await page.getByRole('radio', { name: /British/ }).click();                                    // the learner adjusts the settings before generating
     await page.getByRole('button', { name: 'Create lesson' }).click();
     await expect(page.getByRole('status', { name: 'Lesson progress' })).toBeVisible();
-    expect(posted.spec).toMatchObject({ topic: 'ordering coffee in New York', accent: 'british', minutes: 2, format: 'dialogue' });
-    expect(Object.keys(posted).sort()).toEqual(['client_request_id', 'spec', 'text']);
+    expect(posted!.spec).toMatchObject({ topic: 'ordering coffee in New York', accent: 'british', minutes: 2, format: 'dialogue' });
+    expect(Object.keys(posted!).sort()).toEqual(['client_request_id', 'spec', 'text']);
     await expect(page.getByText('Saved to your library')).toBeVisible({ timeout: 20000 });
     await expect(page.getByRole('link', { name: 'Start listening' })).toHaveAttribute('href', '/listening/lesson-1');
     await expect(page.getByText('4 exercises')).toBeVisible();
@@ -43,8 +44,8 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
   test('the structured controls alone create a lesson and an unavailable accent cannot be chosen', async ({ page }) => {
     await available(page);
     await page.route('**/api/listening/generation/interpret', route => route.fulfill({ json: view({ id: 'int-2', kind: 'interpret', phase: 'interpreted' }) }));
-    let posted: any = null;
-    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON(); await route.fulfill({ json: view({ phase: 'queued' }) }); });
+    let posted: Posted | null = null;
+    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON() as Posted; await route.fulfill({ json: view({ phase: 'queued' }) }); });
     await page.route(`**/api/listening/generation/requests/${REQUEST}`, route => route.fulfill({ json: view({ phase: 'script' }) }));
     await page.goto('/listening/create');
     await expect(page.getByRole('button', { name: 'Create lesson' })).toBeDisabled();             // nothing to build yet
@@ -59,7 +60,7 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
     await expect(page.getByText('We filled in the details below')).toBeVisible();
     await page.getByRole('button', { name: 'Create lesson' }).click();
     await expect(page.getByRole('status', { name: 'Lesson progress' })).toBeVisible();
-    expect(posted.spec.cefr).toBe('B1');
+    expect(posted!.spec.cefr).toBe('B1');
   });
 
   test('a request with no usable topic gets one question, and a refused request gets the not-supported state', async ({ page }) => {
@@ -79,9 +80,9 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
 
   test('a failed lesson keeps the request, offers Try again and Edit request, and never shows the lesson as ready', async ({ page }) => {
     await available(page);
-    const posts: any[] = [];
+    const posts: Posted[] = [];
     await page.route('**/api/listening/generation/interpret', route => route.fulfill({ json: view({ id: 'int-5', kind: 'interpret', phase: 'interpreted' }) }));
-    await page.route('**/api/listening/generation/requests', async route => { posts.push(route.request().postDataJSON()); await route.fulfill({ json: view({ phase: 'queued' }) }); });
+    await page.route('**/api/listening/generation/requests', async route => { posts.push(route.request().postDataJSON() as Posted); await route.fulfill({ json: view({ phase: 'queued' }) }); });
     await page.route(`**/api/listening/generation/requests/${REQUEST}`, route => route.fulfill({ json: view({ phase: 'failed', failure: 'The audio didn’t pass our quality checks. Nothing was saved. Please try again.' }) }));
     await page.goto('/listening/create');
     await page.getByLabel('What do you want to listen to?').fill('a train booking');

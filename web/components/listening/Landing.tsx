@@ -58,7 +58,7 @@ export function Landing({ onSignUp, onSignIn }: { onSignUp: () => void; onSignIn
           <p className={styles.muted} style={{ margin: 0 }}>Lessons are recorded in different accents. More are on the way.</p></div>
         <div className={styles.accents} role="list" aria-label="Accents">
           {AVAILABLE_ACCENTS.map(a => <span role="listitem" key={a} className={styles.chip}>{accentLabel(a)}</span>)}
-          {COMING_ACCENTS.map(a => <span role="listitem" key={a} className={`${styles.chip} ${styles.chipOff}`} aria-disabled="true">{a} · coming soon</span>)}
+          {COMING_ACCENTS.map(a => <span role="listitem" key={a} className={`${styles.chip} ${styles.chipOff}`}>{a} · coming soon</span>)}
         </div>
       </div></section>
 

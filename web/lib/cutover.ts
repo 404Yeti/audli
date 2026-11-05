@@ -6,7 +6,7 @@
 type Env = Record<string, string | undefined>;
 export const cutoverEnabled = (env: Env = process.env): boolean => env.NEXT_PUBLIC_AUDLI_LISTENING === 'true' && env.NEXT_PUBLIC_AUDLI_LISTENING_HOME === 'true';
 /** No redirect any more: "/" is rewritten (before the filesystem is checked, because the 1.x page lives at "/") to the 2.0 home, so the address stays "/". */
-export const cutoverRedirects = (_env: Env = process.env): never[] => [];
+export const cutoverRedirects = (): never[] => [];
 export const cutoverBeforeFiles = (env: Env = process.env) => (cutoverEnabled(env) ? [{ source: '/', destination: '/home' }] : []);
 export const cutoverAfterFiles = (env: Env = process.env) => (cutoverEnabled(env) ? [{ source: '/classic', destination: '/' }] : []);
 export const cutoverRewrites = cutoverAfterFiles;

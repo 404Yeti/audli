@@ -235,7 +235,15 @@ def run_generate(deps: Deps, job: jobs.Job, request_id: str) -> None:
         speaker_voice = {s.id: voices[i % len(voices)] for i, s in enumerate(content.speakers)}
         deps.speech.budget = SpeechBudget(chars)
         deps.speech.spent = 0.0
-        built = build_audio(content, deps.speech, speaker_voice)
+        try:
+            built = build_audio(content, deps.speech, speaker_voice)
+        except Exception:
+            spent = int(round(deps.speech.spent))
+            if spent > 0:                                          # the provider already charged for some sentences: count it, and never pay for the same audio twice
+                with deps.engine.begin() as db:
+                    db.execute(update(t.generation_requests).where(t.generation_requests.c.id == request_id).values(actual_credits=min(spent, reserved), updated_at=utcnow()))
+                raise GenerationFailed('provider_unavailable') from None
+            raise
         key = f'lessons/{content.slug}/{built.sha256[:16]}.mp3'
         deps.objects.put(key, built.data, 'audio/mpeg')
         if not deps.objects.exists(key):

@@ -191,11 +191,13 @@ def test_an_invalid_script_is_corrected_once_and_a_second_failure_publishes_noth
     assert d2.speech.spent == 0                                                                       # and nothing was ever synthesised
 
 
-@pytest.mark.parametrize('rule', ['too_long', 'one_speaker', 'bad_mcq', 'bad_sequence'])
+@pytest.mark.parametrize('rule', ['too_long', 'too_short', 'one_speaker', 'bad_mcq', 'bad_sequence'])
 def test_each_deterministic_check_refuses_a_bad_script(rule):
     raw = FakeScriptWriter().write(SPEC, g.estimate_chars(2), None)
     if rule == 'too_long':
         raw['sentences'] += raw['sentences'] * 3
+    elif rule == 'too_short':                                   # the first production lesson: a "2-minute" request that came back as ~40 seconds
+        raw['sentences'] = raw['sentences'][:6]
     elif rule == 'one_speaker':
         raw['speakers'] = raw['speakers'][:1]
     elif rule == 'bad_mcq':

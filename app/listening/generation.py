@@ -90,6 +90,15 @@ def estimate_chars(minutes: int) -> int:
     return int(CHARS_PER_SECOND * 60 * minutes * SAFETY)
 
 
+def target_chars(minutes: int) -> int:
+    """About how much script a lesson of this length needs (speech runs near 15 characters a second), and the least that still counts as that length."""
+    return int(CHARS_PER_SECOND * 60 * minutes * 0.95)
+
+
+def minimum_chars(minutes: int) -> int:
+    return int(CHARS_PER_SECOND * 60 * minutes * 0.75)
+
+
 def credit_cost(model: str, chars: int) -> int:
     if model not in CREDIT_MULTIPLIER:
         raise GenerationRefused('disabled')           # an unknown speech model has no known price: fail closed
@@ -292,7 +301,8 @@ SCRIPT_SYSTEM = (
     'spoken = an open question the learner answers aloud plus 3 key points (ids p1,p2,p3) a good answer contains, each taken from the script; '
     'fill = pick ONE word or short phrase (1-3 words) that appears exactly once in sentences[sentence_index].text; the learner will fill it in; '
     'sequence = 4 events (ids e1-e4) from the script IN SCRIPT ORDER with sentence_index of the sentence each comes from (strictly increasing); text in the learner\'s words, short. '
-    'Total script length must not exceed the character limit given.')
+    'Length matters: the spoken lesson should last about the requested minutes, so write close to target_characters of script in total (many sentences, developing the '
+    'situation with realistic detail), never fewer than minimum_characters and never more than character_limit.')
 
 
 class OpenAIInterpreter:
@@ -327,7 +337,8 @@ class OpenAIScriptWriter:
         import json
         from app.listening.providers import ProviderPermanent, translate_error
         payload = {'topic': spec.topic, 'cefr': spec.cefr, 'accent_note': spec.accent, 'format': spec.format, 'minutes': spec.minutes,
-                   'scenario': spec.scenario, 'character_limit': max_chars}
+                   'scenario': spec.scenario, 'character_limit': max_chars,
+                   'target_characters': target_chars(spec.minutes), 'minimum_characters': minimum_chars(spec.minutes)}
         if feedback:
             payload['fix_these_problems_from_your_previous_attempt'] = feedback
         try:
@@ -368,9 +379,9 @@ def assemble(spec: Spec, raw: dict, request_id: str, max_chars: int) -> LessonCo
     chars = sum(len(x) for x in texts)
     if chars > max_chars:
         raise ValueError(f'the script is {chars} characters; the limit is {max_chars}')
-    minimum = int(CHARS_PER_SECOND * 60 * max(1, spec.minutes - 1) * 0.6)
-    if chars < min(minimum, 300):
-        raise ValueError(f'the script is only {chars} characters: too short for a {spec.minutes}-minute lesson')
+    minimum = minimum_chars(spec.minutes)
+    if chars < minimum:
+        raise ValueError(f'the script is only {chars} characters; a {spec.minutes}-minute lesson needs at least {minimum} (aim for about {target_chars(spec.minutes)}) and at most {max_chars}')
     speakers = raw['speakers']
     want = 1 if spec.format == 'story' else 2
     if len(speakers) != want:

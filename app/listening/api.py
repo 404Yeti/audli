@@ -358,11 +358,17 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
         from app.listening import generation as gen, generation_jobs as genjobs
         ledger = gen.Ledger(engine if engine is not None else repo.engine, settings)
         plain = engine if engine is not None else repo.engine
+        gen_allowed = settings.listening_gen_allowed_set
+
+        def require_generation_allowed() -> None:
+            """While generation is limited to named learners, everyone else sees exactly what they would see if it did not exist."""
+            if gen_allowed and repo.learner_id not in gen_allowed:
+                raise HTTPException(404, 'Not found.')
 
         def _halted() -> bool:
             return AiGuard(plain, settings).halted()
 
-        @router.get('/generation/availability', response_model=Availability)
+        @router.get('/generation/availability', response_model=Availability, dependencies=[Depends(require_generation_allowed)])
         def generation_availability():
             ok, reason = ledger.availability(repo.learner_id, 1, 1)
             if ok and _halted():
@@ -377,7 +383,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 raise HTTPException(404, 'Not found.')                        # also what another learner's request id gets
             return GenerationView(**data)
 
-        @router.post('/generation/interpret', response_model=GenerationView)
+        @router.post('/generation/interpret', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
         def generation_interpret(body: InterpretBody):
             user_id = repo.learner_id
             if _halted():
@@ -389,7 +395,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 raise HTTPException(429, 'You have made a lot of requests today. Please try again tomorrow.') from None
             return _generation_view(request_id)
 
-        @router.post('/generation/requests', response_model=GenerationView)
+        @router.post('/generation/requests', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
         def generation_create(body: GenerateBody):
             user_id = repo.learner_id
             spec_raw, notes = gen.clamp_spec(body.spec.model_dump(), settings.listening_gen_max_minutes)
@@ -405,7 +411,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                     pass                                                       # the request row now says phase=unavailable and why; no job was queued
             return _generation_view(request_id)
 
-        @router.get('/generation/requests/{request_id}', response_model=GenerationView)
+        @router.get('/generation/requests/{request_id}', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
         def generation_status(request_id: str):
             return _generation_view(_uuid(request_id))
 

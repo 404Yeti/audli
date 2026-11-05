@@ -31,6 +31,7 @@ timeline; the MP3 is stored and confirmed (`exists`); the exercises validated as
 * `AUDLI_LISTENING_GEN_MAX_MINUTES` (2): longest lesson. Longer requests are shortened and the learner is told.
 * Before any synthesis the provider's own remaining credits are read; fewer than the lesson needs (+200) means the request fails before spending.
 * Reservation at request time, exact credits after the script is known, reconciliation to the provider's `character-cost` afterwards.
+* `AUDLI_LISTENING_GEN_ALLOWED_LEARNERS` (empty = everyone the 2.0 allow-list admits): while set, only those learners can use any generation route; everyone else gets a plain 404. Used for the controlled production test.
 * The global AI kill switch (`python -m app.listening.ai_budget halt`) pauses generation; queued jobs wait.
 * Estimates are not billing. The ElevenLabs plan cannot be extended (no overage) and the OpenAI project limit remain the real backstops.
 

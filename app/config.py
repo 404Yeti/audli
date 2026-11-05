@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     listening_gen_daily_budget_usd: float = Field(default=5.0, ge=0, le=1000)        # reserved per UTC day across all generation (script + speech estimates)
     listening_gen_monthly_credits: int = Field(default=100_000, ge=0, le=10_000_000) # provider credits (characters x the model's multiplier) per UTC month
     listening_gen_per_learner_daily: int = Field(default=2, ge=0, le=100)            # generated lessons per learner per UTC day
+    listening_gen_allowed_learners: str = ''                                          # comma-separated learner ids; empty = every learner the 2.0 allow-list admits. Others get a plain 404.
     listening_gen_voices: str = ''                                                   # JSON {"american": [id, id], ...}; '' = the verified defaults in app/listening/generation.py
     listening_gen_usd_per_1k_credits: float = Field(default=0.22, gt=0, le=10)       # list price estimate used only to size the USD reservation
     # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.
@@ -178,6 +179,10 @@ class Settings(BaseSettings):
             if routing_allowed(accent, voice.voice_id)} if self.accent_practice_enabled else {}
 
     @property
+    def listening_gen_allowed_set(self) -> frozenset[str]:
+        return frozenset(part.strip().lower() for part in self.listening_gen_allowed_learners.split(',') if part.strip())
+
+    @property
     def listening_allowed_set(self) -> frozenset[str]:
         return frozenset(part.strip().lower() for part in self.listening_allowed_learners.split(',') if part.strip())
 
@@ -188,7 +193,7 @@ class Settings(BaseSettings):
     @model_validator(mode='after')
     def listening_configuration(self):
         from uuid import UUID
-        for learner in self.listening_allowed_set:
+        for learner in (*self.listening_allowed_set, *self.listening_gen_allowed_set):
             try:
                 UUID(learner)
             except ValueError:

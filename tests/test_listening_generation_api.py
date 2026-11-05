@@ -128,3 +128,20 @@ def test_responses_never_carry_reservations_provider_text_or_storage_keys(api):
     body = api.a.get(f"/api/listening/generation/requests/{made['id']}").text.lower()
     for word in ('reserved', 'credits', 'audio_key', 'audio_meta', 'object_key', 'sha256', 'api_key', 'elevenlabs', 'openai', 'client_request_id', 'user_id'):
         assert word not in body, word
+
+
+def test_generation_can_be_limited_to_named_learners_and_everyone_else_sees_nothing(make_repository, tmp_path):
+    from test_auth import USER_A
+    repo = make_repository(None)
+    prepare_all(repo, tmp_path)
+    settings = settings_for(tmp_path, listening_enabled=True, listening_generation_enabled=True, listening_gen_allowed_learners=USER_A)
+    app = create_app(settings, FakeProvider(), repository=repo, auth_client=httpx.AsyncClient(transport=httpx.MockTransport(auth_response)))
+    a, b = AccountClient(app, None, 'valid-a'), AccountClient(app, None, 'valid-b')
+    assert a.get('/api/listening/generation/availability').status_code == 200 and create(a).status_code == 200
+    for call in (lambda: b.get('/api/listening/generation/availability'), lambda: create(b),
+                 lambda: b.post('/api/listening/generation/interpret', json={'client_request_id': uuid4().hex, 'text': 'about tea'})):
+        response = call()
+        assert response.status_code == 404 and response.json() == {'detail': 'Not found.'}
+    assert b.get('/api/listening/lessons').status_code == 200                                    # the rest of 2.0 is unaffected
+    with repo.engine.connect() as db:
+        assert db.execute(select(func.count()).select_from(t.generation_requests)).scalar_one() == 1

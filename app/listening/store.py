@@ -186,9 +186,15 @@ def _add_progress(db, user_id: str, items: list[dict]) -> None:
 def progress_summary(db, user_id: str, limit: int = 8) -> dict:
     """Only facts: how many lessons the learner finished and the results of their finished attempts. No streaks, no levels, no mastery."""
     attempts = db.execute(select(t.attempts.c.id, t.attempts.c.status, t.attempts.c.version_id, t.attempts.c.correct, t.attempts.c.created_at,
-                                 t.attempts.c.completed_at, t.versions.c.lesson_id, t.versions.c.title, t.versions.c.cefr)
+                                 t.attempts.c.completed_at, t.attempts.c.audio_variant_id, t.versions.c.lesson_id, t.versions.c.title, t.versions.c.cefr)
                           .join(t.versions, t.versions.c.id == t.attempts.c.version_id).where(t.attempts.c.user_id == user_id)).mappings().all()
     finished = [a for a in attempts if a['status'] == 'completed']
+    accent_of = dict(db.execute(select(t.audio.c.id, t.audio.c.accent).where(t.audio.c.id.in_({a['audio_variant_id'] for a in finished}))).all()) if finished else {}
+    by_accent: dict[str, set] = {}
+    by_level: dict[str, set] = {}
+    for a in finished:                                   # distinct lessons, so replaying one lesson is not counted twice
+        by_accent.setdefault(accent_of.get(a['audio_variant_id'], 'unknown'), set()).add(a['lesson_id'])
+        by_level.setdefault(a['cefr'], set()).add(a['lesson_id'])
     scored = _scored_totals(db, list({a['version_id'] for a in finished}))
     recent = sorted(attempts, key=lambda a: a['completed_at'] or a['created_at'], reverse=True)[:limit]
     spoken = _spoken_states(db, [a['id'] for a in recent])
@@ -199,6 +205,8 @@ def progress_summary(db, user_id: str, limit: int = 8) -> dict:
         'attempts_completed': len(finished),
         'questions_correct': sum(a['correct'] or 0 for a in finished),
         'questions_scored': sum(scored.get(a['version_id'], 0) for a in finished),
+        'accent_counts': {k: len(v) for k, v in sorted(by_accent.items())},
+        'level_counts': {k: len(v) for k, v in sorted(by_level.items())},
         'recent': [{'attempt_id': a['id'], 'lesson_id': a['lesson_id'], 'title': a['title'], 'cefr': a['cefr'], 'status': a['status'],
                     'when': a['completed_at'] or a['created_at'], 'correct': a['correct'], 'scored': scored.get(a['version_id']) if a['status'] == 'completed' else None,
                     'spoken_status': spoken.get(a['id'])} for a in recent],

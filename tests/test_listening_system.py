@@ -181,7 +181,7 @@ def test_a_full_journey_with_a_background_assessment_through_the_real_stack(syst
     assert not list((system.tmp / 'data' / 'listening_recordings').rglob('*.wav'))              # the recording is gone from the recording store
     assert 'outcome=done' in system.worker_log.read_text() and HEARD not in system.worker_log.read_text()    # logged by outcome only, never the words
     progress = system.client.get('/api/listening/progress').json()
-    assert progress['lessons_completed'] >= 1 and set(progress) == {'lessons_available', 'lessons_completed', 'attempts_completed', 'questions_correct', 'questions_scored', 'recent'}
+    assert progress['lessons_completed'] >= 1 and set(progress) == {'lessons_available', 'lessons_completed', 'attempts_completed', 'questions_correct', 'questions_scored', 'accent_counts', 'level_counts', 'recent'}
 
 
 def test_the_kill_switch_stops_new_spoken_answers_across_processes_and_resume_restores_them(system):

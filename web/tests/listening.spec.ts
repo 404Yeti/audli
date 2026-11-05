@@ -25,7 +25,7 @@ test.describe.serial('2.0 listening lesson', () => {
     const calls: string[] = [];
     page.on('request', request => { const url = new URL(request.url()); if (url.pathname.startsWith('/api/')) calls.push(url.pathname); });
     await page.goto('/listening');
-    await expect(page.getByRole('heading', { name: 'Listening lessons' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
     const card = lessonCard(page, new RegExp(TITLE));
     await expect(card).toContainText('B1');
     await card.click();
@@ -110,7 +110,7 @@ test.describe.serial('2.0 listening lesson', () => {
     await expect(page.getByRole('status').filter({ hasText: 'Correct' }).first()).toBeVisible();
     await expect(page.getByLabel('The restaurant has run out of mushrooms.')).toBeDisabled();
     await page.getByRole('link', { name: 'Leave lesson' }).click();
-    await expect(page.getByRole('heading', { name: 'Listening lessons' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
   });
 
   test('phone and desktop layouts fit, with comfortable touch targets', async ({ page }) => {

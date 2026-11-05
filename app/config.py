@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     listening_provider: Literal['fake', 'openai'] = 'fake'
     listening_fake_transcript: str = Field(default='', max_length=500)
     listening_fake_delay_seconds: float = Field(default=0, ge=0, le=60)    # development/browser tests only: makes 'pending' observable
+    # Temporary spoken-answer recordings live in a SEPARATE bucket with their own credentials, so the credential that signs lesson-audio links
+    # cannot read recordings and the one that writes recordings cannot sign anything (docs/LISTENING-STAGING-PLAN.md).
+    listening_recordings_endpoint: str = ''          # '' = same endpoint as the lesson bucket
+    listening_recordings_bucket: str = ''
+    listening_recordings_access_key: SecretStr | None = None
+    listening_recordings_secret_key: SecretStr | None = None
     # Models by task (app/listening/models.py is the one place that reads these). Every value can be overridden by environment, so a
     # rollback is a configuration change: e.g. AUDLI_LISTENING_ASSESSMENT_MODEL=gpt-4.1-mini AUDLI_LISTENING_ASSESSMENT_API=chat.
     listening_transcription_model: str = 'gpt-transcribe'
@@ -173,6 +179,14 @@ class Settings(BaseSettings):
             if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
                     or not self.listening_s3_access_key or not self.listening_s3_secret_key):
                 raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
+        if self.listening_storage == 's3':
+            if not self.listening_recordings_bucket or not self.listening_recordings_access_key or not self.listening_recordings_secret_key:
+                raise ValueError('S3 listening storage needs a separate recordings bucket with its own access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
+            if self.listening_recordings_bucket == self.listening_s3_bucket or (
+                    self.listening_recordings_access_key.get_secret_value() == self.listening_s3_access_key.get_secret_value()):
+                raise ValueError('Recordings must use a different bucket and a different access key from the lesson audio')
+            if self.listening_recordings_endpoint and not self.listening_recordings_endpoint.startswith('https://'):
+                raise ValueError('The recordings endpoint must be https')
         if self.environment == 'production' and self.listening_provider == 'fake':
             raise ValueError('Production listening lessons require AUDLI_LISTENING_PROVIDER=openai')
         if self.listening_signing_secret and len(self.listening_signing_secret.get_secret_value()) < 16:

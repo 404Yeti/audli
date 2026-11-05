@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote, urlsplit
 
+RECORDING_PREFIX = 'listening-tmp/'      # temporary learner recordings; they live in their own store and can never be signed or served
 KEY = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_./-]{0,198}$')
 MAX_TTL = 3600
 
@@ -40,6 +41,8 @@ class ObjectStore(Protocol):
 def _check(key: str, ttl: int) -> None:
     if not valid_key(key):
         raise ValueError('Invalid object key')
+    if key.startswith(RECORDING_PREFIX):
+        raise ValueError('Recordings are never signed or served')           # defence in depth: nothing mints a link for them, and nothing may
     if not 1 <= ttl <= MAX_TTL:
         raise ValueError('Signed URL lifetime must be between 1 and 3600 seconds')
 
@@ -90,7 +93,7 @@ class LocalObjectStore:
 
     def verify(self, key: str, expires: int, signature: str, now: float | None = None) -> Path | None:
         """The file for a valid, unexpired signature, else None. Constant-time comparison."""
-        if not valid_key(key) or (time.time() if now is None else now) > expires or expires - (time.time() if now is None else now) > MAX_TTL + 5:
+        if not valid_key(key) or key.startswith(RECORDING_PREFIX) or (time.time() if now is None else now) > expires or expires - (time.time() if now is None else now) > MAX_TTL + 5:
             return None
         if not hmac.compare_digest(self.sign(key, expires), signature or ''):
             return None
@@ -204,6 +207,7 @@ class S3ObjectStore:
 
 
 def build_store(settings, data_dir: Path) -> ObjectStore:
+    """The LESSON store: lesson audio, read through short-lived signed links. Recordings never go here (see build_recording_store)."""
     if settings.listening_storage == 's3':
         return S3ObjectStore(settings.listening_s3_endpoint, settings.listening_s3_bucket, settings.listening_s3_region,
                              settings.listening_s3_access_key.get_secret_value(), settings.listening_s3_secret_key.get_secret_value())
@@ -211,3 +215,14 @@ def build_store(settings, data_dir: Path) -> ObjectStore:
     secret = (settings.listening_signing_secret.get_secret_value().encode() if settings.listening_signing_secret
               else secrets.token_bytes(32))  # development only: links die with the process
     return LocalObjectStore(data_dir / 'listening_objects', secret)
+
+
+def build_recording_store(settings, data_dir: Path) -> ObjectStore:
+    """The RECORDING store: temporary learner audio only, with its own bucket and credentials in production and its own folder locally. It is
+    never given a signing key's public route, so the API cannot serve it and a lesson-audio credential cannot read it."""
+    if settings.listening_storage == 's3':
+        return S3ObjectStore(settings.listening_recordings_endpoint or settings.listening_s3_endpoint, settings.listening_recordings_bucket,
+                             settings.listening_s3_region, settings.listening_recordings_access_key.get_secret_value(),
+                             settings.listening_recordings_secret_key.get_secret_value())
+    import secrets
+    return LocalObjectStore(data_dir / 'listening_recordings', secrets.token_bytes(32))       # a throwaway key: nothing ever signs these

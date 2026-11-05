@@ -507,9 +507,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
             expose_headers=['Retry-After', 'X-Audli-Tutor-Fallback'], max_age=600)
     if settings.listening_enabled:
         from app.listening.api import prepare, register_listening_routes
-        from app.listening.objects import build_store
+        from app.listening.objects import build_recording_store, build_store
         prepare(database.engine)
-        register_listening_routes(app, repo, settings, build_store(settings, settings.data_dir))
+        register_listening_routes(app, repo, settings, build_store(settings, settings.data_dir), build_recording_store(settings, settings.data_dir))
     from app.claims.runtime import configure
     configure(app, settings, ai)
     return app

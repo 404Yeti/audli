@@ -49,11 +49,12 @@ def journey(make_repository, tmp_path):
     from app.listening.seed import seed
     prepare(repo.engine)
     objects = LocalObjectStore(tmp_path / 'listening_objects', b'k' * 32)
+    recordings = LocalObjectStore(tmp_path / 'listening_recordings', b'r' * 32)
     version_id, _ = seed(repo.engine, objects)
     with repo.engine.connect() as db:
         lesson_id = db.execute(select(l.versions.c.lesson_id).where(l.versions.c.id == version_id)).scalar_one()
     app = create_app(Settings(data_dir=tmp_path, provider='demo', listening_enabled=True, _env_file=None), FakeProvider(), repository=repo)
-    return SimpleNamespace(client=ASGIClient(app, None), repo=repo, engine=repo.engine, lesson_id=lesson_id, objects=objects, owner=owner,
+    return SimpleNamespace(client=ASGIClient(app, None), repo=repo, engine=repo.engine, lesson_id=lesson_id, recordings=recordings, owner=owner,
                            app=app, tmp=tmp_path)
 
 
@@ -85,7 +86,7 @@ def refresh(client, view):
 def work(j, transcriber=None, assessor=None, now=None, owner='worker-1'):
     """Drain the queue like the worker process would. Returns the list of outcomes."""
     transcriber, assessor, outcomes = transcriber or FakeTranscriber(PEOPLE_WORDS), assessor or FakeAssessor(), []
-    while (outcome := run_once(j.engine, j.objects, transcriber, assessor, owner, now=now)) is not None:
+    while (outcome := run_once(j.engine, j.recordings, transcriber, assessor, owner, now=now)) is not None:
         outcomes.append(outcome)
     return outcomes
 
@@ -97,7 +98,7 @@ def finish_everything_but_speech(j, view):
 
 
 def recordings_on_disk(j):
-    return sorted(p for p in (j.tmp / 'listening_objects' / 'listening-tmp').rglob('*') if p.is_file()) if (j.tmp / 'listening_objects' / 'listening-tmp').exists() else []
+    return sorted(p for p in (j.tmp / 'listening_recordings' / 'listening-tmp').rglob('*') if p.is_file()) if (j.tmp / 'listening_recordings' / 'listening-tmp').exists() else []
 
 
 # ---- domain ------------------------------------------------------------------------------------------------------------------
@@ -490,10 +491,10 @@ def test_a_zombie_worker_cannot_overwrite_a_finished_assessment(journey):
     with j.engine.begin() as db:
         zombie = jobs.claim(db, 'zombie', lease_seconds=10, now=t0)
     # The zombie stalls; a healthy worker takes over after the lease and finishes the work.
-    assert run_once(j.engine, j.objects, FakeTranscriber(PEOPLE_WORDS), FakeAssessor(), 'healthy', now=t0 + timedelta(minutes=5)) == 'done'
+    assert run_once(j.engine, j.recordings, FakeTranscriber(PEOPLE_WORDS), FakeAssessor(), 'healthy', now=t0 + timedelta(minutes=5)) == 'done'
     good = by_kind(refresh(j.client, view))['spoken']['spoken']
     # The zombie wakes up and tries to finish with different content: its fence is stale, so nothing changes.
-    outcome = spoken.process(j.engine, zombie, j.objects, FakeTranscriber('totally different words here now'), FakeAssessor(), now=t0 + timedelta(minutes=6))
+    outcome = spoken.process(j.engine, zombie, j.recordings, FakeTranscriber('totally different words here now'), FakeAssessor(), now=t0 + timedelta(minutes=6))
     assert outcome == 'lost'
     assert by_kind(refresh(j.client, view))['spoken']['spoken'] == good
 
@@ -507,11 +508,11 @@ def test_jobs_that_run_out_of_tries_through_expired_leases_are_settled_by_mainte
             assert jobs.claim(db, f'crash{n}', lease_seconds=10, now=t0 + timedelta(minutes=n)) is not None
     with j.engine.begin() as db:
         assert jobs.claim(db, 'late', now=t0 + timedelta(minutes=30)) is None             # nothing is claimable any more
-    counts = spoken.maintenance(j.engine, j.objects, now=t0 + timedelta(minutes=30))
+    counts = spoken.maintenance(j.engine, j.recordings, now=t0 + timedelta(minutes=30))
     assert counts['reaped'] == 1 and counts['deleted'] == 1
     result = by_kind(refresh(j.client, view))['spoken']['spoken']
     assert result['status'] == 'failed' and result['failure_code'] == 'lease_expired' and recordings_on_disk(j) == []
-    assert spoken.maintenance(j.engine, j.objects, now=t0 + timedelta(minutes=31)) == {'reaped': 0, 'abandoned': 0, 'deleted': 0}   # repeatable
+    assert spoken.maintenance(j.engine, j.recordings, now=t0 + timedelta(minutes=31)) == {'reaped': 0, 'abandoned': 0, 'deleted': 0}   # repeatable
 
 
 def test_abandoned_and_stale_recordings_are_cleaned_up(journey):
@@ -520,10 +521,10 @@ def test_abandoned_and_stale_recordings_are_cleaned_up(journey):
     # An upload that was claimed but never completed.
     with j.engine.begin() as db:
         action, key, _ = spoken.claim_upload(db, j.owner, view['attempt']['id'], by_kind(view)['spoken']['id'], 'abandoned-up-1', 'wav', 'audio/wav', 30)
-    j.objects.put(key, tone(), 'audio/wav')
-    assert spoken.maintenance(j.engine, j.objects)['abandoned'] == 0                          # still within its grace period
+    j.recordings.put(key, tone(), 'audio/wav')
+    assert spoken.maintenance(j.engine, j.recordings)['abandoned'] == 0                          # still within its grace period
     later = utcnow() + timedelta(minutes=11)
-    counts = spoken.maintenance(j.engine, j.objects, now=later)
+    counts = spoken.maintenance(j.engine, j.recordings, now=later)
     assert counts['abandoned'] == 1 and counts['deleted'] == 1 and recordings_on_disk(j) == []
     row = by_kind(refresh(j.client, view))['spoken']['spoken']
     assert row['status'] == 'failed' and row['failure_code'] == 'upload_incomplete'
@@ -533,7 +534,7 @@ def test_abandoned_and_stale_recordings_are_cleaned_up(journey):
 def test_the_worker_loop_drains_and_stops(journey):
     j = journey
     start_pending(j)
-    assert run(j.engine, j.objects, FakeTranscriber(PEOPLE_WORDS), FakeAssessor(), owner='loop', once=True) == 1
+    assert run(j.engine, j.recordings, FakeTranscriber(PEOPLE_WORDS), FakeAssessor(), owner='loop', once=True) == 1
 
 
 # ---- accounts ----------------------------------------------------------------------------------------------------------------
@@ -548,11 +549,12 @@ def two(make_repository, tmp_path):
     from app.listening.seed import seed
     prepare(repo.engine)
     objects = LocalObjectStore(tmp_path / 'listening_objects', b'k' * 32)
+    recordings = LocalObjectStore(tmp_path / 'listening_recordings', b'r' * 32)
     version_id, _ = seed(repo.engine, objects)
     with repo.engine.connect() as db:
         lesson_id = db.execute(select(l.versions.c.lesson_id).where(l.versions.c.id == version_id)).scalar_one()
     return SimpleNamespace(a=AccountClient(app, None, 'valid-a'), b=AccountClient(app, None, 'valid-b'), lesson_id=lesson_id, repo=repo,
-                           engine=repo.engine, objects=objects, tmp=tmp_path)
+                           engine=repo.engine, recordings=recordings, tmp=tmp_path)
 
 
 def test_one_account_cannot_touch_another_accounts_spoken_answer(two):
@@ -566,7 +568,7 @@ def test_one_account_cannot_touch_another_accounts_spoken_answer(two):
     assert two.b.get(f"/api/listening/attempts/{a_view['attempt']['id']}").status_code == 404
     assert two.b.post(f"/api/listening/attempts/{a_view['attempt']['id']}/answers",
                       json={'exercise_id': by_kind(a_view)['sequencing']['id'], 'order': ORDER}).status_code == 404
-    work_view = SimpleNamespace(engine=two.engine, objects=two.objects)
+    work_view = SimpleNamespace(engine=two.engine, recordings=two.recordings)
     assert work(work_view) == ['done']
     b_view = begin(two.b, two.lesson_id)
     assert by_kind(b_view)['spoken']['spoken'] is None and by_kind(b_view)['fill_blank']['fill'] is None

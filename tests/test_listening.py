@@ -531,9 +531,11 @@ def test_production_configuration_requires_object_storage():
     with pytest.raises(ValidationError):
         Settings(**base)
     with pytest.raises(ValidationError):
-        Settings(**base, listening_storage='s3', listening_s3_endpoint='http://insecure', listening_s3_bucket='b', listening_s3_access_key='a', listening_s3_secret_key='s')
+        Settings(**base, listening_storage='s3', listening_s3_endpoint='http://insecure', listening_s3_bucket='b', listening_s3_access_key='a', listening_s3_secret_key='s',
+                 listening_recordings_bucket='r', listening_recordings_access_key='r', listening_recordings_secret_key='t')
     s3 = dict(listening_storage='s3', listening_s3_endpoint='https://s3.example.com', listening_s3_bucket='audli-audio',
-              listening_s3_access_key='a', listening_s3_secret_key='s')
+              listening_s3_access_key='a', listening_s3_secret_key='s', listening_recordings_bucket='audli-recordings',
+              listening_recordings_access_key='r', listening_recordings_secret_key='t')
     with pytest.raises(ValidationError):                # the deterministic fake AI providers can never run in production
         Settings(**base, **s3)
     ok = Settings(**base, **s3, listening_provider='openai')

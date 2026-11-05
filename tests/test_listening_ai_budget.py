@@ -179,7 +179,7 @@ def guarded(j, guard, handler):
 
 def drive(j, heard, judge, steps=1):
     start = utcnow()
-    return [run_once(j.engine, j.objects, heard, judge, 'w', now=start + timedelta(minutes=30 * n)) for n in range(steps)]
+    return [run_once(j.engine, j.recordings, heard, judge, 'w', now=start + timedelta(minutes=30 * n)) for n in range(steps)]
 
 
 def test_normal_lessons_are_unchanged_and_spend_is_the_measured_cost(journey):
@@ -271,7 +271,7 @@ def test_uploads_are_refused_politely_while_halted_or_out_of_budget_and_accepted
 
 
 def recordings_none(j):
-    folder = j.tmp / 'listening_objects' / 'listening-tmp'
+    folder = j.tmp / 'listening_recordings' / 'listening-tmp'
     return not folder.exists() or not any(p.is_file() for p in folder.rglob('*'))
 
 
@@ -298,7 +298,7 @@ def test_check_again_is_also_gated(journey):
     guard = guard_for(j)
     heard, judge = guarded(j, guard, lambda r: httpx.Response(400, json=error_body(400)))
     start = utcnow()
-    run_once(j.engine, j.objects, heard, judge, 'w', now=start)
+    run_once(j.engine, j.recordings, heard, judge, 'w', now=start)
     guard_for(j).set_halted(True)
     client = api(j, 2.0)
     again = spoken_action(client, view, 'retry')

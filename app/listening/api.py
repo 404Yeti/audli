@@ -228,10 +228,11 @@ def _view(db, user_id, attempt_id) -> AttemptView:
                        audio=AudioInfo(id=audio['id'], accent=audio['accent'], duration_ms=audio['duration_ms'], cues=audio['alignment']))
 
 
-def prepare(engine) -> None:
-    """Local/test SQLite creates its tables; PostgreSQL must already have migration 009 (fail closed with a fixed message)."""
-    from sqlalchemy import inspect
-    from app.listening import schema
+def prepare(engine, worker: bool = False) -> None:
+    """Local/test SQLite creates its tables; PostgreSQL must already have migrations 009-011 (fail closed with a fixed message).
+    worker=True checks only what the spoken-answer worker needs (app.listening.roles), so it can run under its own least-privilege role."""
+    from sqlalchemy import inspect, text
+    from app.listening import roles, schema
     if engine.dialect.name == 'sqlite':
         schema.ensure_sqlite(engine)
         return
@@ -239,14 +240,14 @@ def prepare(engine) -> None:
         present = set(inspect(db).get_table_names(schema='public'))
     if not set(schema.NAMES) <= present:
         raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql as the backend database owner.')
+    needs = {'SELECT': roles.SELECT, 'UPDATE': roles.UPDATE, 'INSERT': roles.INSERT} if worker else {
+        'SELECT': schema.NAMES, 'INSERT': ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs', 'listening_ai_limits'),
+        'UPDATE': ('listening_spoken', 'listening_jobs', 'listening_ai_limits')}
+    pairs = [(table, privilege) for privilege, tables in needs.items() for table in tables]
     with engine.connect() as db:
-        from sqlalchemy import text
-        lacking = db.execute(text(
-            "SELECT count(*) FROM unnest(CAST(:names AS text[])) AS n(name) WHERE NOT (has_table_privilege(current_user, 'public.' || n.name, 'SELECT') "
-            "AND (n.name NOT IN ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs', 'listening_ai_limits') "
-            "OR has_table_privilege(current_user, 'public.' || n.name, 'INSERT')) "
-            "AND (n.name NOT IN ('listening_spoken', 'listening_jobs', 'listening_ai_limits') OR has_table_privilege(current_user, 'public.' || n.name, 'UPDATE')))"),
-            {'names': list(schema.NAMES)}).scalar_one()
+        lacking = db.execute(text("SELECT count(*) FROM unnest(CAST(:tables AS text[]), CAST(:privileges AS text[])) AS n(name, privilege) "
+                                  "WHERE NOT has_table_privilege(current_user, 'public.' || n.name, n.privilege)"),
+                             {'tables': [p[0] for p in pairs], 'privileges': [p[1] for p in pairs]}).scalar_one()
     if lacking:
         # e.g. the restricted claims-mode role: the 2.0 tables have no reviewed grants or policies for it yet.
         raise RuntimeError('The database role lacks privileges on the Audli listening tables. Run with the backend owner role, or add reviewed grants first.')
@@ -255,7 +256,9 @@ def prepare(engine) -> None:
 PAUSED = 'Spoken answers are paused for a little while. You can skip this question and carry on; your other answers are saved.'
 
 
-def register_listening_routes(app, repo, settings, objects):
+def register_listening_routes(app, repo, settings, objects, recordings=None):
+    """`objects` is the lesson-audio store (signed links); `recordings` is the separate, never-served store for temporary spoken answers."""
+    recordings = recordings if recordings is not None else objects          # one store only in older tests; main.py always passes both
     def require_ai() -> None:
         """No new AI work is accepted while the kill switch is on or today's ceiling cannot cover one more answer. Fails closed."""
         accepting, _ = AiGuard(repo.engine, settings).accepting()      # built per request: in accounts mode `repo` only exists inside one
@@ -353,7 +356,7 @@ def register_listening_routes(app, repo, settings, objects):
                 raise HTTPException(429, 'You have reached today\u2019s limit for spoken answers. Skip this question or try again tomorrow.') from None
             if action == 'store':
                 try:
-                    objects.put(key, data, recording.content_type)
+                    recordings.put(key, data, recording.content_type)
                 except Exception:
                     # The claim stays 'receiving' so the same upload id can resume; the worker's sweep expires it if the learner leaves.
                     raise HTTPException(503, 'We couldn\u2019t save your recording. Please try again.') from None

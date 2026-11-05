@@ -295,7 +295,7 @@ def route(transcript_json, assessment_json=None, assessment_status=200, seen=Non
 
 def drive(j, heard, judge, steps=1, start=None):
     start = start or utcnow()
-    return [run_once(j.engine, j.objects, heard, judge, 'w', now=start + timedelta(minutes=30 * n)) for n in range(steps)]
+    return [run_once(j.engine, j.recordings, heard, judge, 'w', now=start + timedelta(minutes=30 * n)) for n in range(steps)]
 
 
 def test_a_real_looking_provider_round_trip_assesses_in_the_background_and_deletes_the_recording(journey):

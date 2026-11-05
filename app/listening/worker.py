@@ -56,7 +56,7 @@ def run(engine, objects, transcriber, assessor, owner: str | None = None, once: 
 def main(argv: list[str]) -> int:
     from app.config import Settings
     from app.listening.api import prepare
-    from app.listening.objects import build_store
+    from app.listening.objects import build_recording_store
     from app.listening.ai_budget import AiGuard
     from app.listening.models import ModelPlan
     from app.listening.providers import build_providers
@@ -67,8 +67,8 @@ def main(argv: list[str]) -> int:
         print('AUDLI_LISTENING_ENABLED is off; the listening worker has nothing to do.', file=sys.stderr)
         return 1
     engine = create_repository(settings).engine
-    prepare(engine)
-    objects = build_store(settings, Path(settings.data_dir))
+    prepare(engine, worker=True)          # the worker may run under its own least-privilege role (docs/postgres-listening-worker-role.sql)
+    objects = build_recording_store(settings, Path(settings.data_dir))      # the worker touches recordings only, never lesson audio
     guard = AiGuard(engine, settings)
     transcriber, assessor = build_providers(settings, guard)
     log.info('AI spending guard: %s', guard.status())

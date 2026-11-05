@@ -8,8 +8,8 @@ import styles from './privacy.module.css';
 export const metadata: Metadata = { title: 'Privacy · Audli', description: 'What Audli collects, which providers process it, and how long it is kept.' };
 
 /** Keep in step with docs/PRIVACY-POLICY-REVIEW.md. Change this date only when the text changes. */
-export const PRIVACY_UPDATED = '5 November 2026';
-export const PRIVACY_CONTACT = 'robbie@audli.ai';
+const PRIVACY_UPDATED = '5 November 2026';
+const PRIVACY_CONTACT = 'robbie@audli.ai';
 
 export default function Privacy() {
   return <main className={styles.page} id="privacy">

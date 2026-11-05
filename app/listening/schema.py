@@ -154,10 +154,45 @@ ai_limits = Table('listening_ai_limits', metadata,
     Column('calls', Integer, nullable=False), Column('halted', Boolean, nullable=False), Column('updated_at', timestamp, nullable=False),
     CheckConstraint('reserved_micro >= 0 AND calls >= 0', name='listening_ai_limits_nonnegative'), info={'since': 11})
 
+
+# ---- Milestone 05: AI lesson generation (migration 012, additive) ------------------------------------------------------------
+# A generated lesson is PRIVATE to the learner who asked for it: a lesson with a row here is visible only to that learner. A lesson with no row
+# here is part of the shared library. Kept in its own table (not a column on listening_lessons) so migration 009 stays byte-identical.
+lesson_owners = Table('listening_lesson_owners', metadata,
+    Column('lesson_id', identifier, ForeignKey('listening_lessons.id'), primary_key=True),
+    Column('user_id', identifier, ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+    Column('created_at', timestamp, nullable=False), info={'since': 12})
+Index('listening_lesson_owners_by_learner', lesson_owners.c.user_id)
+
+# One row per "make me a lesson" request. `phase` is what the learner sees (Figma state machine); `spec` is the reviewed, validated settings.
+generation_requests = Table('listening_generation_requests', metadata,
+    Column('id', identifier, primary_key=True),
+    Column('user_id', identifier, ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+    Column('client_request_id', String(64), nullable=False),
+    Column('kind', String(10), nullable=False),                      # interpret | generate
+    Column('phase', String(16), nullable=False),                     # queued script audio transcript_sync exercises ready | failed rejected needs_input
+    Column('request_text', String(300)), Column('spec', document), Column('question', String(300)),
+    Column('title', String(120)), Column('lesson_id', identifier, ForeignKey('listening_lessons.id')),
+    Column('failure_code', String(40)),
+    Column('reserved_credits', Integer, nullable=False), Column('actual_credits', Integer), Column('reserved_micro', BigInteger, nullable=False),
+    Column('audio_key', String(160)), Column('audio_meta', document),         # built audio is stored before publishing, so a retry never pays twice
+    Column('created_at', timestamp, nullable=False), Column('updated_at', timestamp, nullable=False), Column('finished_at', timestamp),
+    UniqueConstraint('user_id', 'client_request_id', name='listening_generation_request_once'),
+    CheckConstraint("kind IN ('interpret','generate')", name='listening_generation_kind'),
+    CheckConstraint('reserved_credits >= 0 AND reserved_micro >= 0', name='listening_generation_nonnegative'), info={'since': 12})
+Index('listening_generation_by_learner', generation_requests.c.user_id, generation_requests.c.created_at)
+
+# Spending ledger for generation, separate from the $2/day assessment guard. scope is a day (YYYY-MM-DD) or a month (YYYY-MM).
+generation_limits = Table('listening_generation_limits', metadata,
+    Column('scope', String(10), primary_key=True), Column('reserved_micro', BigInteger, nullable=False),
+    Column('reserved_credits', BigInteger, nullable=False), Column('lessons', Integer, nullable=False), Column('updated_at', timestamp, nullable=False),
+    CheckConstraint('reserved_micro >= 0 AND reserved_credits >= 0 AND lessons >= 0', name='listening_generation_limits_nonnegative'), info={'since': 12})
+
 OWNED = [t for t in metadata.sorted_tables if t is not users_ref]
 NAMES = tuple(t.name for t in OWNED)
 NAMES_010 = tuple(t.name for t in OWNED if t.info.get('since') == 10)
 NAMES_011 = tuple(t.name for t in OWNED if t.info.get('since') == 11)
+NAMES_012 = tuple(t.name for t in OWNED if t.info.get('since') == 12)
 PRIVATE_TABLES = ('listening_exercise_keys', 'listening_exercise_rubrics')
 
 _MSG = {'answer': 'listening answers are final', 'version': 'published listening versions are immutable', 'audio': 'listening audio variants are append-only',

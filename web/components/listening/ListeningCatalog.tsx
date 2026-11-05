@@ -38,7 +38,7 @@ export function ListeningCatalog() {
   }, []);
   useEffect(() => { let live = true; void fetchAll().then(r => { if (live) setLoad(r); }); return () => { live = false; }; }, [fetchAll]);
   const retry = () => { setLoad({ kind: 'loading' }); void fetchAll().then(setLoad); };
-  const items = load.kind === 'ready' ? load.items : [];
+  const items = useMemo(() => (load.kind === 'ready' ? load.items : []), [load]);
   const shown = useMemo(() => applyFilters(items, filters), [items, filters]);
   const tiles = useMemo(() => topicTiles(items), [items]);
   const accents = useMemo(() => [...new Set(items.flatMap(i => i.accents))].sort(), [items]);

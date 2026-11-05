@@ -75,3 +75,57 @@ def test_start_script_never_launches_the_sidecar_when_off_or_without_a_worker_ur
                 {'AUDLI_LISTENING_ENABLED': 'true'}):
         out = run_start(tmp_path, **env)
         assert 'sidecar' not in out and 'api' in out, env
+
+
+GENERATOR_ENV = {**API_ENV, 'AUDLI_LISTENING_GENERATOR_DATABASE_URL': 'postgresql://audli_listening_generator.ref:pw@h.example.com:5432/postgres?sslmode=require',
+                 'AUDLI_LISTENING_GENERATION_ENABLED': 'true', 'AUDLI_LISTENING_S3_ENDPOINT': 'https://l.example.com', 'AUDLI_LISTENING_S3_BUCKET': 'lessons',
+                 'AUDLI_LISTENING_GEN_MONTHLY_CREDITS': '100000'}
+
+
+def test_the_generator_gets_lesson_write_and_speech_credentials_and_never_the_recordings_signing_or_ops_secrets():
+    env = sidecar.worker_environment(GENERATOR_ENV, 'generator')
+    assert env['AUDLI_DATABASE_URL'] == GENERATOR_ENV['AUDLI_LISTENING_GENERATOR_DATABASE_URL'] and env['AUDLI_LISTENING_PROCESS'] == 'generator'
+    for needed in ('AUDLI_LISTENING_S3_ACCESS_KEY', 'AUDLI_LISTENING_S3_SECRET_KEY', 'ELEVENLABS_API_KEY', 'OPENAI_API_KEY', 'AUDLI_LISTENING_GEN_MONTHLY_CREDITS'):
+        assert needed in env
+    for forbidden in ('AUDLI_LISTENING_RECORDINGS_ACCESS_KEY', 'AUDLI_LISTENING_RECORDINGS_SECRET_KEY', 'AUDLI_LISTENING_RECORDINGS_BUCKET', 'AUDLI_LISTENING_SIGNING_SECRET',
+                      'AUDLI_LISTENING_OPS_TOKEN', 'AUDLI_LISTENING_WORKER_DATABASE_URL', 'AUDLI_ALLOWED_ORIGINS'):
+        assert forbidden not in env
+    assert 'api-owner-role' not in ' '.join(env.values())
+
+
+def test_the_spoken_worker_never_receives_the_generators_credentials_or_database_role():
+    env = sidecar.worker_environment(GENERATOR_ENV, 'worker')
+    assert 'ELEVENLABS_API_KEY' not in env and 'AUDLI_LISTENING_GENERATOR_DATABASE_URL' not in env and 'AUDLI_LISTENING_S3_ACCESS_KEY' not in env
+    assert env['AUDLI_DATABASE_URL'] == GENERATOR_ENV['AUDLI_LISTENING_WORKER_DATABASE_URL']
+
+
+def test_the_generator_settings_validate_with_this_environment():
+    import pytest
+    from app.config import Settings
+    env = sidecar.worker_environment({**GENERATOR_ENV, 'AUDLI_AUTH_MODE': 'supabase', 'AUDLI_SUPABASE_URL': 'https://abcdefghijklmnopqrst.supabase.co',
+                                      'AUDLI_SUPABASE_PUBLISHABLE_KEY': 'sb_publishable_x', 'AUDLI_LISTENING_PROVIDER': 'openai', 'AUDLI_LISTENING_STORAGE': 's3'}, 'generator')
+    fields = {k[len('AUDLI_'):].lower() if k.startswith('AUDLI_') else k.lower(): v for k, v in env.items() if k not in ('PATH', 'PYTHONUNBUFFERED')}
+    s = Settings(_env_file=None, **fields)
+    assert s.listening_process == 'generator' and s.listening_gen_speech_model == 'eleven_flash_v2_5'
+    with pytest.raises(Exception, match='recordings credentials'):
+        Settings(_env_file=None, **{**fields, 'listening_recordings_access_key': 'rk', 'listening_recordings_secret_key': 'rs'})
+    with pytest.raises(Exception, match='ELEVENLABS_API_KEY'):
+        Settings(_env_file=None, **{k: v for k, v in fields.items() if k != 'elevenlabs_api_key'})
+
+
+def test_the_generator_launcher_uses_its_own_url_and_module(capsys):
+    calls = []
+    sidecar.main(GENERATOR_ENV, run=lambda cmd, env, check: calls.append((cmd, env['AUDLI_LISTENING_PROCESS'])) or type('R', (), {'returncode': 1})(),
+                 sleep=lambda s: None, rounds=1, role='generator')
+    assert calls == [([sys.executable, '-m', 'app.listening.generator'], 'generator')]
+    assert sidecar.main({}, rounds=1, role='generator') == 1 and 'AUDLI_LISTENING_GENERATOR_DATABASE_URL is not set' in capsys.readouterr().err
+
+
+def test_start_script_starts_the_generator_only_with_its_flag_and_database_url(tmp_path):
+    base = {'AUDLI_LISTENING_ENABLED': 'true', 'AUDLI_LISTENING_WORKER_DATABASE_URL': 'postgresql://x'}
+    out = run_start(tmp_path, **base)
+    assert 'sidecar -m app.listening.sidecar\n' in out + '\n' and 'generator' not in out
+    out = run_start(tmp_path, **base, AUDLI_LISTENING_GENERATION_ENABLED='true', AUDLI_LISTENING_GENERATOR_DATABASE_URL='postgresql://y')
+    assert 'sidecar -m app.listening.sidecar generator' in out and 'api' in out
+    out = run_start(tmp_path, **base, AUDLI_LISTENING_GENERATION_ENABLED='true')
+    assert 'generator' not in out and 'api' in out

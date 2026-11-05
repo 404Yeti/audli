@@ -11,6 +11,7 @@ _KIND_009 = ("CHECK (kind IN ('multiple_choice','spoken','fill_blank','sequencin
 _FIRST = [t for t in l.OWNED if not t.info.get('since')]
 _SECOND = [t for t in l.OWNED if t.info.get('since') == 10]
 _THIRD = [t for t in l.OWNED if t.info.get('since') == 11]
+_FOURTH = [t for t in l.OWNED if t.info.get('since') == 12]
 
 
 def postgres_listening_migration() -> str:
@@ -120,6 +121,41 @@ BEGIN
     END IF;
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (11, now());', 'COMMIT;']
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_migration_012() -> str:
+    """AI lesson generation: private lesson ownership, generation requests and a separate generation spending ledger (three additive tables)."""
+    dialect = postgresql.dialect()
+    names = ', '.join(t.name for t in _FOURTH)
+    lines = [
+        '\n'.join(['-- Migration 012: Audli 2.0 AI lesson generation (three additive tables: lesson owners, generation requests, generation limits).',
+        '-- Requires 011 (recorded in listening_migrations). Leaves schema_migrations untouched and alters no existing table.']),
+        'BEGIN;', "SET LOCAL lock_timeout='5s';", 'LOCK TABLE public.listening_migrations IN EXCLUSIVE MODE;',
+        """DO $$ BEGIN
+ IF NOT (ARRAY[9, 10, 11] <@ ARRAY(SELECT version FROM public.listening_migrations)) THEN
+  RAISE EXCEPTION 'Expected migrations 009, 010 and 011 first';
+ END IF;
+ IF 12 IN (SELECT version FROM public.listening_migrations) OR to_regclass('public.listening_generation_requests') IS NOT NULL THEN
+  RAISE EXCEPTION 'Migration 012 is already applied or partially present; review before retrying';
+ END IF;
+END $$;""",
+    ]
+    lines += [str(CreateTable(t).compile(dialect=dialect)).strip() + ';' for t in _FOURTH]
+    for table in _FOURTH:
+        lines += [str(CreateIndex(i).compile(dialect=dialect)) + ';' for i in sorted(table.indexes, key=lambda i: i.name)]
+    for table in _FOURTH:
+        lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
+    lines += [f"""DO $audli$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE {names} FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE {names} FROM authenticated;
+    END IF;
+END
+$audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (12, now());', 'COMMIT;']
     return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
 
 

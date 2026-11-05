@@ -32,6 +32,37 @@ def worker_role_sql(role: str = EXAMPLE_ROLE, policies: bool = True) -> str:
     return '\n'.join(lines) + '\n'
 
 
+# ---- the lesson GENERATOR role (Milestone 05) ------------------------------------------------------------------------------------------
+# The generator writes new lessons and its own request records; it can never touch learner data (attempts, responses, answers, spoken answers,
+# recordings, accounts) and never deletes anything. It is a different role from the spoken-answer worker on purpose: each holds only the provider
+# credentials and database rights its own job needs.
+GENERATOR_SELECT = ('listening_lessons', 'listening_lesson_versions', 'listening_audio_variants', 'listening_exercises', 'listening_exercise_keys',
+                    'listening_exercise_rubrics', 'listening_lesson_owners', 'listening_generation_requests', 'listening_generation_limits',
+                    'listening_jobs', 'listening_ai_limits')
+GENERATOR_INSERT = ('listening_lessons', 'listening_lesson_versions', 'listening_audio_variants', 'listening_exercises', 'listening_exercise_keys',
+                    'listening_exercise_rubrics', 'listening_lesson_owners', 'listening_generation_limits', 'listening_ai_limits')
+GENERATOR_UPDATE = ('listening_lesson_versions', 'listening_generation_requests', 'listening_generation_limits', 'listening_jobs')
+EXAMPLE_GENERATOR_ROLE = 'audli_listening_generator'
+
+
+def generator_role_sql(role: str = EXAMPLE_GENERATOR_ROLE) -> str:
+    if not role.replace('_', '').isalnum() or not role[0].isalpha() or len(role) > 40:
+        raise ValueError('Role names are letters, digits and underscores')
+    lines = ['-- Least-privilege role for the Audli 2.0 lesson generator. Run once as the database owner AFTER migration 012.',
+             f"-- Create the role yourself first (a LOGIN role with its own password, shared with nothing else): CREATE ROLE {role} LOGIN PASSWORD '...';",
+             'BEGIN;', f'GRANT USAGE ON SCHEMA public TO {role};',
+             f'GRANT SELECT ON {", ".join(GENERATOR_SELECT)} TO {role};', f'GRANT INSERT ON {", ".join(GENERATOR_INSERT)} TO {role};',
+             f'GRANT UPDATE ON {", ".join(GENERATOR_UPDATE)} TO {role};']
+    for table in GENERATOR_SELECT:
+        lines += [f'DROP POLICY IF EXISTS {role}_select ON {table};', f'CREATE POLICY {role}_select ON {table} FOR SELECT TO {role} USING (true);']
+    for table in GENERATOR_INSERT:
+        lines += [f'DROP POLICY IF EXISTS {role}_insert ON {table};', f'CREATE POLICY {role}_insert ON {table} FOR INSERT TO {role} WITH CHECK (true);']
+    for table in GENERATOR_UPDATE:
+        lines += [f'DROP POLICY IF EXISTS {role}_update ON {table};', f'CREATE POLICY {role}_update ON {table} FOR UPDATE TO {role} USING (true) WITH CHECK (true);']
+    lines.append('COMMIT;')
+    return '\n'.join(lines) + '\n'
+
+
 # ---- the API role ---------------------------------------------------------------------------------------------------------------
 # Hosted Supabase runs the 1.x API as a NON-owner role (audli_api_runtime) with one `FOR ALL` policy per table, and Supabase's default
 # privileges also hand every new public table to anon/authenticated/service_role. Migrations 009-011 enable RLS and add no policies, so
@@ -39,7 +70,7 @@ def worker_role_sql(role: str = EXAMPLE_ROLE, policies: bool = True) -> str:
 # Run once as the database owner AFTER migrations 009-011 (and again after any later listening migration that adds a table).
 API_TABLES = ('listening_lessons', 'listening_lesson_versions', 'listening_audio_variants', 'listening_exercises', 'listening_exercise_keys',
               'listening_exercise_rubrics', 'listening_attempts', 'listening_answers', 'listening_responses', 'listening_spoken',
-              'listening_jobs', 'listening_ai_limits', 'listening_migrations')
+              'listening_jobs', 'listening_ai_limits', 'listening_lesson_owners', 'listening_generation_requests', 'listening_generation_limits', 'listening_migrations')
 EXAMPLE_API_ROLE = 'audli_api_runtime'
 CLIENT_ROLES = ('anon', 'authenticated', 'service_role')
 

@@ -3,7 +3,7 @@ the database's (unique constraints, a row lock on the attempt, idempotent writes
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -198,6 +198,51 @@ class SignedAudio(BaseModel):
     duration_ms: int
 
 
+class SpecIn(BaseModel):
+    model_config = {'extra': 'forbid'}
+    topic: str = Field(min_length=3, max_length=120)
+    cefr: Literal['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+    accent: Literal['american', 'british', 'australian']
+    minutes: int = Field(ge=1, le=10)
+    format: Literal['story', 'dialogue', 'conversation']
+    scenario: str = Field(default='', max_length=200)
+
+
+class InterpretBody(BaseModel):
+    model_config = {'extra': 'forbid'}
+    client_request_id: str = Field(pattern=REQUEST_ID)
+    text: str = Field(min_length=3, max_length=280)
+
+
+class GenerateBody(BaseModel):
+    model_config = {'extra': 'forbid'}
+    client_request_id: str = Field(pattern=REQUEST_ID)
+    spec: SpecIn
+    text: str | None = Field(default=None, max_length=280)
+
+
+class GenerationView(BaseModel):
+    id: str
+    kind: str
+    phase: str                           # interpreted | needs_input | queued | script | audio | transcript_sync | exercises | ready | failed | rejected | unavailable
+    spec: dict | None = None
+    notes: list[str] = []
+    question: str | None = None
+    title: str | None = None
+    lesson_id: str | None = None
+    failure: str | None = None
+    unavailable_reason: str | None = None
+    updated_at: datetime | None = None
+
+
+class Availability(BaseModel):
+    available: bool
+    reason: str | None = None            # disabled | paused | daily_limit | budget | credits
+    max_minutes: int
+    accents: list[str]
+    per_learner_daily: int
+
+
 def _uuid(value: str) -> str:
     try:
         return str(UUID(value))
@@ -231,9 +276,10 @@ def _view(db, user_id, attempt_id) -> AttemptView:
                        audio=AudioInfo(id=audio['id'], accent=audio['accent'], duration_ms=audio['duration_ms'], cues=audio['alignment']))
 
 
-def prepare(engine, worker: bool = False) -> None:
+def prepare(engine, worker: bool = False, generation: bool = False, generator: bool = False) -> None:
     """Local/test SQLite creates its tables; PostgreSQL must already have migrations 009-011 (fail closed with a fixed message).
-    worker=True checks only what the spoken-answer worker needs (app.listening.roles), so it can run under its own least-privilege role."""
+    worker=True checks only what the spoken-answer worker needs (app.listening.roles), so it can run under its own least-privilege role.
+    The Milestone 05 generation tables (migration 012) are required only when generation is switched on, so deploying this code never depends on 012."""
     from sqlalchemy import inspect, text
     from app.listening import roles, schema
     if engine.dialect.name == 'sqlite':
@@ -241,11 +287,16 @@ def prepare(engine, worker: bool = False) -> None:
         return
     with engine.connect() as db:
         present = set(inspect(db).get_table_names(schema='public'))
-    if not set(schema.NAMES) <= present:
-        raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql as the backend database owner.')
-    needs = {'SELECT': roles.SELECT, 'UPDATE': roles.UPDATE, 'INSERT': roles.INSERT} if worker else {
-        'SELECT': schema.NAMES, 'INSERT': ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs', 'listening_ai_limits'),
-        'UPDATE': ('listening_spoken', 'listening_jobs', 'listening_ai_limits')}
+    generation = generation or generator
+    required = tuple(n for n in schema.NAMES if generation or n not in schema.NAMES_012)
+    if not set(required) <= present:
+        raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011' + (' (and 012 for lesson generation)' if generation else '')
+                           + '. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql' + (' and docs/postgres-012.sql' if generation else '') + ' as the backend database owner.')
+    needs = ({'SELECT': roles.GENERATOR_SELECT, 'UPDATE': roles.GENERATOR_UPDATE, 'INSERT': roles.GENERATOR_INSERT} if generator else
+             {'SELECT': roles.SELECT, 'UPDATE': roles.UPDATE, 'INSERT': roles.INSERT}) if (worker or generator) else {
+        'SELECT': required, 'INSERT': ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs', 'listening_ai_limits')
+        + (('listening_generation_requests', 'listening_generation_limits') if generation else ()),
+        'UPDATE': ('listening_spoken', 'listening_jobs', 'listening_ai_limits') + (('listening_generation_requests', 'listening_generation_limits') if generation else ())}
     pairs = [(table, privilege) for privilege, tables in needs.items() for table in tables]
     with engine.connect() as db:
         lacking = db.execute(text("SELECT count(*) FROM unnest(CAST(:tables AS text[]), CAST(:privileges AS text[])) AS n(name, privilege) "
@@ -301,6 +352,68 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 raise HTTPException(401, 'Not authorised.', headers={'WWW-Authenticate': 'Bearer'})
             from app.listening.health import report_with_alerts
             return report_with_alerts(engine if engine is not None else repo.engine, settings)       # the ops route has no learner, so it needs the plain engine
+
+
+    if settings.listening_generation_enabled:
+        from app.listening import generation as gen, generation_jobs as genjobs
+        ledger = gen.Ledger(engine if engine is not None else repo.engine, settings)
+        plain = engine if engine is not None else repo.engine
+        gen_allowed = settings.listening_gen_allowed_set
+
+        def require_generation_allowed() -> None:
+            """While generation is limited to named learners, everyone else sees exactly what they would see if it did not exist."""
+            if gen_allowed and repo.learner_id not in gen_allowed:
+                raise HTTPException(404, 'Not found.')
+
+        def _halted() -> bool:
+            return AiGuard(plain, settings).halted()
+
+        @router.get('/generation/availability', response_model=Availability, dependencies=[Depends(require_generation_allowed)])
+        def generation_availability():
+            ok, reason = ledger.availability(repo.learner_id, 1, 1)
+            if ok and _halted():
+                ok, reason = False, 'paused'
+            return Availability(available=ok, reason=reason or None, max_minutes=settings.listening_gen_max_minutes, accents=list(gen.ACCENTS),
+                                per_learner_daily=settings.listening_gen_per_learner_daily)
+
+        def _generation_view(request_id: str) -> GenerationView:
+            with repo.read() as db:
+                data = genjobs.request_view(db, repo.learner_id, request_id)
+            if data is None:
+                raise HTTPException(404, 'Not found.')                        # also what another learner's request id gets
+            return GenerationView(**data)
+
+        @router.post('/generation/interpret', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
+        def generation_interpret(body: InterpretBody):
+            user_id = repo.learner_id
+            if _halted():
+                raise HTTPException(503, 'Lesson creation is paused for a little while.')
+            try:
+                with repo.transaction() as db:
+                    request_id, _ = genjobs.create_interpretation(db, user_id, body.client_request_id, body.text.strip())
+            except gen.GenerationRefused:
+                raise HTTPException(429, 'You have made a lot of requests today. Please try again tomorrow.') from None
+            return _generation_view(request_id)
+
+        @router.post('/generation/requests', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
+        def generation_create(body: GenerateBody):
+            user_id = repo.learner_id
+            spec_raw, notes = gen.clamp_spec(body.spec.model_dump(), settings.listening_gen_max_minutes)
+            spec = gen.Spec.model_validate(spec_raw)
+            if _halted():
+                raise HTTPException(503, 'Lesson creation is paused for a little while.')
+            with repo.transaction() as db:
+                request_id, created = genjobs.create_generation(db, user_id, body.client_request_id, spec, notes, body.text)
+            if created:
+                try:
+                    genjobs.finalize_reservation(plain, ledger, settings, user_id, request_id, spec)
+                except gen.GenerationRefused:
+                    pass                                                       # the request row now says phase=unavailable and why; no job was queued
+            return _generation_view(request_id)
+
+        @router.get('/generation/requests/{request_id}', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
+        def generation_status(request_id: str):
+            return _generation_view(_uuid(request_id))
 
     @router.get('/lessons', response_model=list[CatalogItem])
     def catalog():

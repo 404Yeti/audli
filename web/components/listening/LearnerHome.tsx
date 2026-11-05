@@ -11,6 +11,7 @@ import { getProgress, listCatalog } from '../../lib/listening.ts';
 import { lengthLabel, whenLabel, type CatalogItem, type Progress } from '../../lib/listening-core.ts';
 import { accentLabel, continueItem, countLabel, greeting, recentlyCompleted, recommendedNext, stepsDone } from '../../lib/home-core.ts';
 
+const GENERATOR = process.env.NEXT_PUBLIC_AUDLI_LISTENING_GENERATOR === 'true';
 type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[]; progress: Progress | null };
 
 const meta = (i: CatalogItem) => [i.cefr, i.accents[0] ? accentLabel(i.accents[0]) : null, lengthLabel(i.duration_ms)].filter(Boolean).join(' · ');
@@ -87,8 +88,9 @@ export function LearnerHome() {
             <span className={styles.chev}><Icon name="chevron" /></span></Link>
         </> : <p className={styles.muted}>Nothing new to recommend yet.</p>}
         <div className={styles.tiles} style={{ marginTop: 16 }}>
+          {GENERATOR ? <Link href="/listening/create" className={styles.tile}><Icon name="create" /><b>Create a lesson</b><span>Any topic, your level</span></Link> : null}
           <Link href="/listening" className={`${styles.tile} ${styles.t2}`}><Icon name="discover" /><b>Browse library</b><span>{countLabel(total)}</span></Link>
-          <Link href="/listening/progress" className={styles.tile}><Icon name="progress" /><b>Your progress</b><span>{countLabel(finished)} finished</span></Link>
+          {GENERATOR ? null : <Link href="/listening/progress" className={styles.tile}><Icon name="progress" /><b>Your progress</b><span>{countLabel(finished)} finished</span></Link>}
         </div>
       </aside>
     </div>

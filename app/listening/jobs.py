@@ -60,13 +60,13 @@ def enqueue(db, user_id: str, kind: str, dedupe_key: str, payload: dict, max_att
     return job_id
 
 
-def claim(db, owner: str, lease_seconds: int = DEFAULT_LEASE_SECONDS, now: datetime | None = None, kind: str | None = None) -> Job | None:
+def claim(db, owner: str, lease_seconds: int = DEFAULT_LEASE_SECONDS, now: datetime | None = None, kind: 'str | tuple[str, ...] | None' = None) -> Job | None:
     now = now or utcnow()
     eligible = or_(and_(t.jobs.c.status == 'queued', t.jobs.c.run_after <= now),
                    and_(t.jobs.c.status == 'running', t.jobs.c.lease_expires_at < now, t.jobs.c.attempts < t.jobs.c.max_attempts))
     candidate = select(t.jobs.c.id).where(eligible).order_by(t.jobs.c.run_after, t.jobs.c.created_at).limit(1)
     if kind:
-        candidate = candidate.where(t.jobs.c.kind == kind)
+        candidate = candidate.where(t.jobs.c.kind.in_((kind,) if isinstance(kind, str) else tuple(kind)))
     if db.dialect.name == 'postgresql':
         candidate = candidate.with_for_update(skip_locked=True)
     row = db.execute(update(t.jobs).where(t.jobs.c.id == candidate.scalar_subquery()).values(

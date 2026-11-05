@@ -39,7 +39,7 @@ def worker_id() -> str:
 def run_once(engine, objects, transcriber, assessor, owner: str, now=None) -> str | None:
     """Claim and run one job. Returns its outcome, or None when nothing was ready."""
     with engine.begin() as db:
-        job = jobs.claim(db, owner, now=now)
+        job = jobs.claim(db, owner, now=now, kind='spoken')      # the spoken-answer worker never takes lesson-generation jobs (they need credentials it does not hold)
     if job is None:
         return None
     started = time.monotonic()

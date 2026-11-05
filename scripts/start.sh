@@ -8,6 +8,15 @@ case "$(printf %s "${AUDLI_LISTENING_ENABLED:-}" | tr '[:upper:]' '[:lower:]')" 
       python -m app.listening.sidecar &
     else
       echo "Audli 2.0 is enabled but AUDLI_LISTENING_WORKER_DATABASE_URL is not set; spoken answers will not be processed." >&2
-    fi ;;
+    fi
+    # The lesson generator is a separate process with its own database role and its own credentials; it starts only when generation is switched on.
+    case "$(printf %s "${AUDLI_LISTENING_GENERATION_ENABLED:-}" | tr '[:upper:]' '[:lower:]')" in
+      true|1|yes|on)
+        if [ -n "${AUDLI_LISTENING_GENERATOR_DATABASE_URL:-}" ]; then
+          python -m app.listening.sidecar generator &
+        else
+          echo "Lesson generation is enabled but AUDLI_LISTENING_GENERATOR_DATABASE_URL is not set; lessons will not be generated." >&2
+        fi ;;
+    esac ;;
 esac
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1

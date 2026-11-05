@@ -58,7 +58,7 @@ export function Landing({ onSignUp, onSignIn }: { onSignUp: () => void; onSignIn
           <p className={styles.muted} style={{ margin: 0 }}>Lessons are recorded in different accents. More are on the way.</p></div>
         <div className={styles.accents} role="list" aria-label="Accents">
           {AVAILABLE_ACCENTS.map(a => <span role="listitem" key={a} className={styles.chip}>{accentLabel(a)}</span>)}
-          {COMING_ACCENTS.map(a => <span role="listitem" key={a} className={`${styles.chip} ${styles.chipOff}`} aria-disabled="true">{a} · coming soon</span>)}
+          {COMING_ACCENTS.map(a => <span role="listitem" key={a} className={`${styles.chip} ${styles.chipOff}`}>{a} · coming soon</span>)}
         </div>
       </div></section>
 
@@ -73,6 +73,18 @@ export function Landing({ onSignUp, onSignIn }: { onSignUp: () => void; onSignIn
           <span className={styles.muted}>Priya</span><b style={{ fontSize: 19 }}>Hi — could I get a flat white, please?</b>
         </div>
       </div></section>
+
+      {process.env.NEXT_PUBLIC_AUDLI_LISTENING_GENERATOR === 'true' ? <section className={`${styles.lpSection} ${styles.lpAlt}`}><div className={`${styles.lpInner} ${styles.lpSplit}`}>
+        <div className={styles.card} aria-hidden="true" style={{ display: 'grid', gap: 12 }}>
+          <div className={styles.lpLine} style={{ background: 'var(--white)', borderLeftColor: 'var(--sun-400)' }}>“I want a B1 lesson about ordering food at a restaurant.”</div>
+          <span className={styles.muted} style={{ fontSize: 14 }}>→ a couple of minutes later, saved to your library</span>
+          <div className={styles.readyCard}><div className={styles.readyArt} style={{ minHeight: 72 }}><span className={`${styles.tag} ${styles.tagLevel}`} style={{ alignSelf: 'flex-start' }}>B1</span></div>
+            <div className={styles.readyBody}><b>Ordering food at a restaurant</b><span className={styles.muted} style={{ fontSize: 14 }}>American · Dialogue · about 2 min</span></div></div>
+        </div>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p className={styles.eyebrow}>Personalised lessons</p><h2 className={`${styles.display} ${styles.h1}`}>Describe it. We’ll build it.</h2>
+          <p className={styles.muted} style={{ margin: 0 }}>Tell Audli what you want to practise, in your own words. It writes the script at your level, records it in the accent you choose, syncs the transcript and writes four exercises. Every lesson is saved to your library, only for you.</p>
+        </div></div></section> : null}
 
       <section className={`${styles.lpSection} ${styles.lpAlt}`}><div className={styles.lpInner}>
         <div className={styles.lpCenter}><p className={styles.eyebrow}>The four-exercise model</p><h2 className={`${styles.display} ${styles.h1}`}>Four exercises. One clear picture.</h2>

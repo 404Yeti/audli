@@ -83,7 +83,7 @@ export function SpokenExercise({ exercise, busy, error, onSend, onSkip }: {
     {note ? <p className={styles.playerMsg} role="alert">{note}</p> : null}
     {error ? <p className={styles.playerMsg} role="alert">{error}</p> : null}
     {onSkip ? <button type="button" className={styles.linkBtn} onClick={onSkip} disabled={busy || stage === 'recording'}>Skip this question</button> : null}
-    <p className={styles.note} data-testid="provider-disclosure">{PROVIDER_DISCLOSURE}</p>
+    <p className={styles.note} data-testid="provider-disclosure">{PROVIDER_DISCLOSURE} <a href="/privacy" target="_blank" rel="noopener">Privacy details</a></p>
   </section>;
 }
 

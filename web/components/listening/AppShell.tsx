@@ -34,13 +34,15 @@ export function AppShell({ active, children }: { active: NavKey; children: React
       <div className={styles.userChip}>
         <span className={styles.avatar} aria-hidden="true">{initials(name)}</span>
         <span className={styles.userText}><span className={styles.userName}>{name}</span>
-          {account.signOut ? <button type="button" className={`${styles.linkBtn} ${styles.signOut}`} onClick={() => void account.signOut?.()}>Sign out</button> : null}</span>
+          {account.signOut ? <button type="button" className={`${styles.linkBtn} ${styles.signOut}`} onClick={() => void account.signOut?.()}>Sign out</button> : null}
+          <Link href="/privacy" className={`${styles.linkBtn} ${styles.signOut}`}>Privacy</Link></span>
       </div>
     </aside>
     <main id="app-main" tabIndex={-1} className={styles.content}>
       <div className={styles.topline}>
         <Link href="/" className={styles.brand} aria-label="Audli home"><span className={styles.brandMascot}><AudliMascot small staticPose face /></span>Audli</Link>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Link href="/privacy" className={styles.linkBtn}>Privacy</Link>
           {account.signOut ? <button type="button" className={styles.linkBtn} onClick={() => void account.signOut?.()}>Sign out</button> : null}
           <span className={styles.avatar} aria-hidden="true">{initials(name)}</span>
         </span>

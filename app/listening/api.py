@@ -1,5 +1,6 @@
 """Learner API for 2.0 listening lessons. No AI provider, no conversation state and no process-wide lock: concurrency control is
 the database's (unique constraints, a row lock on the attempt, idempotent writes)."""
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Annotated
@@ -260,10 +261,23 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
     """`objects` is the lesson-audio store (signed links); `recordings` is the separate, never-served store for temporary spoken answers."""
     recordings = recordings if recordings is not None else objects          # one store only in older tests; main.py always passes both
     allowed = settings.listening_allowed_set
+    log = logging.getLogger('audli.listening')
+    refused_seen: set[str] = set()
+    # Logged at WARNING only because uvicorn's default configuration drops INFO from application loggers. Operators can tell "routes are on, allow-list set" from "off" without any value being printed: counts and 8-character prefixes only.
+    log.warning('Audli 2.0 routes registered: storage=%s allow-list=%s entries (%s)', settings.listening_storage, len(allowed),
+             ', '.join(sorted(a[:8] for a in allowed)) or 'open to every signed-in learner')
+
+    if settings.listening_storage == 'local' and settings.auth_mode == 'supabase':
+        # Signed links would point at this container's own disk, where published lesson audio does not exist: every lesson would show "The audio couldn't load".
+        log.warning('Audli 2.0 lesson audio is set to LOCAL storage while accounts are on; set AUDLI_LISTENING_STORAGE=s3 or published audio will not play')
 
     def require_allowed() -> None:
         """While 2.0 is limited to named test accounts, everyone else sees exactly what they would see if it did not exist."""
         if allowed and repo.learner_id not in allowed:
+            prefix = str(repo.learner_id)[:8]
+            if prefix not in refused_seen and len(refused_seen) < 50:          # once per distinct account per process; the response is unchanged
+                refused_seen.add(prefix)
+                log.warning('Audli 2.0 refused a signed-in account not on the allow-list (id starts %s)', prefix)
             raise HTTPException(404, 'Not found.')
     router = APIRouter(prefix='/api/listening', dependencies=[Depends(require_allowed)])
 

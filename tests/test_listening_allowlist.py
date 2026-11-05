@@ -78,3 +78,24 @@ def test_a_malformed_allow_list_is_refused_at_startup(value):
     with pytest.raises(Exception, match='ALLOWED_LEARNERS'):
         Settings(listening_allowed_learners=value, _env_file=None)
     assert Settings(listening_allowed_learners=f'{USER_A}', _env_file=None).listening_allowed_set == {USER_A.lower()}
+
+
+def test_a_refused_account_is_logged_once_by_prefix_only_and_startup_says_what_is_configured(stack, caplog):
+    import logging
+    caplog.set_level(logging.WARNING, logger='audli.listening')
+    build, _ = stack
+    a, b = build(listening_allowed_learners=USER_A)
+    assert any('1 entries' in r.getMessage() and USER_A[:8] in r.getMessage() and USER_A not in r.getMessage() for r in caplog.records)
+    for _ in range(3):
+        assert b.get('/api/listening/lessons').status_code == 404
+    refusals = [r.getMessage() for r in caplog.records if 'refused' in r.getMessage()]
+    assert len(refusals) == 1 and USER_B[:8] in refusals[0] and USER_B not in refusals[0]
+    assert a.get('/api/listening/lessons').status_code == 200 and len([r for r in caplog.records if 'refused' in r.getMessage()]) == 1
+
+
+def test_local_lesson_storage_with_signed_in_accounts_is_called_out_at_startup(stack, caplog):
+    import logging
+    caplog.set_level(logging.WARNING, logger='audli.listening')
+    build, _ = stack
+    build(listening_allowed_learners=USER_A)                          # the test settings use accounts + local storage
+    assert any('LOCAL storage' in r.getMessage() and 'AUDLI_LISTENING_STORAGE=s3' in r.getMessage() for r in caplog.records)

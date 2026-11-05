@@ -18,4 +18,4 @@ COPY docs/postgres-010.sql docs/postgres-010.sql
 COPY docs/postgres-011.sql docs/postgres-011.sql
 COPY docs/accent-release-evidence /app/data/voice-evaluation/aud20-validation-20261010
 COPY docs/aud38-release-evidence /app/data/voice-evaluation/aud38-approved
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["sh", "scripts/start.sh"]

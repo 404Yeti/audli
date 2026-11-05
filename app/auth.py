@@ -88,7 +88,7 @@ def lease_exempt(method: str, path: str) -> bool:
 
 
 # Signed, expiring media links carry their own credential (an <audio> element cannot send a bearer token).
-PUBLIC_PREFIXES = ('/api/listening/media/',)
+PUBLIC_PREFIXES = ('/api/listening/media/', '/api/listening/ops/')      # ops/ carries its own bearer-token check (app/listening/api.py)
 
 
 class LearnerAuthentication:

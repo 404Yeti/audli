@@ -256,7 +256,7 @@ def prepare(engine, worker: bool = False) -> None:
 PAUSED = 'Spoken answers are paused for a little while. You can skip this question and carry on; your other answers are saved.'
 
 
-def register_listening_routes(app, repo, settings, objects, recordings=None):
+def register_listening_routes(app, repo, settings, objects, recordings=None, engine=None):
     """`objects` is the lesson-audio store (signed links); `recordings` is the separate, never-served store for temporary spoken answers."""
     recordings = recordings if recordings is not None else objects          # one store only in older tests; main.py always passes both
     def require_ai() -> None:
@@ -264,6 +264,19 @@ def register_listening_routes(app, repo, settings, objects, recordings=None):
         accepting, _ = AiGuard(repo.engine, settings).accepting()      # built per request: in accounts mode `repo` only exists inside one
         if not accepting:
             raise HTTPException(503, PAUSED)
+
+    if settings.listening_ops_token:
+        import hmac
+        from fastapi import Header
+
+        @app.get('/api/listening/ops/health')
+        def ops_health(authorization: Annotated[str | None, Header()] = None):
+            """Aggregate numbers for an external monitor. Own bearer token (constant-time comparison); no learner data; absent unless configured."""
+            expected = 'Bearer ' + settings.listening_ops_token.get_secret_value()
+            if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
+                raise HTTPException(401, 'Not authorised.', headers={'WWW-Authenticate': 'Bearer'})
+            from app.listening.health import report_with_alerts
+            return report_with_alerts(engine if engine is not None else repo.engine, settings)       # the ops route has no learner, so it needs the plain engine
 
     @app.get('/api/listening/lessons', response_model=list[CatalogItem])
     def catalog():

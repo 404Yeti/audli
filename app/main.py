@@ -509,7 +509,7 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
         from app.listening.api import prepare, register_listening_routes
         from app.listening.objects import build_recording_store, build_store
         prepare(database.engine)
-        register_listening_routes(app, repo, settings, build_store(settings, settings.data_dir), build_recording_store(settings, settings.data_dir))
+        register_listening_routes(app, repo, settings, build_store(settings, settings.data_dir), build_recording_store(settings, settings.data_dir), engine=database.engine)
     from app.claims.runtime import configure
     configure(app, settings, ai)
     return app

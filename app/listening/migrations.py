@@ -121,3 +121,29 @@ BEGIN
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (11, now());', 'COMMIT;']
     return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_rollback() -> str:
+    """Remove EVERYTHING Audli 2.0 added (migrations 009-011): the tables, the guard functions and the ledger. Destroys all 2.0 learner data.
+    Operator-only, never run by the application, and it refuses to run unless the session first says so in words:
+        SET audli.confirm_listening_rollback = 'yes';                -- required
+        SET audli.discard_learner_data = 'yes';                      -- also required if any 2.0 attempt exists
+    1.x tables and data are not touched. To go back to 1.x WITHOUT losing 2.0 data, do not run this: turn the two feature flags off instead."""
+    drops = [t.name for t in reversed(l.OWNED)]
+    functions = ['listening_guard_version', 'listening_guard_children', 'listening_guard_audio', 'listening_guard_response', 'listening_guard_attempt']
+    return '\n'.join([
+        '-- Audli 2.0 rollback: removes migrations 009-011 completely. DESTROYS 2.0 learner data. Read docs/LISTENING-CUTOVER.md first.',
+        'BEGIN;', "SET LOCAL lock_timeout='10s';",
+        """DO $$ BEGIN
+ IF coalesce(current_setting('audli.confirm_listening_rollback', true), '') <> 'yes' THEN
+  RAISE EXCEPTION 'Refusing: run SET audli.confirm_listening_rollback = ''yes''; first, in this session';
+ END IF;
+ IF to_regclass('public.listening_attempts') IS NOT NULL
+    AND (SELECT count(*) FROM public.listening_attempts) > 0
+    AND coalesce(current_setting('audli.discard_learner_data', true), '') <> 'yes' THEN
+  RAISE EXCEPTION 'Refusing: 2.0 attempts exist. To discard them run SET audli.discard_learner_data = ''yes''; first';
+ END IF;
+END $$;""",
+        *[f'DROP TABLE IF EXISTS {name};' for name in drops],
+        *[f'DROP FUNCTION IF EXISTS {name}();' for name in functions],
+        'COMMIT;', ''])

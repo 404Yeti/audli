@@ -54,7 +54,7 @@ def main(argv=None, client=None) -> int:
     for name in names:
         content = LessonContent.model_validate_json((FIXTURES / name / 'lesson.json').read_text())
         try:
-            built = build_audio(content, provider, voices)
+            built = build_audio(content, provider, {s.id: voices[s.id] for s in content.speakers})
         except (AudioQualityError, SpeechBudgetExceeded, SpeechPermanent, SpeechTemporary, ValueError) as error:
             print(f'{name}: NOT built: {type(error).__name__}: {error}', file=sys.stderr)
             return 1

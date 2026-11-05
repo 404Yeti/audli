@@ -45,3 +45,33 @@ def test_the_launcher_restarts_and_never_raises(capsys):
     assert code == 0 and len(calls) == 3 and sleeps == [10, 20, 40]
     assert calls[0][0][0][:3] == [sys.executable, '-m', 'app.listening.worker'] and calls[0][1]['env']['AUDLI_LISTENING_PROCESS'] == 'worker'
     assert sidecar.main({}, rounds=1) == 1
+
+
+def run_start(tmp_path, **env):
+    """Run scripts/start.sh with stub `python` and `uvicorn`; report whether the worker sidecar was launched."""
+    import os, subprocess, stat
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir(exist_ok=True)
+    for name, body in (('python', 'echo "sidecar $*" >> "$LOG"'), ('uvicorn', 'echo "api" >> "$LOG"')):
+        path = bin_dir / name
+        path.write_text('#!/bin/sh\n' + body + '\n')
+        path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    log = tmp_path / 'log'
+    log.write_text('')
+    full = {'PATH': f'{bin_dir}:/usr/bin:/bin', 'LOG': str(log), **env}
+    subprocess.run(['sh', 'scripts/start.sh'], env=full, check=True, capture_output=True, timeout=20)
+    import time; time.sleep(.3)                                       # the sidecar is a background process
+    return log.read_text()
+
+
+def test_start_script_launches_the_sidecar_for_every_truthy_spelling_the_api_accepts(tmp_path):
+    for spelling in ('true', 'True', 'TRUE', '1', 'yes', 'on'):
+        out = run_start(tmp_path, AUDLI_LISTENING_ENABLED=spelling, AUDLI_LISTENING_WORKER_DATABASE_URL='postgresql://x')
+        assert 'sidecar -m app.listening.sidecar' in out and 'api' in out, spelling
+
+
+def test_start_script_never_launches_the_sidecar_when_off_or_without_a_worker_url_and_always_starts_the_api(tmp_path):
+    for env in ({}, {'AUDLI_LISTENING_ENABLED': 'false', 'AUDLI_LISTENING_WORKER_DATABASE_URL': 'postgresql://x'},
+                {'AUDLI_LISTENING_ENABLED': 'true'}):
+        out = run_start(tmp_path, **env)
+        assert 'sidecar' not in out and 'api' in out, env

@@ -9,6 +9,7 @@ Audli 2.0 is additive: it adds tables, routes and pages beside 1.x and changes n
 | Backend | `AUDLI_LISTENING_ENABLED=true` | off | registers `/api/listening/*`; startup checks migrations 009-011, storage, provider |
 | Web | `NEXT_PUBLIC_AUDLI_LISTENING=true` | unset | `/listening` exists (404 otherwise) |
 | Web | `NEXT_PUBLIC_AUDLI_LISTENING_HOME=true` | unset | **cutover:** `/` redirects to `/listening`; the classic 1.x home stays reachable at `/classic` |
+| Backend | `AUDLI_LISTENING_ALLOWED_LEARNERS=<id>[,<id>]` | empty = everyone | while set, only these learners can use `/api/listening/*`; every other signed-in learner gets a plain 404 and nothing is created for them |
 | Backend | `AUDLI_LISTENING_AI_ENABLED`, `python -m app.listening.ai_budget halt` | on | kill switch for all AI work |
 | Backend | `AUDLI_LISTENING_OPS_TOKEN` | unset | enables the monitor endpoint `GET /api/listening/ops/health` |
 Verified on real production builds: with everything unset `/` serves 1.x and `/listening` and `/classic` answer 404; with the pages flag only, `/listening` is served and `/` is unchanged;

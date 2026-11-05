@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     listening_generation_model: str = 'gpt-6.1-terra'        # not used by any request path yet: lesson generation is evaluated, not shipped
     # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.
     listening_ops_token: SecretStr | None = None          # enables GET /api/listening/ops/health for an external monitor (aggregate numbers only)
+    listening_allowed_learners: str = ''           # comma-separated learner ids (Supabase user ids); empty = every signed-in learner. Others get a plain 404.
     listening_ai_enabled: bool = True                                           # False = no new AI request is accepted or dispatched
     listening_ai_daily_budget_usd: float = Field(default=2.0, ge=0, le=1000)    # reserved per UTC day across every 2.0 AI operation
     listening_provider_timeout_seconds: float = Field(default=45, gt=0, le=120)
@@ -167,11 +168,21 @@ class Settings(BaseSettings):
             if routing_allowed(accent, voice.voice_id)} if self.accent_practice_enabled else {}
 
     @property
+    def listening_allowed_set(self) -> frozenset[str]:
+        return frozenset(part.strip().lower() for part in self.listening_allowed_learners.split(',') if part.strip())
+
+    @property
     def browser_origins(self) -> tuple[str, ...]:
         return tuple(self.allowed_origins.split(',')) if self.allowed_origins else ()
 
     @model_validator(mode='after')
     def listening_configuration(self):
+        from uuid import UUID
+        for learner in self.listening_allowed_set:
+            try:
+                UUID(learner)
+            except ValueError:
+                raise ValueError('AUDLI_LISTENING_ALLOWED_LEARNERS must be a comma-separated list of learner ids (UUIDs)') from None
         if self.listening_ops_token and len(self.listening_ops_token.get_secret_value()) < 24:
             raise ValueError('AUDLI_LISTENING_OPS_TOKEN must be at least 24 characters')
         if not self.listening_enabled:

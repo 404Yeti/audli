@@ -5,10 +5,11 @@ import styles from './listening.module.css';
 import { LessonShell } from './LessonShell';
 import { AttemptRecovery } from './AttemptRecovery';
 import { AudliMascot } from '../audli-mascot';
+import { ApiError } from '../../lib/api.ts';
 import { getProgress, listCatalog } from '../../lib/listening.ts';
 import { lengthLabel, lessonAction, progressLine, SPOKEN_NOTE, statusLine, whenLabel, type CatalogItem, type Progress, type RecentItem } from '../../lib/listening-core.ts';
 
-type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; items: CatalogItem[]; progress: Progress | null };
+type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[]; progress: Progress | null };
 
 const PILL: Record<CatalogItem['status'], string> = { new: styles.pillIdle, in_progress: styles.pillWait, completed: styles.pillOk };
 const MARK: Record<CatalogItem['status'], string> = { new: '', in_progress: '…', completed: '✓' };
@@ -62,7 +63,10 @@ export function ListeningCatalog() {
       // Progress is a nicety: if only it fails, the library still works.
       const [items, progress] = await Promise.all([listCatalog(), getProgress().catch(() => null)]);
       return { kind: 'ready', items, progress };
-    } catch { return { kind: 'error' }; }
+    } catch (cause) {
+      // While 2.0 is limited to named accounts the server answers 404 to everyone else: say so plainly instead of offering a retry that cannot help.
+      return cause instanceof ApiError && cause.status === 404 ? { kind: 'unavailable' } : { kind: 'error' };
+    }
   }, []);
   useEffect(() => {
     let live = true;
@@ -72,6 +76,7 @@ export function ListeningCatalog() {
   const retry = () => { setLoad({ kind: 'loading' }); void fetchAll().then(setLoad); };
 
   const shell = (children: React.ReactNode) => <LessonShell phase={null} closeHref="/" closeLabel="Back to Audli home">{children}</LessonShell>;
+  if (load.kind === 'unavailable') return shell(<div className={styles.status} role="status"><div className={styles.heroMascot}><AudliMascot state="Idle" small /></div><p><b>Audli listening lessons aren’t available on your account yet.</b></p><Link className={styles.secondary} href="/">Back to Audli</Link></div>);
   if (load.kind === 'error') return shell(<AttemptRecovery state="error" onRetry={retry} />);
   if (load.kind === 'loading') return shell(<><h1 className={`${styles.heading} ${styles.title}`}>Listening lessons</h1><Skeleton /></>);
   const { items, progress } = load;

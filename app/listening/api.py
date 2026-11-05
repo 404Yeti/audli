@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -259,6 +259,14 @@ PAUSED = 'Spoken answers are paused for a little while. You can skip this questi
 def register_listening_routes(app, repo, settings, objects, recordings=None, engine=None):
     """`objects` is the lesson-audio store (signed links); `recordings` is the separate, never-served store for temporary spoken answers."""
     recordings = recordings if recordings is not None else objects          # one store only in older tests; main.py always passes both
+    allowed = settings.listening_allowed_set
+
+    def require_allowed() -> None:
+        """While 2.0 is limited to named test accounts, everyone else sees exactly what they would see if it did not exist."""
+        if allowed and repo.learner_id not in allowed:
+            raise HTTPException(404, 'Not found.')
+    router = APIRouter(prefix='/api/listening', dependencies=[Depends(require_allowed)])
+
     def require_ai() -> None:
         """No new AI work is accepted while the kill switch is on or today's ceiling cannot cover one more answer. Fails closed."""
         accepting, _ = AiGuard(repo.engine, settings).accepting()      # built per request: in accounts mode `repo` only exists inside one
@@ -278,22 +286,22 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
             from app.listening.health import report_with_alerts
             return report_with_alerts(engine if engine is not None else repo.engine, settings)       # the ops route has no learner, so it needs the plain engine
 
-    @app.get('/api/listening/lessons', response_model=list[CatalogItem])
+    @router.get('/lessons', response_model=list[CatalogItem])
     def catalog():
         with repo.read() as db:
             return store.list_catalog(db, repo.learner_id)
 
-    @app.get('/api/listening/progress', response_model=ProgressOut)
+    @router.get('/progress', response_model=ProgressOut)
     def progress():
         with repo.read() as db:
             return store.progress_summary(db, repo.learner_id)
 
-    @app.get('/api/listening/lessons/{lesson_id}/attempts/current', response_model=CurrentAttempt)
+    @router.get('/lessons/{lesson_id}/attempts/current', response_model=CurrentAttempt)
     def current_attempt(lesson_id: str):
         with repo.read() as db:
             return CurrentAttempt(attempt_id=store.current_attempt_id(db, repo.learner_id, _uuid(lesson_id)))
 
-    @app.post('/api/listening/lessons/{lesson_id}/attempts', response_model=AttemptView)
+    @router.post('/lessons/{lesson_id}/attempts', response_model=AttemptView)
     def start_attempt(lesson_id: str, body: StartAttempt):
         lesson_id, user_id = _uuid(lesson_id), repo.learner_id
 
@@ -304,12 +312,12 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
         with repo.read() as db:
             return _view(db, user_id, attempt_id)
 
-    @app.get('/api/listening/attempts/{attempt_id}', response_model=AttemptView)
+    @router.get('/attempts/{attempt_id}', response_model=AttemptView)
     def get_attempt(attempt_id: str):
         with repo.read() as db:
             return _guard(lambda: _view(db, repo.learner_id, _uuid(attempt_id)))
 
-    @app.post('/api/listening/attempts/{attempt_id}/answers', response_model=AttemptView)
+    @router.post('/attempts/{attempt_id}/answers', response_model=AttemptView)
     def answer(attempt_id: str, body: AnswerBody):
         attempt_id, user_id = _uuid(attempt_id), repo.learner_id
         exercise_id = _uuid(body.exercise_id)
@@ -321,7 +329,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
         with repo.read() as db:
             return _guard(lambda: _view(db, user_id, attempt_id))
 
-    @app.post('/api/listening/attempts/{attempt_id}/exercises/{exercise_id}/skip', response_model=AttemptView)
+    @router.post('/attempts/{attempt_id}/exercises/{exercise_id}/skip', response_model=AttemptView)
     def skip_spoken(attempt_id: str, exercise_id: str):
         attempt_id, exercise_id, user_id = _uuid(attempt_id), _uuid(exercise_id), repo.learner_id
 
@@ -332,7 +340,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
         with repo.read() as db:
             return _view(db, user_id, attempt_id)
 
-    @app.post('/api/listening/attempts/{attempt_id}/exercises/{exercise_id}/retry', response_model=AttemptView)
+    @router.post('/attempts/{attempt_id}/exercises/{exercise_id}/retry', response_model=AttemptView)
     def retry_spoken(attempt_id: str, exercise_id: str):
         attempt_id, exercise_id, user_id = _uuid(attempt_id), _uuid(exercise_id), repo.learner_id
 
@@ -345,7 +353,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
         with repo.read() as db:
             return _view(db, user_id, attempt_id)
 
-    @app.post('/api/listening/attempts/{attempt_id}/exercises/{exercise_id}/recording', response_model=AttemptView)
+    @router.post('/attempts/{attempt_id}/exercises/{exercise_id}/recording', response_model=AttemptView)
     async def upload_recording(attempt_id: str, exercise_id: str, request: Request, upload_id: Annotated[str, Query(pattern=REQUEST_ID)]):
         attempt_id, exercise_id, user_id = _uuid(attempt_id), _uuid(exercise_id), repo.learner_id
         data, declared = await request.body(), request.headers.get('content-type')
@@ -382,7 +390,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 return _view(db, user_id, attempt_id)
         return await run_in_threadpool(work)
 
-    @app.get('/api/listening/attempts/{attempt_id}/audio', response_model=SignedAudio)
+    @router.get('/attempts/{attempt_id}/audio', response_model=SignedAudio)
     def audio(attempt_id: str):
         with repo.read() as db:
             found = _guard(lambda: store.attempt_audio_object(db, repo.learner_id, _uuid(attempt_id)))
@@ -400,3 +408,5 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 raise HTTPException(404, 'Audio not found.')
             return FileResponse(path, media_type='audio/mpeg' if path.suffix == '.mp3' else 'audio/wav',
                                 headers={'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline'})
+
+    app.include_router(router)

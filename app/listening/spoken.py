@@ -162,7 +162,9 @@ def process(engine, job, objects, transcriber, assessor, now=None) -> str:
                 return _fail(engine, objects, job, 'recording_missing', now_(), False)
             with engine.begin() as db:
                 jobs.heartbeat(db, job, now=now_())
-            transcript = transcriber.transcribe(audio, content_type or 'audio/webm').strip()[:2000]
+            heard = transcriber.transcribe(audio, content_type or 'audio/webm')
+            # Unreliable audio (the provider could not detect speech) is stored as no words at all: never show invented text as theirs.
+            transcript = heard.text.strip()[:2000] if heard.reliable else ''
             with engine.begin() as db:
                 jobs.assert_current(db, job)
                 db.execute(update(t.spoken).where(and_(t.spoken.c.attempt_id == attempt_id, t.spoken.c.exercise_id == exercise_id))
@@ -192,10 +194,10 @@ def process(engine, job, objects, transcriber, assessor, now=None) -> str:
             except jobs.LeaseLost:
                 return 'lost'
         return 'superseded'
-    except ProviderPermanent:
-        return _fail(engine, objects, job, 'provider_refused', now_(), False)
-    except ProviderTemporary:
-        return _fail(engine, objects, job, 'provider_unavailable', now_(), True)
+    except ProviderPermanent as error:
+        return _fail(engine, objects, job, error.code, now_(), False)
+    except ProviderTemporary as error:
+        return _fail(engine, objects, job, error.code, now_(), True)
     except ValueError:
         return _fail(engine, objects, job, 'unusable_assessment', now_(), True)      # a model that answers badly once may answer properly next time
 

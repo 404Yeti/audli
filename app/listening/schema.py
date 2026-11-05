@@ -5,7 +5,7 @@ account deletion stays complete without touching that plan; lesson content is sh
 from datetime import datetime, timezone
 from sqlalchemy import select, insert
 from sqlalchemy import (MetaData, Table, Column, String, Text, Integer, Boolean, ForeignKey, ForeignKeyConstraint,
-                        PrimaryKeyConstraint, UniqueConstraint, CheckConstraint, Index)
+                        PrimaryKeyConstraint, UniqueConstraint, CheckConstraint, Index, BigInteger)
 
 from app.storage.schema import document, identifier, timestamp
 
@@ -145,9 +145,19 @@ jobs = Table('listening_jobs', metadata,
     CheckConstraint('attempts >= 0 AND max_attempts >= 1 AND fence >= 0', name='listening_job_counts'), info=SINCE)
 Index('listening_jobs_ready', jobs.c.status, jobs.c.run_after)
 
+# ---- Milestone 04 (migration 011): the global AI spending ceiling and kill switch ------------------------------------------------
+# One row per UTC day ('2026-11-04') counts what has been RESERVED for AI calls that day, in millionths of a US dollar; the row 'control'
+# carries the operator's halt flag. Reservations are conditional UPDATEs, so concurrent workers can never reserve past the ceiling.
+# These are estimates, not billing: the provider's own spend limit stays the real backstop.
+ai_limits = Table('listening_ai_limits', metadata,
+    Column('scope', String(16), primary_key=True), Column('reserved_micro', BigInteger, nullable=False),
+    Column('calls', Integer, nullable=False), Column('halted', Boolean, nullable=False), Column('updated_at', timestamp, nullable=False),
+    CheckConstraint('reserved_micro >= 0 AND calls >= 0', name='listening_ai_limits_nonnegative'), info={'since': 11})
+
 OWNED = [t for t in metadata.sorted_tables if t is not users_ref]
 NAMES = tuple(t.name for t in OWNED)
 NAMES_010 = tuple(t.name for t in OWNED if t.info.get('since') == 10)
+NAMES_011 = tuple(t.name for t in OWNED if t.info.get('since') == 11)
 PRIVATE_TABLES = ('listening_exercise_keys', 'listening_exercise_rubrics')
 
 _MSG = {'answer': 'listening answers are final', 'version': 'published listening versions are immutable', 'audio': 'listening audio variants are append-only',
@@ -229,6 +239,6 @@ def ensure_sqlite(engine) -> None:
         for statement in SQLITE_TRIGGERS:
             db.exec_driver_sql(statement)
         have = {row[0] for row in db.execute(select(ledger.c.version))}
-        for version in (9, 10):
+        for version in (9, 10, 11):
             if version not in have:
                 db.execute(insert(ledger).values(version=version, applied_at=datetime.now(timezone.utc)))

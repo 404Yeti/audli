@@ -31,25 +31,25 @@ def prepare_all(repo, tmp_path):
     prepare(repo.engine)
     objects = LocalObjectStore(tmp_path / 'listening_objects', b'k' * 32)
     seed_all(repo.engine, objects)
-    return objects
+    return LocalObjectStore(tmp_path / 'listening_recordings', b'r' * 32)        # the worker's store: recordings only
 
 
 @pytest.fixture
 def library(make_repository, tmp_path):
     owner = str(uuid4())
     repo = make_repository(owner)
-    objects = prepare_all(repo, tmp_path)
+    recordings = prepare_all(repo, tmp_path)
     app = create_app(Settings(data_dir=tmp_path, provider='demo', listening_enabled=True, _env_file=None), FakeProvider(), repository=repo)
-    return SimpleNamespace(client=ASGIClient(app, None), repo=repo, engine=repo.engine, objects=objects, owner=owner, tmp=tmp_path)
+    return SimpleNamespace(client=ASGIClient(app, None), repo=repo, engine=repo.engine, recordings=recordings, owner=owner, tmp=tmp_path)
 
 
 @pytest.fixture
 def two(make_repository, tmp_path):
     repo = make_repository(None)
-    objects = prepare_all(repo, tmp_path)
+    recordings = prepare_all(repo, tmp_path)
     app = create_app(settings_for(tmp_path, listening_enabled=True), FakeProvider(), repository=repo,
                      auth_client=httpx.AsyncClient(transport=httpx.MockTransport(auth_response)))
-    return SimpleNamespace(a=AccountClient(app, None, 'valid-a'), b=AccountClient(app, None, 'valid-b'), repo=repo, engine=repo.engine, objects=objects, tmp=tmp_path)
+    return SimpleNamespace(a=AccountClient(app, None, 'valid-a'), b=AccountClient(app, None, 'valid-b'), repo=repo, engine=repo.engine, recordings=recordings, tmp=tmp_path)
 
 
 def catalog(client):

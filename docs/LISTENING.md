@@ -60,7 +60,7 @@ cd web && npx playwright test -c listening.playwright.config.ts --project=chromi
 
 ## Production checklist (not done by this change)
 1. Deploy code first (feature flag off): nothing changes for 1.x.
-2. Apply migration 009 as the backend database owner: `python -m scripts.migrate_postgres --listening`. It requires 001–007, refuses to
+2. Apply migrations 009, 010 and 011 as the backend database owner (see LISTENING-M02.md and LISTENING-AI-SAFEGUARDS.md); 009 first: `python -m scripts.migrate_postgres --listening`. It requires 001–007, refuses to
    rerun, and does not touch `schema_migrations`.
 3. Create a **private** S3-compatible bucket and a key scoped to that bucket. Set `AUDLI_LISTENING_STORAGE=s3`,
    `AUDLI_LISTENING_S3_ENDPOINT` (https), `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`. Production refuses to start otherwise.

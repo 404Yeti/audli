@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Audli 2.0 structured listening lessons. OFF = no route, no table access. ON needs migration 009 on PostgreSQL.
     listening_enabled: bool = False
     listening_storage: Literal['local', 's3'] = 'local'
+    listening_process: Literal['api', 'worker'] = 'api'     # 'worker' = the spoken-answer worker: it needs the recordings bucket only, never lesson-audio credentials
     listening_signing_secret: SecretStr | None = None
     listening_s3_endpoint: str = ''
     listening_s3_bucket: str = ''
@@ -35,8 +36,25 @@ class Settings(BaseSettings):
     listening_provider: Literal['fake', 'openai'] = 'fake'
     listening_fake_transcript: str = Field(default='', max_length=500)
     listening_fake_delay_seconds: float = Field(default=0, ge=0, le=60)    # development/browser tests only: makes 'pending' observable
-    listening_transcription_model: str = 'gpt-4o-mini-transcribe'
-    listening_assessment_model: str = 'gpt-4o-mini'
+    # Temporary spoken-answer recordings live in a SEPARATE bucket with their own credentials, so the credential that signs lesson-audio links
+    # cannot read recordings and the one that writes recordings cannot sign anything (docs/LISTENING-STAGING-PLAN.md).
+    listening_recordings_endpoint: str = ''          # '' = same endpoint as the lesson bucket
+    listening_recordings_bucket: str = ''
+    listening_recordings_access_key: SecretStr | None = None
+    listening_recordings_secret_key: SecretStr | None = None
+    # Models by task (app/listening/models.py is the one place that reads these). Every value can be overridden by environment, so a
+    # rollback is a configuration change: e.g. AUDLI_LISTENING_ASSESSMENT_MODEL=gpt-4.1-mini AUDLI_LISTENING_ASSESSMENT_API=chat.
+    listening_transcription_model: str = 'gpt-transcribe'
+    listening_assessment_model: str = 'gpt-6-luna'
+    listening_assessment_api: Literal['responses', 'chat'] = 'responses'
+    listening_assessment_reasoning: Literal['', 'none', 'minimal', 'low', 'medium'] = ''   # '' = do not send the parameter
+    listening_generation_model: str = 'gpt-6.1-terra'        # not used by any request path yet: lesson generation is evaluated, not shipped
+    # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.
+    listening_ops_token: SecretStr | None = None          # enables GET /api/listening/ops/health for an external monitor (aggregate numbers only)
+    listening_allowed_learners: str = ''           # comma-separated learner ids (Supabase user ids); empty = every signed-in learner. Others get a plain 404.
+    listening_ai_enabled: bool = True                                           # False = no new AI request is accepted or dispatched
+    listening_ai_daily_budget_usd: float = Field(default=2.0, ge=0, le=1000)    # reserved per UTC day across every 2.0 AI operation
+    listening_provider_timeout_seconds: float = Field(default=45, gt=0, le=120)
     listening_spoken_daily_limit: int = Field(default=30, ge=1, le=500)   # recordings accepted per learner per rolling 24h
     review_improvement_daily_limit: int = Field(default=10, ge=1, le=100)  # new generation attempts per learner per rolling 24h
     review_improvement_max_concurrent: int = Field(default=2, ge=1, le=8)
@@ -151,19 +169,46 @@ class Settings(BaseSettings):
             if routing_allowed(accent, voice.voice_id)} if self.accent_practice_enabled else {}
 
     @property
+    def listening_allowed_set(self) -> frozenset[str]:
+        return frozenset(part.strip().lower() for part in self.listening_allowed_learners.split(',') if part.strip())
+
+    @property
     def browser_origins(self) -> tuple[str, ...]:
         return tuple(self.allowed_origins.split(',')) if self.allowed_origins else ()
 
     @model_validator(mode='after')
     def listening_configuration(self):
+        from uuid import UUID
+        for learner in self.listening_allowed_set:
+            try:
+                UUID(learner)
+            except ValueError:
+                raise ValueError('AUDLI_LISTENING_ALLOWED_LEARNERS must be a comma-separated list of learner ids (UUIDs)') from None
+        if self.listening_ops_token and len(self.listening_ops_token.get_secret_value()) < 24:
+            raise ValueError('AUDLI_LISTENING_OPS_TOKEN must be at least 24 characters')
         if not self.listening_enabled:
             return self
         if self.environment == 'production' and self.listening_storage != 's3':
             raise ValueError('Production listening lessons require S3-compatible object storage (AUDLI_LISTENING_STORAGE=s3)')
-        if self.listening_storage == 's3':
+        worker = self.listening_process == 'worker'
+        if self.listening_storage == 's3' and worker:
+            if (not self.listening_recordings_endpoint.startswith('https://') or not self.listening_recordings_bucket
+                    or not self.listening_recordings_access_key or not self.listening_recordings_secret_key):
+                raise ValueError('The listening worker needs the recordings bucket: an https endpoint, bucket, access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
+            if self.listening_s3_access_key or self.listening_s3_secret_key:
+                raise ValueError('The listening worker must not hold lesson-audio credentials')
+        elif self.listening_storage == 's3':
             if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
                     or not self.listening_s3_access_key or not self.listening_s3_secret_key):
                 raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
+        if self.listening_storage == 's3' and not worker:
+            if not self.listening_recordings_bucket or not self.listening_recordings_access_key or not self.listening_recordings_secret_key:
+                raise ValueError('S3 listening storage needs a separate recordings bucket with its own access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
+            if self.listening_recordings_bucket == self.listening_s3_bucket or (
+                    self.listening_recordings_access_key.get_secret_value() == self.listening_s3_access_key.get_secret_value()):
+                raise ValueError('Recordings must use a different bucket and a different access key from the lesson audio')
+            if self.listening_recordings_endpoint and not self.listening_recordings_endpoint.startswith('https://'):
+                raise ValueError('The recordings endpoint must be https')
         if self.environment == 'production' and self.listening_provider == 'fake':
             raise ValueError('Production listening lessons require AUDLI_LISTENING_PROVIDER=openai')
         if self.listening_signing_secret and len(self.listening_signing_secret.get_secret_value()) < 16:

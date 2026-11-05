@@ -531,9 +531,11 @@ def test_production_configuration_requires_object_storage():
     with pytest.raises(ValidationError):
         Settings(**base)
     with pytest.raises(ValidationError):
-        Settings(**base, listening_storage='s3', listening_s3_endpoint='http://insecure', listening_s3_bucket='b', listening_s3_access_key='a', listening_s3_secret_key='s')
+        Settings(**base, listening_storage='s3', listening_s3_endpoint='http://insecure', listening_s3_bucket='b', listening_s3_access_key='a', listening_s3_secret_key='s',
+                 listening_recordings_bucket='r', listening_recordings_access_key='r', listening_recordings_secret_key='t')
     s3 = dict(listening_storage='s3', listening_s3_endpoint='https://s3.example.com', listening_s3_bucket='audli-audio',
-              listening_s3_access_key='a', listening_s3_secret_key='s')
+              listening_s3_access_key='a', listening_s3_secret_key='s', listening_recordings_bucket='audli-recordings',
+              listening_recordings_access_key='r', listening_recordings_secret_key='t')
     with pytest.raises(ValidationError):                # the deterministic fake AI providers can never run in production
         Settings(**base, **s3)
     ok = Settings(**base, **s3, listening_provider='openai')
@@ -561,8 +563,9 @@ def test_legacy_routes_still_work_alongside_listening(local):
 
 def test_migration_file_is_the_generated_migration():
     assert (ROOT / 'docs/postgres-009.sql').read_text() == postgres_listening_migration()
-    from app.listening.migrations import postgres_listening_migration_010
+    from app.listening.migrations import postgres_listening_migration_010, postgres_listening_migration_011
     assert (ROOT / 'docs/postgres-010.sql').read_text() == postgres_listening_migration_010()
+    assert (ROOT / 'docs/postgres-011.sql').read_text() == postgres_listening_migration_011()
 
 
 def test_migration_009_is_frozen():
@@ -578,7 +581,7 @@ def test_postgres_migration_security_and_ledger(make_repository):
     with repo.engine.connect() as db:
         # The shared ledger must not move: app/claims/runtime.py refuses to start when max(version) >= 8 without claims mode.
         assert [r[0] for r in db.execute(text('SELECT version FROM schema_migrations ORDER BY version'))] == [1, 2, 3, 4, 5, 6, 7]
-        assert [r[0] for r in db.execute(text('SELECT version FROM listening_migrations'))] == [9, 10]
+        assert [r[0] for r in db.execute(text('SELECT version FROM listening_migrations'))] == [9, 10, 11]
         rls = dict(db.execute(text("SELECT relname, relrowsecurity FROM pg_class WHERE relname = ANY(:names) AND relkind = 'r'"), {'names': list(l.NAMES)}).all())
         assert set(rls) == set(l.NAMES) and all(rls.values())
         grants = db.execute(text("SELECT count(*) FROM information_schema.role_table_grants WHERE table_name = ANY(:names) "

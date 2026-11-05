@@ -2,7 +2,7 @@ name: Audli CI
 
 on:
   pull_request:
-    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety, feat/audli-2-listening-foundation, feat/audli-2-complete-lesson-journey]
+    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety, feat/audli-2-listening-foundation, feat/audli-2-complete-lesson-journey, feat/audli-2-product-experience]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
@@ -169,14 +169,65 @@ jobs:
           npm run build
           npm run typecheck
 
-  browser:
-    name: Browser
+  # The 1.x browser suite used to be one job of seven sequential steps (about 29 minutes). The SAME steps now run as parallel jobs, and the job
+  # named `Browser` that branch protection requires is an aggregate that passes only if every one of them passed. Nothing was removed, skipped or
+  # loosened: same commands, same pinned Playwright image, same --workers=1. See docs/CI-BROWSER-JOB-SPEED.md.
+  browser_mocked:
+    name: Browser mocked ${{ matrix.shard }}/3
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     # Playwright's official image carries the browsers and system libraries for the locked version (1.63.0), so this job no longer
     # downloads ~115 MB of apt packages from the runner's Ubuntu mirror, whose speed varied ~100x and stalled the job (AUD-79, AUD-80).
     # Pinned by digest: the multi-arch index of mcr.microsoft.com/playwright:v1.63.0-noble (amd64 manifest sha256:bc6ab0d6d44f...).
-    # Bump the tag, the digest and the guard below together with @playwright/test.
+    # Bump the tag, the digest and the guard below together with @playwright/test (in every browser job).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      # No `cache: pip` here: inside the container the runner's cached CPython mounts at /__t and its `pip` launcher cannot start
+      # (ENOENT); the venv step below uses `python -m pip`, which does not need it. See AUD-80.
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install local acceptance server
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+          apt-get update
+          apt-get install -y --no-install-recommends espeak
+      - run: npm ci
+        working-directory: web
+      - name: Locked Playwright matches the pinned image
+        run: test "$(node -p "require('@playwright/test/package.json').version")" = "1.63.0"
+        working-directory: web
+      - name: Mocked browser regressions (shard ${{ matrix.shard }} of 3)
+        run: npm run test:browser -- --workers=1 --shard=${{ matrix.shard }}/3
+        working-directory: web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: browser-failure-mocked-${{ matrix.shard }}
+          path: |
+            web/test-results
+            web/playwright-report
+          retention-days: 7
+
+  browser_webkit_recovery:
+    name: Browser WebKit and recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
       options: --init --ipc=host
@@ -224,8 +275,46 @@ jobs:
       - name: Blocked greeting playback recovery in iPhone WebKit (mocked providers)
         run: npx playwright test --config=playback-recovery.playwright.config.ts --workers=1
         working-directory: web
-      - name: Mocked browser regressions
-        run: npm run test:browser -- --workers=1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: browser-failure-webkit-recovery
+          path: |
+            web/test-results
+            web/playwright-report
+          retention-days: 7
+
+  browser_real_http:
+    name: Browser real HTTP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      # No `cache: pip` here: inside the container the runner's cached CPython mounts at /__t and its `pip` launcher cannot start
+      # (ENOENT); the venv step below uses `python -m pip`, which does not need it. See AUD-80.
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install local acceptance server
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+          apt-get update
+          apt-get install -y --no-install-recommends espeak
+      - run: npm ci
+        working-directory: web
+      - name: Locked Playwright matches the pinned image
+        run: test "$(node -p "require('@playwright/test/package.json').version")" = "1.63.0"
         working-directory: web
       - name: Short spoken choices through real HTTP and mocked STT in Chromium and WebKit
         env:
@@ -242,11 +331,73 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: browser-failure
+          name: browser-failure-real-http
           path: |
             web/test-results
             web/playwright-report
           retention-days: 7
+
+  # Coverage guard: sharding must neither lose nor duplicate a test, and a Playwright config must not be left out of every group.
+  browser_inventory:
+    name: Browser coverage guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - name: The three mocked shards together are exactly the whole mocked suite
+        working-directory: web
+        run: |
+          count() { npx playwright test --list "$@" | awk '/^Total:/ {print $2}'; }
+          total=$(count)
+          sum=0
+          for shard in 1 2 3; do
+            part=$(count --shard="$shard/3")
+            echo "shard $shard/3: $part tests"
+            sum=$((sum + part))
+          done
+          echo "whole suite: $total tests, shards add up to $sum"
+          test -n "$total" && test "$total" -gt 0 && test "$sum" -eq "$total"
+      - name: Every Playwright config is run by some job
+        run: |
+          # completion.playwright.config.ts has never been part of CI (it predates this workflow); it is listed here so adding it later is a conscious decision.
+          for config in web/*.playwright.config.ts; do
+            name=$(basename "$config")
+            [ "$name" = "completion.playwright.config.ts" ] && continue
+            grep -q -- "--config=$name" .github/workflows/ci.yml || { echo "::error::$name is not run by any CI job"; exit 1; }
+          done
+          grep -q -- "npm run test:browser" .github/workflows/ci.yml
+
+  browser:
+    name: Browser
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [browser_mocked, browser_webkit_recovery, browser_real_http, browser_inventory]
+    timeout-minutes: 5
+    steps:
+      - name: Every browser job must pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = {name: value['result'] for name, value in results.items() if value['result'] != 'success'}
+          if failed:
+              raise SystemExit(f'Browser jobs did not pass: {failed}')
+          print('All browser jobs passed:', sorted(results))
+          PY
 
   listening_browser:
     name: Browser (Audli 2.0)

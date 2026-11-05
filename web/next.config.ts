@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { cutoverRedirects, cutoverRewrites } from './lib/cutover.ts';
 const config: NextConfig = {
   distDir: process.env.AUDLI_BROWSER_TEST === '1' ? '.next-browser-tests' : '.next',
   agentRules: false,
@@ -11,8 +12,11 @@ const config: NextConfig = {
       { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
     ] }));
   },
+  async redirects() {
+    return cutoverRedirects();       // empty unless both Audli 2.0 flags are on
+  },
   async rewrites() {
-    return [{ source: '/api/:path*', destination: `${process.env.BACKEND_URL || 'http://127.0.0.1:8000'}/api/:path*` }];
+    return [...cutoverRewrites(), { source: '/api/:path*', destination: `${process.env.BACKEND_URL || 'http://127.0.0.1:8000'}/api/:path*` }];
   },
 };
 export default config;

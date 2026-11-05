@@ -1,0 +1,28 @@
+-- Least-privilege role for the Audli 2.0 spoken-answer worker. Run once as the database owner AFTER migrations 009-011.
+-- Create the role yourself first (a LOGIN role with its own password, not shared with anything else): CREATE ROLE audli_listening_worker LOGIN PASSWORD '...';
+BEGIN;
+GRANT USAGE ON SCHEMA public TO audli_listening_worker;
+GRANT SELECT ON listening_lesson_versions, listening_exercises, listening_exercise_rubrics, listening_spoken, listening_jobs, listening_ai_limits TO audli_listening_worker;
+GRANT UPDATE ON listening_spoken, listening_jobs, listening_ai_limits TO audli_listening_worker;
+GRANT INSERT ON listening_ai_limits TO audli_listening_worker;
+DROP POLICY IF EXISTS audli_listening_worker_select ON listening_lesson_versions;
+CREATE POLICY audli_listening_worker_select ON listening_lesson_versions FOR SELECT TO audli_listening_worker USING (true);
+DROP POLICY IF EXISTS audli_listening_worker_select ON listening_exercises;
+CREATE POLICY audli_listening_worker_select ON listening_exercises FOR SELECT TO audli_listening_worker USING (true);
+DROP POLICY IF EXISTS audli_listening_worker_select ON listening_exercise_rubrics;
+CREATE POLICY audli_listening_worker_select ON listening_exercise_rubrics FOR SELECT TO audli_listening_worker USING (true);
+DROP POLICY IF EXISTS audli_listening_worker_select ON listening_spoken;
+CREATE POLICY audli_listening_worker_select ON listening_spoken FOR SELECT TO audli_listening_worker USING (true);
+DROP POLICY IF EXISTS audli_listening_worker_select ON listening_jobs;
+CREATE POLICY audli_listening_worker_select ON listening_jobs FOR SELECT TO audli_listening_worker USING (true);
+DROP POLICY IF EXISTS audli_listening_worker_select ON listening_ai_limits;
+CREATE POLICY audli_listening_worker_select ON listening_ai_limits FOR SELECT TO audli_listening_worker USING (true);
+DROP POLICY IF EXISTS audli_listening_worker_update ON listening_spoken;
+CREATE POLICY audli_listening_worker_update ON listening_spoken FOR UPDATE TO audli_listening_worker USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS audli_listening_worker_update ON listening_jobs;
+CREATE POLICY audli_listening_worker_update ON listening_jobs FOR UPDATE TO audli_listening_worker USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS audli_listening_worker_update ON listening_ai_limits;
+CREATE POLICY audli_listening_worker_update ON listening_ai_limits FOR UPDATE TO audli_listening_worker USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS audli_listening_worker_insert ON listening_ai_limits;
+CREATE POLICY audli_listening_worker_insert ON listening_ai_limits FOR INSERT TO audli_listening_worker WITH CHECK (true);
+COMMIT;

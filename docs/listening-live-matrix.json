@@ -1,0 +1,87 @@
+{
+ "version": 1,
+ "cap_usd": 5.0,
+ "prices_note": "USD per 1M tokens / per audio minute from OpenAI public pages read on 2026-11-04 via a page-summarising tool; re-check before approving. Model ids and the parameters below are exactly what this run will test.",
+ "rows": [
+  {
+   "id": "A1",
+   "task": "assess",
+   "model": "gpt-6-luna",
+   "api": "responses",
+   "reasoning": "",
+   "repeats": 3,
+   "est_in": 1800,
+   "est_out": 1500,
+   "purpose": "candidate default; 3 repeats measure consistency; est_out includes reasoning tokens"
+  },
+  {
+   "id": "A2",
+   "task": "assess",
+   "model": "gpt-6-luna",
+   "api": "responses",
+   "reasoning": "none",
+   "repeats": 1,
+   "est_in": 1800,
+   "est_out": 600,
+   "purpose": "does reasoning effort \"none\" work and change cost/quality"
+  },
+  {
+   "id": "A3",
+   "task": "assess",
+   "model": "gpt-6.1-terra",
+   "api": "responses",
+   "reasoning": "",
+   "repeats": 1,
+   "est_in": 1800,
+   "est_out": 3000,
+   "purpose": "larger option; only worth it if luna fails the pass criteria"
+  },
+  {
+   "id": "A4",
+   "task": "assess",
+   "model": "gpt-4.1-mini",
+   "api": "chat",
+   "reasoning": "",
+   "repeats": 1,
+   "est_in": 1800,
+   "est_out": 400,
+   "purpose": "rollback path (chat completions) still works while the model exists; retires 2027-01-14"
+  },
+  {
+   "id": "T1",
+   "task": "transcribe",
+   "model": "gpt-transcribe",
+   "repeats": 1,
+   "clips": 18,
+   "avg_seconds": 20,
+   "purpose": "candidate default: text, languages field, empty-languages behaviour on noise/silence"
+  },
+  {
+   "id": "T2",
+   "task": "transcribe",
+   "model": "gpt-4o-mini-transcribe",
+   "repeats": 1,
+   "clips": 18,
+   "avg_seconds": 20,
+   "purpose": "baseline only; retires 2027-02-26"
+  },
+  {
+   "id": "G1",
+   "task": "generate",
+   "model": "gpt-6.1-terra",
+   "repeats": 2,
+   "est_in": 1200,
+   "est_out": 6000,
+   "purpose": "lesson generation candidate (writing); validated by LessonContent + level fit"
+  },
+  {
+   "id": "G2",
+   "task": "generate",
+   "model": "gpt-6-luna",
+   "repeats": 2,
+   "est_in": 1200,
+   "est_out": 6000,
+   "purpose": "cheaper generation candidate"
+  }
+ ]
+}

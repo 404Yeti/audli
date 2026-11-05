@@ -163,9 +163,29 @@ test('a returning learner skips the intro only when an answer is already saved, 
   assert.deepEqual(resumePosition([ex('multiple_choice', { position: 1, feedback: { is_correct: false } })]), { started: true, next: null });
 });
 
+import { PROVIDER_DISCLOSURE } from '../web/lib/listening-core.ts';
+test('the recording screen discloses the external provider and what happens to the audio', () => {
+  assert.match(PROVIDER_DISCLOSURE, /external AI provider/);
+  assert.match(PROVIDER_DISCLOSURE, /OpenAI/);
+  assert.match(PROVIDER_DISCLOSURE, /temporary audio is deleted as soon as it has been transcribed/);
+  assert.ok(PROVIDER_DISCLOSURE.length < 260);          // concise enough to read before recording
+});
+
 import { listeningEnabled } from '../web/lib/listening-flag.ts';
 test('the 2.0 pages are off unless the flag is exactly "true"', () => {
   for (const value of [undefined, '', 'false', 'TRUE', '1', 'yes', ' true']) assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: value }), false, String(value));
   assert.equal(listeningEnabled({ NEXT_PUBLIC_AUDLI_LISTENING: 'true' }), true);
   assert.equal(listeningEnabled({}), false);
+});
+
+import { cutoverEnabled, cutoverRedirects, cutoverRewrites } from '../web/lib/cutover.ts';
+test('the landing cutover needs BOTH flags and is otherwise completely inert', () => {
+  const on = { NEXT_PUBLIC_AUDLI_LISTENING: 'true', NEXT_PUBLIC_AUDLI_LISTENING_HOME: 'true' };
+  assert.equal(cutoverEnabled(on), true);
+  assert.deepEqual(cutoverRedirects(on), [{ source: '/', destination: '/listening', permanent: false }]);
+  assert.deepEqual(cutoverRewrites(on), [{ source: '/classic', destination: '/' }]);
+  for (const env of [{}, { NEXT_PUBLIC_AUDLI_LISTENING: 'true' }, { NEXT_PUBLIC_AUDLI_LISTENING_HOME: 'true' }, { ...on, NEXT_PUBLIC_AUDLI_LISTENING_HOME: 'yes' }, { ...on, NEXT_PUBLIC_AUDLI_LISTENING: '1' }]) {
+    assert.equal(cutoverEnabled(env), false);
+    assert.deepEqual([cutoverRedirects(env), cutoverRewrites(env)], [[], []]);          // never redirect into a 404, never move 1.x unless fully enabled
+  }
 });

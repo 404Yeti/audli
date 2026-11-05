@@ -10,6 +10,7 @@ from app.listening import schema as l
 _KIND_009 = ("CHECK (kind IN ('multiple_choice','spoken','fill_blank','sequencing') AND position >= 1)", "CHECK (kind = 'multiple_choice' AND position >= 1)")
 _FIRST = [t for t in l.OWNED if not t.info.get('since')]
 _SECOND = [t for t in l.OWNED if t.info.get('since') == 10]
+_THIRD = [t for t in l.OWNED if t.info.get('since') == 11]
 
 
 def postgres_listening_migration() -> str:
@@ -87,3 +88,62 @@ BEGIN
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (10, now());', 'COMMIT;']
     return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_migration_011() -> str:
+    """Global AI spending ceiling and kill switch: one additive table. NEVER run at application startup."""
+    dialect = postgresql.dialect()
+    names = ', '.join(t.name for t in _THIRD)
+    lines = [
+        '\n'.join(['-- Migration 011: Audli 2.0 AI spending ceiling and kill switch (one additive table).',
+        '-- Requires 010 (recorded in listening_migrations). Leaves schema_migrations untouched.']),
+        'BEGIN;', "SET LOCAL lock_timeout='5s';", 'LOCK TABLE public.listening_migrations IN EXCLUSIVE MODE;',
+        """DO $$ BEGIN
+ IF NOT (ARRAY[9, 10] <@ ARRAY(SELECT version FROM public.listening_migrations)) THEN
+  RAISE EXCEPTION 'Expected migrations 009 and 010 first';
+ END IF;
+ IF 11 IN (SELECT version FROM public.listening_migrations) OR to_regclass('public.listening_ai_limits') IS NOT NULL THEN
+  RAISE EXCEPTION 'Migration 011 is already applied or partially present; review before retrying';
+ END IF;
+END $$;""",
+    ]
+    lines += [str(CreateTable(t).compile(dialect=dialect)).strip() + ';' for t in _THIRD]
+    for table in _THIRD:
+        lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
+    lines += [f"""DO $audli$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE {names} FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE {names} FROM authenticated;
+    END IF;
+END
+$audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (11, now());', 'COMMIT;']
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_rollback() -> str:
+    """Remove EVERYTHING Audli 2.0 added (migrations 009-011): the tables, the guard functions and the ledger. Destroys all 2.0 learner data.
+    Operator-only, never run by the application, and it refuses to run unless the session first says so in words:
+        SET audli.confirm_listening_rollback = 'yes';                -- required
+        SET audli.discard_learner_data = 'yes';                      -- also required if any 2.0 attempt exists
+    1.x tables and data are not touched. To go back to 1.x WITHOUT losing 2.0 data, do not run this: turn the two feature flags off instead."""
+    drops = [t.name for t in reversed(l.OWNED)]
+    functions = ['listening_guard_version', 'listening_guard_children', 'listening_guard_audio', 'listening_guard_response', 'listening_guard_attempt']
+    return '\n'.join([
+        '-- Audli 2.0 rollback: removes migrations 009-011 completely. DESTROYS 2.0 learner data. Read docs/LISTENING-CUTOVER.md first.',
+        'BEGIN;', "SET LOCAL lock_timeout='10s';",
+        """DO $$ BEGIN
+ IF coalesce(current_setting('audli.confirm_listening_rollback', true), '') <> 'yes' THEN
+  RAISE EXCEPTION 'Refusing: run SET audli.confirm_listening_rollback = ''yes''; first, in this session';
+ END IF;
+ IF to_regclass('public.listening_attempts') IS NOT NULL
+    AND (SELECT count(*) FROM public.listening_attempts) > 0
+    AND coalesce(current_setting('audli.discard_learner_data', true), '') <> 'yes' THEN
+  RAISE EXCEPTION 'Refusing: 2.0 attempts exist. To discard them run SET audli.discard_learner_data = ''yes''; first';
+ END IF;
+END $$;""",
+        *[f'DROP TABLE IF EXISTS {name};' for name in drops],
+        *[f'DROP FUNCTION IF EXISTS {name}();' for name in functions],
+        'COMMIT;', ''])

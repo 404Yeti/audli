@@ -1,0 +1,175 @@
+{
+ "matrix_sha256": "d7182039dade5e9734e33609d6b247e90a56a275a0dfbf4d8c9b58982cfdeca4",
+ "started_at": "2026-11-04T22:14:36.272189+00:00",
+ "ceiling_usd": 5.0,
+ "rows": {},
+ "preflight": {
+  "models": {
+   "gpt-6-luna": "available",
+   "gpt-6.1-terra": "available",
+   "gpt-4.1-mini": "available",
+   "gpt-transcribe": "available",
+   "gpt-4o-mini-transcribe": "available"
+  },
+  "rows": {
+   "A1": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 3.35,
+    "latency_p95": 3.35,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": false,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "A2": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 2.72,
+    "latency_p95": 2.72,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": false,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "A3": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 3.11,
+    "latency_p95": 3.11,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": false,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "A4": {
+    "passed": 0,
+    "of": 1,
+    "by_category": {
+     "correct": "0/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 2.41,
+    "latency_p95": 2.41,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": false,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "T1": {
+    "passed": 1,
+    "of": 1,
+    "results": [
+     {
+      "clip": "restaurant-correct-1.wav",
+      "kind": "speech",
+      "ok": true,
+      "reliable": true,
+      "words": 20
+     }
+    ]
+   },
+   "T2": {
+    "passed": 1,
+    "of": 1,
+    "results": [
+     {
+      "clip": "restaurant-correct-1.wav",
+      "kind": "speech",
+      "ok": true,
+      "reliable": true,
+      "words": 20
+     }
+    ]
+   },
+   "G1": {
+    "incompatible": "provider_bad_request",
+    "case": "gen-1",
+    "valid": 0,
+    "of": 0,
+    "provider_said": {
+     "status": 400,
+     "code": null,
+     "param": "input",
+     "message": "Error code: 400 - {'error': {'message': \"Response input messages must contain the word 'json' in some form to use 'text.format' of type 'json_object'.\", 'type': 'invalid_request_error', 'param': 'input', 'code': None}}"
+    }
+   },
+   "G2": {
+    "incompatible": "provider_bad_request",
+    "case": "gen-1",
+    "valid": 0,
+    "of": 0,
+    "provider_said": {
+     "status": 400,
+     "code": null,
+     "param": "input",
+     "message": "Error code: 400 - {'error': {'message': \"Response input messages must contain the word 'json' in some form to use 'text.format' of type 'json_object'.\", 'type': 'invalid_request_error', 'param': 'input', 'code': None}}"
+    }
+   }
+  },
+  "ok": false
+ },
+ "stopped": "pre-flight found an incompatible model or parameter; the full matrix was NOT run",
+ "calls": 8,
+ "spent_usd_estimate": 0.0036
+}

@@ -1,0 +1,2653 @@
+{
+ "matrix_sha256": "4ead642e44242b9e9f2970bc6eecda2fb671e7f28fea225469a6c4abdfe548c9",
+ "started_at": "2026-11-04T22:17:01.347453+00:00",
+ "ceiling_usd": 5.0,
+ "rows": {
+  "A1": {
+   "passed": 79,
+   "of": 90,
+   "by_category": {
+    "correct": "12/18",
+    "incorrect": "18/18",
+    "incomplete": "13/18",
+    "ambiguous": "18/18",
+    "unintelligible": "18/18"
+   },
+   "malformed": 0,
+   "ungrounded_claims_downgraded": 0,
+   "false_covered": 0,
+   "inconsistent_cases": 5,
+   "latency_p50": 2.14,
+   "latency_p95": 3.79,
+   "results": [
+    {
+     "case": "restaurant-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-1",
+     "category": "correct",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-1",
+     "category": "correct",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-correct-2",
+     "category": "correct",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-correct-2",
+     "category": "correct",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-3",
+     "category": "correct",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-3",
+     "category": "correct",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-1",
+     "category": "incorrect",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-1",
+     "category": "incorrect",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-2",
+     "category": "incorrect",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-2",
+     "category": "incorrect",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-3",
+     "category": "incorrect",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-3",
+     "category": "incorrect",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-1",
+     "category": "incomplete",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-1",
+     "category": "incomplete",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "covered",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-2",
+     "category": "incomplete",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "covered",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-2",
+     "category": "incomplete",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "covered",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-3",
+     "category": "incomplete",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-3",
+     "category": "incomplete",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "unclear",
+      "reason": "unclear",
+      "final": "unclear"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "unclear",
+      "reason": "unclear",
+      "final": "unclear"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "unclear",
+      "reason": "unclear",
+      "final": "unclear"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "unclear",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "unclear",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "unclear",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "unclear",
+      "reason": "unclear",
+      "final": "unclear"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-1",
+     "category": "correct",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-1",
+     "category": "correct",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-2",
+     "category": "correct",
+     "repeat": 1,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-2",
+     "category": "correct",
+     "repeat": 2,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-correct-3",
+     "category": "correct",
+     "repeat": 1,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-3",
+     "category": "correct",
+     "repeat": 2,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-1",
+     "category": "incorrect",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-1",
+     "category": "incorrect",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-2",
+     "category": "incorrect",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-2",
+     "category": "incorrect",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-3",
+     "category": "incorrect",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-3",
+     "category": "incorrect",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-1",
+     "category": "incomplete",
+     "repeat": 1,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-1",
+     "category": "incomplete",
+     "repeat": 2,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "covered",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-2",
+     "category": "incomplete",
+     "repeat": 1,
+     "ok": false,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-2",
+     "category": "incomplete",
+     "repeat": 2,
+     "ok": false,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-3",
+     "category": "incomplete",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-3",
+     "category": "incomplete",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "partly",
+      "medicine": "partly",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "unclear",
+      "medicine": "unclear",
+      "advice": "unclear"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 1,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 2,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    }
+   ]
+  },
+  "A2": {
+   "passed": 27,
+   "of": 30,
+   "by_category": {
+    "correct": "4/6",
+    "incorrect": "6/6",
+    "incomplete": "5/6",
+    "ambiguous": "6/6",
+    "unintelligible": "6/6"
+   },
+   "malformed": 0,
+   "ungrounded_claims_downgraded": 0,
+   "false_covered": 0,
+   "inconsistent_cases": null,
+   "latency_p50": 1.53,
+   "latency_p95": 3.69,
+   "results": [
+    {
+     "case": "restaurant-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "covered",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "covered",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    }
+   ]
+  },
+  "A3": {
+   "passed": 27,
+   "of": 30,
+   "by_category": {
+    "correct": "4/6",
+    "incorrect": "6/6",
+    "incomplete": "5/6",
+    "ambiguous": "6/6",
+    "unintelligible": "6/6"
+   },
+   "malformed": 0,
+   "ungrounded_claims_downgraded": 0,
+   "false_covered": 0,
+   "inconsistent_cases": null,
+   "latency_p50": 2.43,
+   "latency_p95": 4.32,
+   "results": [
+    {
+     "case": "restaurant-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "covered",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "partly",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "covered",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "partly",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "unclear",
+      "medicine": "unclear",
+      "advice": "unclear"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    }
+   ]
+  },
+  "A4": {
+   "passed": 29,
+   "of": 30,
+   "by_category": {
+    "correct": "5/6",
+    "incorrect": "6/6",
+    "incomplete": "6/6",
+    "ambiguous": "6/6",
+    "unintelligible": "6/6"
+   },
+   "malformed": 0,
+   "ungrounded_claims_downgraded": 0,
+   "false_covered": 0,
+   "inconsistent_cases": null,
+   "latency_p50": 1.32,
+   "latency_p95": 2.17,
+   "results": [
+    {
+     "case": "restaurant-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "covered",
+      "final": "partly"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "covered",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "covered",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "covered"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "partly",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "restaurant-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "first": "missing",
+      "reason": "missing",
+      "final": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-correct-1",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-2",
+     "category": "correct",
+     "repeat": 0,
+     "ok": false,
+     "states": {
+      "problem": "partly",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-correct-3",
+     "category": "correct",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "covered",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-1",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-2",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incorrect-3",
+     "category": "incorrect",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-1",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "covered",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-2",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "covered",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-incomplete-3",
+     "category": "incomplete",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "covered"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-1",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "partly",
+      "medicine": "partly",
+      "advice": "partly"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-2",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "partly",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-ambiguous-3",
+     "category": "ambiguous",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-1",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-2",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    },
+    {
+     "case": "pharmacy-unintelligible-3",
+     "category": "unintelligible",
+     "repeat": 0,
+     "ok": true,
+     "states": {
+      "problem": "missing",
+      "medicine": "missing",
+      "advice": "missing"
+     }
+    }
+   ]
+  },
+  "T1": {
+   "passed": 16,
+   "of": 16,
+   "results": [
+    {
+     "clip": "restaurant-correct-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 20
+    },
+    {
+     "clip": "restaurant-correct-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 24
+    },
+    {
+     "clip": "restaurant-correct-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 21
+    },
+    {
+     "clip": "restaurant-incorrect-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 16
+    },
+    {
+     "clip": "restaurant-incorrect-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 18
+    },
+    {
+     "clip": "restaurant-incorrect-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 10
+    },
+    {
+     "clip": "pharmacy-correct-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 36
+    },
+    {
+     "clip": "pharmacy-correct-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 32
+    },
+    {
+     "clip": "pharmacy-correct-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 24
+    },
+    {
+     "clip": "pharmacy-incorrect-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 17
+    },
+    {
+     "clip": "pharmacy-incorrect-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 15
+    },
+    {
+     "clip": "pharmacy-incorrect-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 8
+    },
+    {
+     "clip": "noise-white.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": false,
+     "words": 0
+    },
+    {
+     "clip": "noise-pink.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": false,
+     "words": 0
+    },
+    {
+     "clip": "silence.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": false,
+     "words": 0
+    },
+    {
+     "clip": "tone.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": false,
+     "words": 0
+    }
+   ]
+  },
+  "T2": {
+   "passed": 16,
+   "of": 16,
+   "results": [
+    {
+     "clip": "restaurant-correct-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 20
+    },
+    {
+     "clip": "restaurant-correct-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 24
+    },
+    {
+     "clip": "restaurant-correct-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 21
+    },
+    {
+     "clip": "restaurant-incorrect-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 16
+    },
+    {
+     "clip": "restaurant-incorrect-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 18
+    },
+    {
+     "clip": "restaurant-incorrect-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 10
+    },
+    {
+     "clip": "pharmacy-correct-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 36
+    },
+    {
+     "clip": "pharmacy-correct-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 32
+    },
+    {
+     "clip": "pharmacy-correct-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 24
+    },
+    {
+     "clip": "pharmacy-incorrect-1.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 17
+    },
+    {
+     "clip": "pharmacy-incorrect-2.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 15
+    },
+    {
+     "clip": "pharmacy-incorrect-3.wav",
+     "kind": "speech",
+     "ok": true,
+     "reliable": true,
+     "words": 8
+    },
+    {
+     "clip": "noise-white.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": true,
+     "words": 0
+    },
+    {
+     "clip": "noise-pink.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": true,
+     "words": 0
+    },
+    {
+     "clip": "silence.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": true,
+     "words": 0
+    },
+    {
+     "clip": "tone.wav",
+     "kind": "noise",
+     "ok": true,
+     "reliable": true,
+     "words": 0
+    }
+   ]
+  },
+  "G1": {
+   "valid": 12,
+   "level_fit": 12,
+   "of": 12,
+   "results": [
+    {
+     "case": "gen-1",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-1",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-2",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-2",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-3",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-3",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-4",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-4",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-5",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-5",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-6",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-6",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    }
+   ]
+  },
+  "G2": {
+   "valid": 12,
+   "level_fit": 12,
+   "of": 12,
+   "results": [
+    {
+     "case": "gen-1",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-1",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-2",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-2",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-3",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-3",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-4",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-4",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-5",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-5",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-6",
+     "repeat": 0,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    },
+    {
+     "case": "gen-6",
+     "repeat": 1,
+     "valid": true,
+     "level_fit": true,
+     "problems": []
+    }
+   ]
+  }
+ },
+ "preflight": {
+  "models": {
+   "gpt-6-luna": "available",
+   "gpt-6.1-terra": "available",
+   "gpt-4.1-mini": "available",
+   "gpt-transcribe": "available",
+   "gpt-4o-mini-transcribe": "available"
+  },
+  "rows": {
+   "A1": {
+    "passed": 1,
+    "of": 1,
+    "by_category": {
+     "correct": "1/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 3.57,
+    "latency_p95": 3.57,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": true,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "A2": {
+    "passed": 1,
+    "of": 1,
+    "by_category": {
+     "correct": "1/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 2.16,
+    "latency_p95": 2.16,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": true,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "A3": {
+    "passed": 1,
+    "of": 1,
+    "by_category": {
+     "correct": "1/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 3.03,
+    "latency_p95": 3.03,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": true,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "A4": {
+    "passed": 1,
+    "of": 1,
+    "by_category": {
+     "correct": "1/1"
+    },
+    "malformed": 0,
+    "ungrounded_claims_downgraded": 0,
+    "false_covered": 0,
+    "inconsistent_cases": null,
+    "latency_p50": 2.59,
+    "latency_p95": 2.59,
+    "results": [
+     {
+      "case": "restaurant-correct-1",
+      "category": "correct",
+      "repeat": 0,
+      "ok": true,
+      "states": {
+       "first": "covered",
+       "reason": "covered",
+       "final": "partly"
+      }
+     }
+    ]
+   },
+   "T1": {
+    "passed": 1,
+    "of": 1,
+    "results": [
+     {
+      "clip": "restaurant-correct-1.wav",
+      "kind": "speech",
+      "ok": true,
+      "reliable": true,
+      "words": 20
+     }
+    ]
+   },
+   "T2": {
+    "passed": 1,
+    "of": 1,
+    "results": [
+     {
+      "clip": "restaurant-correct-1.wav",
+      "kind": "speech",
+      "ok": true,
+      "reliable": true,
+      "words": 20
+     }
+    ]
+   },
+   "G1": {
+    "valid": 1,
+    "level_fit": 1,
+    "of": 1,
+    "results": [
+     {
+      "case": "gen-1",
+      "repeat": 0,
+      "valid": true,
+      "level_fit": true,
+      "problems": []
+     }
+    ]
+   },
+   "G2": {
+    "valid": 1,
+    "level_fit": 1,
+    "of": 1,
+    "results": [
+     {
+      "case": "gen-1",
+      "repeat": 0,
+      "valid": true,
+      "level_fit": true,
+      "problems": []
+     }
+    ]
+   }
+  },
+  "ok": true
+ },
+ "calls": 244,
+ "spent_usd_estimate": 0.1933
+}

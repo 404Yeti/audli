@@ -1,4 +1,4 @@
-"""Migration 009 against real PostgreSQL: fresh install, upgrade, repeated runs, both orders with the real migration 008, and the
+"""Migrations 009 and 010 against real PostgreSQL: fresh install, upgrade, repeated runs, both orders with the real migration 008, and the
 claims-schema compatibility that is the reason 009 keeps its own ledger. Needs AUDLI_TEST_POSTGRES_URL (a disposable cluster)."""
 import os
 from pathlib import Path
@@ -71,8 +71,8 @@ def test_default_migration_never_applies_009_and_the_opt_in_is_repeatable(databa
     assert migrate(settings) is False
     assert migrate(settings, listening=True) is True
     assert migrate(settings, listening=True) is False            # repeated execution is a safe no-op
-    assert ledgers(database()) == ([1, 2, 3, 4, 5, 6, 7], [9])
-    assert [v for v, _ in LISTENING_MIGRATIONS] == [9]
+    assert ledgers(database()) == ([1, 2, 3, 4, 5, 6, 7], [9, 10])
+    assert [v for v, _ in LISTENING_MIGRATIONS] == [9, 10]
 
 
 def test_fresh_database_starts_1x_and_2x(database):
@@ -88,7 +88,8 @@ def test_009_and_the_real_008_apply_in_either_order(database, order):
     engine = database()
     for name in order:
         run_file(engine, name)
-    assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9])
+    run_file(engine, 'postgres-010.sql')
+    assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10])
     # The claims runtime's gate reads max(schema_migrations.version); 009 must leave it exactly where 008 put it.
     with engine.connect() as db:
         assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() == 8
@@ -98,7 +99,7 @@ def test_009_and_the_real_008_apply_in_either_order(database, order):
 
 def test_009_before_008_does_not_break_008s_exact_ledger_precondition(database):
     migrate(database.settings(), listening=True)
-    run_file(database(), 'postgres-008.sql')                     # asserts the ledger is exactly 1..7; would raise if 009 had touched it
+    run_file(database(), 'postgres-008.sql')                     # asserts the ledger is exactly 1..7; would raise if 009 or 010 had touched it
     assert ledgers(database())[0] == [1, 2, 3, 4, 5, 6, 7, 8]
 
 
@@ -172,6 +173,99 @@ def test_a_restricted_role_without_reviewed_grants_fails_closed_at_startup(datab
         prepare(restricted)
     with admin.begin() as db:
         db.exec_driver_sql(f'GRANT SELECT ON {", ".join(l.NAMES)} TO {role}')
-        db.exec_driver_sql(f'GRANT INSERT ON listening_attempts, listening_responses TO {role}')
+        db.exec_driver_sql(f'GRANT INSERT ON listening_attempts, listening_responses, listening_answers, listening_spoken, listening_jobs TO {role}')
+    restricted.dispose()
+    with pytest.raises(RuntimeError, match='lacks privileges'):  # the spoken answer and the worker also need UPDATE
+        prepare(restricted)
+    with admin.begin() as db:
+        db.exec_driver_sql(f'GRANT UPDATE ON listening_spoken, listening_jobs TO {role}')
     restricted.dispose()
     prepare(restricted)                                          # with explicit grants it starts
+
+
+# ---- migration 010 -----------------------------------------------------------------------------------------------------------
+
+def columns(engine):
+    with engine.connect() as db:
+        rows = db.execute(text("SELECT table_name, column_name, is_nullable FROM information_schema.columns WHERE table_schema='public' "
+                               "AND table_name LIKE 'listening\\_%'")).all()
+    found = {}
+    for table, column, nullable in rows:
+        found.setdefault(table, {})[column] = nullable == 'YES'
+    return found
+
+
+def test_010_needs_009_first_and_is_not_part_of_the_default_run(database):
+    migrate(database.settings())
+    engine = database()
+    with pytest.raises(DBAPIError):                                # no listening ledger yet
+        run_file(engine, 'postgres-010.sql')
+    run_file(engine, 'postgres-009.sql')
+    assert not set(l.NAMES_010) & tables(engine)
+    migrate(database.settings(), listening=True)                  # applies only what is missing: 010
+    assert set(l.NAMES_010) <= tables(engine) and ledgers(engine)[1] == [9, 10]
+
+
+def test_a_database_on_009_upgrades_to_010_without_touching_milestone_01_data(database):
+    migrate(database.settings())
+    engine = database()
+    run_file(engine, 'postgres-009.sql')
+    # Milestone 01 shape: one published lesson with one question and an answer, then the upgrade.
+    from app.listening import store
+    from app.listening.seed import load_fixture
+    content, audio, _ = load_fixture(journey=False)
+    with engine.begin() as db:
+        version_id, _ = store.publish_version(db, content, audio)
+    run_file(engine, 'postgres-010.sql')
+    with engine.connect() as db:
+        assert db.execute(text('SELECT count(*) FROM listening_exercises')).scalar_one() == 1
+        assert db.execute(text('SELECT status FROM listening_lesson_versions WHERE id = :v'), {'v': version_id}).scalar_one() == 'published'
+    with engine.begin() as db:                                    # and the full journey publishes as a NEW version beside it
+        full, audio, _ = load_fixture()
+        second, created = store.publish_version(db, full, audio)
+    assert created and second != version_id
+    with engine.connect() as db:
+        assert db.execute(text('SELECT count(*) FROM listening_exercises WHERE version_id = :v'), {'v': second}).scalar_one() == 4
+    PostgresRepository(database.url, str(uuid4())).close()
+    prepare(engine)
+
+
+def test_a_repeated_010_is_refused_and_changes_nothing(database):
+    migrate(database.settings(), listening=True)
+    engine = database()
+    snapshot = (tables(engine), ledgers(engine), columns(engine))
+    with pytest.raises(DBAPIError, match='already applied or partially present'):
+        run_file(engine, 'postgres-010.sql')
+    assert (tables(engine), ledgers(engine), columns(engine)) == snapshot
+
+
+def test_the_postgres_schema_matches_the_declared_tables(database):
+    migrate(database.settings(), listening=True)
+    declared = {t.name: {c.name: c.nullable for c in t.columns} for t in l.OWNED}
+    live = {name: cols for name, cols in columns(database()).items() if name != 'listening_content'}    # listening_content is a 1.x table
+    assert live == declared
+
+
+def test_010_tables_are_private_and_the_database_guards_hold(database):
+    migrate(database.settings(), listening=True)
+    engine = database()
+    with engine.connect() as db:
+        rls = dict(db.execute(text("SELECT relname, relrowsecurity FROM pg_class WHERE relname = ANY(:n) AND relkind='r'"), {'n': list(l.NAMES_010)}).all())
+        assert set(rls) == set(l.NAMES_010) and all(rls.values())
+        assert db.execute(text("SELECT count(*) FROM information_schema.role_table_grants WHERE table_name = ANY(:n) "
+                               "AND grantee IN ('PUBLIC','anon','authenticated')"), {'n': list(l.NAMES_010)}).scalar_one() == 0
+    from app.listening import store
+    from app.listening.seed import load_fixture
+    content, audio, _ = load_fixture()
+    with engine.begin() as db:
+        version_id, _ = store.publish_version(db, content, audio)
+        exercise = db.execute(text("SELECT id FROM listening_exercises WHERE version_id = :v AND kind = 'fill_blank'"), {'v': version_id}).scalar_one()
+    for statement in ("UPDATE listening_exercise_rubrics SET data = '{}'::jsonb WHERE exercise_id = :e",
+                      "DELETE FROM listening_exercise_rubrics WHERE exercise_id = :e"):
+        with pytest.raises(DBAPIError, match='immutable'):                # published rubrics are as immutable as published keys
+            with engine.begin() as db:
+                db.execute(text(statement), {'e': exercise})
+    with pytest.raises(DBAPIError):
+        with engine.begin() as db:                                          # an unknown exercise kind is refused by the database
+            db.execute(text("INSERT INTO listening_exercises (id, version_id, position, kind, prompt, options) "
+                            "VALUES (gen_random_uuid(), :v, 9, 'essay', 'q', '[]'::jsonb)"), {'v': version_id})

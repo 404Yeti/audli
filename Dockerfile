@@ -14,6 +14,7 @@ COPY docs/postgres-006.sql docs/postgres-006.sql
 COPY docs/postgres-007.sql docs/postgres-007.sql
 COPY docs/postgres-008.sql docs/postgres-008.sql
 COPY docs/postgres-009.sql docs/postgres-009.sql
+COPY docs/postgres-010.sql docs/postgres-010.sql
 COPY docs/accent-release-evidence /app/data/voice-evaluation/aud20-validation-20261010
 COPY docs/aud38-release-evidence /app/data/voice-evaluation/aud38-approved
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

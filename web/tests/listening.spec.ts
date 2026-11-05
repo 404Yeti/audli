@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { freshAttempt } from './listening-fixture';
 
 // Needs its own backend with the seed lesson: only runs under listening.playwright.config.ts, never in the default mocked suite.
 test.skip(!process.env.AUDLI_LISTENING_E2E, 'run with listening.playwright.config.ts');
@@ -17,15 +18,6 @@ async function openLesson(page: Page) {
 async function waitForAudio(page: Page) {
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
   await page.waitForFunction(() => { const a = document.querySelector('audio') as HTMLAudioElement | null; return !!a && a.readyState >= 1 && a.duration > 60; });
-}
-
-/** Start from a new, unanswered attempt whatever the previous test left behind. */
-async function freshAttempt(page: Page) {
-  const again = page.getByRole('button', { name: 'Listen again' });
-  const start = page.getByRole('button', { name: 'Start exercises' });
-  await expect(again.or(start)).toBeVisible();
-  if (await again.isVisible()) await again.click();
-  await expect(start).toBeVisible();
 }
 
 test.describe.serial('2.0 listening lesson', () => {
@@ -102,12 +94,12 @@ test.describe.serial('2.0 listening lesson', () => {
     await expect(page.getByText('Correct answer')).toBeVisible();
     await expect(page.getByText('Your answer')).toBeVisible();
     await expect(page.getByLabel('The restaurant has run out of mushrooms.')).toBeDisabled();
-    await expect(page.getByText('0 of 1 correct')).toBeVisible();
-    // refresh after finishing: the saved result and feedback come back
-    await page.reload();
-    await expect(page.getByText('0 of 1 correct')).toBeVisible();
-    await expect(page.getByText('Not quite')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next question' })).toBeVisible();
     expect(await noHorizontalScroll(page)).toBe(true);
+    // refresh after answering: the saved answer is kept, so the lesson resumes at the next question instead of asking again
+    await page.reload();
+    await expect(page.getByText(QUESTION)).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /In your own words/ })).toBeVisible();
   });
 
   test('a new attempt can be answered correctly and is scored correct', async ({ page }) => {
@@ -116,9 +108,8 @@ test.describe.serial('2.0 listening lesson', () => {
     await page.getByLabel('The restaurant has run out of mushrooms.').check();
     await page.getByRole('button', { name: 'Check answer' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Correct' }).first()).toBeVisible();
-    await expect(page.getByText('1 of 1 correct')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Back to lessons' })).toBeVisible();
-    await page.getByRole('link', { name: 'Back to lessons' }).click();
+    await expect(page.getByLabel('The restaurant has run out of mushrooms.')).toBeDisabled();
+    await page.getByRole('link', { name: 'Leave lesson' }).click();
     await expect(page.getByRole('heading', { name: 'Listening lessons' })).toBeVisible();
   });
 
@@ -188,8 +179,8 @@ test.describe.serial('2.0 listening lesson: accessibility and keyboard', () => {
     await scan('question');
     await page.getByLabel('The restaurant has run out of mushrooms.').check();
     await page.getByRole('button', { name: 'Check answer' }).click();
-    await expect(page.getByText('1 of 1 correct')).toBeVisible();
-    await scan('result');
+    await expect(page.getByRole('status').filter({ hasText: 'Correct' }).first()).toBeVisible();
+    await scan('answered');
   });
 
   test('the whole lesson can be completed with the keyboard alone, and focus is not lost', async ({ page }) => {
@@ -222,7 +213,7 @@ test.describe.serial('2.0 listening lesson: accessibility and keyboard', () => {
     await page.getByRole('button', { name: 'Check answer' }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('status').filter({ hasText: /Correct|Not quite/ }).first()).toBeVisible();
-    await expect(page.getByText('1 of 1 correct').or(page.getByText('0 of 1 correct'))).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next question' })).toBeVisible();
   });
 
   test('loading, failure and recovery states are shown and recoverable', async ({ page }) => {
@@ -239,10 +230,10 @@ test.describe.serial('2.0 listening lesson: accessibility and keyboard', () => {
     await page.getByLabel('The restaurant has run out of mushrooms.').check();
     await page.route('**/api/listening/attempts/*/answers', route => route.abort());
     await page.getByRole('button', { name: 'Check answer' }).click();
-    await expect(page.getByRole('alert').filter({ hasText: 'couldn’t save that answer' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'couldn’t save that' })).toBeVisible();
     await expect(page.getByLabel('The restaurant has run out of mushrooms.')).toBeChecked();
     await page.unroute('**/api/listening/attempts/*/answers');
     await page.getByRole('button', { name: 'Check answer' }).click();
-    await expect(page.getByText(/of 1 correct/)).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Correct' }).first()).toBeVisible();
   });
 });

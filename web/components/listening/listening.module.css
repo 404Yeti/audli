@@ -121,3 +121,42 @@
 .lessonCard:hover { box-shadow: var(--shadow-raised); }
 @media (prefers-reduced-motion: no-preference) { .bar, .line, .option { transition: background-color .15s, border-color .15s; } }
 @media (max-width: 380px) { .controls { gap: 4px; } .round { min-width: 44px; width: 44px; height: 44px; font-size: 13px; } .play { width: 56px; height: 56px; } .player { padding: 12px; } .title { font-size: 24px; } .main { padding-left: 12px; padding-right: 12px; } }
+
+/* Milestone 02: fill in the blank, sequencing, spoken answer, status and debrief */
+.sentence { line-height: 2; }
+.gap { display: inline-block; width: 9ch; min-width: 6ch; max-width: 100%; margin: 0 4px; padding: 2px 8px; min-height: 44px; border: 0; border-bottom: 3px solid var(--blue-500); border-radius: 8px 8px 0 0; background: var(--blue-50); font-family: inherit; font-weight: 700; font-size: 20px; text-align: center; color: var(--ink-900); }
+.gap:disabled { opacity: 1; -webkit-text-fill-color: currentColor; }
+.gapOk { border-bottom-color: var(--green-500); background: var(--green-50); color: var(--green-700); } .gapNo { border-bottom-color: var(--red-500); background: var(--red-50); color: var(--red-700); }
+.seq { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.seqItem { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 12px; border: 2px solid var(--ink-200); border-radius: 12px; background: var(--white); font-weight: 700; }
+.seqNo { flex: none; width: 28px; height: 28px; border-radius: 999px; background: var(--ink-100); display: grid; place-items: center; font-size: 14px; }
+.seqText { flex: 1; min-width: 0; }
+.seqMoves { display: inline-flex; gap: 6px; }
+.mover { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--ink-200); background: var(--white); font-size: 20px; font-weight: 800; cursor: pointer; }
+.mover:hover:not(:disabled) { background: var(--ink-50); } .mover:disabled { color: var(--ink-300); cursor: not-allowed; }
+.answerOrder { margin: 0; padding-left: 20px; color: var(--ink-800); }
+.recorder { display: grid; gap: 12px; }
+.fileLabel { display: grid; gap: 4px; font-size: 14px; font-weight: 700; color: var(--ink-700); }
+.file { font-size: 14px; max-width: 100%; }
+.preview { width: 100%; }
+.recording { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.recDot { width: 12px; height: 12px; border-radius: 999px; background: var(--red-500); }
+@media (prefers-reduced-motion: no-preference) { .recDot { animation: recPulse 1.2s ease-in-out infinite; } @keyframes recPulse { 50% { opacity: .35; } } }
+.pillRow { margin: 0 0 12px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; font-weight: 800; font-size: 13px; }
+.pillOk { background: var(--green-50); color: var(--green-700); } .pillNo { background: var(--red-50); color: var(--red-700); }
+.pillWait { background: var(--blue-50); color: var(--blue-600); } .pillIdle { background: var(--ink-100); color: var(--ink-700); }
+.debrief { display: grid; gap: 16px; }
+.score { margin: 0; font-size: 20px; font-weight: 800; }
+.review { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.reviewItem { display: grid; gap: 4px; padding-bottom: 14px; border-bottom: 1px solid var(--ink-100); } .reviewItem:last-child { border-bottom: 0; padding-bottom: 0; }
+.reviewHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.reviewPrompt { display: block; font-weight: 700; }
+.said2 { margin: 0; font-size: 15px; color: var(--ink-800); } .why { margin: 0; font-size: 15px; color: var(--ink-700); }
+.quote { margin: 0; padding: 10px 14px; border-left: 4px solid var(--teal-500); background: var(--teal-50); border-radius: 0 12px 12px 0; font-weight: 600; }
+.points { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.point { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--ink-50); }
+.point[data-state='covered'] { background: var(--green-50); } .point[data-state='partly'] { background: var(--sun-50); } .point[data-state='missing'] { background: var(--red-50); }
+.pointState { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-700); }
+.evidence { font-size: 14px; color: var(--ink-700); font-style: italic; }
+.failed { display: grid; gap: 10px; }

@@ -4,9 +4,20 @@ export type Speaker = { id: string; name: string; role: string };
 export type Sentence = { index: number; speaker: string; text: string };
 export type Option = { id: string; text: string };
 export type Feedback = { selected_option_id: string; is_correct: boolean; correct_option_id: string; explanation: string };
-export type Exercise = { id: string; position: number; kind: string; prompt: string; options: Option[]; feedback: Feedback | null };
+export type FillResult = { answer: string; is_correct: boolean; accepted: string; explanation: string };
+export type SequenceResult = { order: string[]; is_correct: boolean; correct_order: string[]; positions_correct: number; explanation: string };
+export type KeyPoint = { id: string; text: string; state: 'covered' | 'partly' | 'missing' | 'unclear'; quote: string | null };
+export type SpokenStatus = 'receiving' | 'pending' | 'assessed' | 'failed' | 'skipped';
+export type SpokenResult = {
+  status: SpokenStatus; retryable: boolean; transcript: string | null; insufficient: boolean; points: KeyPoint[] | null;
+  covered: number | null; partly: number | null; total_points: number | null; failure_code: string | null;
+};
+export type Exercise = {
+  id: string; position: number; kind: 'multiple_choice' | 'spoken' | 'fill_blank' | 'sequencing'; prompt: string; options: Option[];
+  feedback: Feedback | null; fill: FillResult | null; sequence: SequenceResult | null; spoken: SpokenResult | null;
+};
 export type AttemptView = {
-  attempt: { id: string; status: 'in_progress' | 'completed'; total: number; correct: number | null; created_at: string; completed_at: string | null };
+  attempt: { id: string; status: 'in_progress' | 'completed'; total: number; scored: number; correct: number | null; created_at: string; completed_at: string | null };
   lesson: { lesson_id: string; version_id: string; version_no: number; title: string; topic: string; cefr: string; listen_for: string; speakers: Speaker[]; sentences: Sentence[] };
   audio: { id: string; accent: string; duration_ms: number; cues: Cue[] };
   exercises: Exercise[];
@@ -72,4 +83,73 @@ export function resultLine(view: AttemptView): string {
   const feedback = view.exercises[0]?.feedback;
   if (!feedback) return '';
   return feedback.is_correct ? 'Correct' : 'Not quite';
+}
+
+// ---- the four-exercise journey -------------------------------------------------------------------------------------------------
+
+/** A question is decided once the learner has answered it. A recording still being received is not: it can be sent again. */
+export function isDecided(e: Exercise): boolean {
+  return !!(e.feedback || e.fill || e.sequence || (e.spoken && e.spoken.status !== 'receiving'));
+}
+export const firstUndecided = (exercises: Exercise[]): Exercise | undefined => exercises.find(e => !isDecided(e));
+export const hasPendingAssessment = (exercises: Exercise[]): boolean => exercises.some(e => e.spoken?.status === 'pending');
+
+/** Seconds to wait before asking again while an assessment is pending: quick at first, never hammering the server. */
+export function pollDelayMs(polls: number): number {
+  return Math.min(3000 + polls * 1000, 8000);
+}
+
+/** Moves one item and returns a new order; moving past either end changes nothing. */
+export function moveItem<T>(order: T[], index: number, delta: -1 | 1): T[] {
+  const target = index + delta;
+  if (index < 0 || index >= order.length || target < 0 || target >= order.length) return order;
+  const next = order.slice();
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+export type Outcome = 'correct' | 'incorrect' | 'pending' | 'assessed' | 'failed' | 'skipped' | 'unanswered';
+export function outcomeOf(e: Exercise): Outcome {
+  if (e.feedback) return e.feedback.is_correct ? 'correct' : 'incorrect';
+  if (e.fill) return e.fill.is_correct ? 'correct' : 'incorrect';
+  if (e.sequence) return e.sequence.is_correct ? 'correct' : 'incorrect';
+  if (e.spoken && e.spoken.status !== 'receiving') return e.spoken.status;
+  return 'unanswered';
+}
+export const OUTCOME_LABEL: Record<Outcome, string> = {
+  correct: 'Correct', incorrect: 'Not quite', pending: 'Being checked', assessed: 'Checked', failed: 'Couldn’t check', skipped: 'Skipped', unanswered: 'Not answered',
+};
+export const KIND_LABEL: Record<Exercise['kind'], string> = {
+  multiple_choice: 'Multiple choice', spoken: 'Spoken answer', fill_blank: 'Fill in the blank', sequencing: 'Put in order',
+};
+export const POINT_LABEL: Record<KeyPoint['state'], string> = {
+  covered: 'You said this', partly: 'Partly said', missing: 'Not mentioned', unclear: 'Not clear enough to tell',
+};
+
+/** What the debrief says about the scored questions. Only deterministic exercises count; the spoken answer is reported separately. */
+export function scoreLine(view: AttemptView): string {
+  const scored = view.exercises.filter(e => e.kind !== 'spoken');
+  const answered = scored.filter(e => isDecided(e)).length;
+  const correct = scored.filter(e => outcomeOf(e) === 'correct').length;
+  return answered === scored.length ? `${correct} of ${scored.length} correct` : `${correct} of ${answered} correct so far`;
+}
+
+/** The microphone container this browser can record into, best first. */
+export function pickRecorderType(isSupported: (type: string) => boolean): string | undefined {
+  return ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find(isSupported);
+}
+
+export const MAX_ANSWER_SECONDS = 55;
+export const MIN_ANSWER_SECONDS = 2;
+export function clock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds) % 60).padStart(2, '0')}`;
+}
+
+/** Exactly what the server accepts for the gap: trimmed, one line, at most 80 characters. */
+export function cleanGap(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+export function splitPrompt(prompt: string): [string, string] {
+  const at = prompt.indexOf('___');
+  return at < 0 ? [prompt, ''] : [prompt.slice(0, at), prompt.slice(at + 3)];
 }

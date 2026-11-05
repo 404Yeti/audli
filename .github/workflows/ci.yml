@@ -2,7 +2,7 @@ name: Audli CI
 
 on:
   pull_request:
-    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety]
+    branches: [main, robertleyba/aud-89-p2a-upload-policy, codex/AUD-89-p2b, codex/AUD-94-migration-safety, feat/audli-2-listening-foundation, feat/audli-2-complete-lesson-journey]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
@@ -239,7 +239,45 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
         run: npx playwright test --config=lesson-media.playwright.config.ts
         working-directory: web
-      - name: Audli 2.0 listening lesson through real HTTP in Chromium and WebKit
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: browser-failure
+          path: |
+            web/test-results
+            web/playwright-report
+          retention-days: 7
+
+  listening_browser:
+    name: Browser (Audli 2.0)
+    runs-on: ubuntu-24.04
+    # Its own job: the 1.x Browser job already uses most of its 35 minutes, so adding these tests there cancelled them mid-run.
+    timeout-minutes: 35
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install local acceptance server
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - run: npm ci
+        working-directory: web
+      - name: Locked Playwright matches the pinned image
+        run: test "$(node -p "require('@playwright/test/package.json').version")" = "1.63.0"
+        working-directory: web
+      - name: Audli 2.0 library and four-exercise journey with the real API and worker in Chromium and WebKit
         env:
           PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
         run: npx playwright test --config=listening.playwright.config.ts
@@ -247,7 +285,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: browser-failure
+          name: listening-browser-failure
           path: |
             web/test-results
             web/playwright-report
@@ -290,7 +328,7 @@ jobs:
     name: CI required
     runs-on: ubuntu-24.04
     if: always()
-    needs: [backend, postgres, schema, frontend, browser, security]
+    needs: [backend, postgres, schema, frontend, browser, listening_browser, security]
     timeout-minutes: 5
     steps:
       - name: Every mandatory job must pass

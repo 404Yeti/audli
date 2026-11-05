@@ -34,6 +34,7 @@ from test_auth import AccountClient, USER_A, USER_B, auth_response, settings_for
 ROOT = Path(__file__).resolve().parents[1]
 BACKENDS = ['sqlite'] + (['postgres'] if os.environ.get('AUDLI_TEST_POSTGRES_URL') else [])
 CORRECT, WRONG = 'b', 'a'
+FROZEN_009 = '942be6c226482aa3a420b2caf4b11454552a99046fafced6316e3c4fb8d609b9'    # sha256 of docs/postgres-009.sql as released with Milestone 01 (git blob at 6fcc3c5)
 
 
 @pytest.fixture(params=BACKENDS)
@@ -77,7 +78,7 @@ def published(repo, tmp_path):
     from app.listening.api import prepare
     prepare(repo.engine)
     l_store = LocalObjectStore(tmp_path / 'listening_objects', b'k' * 32)
-    version_id, _ = seed(repo.engine, l_store)
+    version_id, _ = seed(repo.engine, l_store, journey=False)    # Milestone 01 shape; the full journey is tested in test_listening_journey.py
     with repo.engine.connect() as db:
         return db.execute(select(l.versions.c.lesson_id).where(l.versions.c.id == version_id)).scalar_one(), version_id
 
@@ -114,11 +115,15 @@ def answer(client, view, option):
 # ---- domain -----------------------------------------------------------------------------------------------------------
 
 def fixture_json():
-    return json.loads((ROOT / 'app/listening/fixtures/restaurant_b1/lesson.json').read_text())
+    """The Milestone 01 shape of the seed lesson (one multiple-choice question); the full journey is covered in test_listening_journey.py."""
+    data = json.loads((ROOT / 'app/listening/fixtures/restaurant_b1/lesson.json').read_text())
+    for extra in ('spoken', 'fill_blank', 'fill_key', 'sequencing', 'sequence_key'):
+        data.pop(extra)
+    return data
 
 
 def test_seed_lesson_is_valid_b1_with_measured_alignment():
-    content, audio, data = load_fixture()
+    content, audio, data = load_fixture(journey=False)
     assert content.cefr == 'B1' and content.topic == 'Ordering food at a restaurant'
     assert check_level_fit(content) == []
     assert len(content.sentences) >= 12 and {s.speaker for s in content.sentences} == {'sam', 'maria'}
@@ -180,7 +185,7 @@ def test_publishing_is_idempotent_and_versions_are_immutable(make_repository, tm
     lesson_id, version_id = published(repo, tmp_path)
     again = published(repo, tmp_path)
     assert again == (lesson_id, version_id)
-    content, audio, _ = load_fixture()
+    content, audio, _ = load_fixture(journey=False)
     with repo.engine.begin() as db:
         assert store.publish_version(db, content, audio) == (version_id, False)
     with repo.engine.connect() as db:
@@ -211,7 +216,7 @@ def test_changed_content_becomes_a_new_version_and_old_attempts_keep_theirs(loca
     assert view['lesson']['version_id'] == version_1
     data = fixture_json()
     data['exercise']['prompt'] = 'Why is the mushroom pasta unavailable?'
-    content, audio, _ = load_fixture()
+    content, audio, _ = load_fixture(journey=False)
     with repo.engine.begin() as db:
         version_2, created = store.publish_version(db, LessonContent.model_validate(data), audio)
     assert created and version_2 != version_1
@@ -228,7 +233,7 @@ def test_database_refuses_an_answer_from_a_different_version(local):
     view = start(client, lesson_id).json()
     data = fixture_json()
     data['exercise']['prompt'] = 'Another version?'
-    content, audio, _ = load_fixture()
+    content, audio, _ = load_fixture(journey=False)
     with repo.engine.begin() as db:
         store.publish_version(db, LessonContent.model_validate(data), audio)
         other_exercise = db.execute(select(l.exercises.c.id).where(l.exercises.c.version_id != version_1)).scalar_one()
@@ -255,7 +260,7 @@ def test_no_learner_response_contains_the_key_or_storage_details_before_answerin
         for secret in (SECRETS if response is not signed else ('correct_option_id', 'explanation', 'object_key', 'sha256')):
             assert secret not in response.text, secret
     assert view.json()['exercises'][0]['feedback'] is None
-    assert set(view.json()['exercises'][0]) == {'id', 'position', 'kind', 'prompt', 'options', 'feedback'}
+    assert set(view.json()['exercises'][0]) == {'id', 'position', 'kind', 'prompt', 'options', 'feedback', 'fill', 'sequence', 'spoken'}
     assert set(view.json()['exercises'][0]['options'][0]) == {'id', 'text'}
 
 
@@ -271,7 +276,7 @@ def test_the_key_is_revealed_only_for_the_question_the_learner_answered(local):
 def test_transcript_alignment_and_audio_variant_are_delivered(local):
     client, _, lesson_id, _, _ = local
     view = start(client, lesson_id).json()
-    content, audio, _ = load_fixture()
+    content, audio, _ = load_fixture(journey=False)
     assert [s['text'] for s in view['lesson']['sentences']] == [s.text for s in content.sentences]
     assert view['audio']['accent'] == 'american' and view['audio']['duration_ms'] == audio.duration_ms
     cues = [Cue(**c) for c in view['audio']['cues']]
@@ -315,7 +320,7 @@ def test_attempt_creation_is_idempotent(local):
 def test_a_request_id_cannot_be_reused_for_another_lesson(local, tmp_path):
     client, repo, lesson_id, _, _ = local
     data = fixture_json() | {'slug': 'second-lesson'}
-    content, audio, _ = load_fixture()
+    content, audio, _ = load_fixture(journey=False)
     with repo.engine.begin() as db:
         store.publish_version(db, LessonContent.model_validate(data), audio)
         second = db.execute(select(l.lessons.c.id).where(l.lessons.c.slug == 'second-lesson')).scalar_one()
@@ -445,7 +450,7 @@ def test_signed_audio_url_serves_the_stored_bytes_with_range_support(local):
     info = client.get(f'/api/listening/attempts/{attempt}/audio').json()
     assert info['content_type'] == 'audio/mpeg' and info['url'].startswith('/api/listening/media/lessons/ordering-food-at-a-restaurant/')
     assert 'object' not in info['url'] and datetime.fromisoformat(info['expires_at']) > datetime.now(timezone.utc)
-    _, audio, data = load_fixture()
+    _, audio, data = load_fixture(journey=False)
     whole = client.get(info['url'])
     assert whole.status_code == 200 and hashlib.sha256(whole.content).hexdigest() == audio.sha256
     assert whole.headers['content-type'] == 'audio/mpeg' and whole.headers['accept-ranges'] == 'bytes'
@@ -527,8 +532,11 @@ def test_production_configuration_requires_object_storage():
         Settings(**base)
     with pytest.raises(ValidationError):
         Settings(**base, listening_storage='s3', listening_s3_endpoint='http://insecure', listening_s3_bucket='b', listening_s3_access_key='a', listening_s3_secret_key='s')
-    ok = Settings(**base, listening_storage='s3', listening_s3_endpoint='https://s3.example.com', listening_s3_bucket='audli-audio',
-                  listening_s3_access_key='a', listening_s3_secret_key='s')
+    s3 = dict(listening_storage='s3', listening_s3_endpoint='https://s3.example.com', listening_s3_bucket='audli-audio',
+              listening_s3_access_key='a', listening_s3_secret_key='s')
+    with pytest.raises(ValidationError):                # the deterministic fake AI providers can never run in production
+        Settings(**base, **s3)
+    ok = Settings(**base, **s3, listening_provider='openai')
     assert isinstance(build_store(ok, Path('/nonexistent')), S3ObjectStore)
     assert Settings(_env_file=None).listening_enabled is False
 
@@ -553,6 +561,13 @@ def test_legacy_routes_still_work_alongside_listening(local):
 
 def test_migration_file_is_the_generated_migration():
     assert (ROOT / 'docs/postgres-009.sql').read_text() == postgres_listening_migration()
+    from app.listening.migrations import postgres_listening_migration_010
+    assert (ROOT / 'docs/postgres-010.sql').read_text() == postgres_listening_migration_010()
+
+
+def test_migration_009_is_frozen():
+    # 009 may be applied in production before Milestone 02 merges; any later change belongs in a new numbered migration.
+    assert hashlib.sha256((ROOT / 'docs/postgres-009.sql').read_bytes()).hexdigest() == FROZEN_009
 
 
 @pytest.mark.skipif('postgres' not in BACKENDS, reason='needs AUDLI_TEST_POSTGRES_URL')
@@ -563,7 +578,7 @@ def test_postgres_migration_security_and_ledger(make_repository):
     with repo.engine.connect() as db:
         # The shared ledger must not move: app/claims/runtime.py refuses to start when max(version) >= 8 without claims mode.
         assert [r[0] for r in db.execute(text('SELECT version FROM schema_migrations ORDER BY version'))] == [1, 2, 3, 4, 5, 6, 7]
-        assert [r[0] for r in db.execute(text('SELECT version FROM listening_migrations'))] == [9]
+        assert [r[0] for r in db.execute(text('SELECT version FROM listening_migrations'))] == [9, 10]
         rls = dict(db.execute(text("SELECT relname, relrowsecurity FROM pg_class WHERE relname = ANY(:names) AND relkind = 'r'"), {'names': list(l.NAMES)}).all())
         assert set(rls) == set(l.NAMES) and all(rls.values())
         grants = db.execute(text("SELECT count(*) FROM information_schema.role_table_grants WHERE table_name = ANY(:names) "

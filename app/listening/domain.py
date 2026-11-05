@@ -136,6 +136,8 @@ class LessonContent(StrictModel):
     fill_key: FillKey | None = None
     sequencing: Sequencing | None = None
     sequence_key: SequenceKey | None = None
+    # Re-recorded audio for the same script is published as a NEW immutable version; bumping this is what makes the content hash (and so the version) differ.
+    revision: int | None = Field(default=None, ge=2, le=1000)
 
     @model_validator(mode='after')
     def consistent(self):

@@ -184,13 +184,13 @@ class GuardedAssessor:
 def main(argv: list[str]) -> int:
     """python -m app.listening.ai_budget status|halt|resume   (operator tool; prints no secrets)"""
     from app.config import Settings
-    from app.repository import create_repository
+    from app.listening.worker import make_engine
     action = argv[0] if argv else 'status'
     if action not in ('status', 'halt', 'resume'):
         print('usage: python -m app.listening.ai_budget status|halt|resume', file=sys.stderr)
         return 2
     settings = Settings()
-    guard = AiGuard(create_repository(settings).engine, settings)
+    guard = AiGuard(make_engine(settings), settings)
     if action != 'status':
         guard.set_halted(action == 'halt')
     print(json.dumps(guard.status(), indent=1))

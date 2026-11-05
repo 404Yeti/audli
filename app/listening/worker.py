@@ -19,6 +19,19 @@ from app.storage.repository import utcnow
 log = logging.getLogger('audli.listening.worker')
 
 
+def make_engine(settings):
+    """The worker's database engine. On PostgreSQL it connects directly and does NOT go through the 1.x repository, whose start-up validates the whole
+    1.x schema (a role confined to the 2.0 tables cannot, and should not, read that). SQLite (local development) keeps the shared repository."""
+    if settings.persistence == 'postgres':
+        from sqlalchemy import create_engine
+        from sqlalchemy.engine import make_url
+        return create_engine(make_url(settings.database_url.get_secret_value()).set(drivername='postgresql+psycopg'), pool_pre_ping=True, pool_size=2,
+                             max_overflow=0, pool_timeout=10, connect_args={'connect_timeout': 10, 'prepare_threshold': None,
+                                                                            'options': '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000'})
+    from app.repository import create_repository
+    return create_repository(settings).engine
+
+
 def worker_id() -> str:
     return f'{socket.gethostname()}-{os.getpid()}'[:60]
 
@@ -60,13 +73,12 @@ def main(argv: list[str]) -> int:
     from app.listening.ai_budget import AiGuard
     from app.listening.models import ModelPlan
     from app.listening.providers import build_providers
-    from app.repository import create_repository
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
     settings = Settings()
     if not settings.listening_enabled:
         print('AUDLI_LISTENING_ENABLED is off; the listening worker has nothing to do.', file=sys.stderr)
         return 1
-    engine = create_repository(settings).engine
+    engine = make_engine(settings)
     prepare(engine, worker=True)          # the worker may run under its own least-privilege role (docs/postgres-listening-worker-role.sql)
     objects = build_recording_store(settings, Path(settings.data_dir))      # the worker touches recordings only, never lesson audio
     guard = AiGuard(engine, settings)

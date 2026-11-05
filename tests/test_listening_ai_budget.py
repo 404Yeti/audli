@@ -152,7 +152,7 @@ def test_status_and_operator_commands_print_no_secrets(journey, capsys, monkeypa
     import app.repository as repository
     from app.listening import ai_budget
     monkeypatch.setattr(config, 'Settings', lambda: Settings(listening_ai_daily_budget_usd=1.0, **OPENAI))
-    monkeypatch.setattr(repository, 'create_repository', lambda settings: SimpleNamespace(engine=journey.engine))
+    monkeypatch.setattr('app.listening.worker.make_engine', lambda settings: journey.engine)
     assert ai_budget.main(['halt']) == 0 and json.loads(capsys.readouterr().out)['halted'] is True
     assert ai_budget.main(['resume']) == 0 and json.loads(capsys.readouterr().out)['halted'] is False
     assert ai_budget.main(['status']) == 0 and 'sk-test' not in capsys.readouterr().out

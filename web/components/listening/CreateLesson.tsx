@@ -171,6 +171,7 @@ export function CreateLesson() {
           onChange={e => { setText(e.target.value); setReviewed(false); }} aria-describedby="gen-count" />
         <span id="gen-count" className={styles.counter}>{text.length} / {MAX_TEXT}</span>
       </div>
+      <p className={styles.muted} style={{ margin: '4px 0 0', maxWidth: 620, fontSize: 14 }} data-testid="generation-disclosure">Your description is sent to OpenAI to write the lesson, and the script to ElevenLabs to make the voices. The lesson is private to your account. <a href="/privacy" target="_blank" rel="noopener">Privacy details</a></p>
       <div className={styles.filters} aria-label="Examples">{EXAMPLES.map(x => <button key={x} type="button" className={styles.chip} onClick={() => { setText(x); setReviewed(false); }}>{x}</button>)}</div>
       {question ? <p className={styles.notice} role="status"><span aria-hidden="true"><Icon name="info" size={18} /></span>{question}</p> : null}
       {problem ? <p className={styles.notice} role="alert"><span aria-hidden="true"><Icon name="info" size={18} /></span>{problem}</p> : null}

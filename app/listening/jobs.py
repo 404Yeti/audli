@@ -118,12 +118,15 @@ def fail(db, job: Job, code: str, now: datetime | None = None) -> None:
         raise LeaseLost(job.id)
 
 
-def reap_exhausted(db, now: datetime | None = None) -> list[dict]:
+def reap_exhausted(db, now: datetime | None = None, kinds: tuple[str, ...] | None = None) -> list[dict]:
     """Jobs whose lease expired after their last allowed try can never be claimed again; fail them and return their payloads so the
-    caller can settle the work they belonged to."""
+    caller can settle the work they belonged to. `kinds` limits the sweep to the caller's own job kinds."""
     now = now or utcnow()
-    rows = db.execute(select(t.jobs.c.id, t.jobs.c.payload).where(and_(t.jobs.c.status == 'running', t.jobs.c.lease_expires_at < now,
-                                                                      t.jobs.c.attempts >= t.jobs.c.max_attempts))).all()
+    query = select(t.jobs.c.id, t.jobs.c.payload).where(and_(t.jobs.c.status == 'running', t.jobs.c.lease_expires_at < now,
+                                                             t.jobs.c.attempts >= t.jobs.c.max_attempts))
+    if kinds:                                       # each process settles only its own kinds: a payload of another kind means nothing to it
+        query = query.where(t.jobs.c.kind.in_(kinds))
+    rows = db.execute(query).all()
     reaped = []
     for row in rows:
         if db.execute(update(t.jobs).where(and_(t.jobs.c.id == row.id, t.jobs.c.status == 'running', t.jobs.c.lease_expires_at < now))

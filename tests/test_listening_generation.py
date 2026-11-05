@@ -367,3 +367,23 @@ def test_everything_outside_the_generators_remit_is_refused(grole, statement):
     with pytest.raises(DBAPIError):
         with role_engine(lab.engine, name).begin() as db:
             db.exec_driver_sql(statement)
+
+
+# ---- a stalled generator must not strand a reservation, and must not break the spoken worker ----------------------------------------
+
+def test_a_generation_job_that_ran_out_of_tries_is_settled_by_the_generator_and_ignored_by_the_spoken_sweep(lab):
+    from datetime import timedelta
+    from app.listening import spoken
+    d = lab.deps()
+    request_id = start(lab, d)
+    day = utcnow().strftime('%Y-%m-%d')
+    assert limits(lab)[day][0] > 0
+    with lab.engine.begin() as db:                                           # simulate a generator that claimed the last try and then stalled past its lease
+        job = jobs.claim(db, 'w1')
+        db.execute(t.jobs.update().where(t.jobs.c.id == job.id).values(attempts=job.max_attempts, lease_expires_at=utcnow() - timedelta(seconds=5)))
+    spoken.maintenance(lab.engine, d.objects)                                # the spoken worker's sweep used to raise KeyError('attempt_id') here, every cycle
+    with lab.engine.connect() as db:
+        assert db.execute(select(t.jobs.c.status)).scalar_one() == 'running'    # and it leaves the generation job to the generator
+    assert gj.maintenance(d, ('interpret', 'generate')) == 1
+    assert view(lab, lab.owner, request_id)['phase'] == 'failed'
+    assert limits(lab)[day][0] == 0                                          # the reservation was given back

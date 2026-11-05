@@ -33,6 +33,7 @@ export type RecentItem = {
 };
 export type Progress = {
   lessons_available: number; lessons_completed: number; attempts_completed: number; questions_correct: number; questions_scored: number; recent: RecentItem[];
+  accent_counts?: Record<string, number>; level_counts?: Record<string, number>;
 };
 export type Phase = 'listen' | 'question' | 'result';
 

@@ -124,7 +124,7 @@ def test_the_whole_a2_lesson_works_and_a_finished_lesson_reports_real_results_on
 
 def test_progress_is_built_only_from_finished_results(library):
     empty = library.client.get('/api/listening/progress').json()
-    assert empty == {'lessons_available': 2, 'lessons_completed': 0, 'attempts_completed': 0, 'questions_correct': 0, 'questions_scored': 0, 'recent': []}
+    assert empty == {'lessons_available': 2, 'lessons_completed': 0, 'attempts_completed': 0, 'questions_correct': 0, 'questions_scored': 0, 'accent_counts': {}, 'level_counts': {}, 'recent': []}
     items = catalog(library.client)
     first = open_lesson(library.client, items[PHARMACY]['lesson_id'])
     answer_all(library.client, first, sequence=['cough', 'allergy', 'dose', 'pay'], text='honey')           # 3 of 3
@@ -144,7 +144,9 @@ def test_progress_is_built_only_from_finished_results(library):
     text = library.client.get('/api/listening/progress').text.lower()
     for word in FORBIDDEN_CLAIMS + SECRET_WORDS:
         assert word not in text, word
-    assert set(progress) == {'lessons_available', 'lessons_completed', 'attempts_completed', 'questions_correct', 'questions_scored', 'recent'}
+    assert set(progress) == {'lessons_available', 'lessons_completed', 'attempts_completed', 'questions_correct', 'questions_scored', 'accent_counts', 'level_counts', 'recent'}
+    # Replaying a lesson is not counted twice: both finished lessons appear once, under the accent that was heard and the lesson's level.
+    assert sum(progress['accent_counts'].values()) == 2 and sum(progress['level_counts'].values()) == 2 and 'unknown' not in progress['accent_counts']
 
 
 def test_recent_activity_is_newest_first_and_bounded(library):

@@ -1,105 +1,87 @@
 'use client';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import styles from './listening.module.css';
-import { LessonShell } from './LessonShell';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import styles from './app.module.css';
+import { AppShell } from './AppShell';
 import { AttemptRecovery } from './AttemptRecovery';
 import { AudliMascot } from '../audli-mascot';
+import { Icon } from './Icons';
 import { ApiError } from '../../lib/api.ts';
-import { getProgress, listCatalog } from '../../lib/listening.ts';
-import { lengthLabel, lessonAction, progressLine, SPOKEN_NOTE, statusLine, whenLabel, type CatalogItem, type Progress, type RecentItem } from '../../lib/listening-core.ts';
+import { listCatalog } from '../../lib/listening.ts';
+import { lengthLabel, lessonAction, statusLine, SPOKEN_NOTE, type CatalogItem } from '../../lib/listening-core.ts';
+import { LENGTH_LABEL, LEVELS, NO_FILTERS, accentLabel, applyFilters, countLabel, topicTiles, type Filters, type Length } from '../../lib/home-core.ts';
 
-type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[]; progress: Progress | null };
+type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[] };
 
-const PILL: Record<CatalogItem['status'], string> = { new: styles.pillIdle, in_progress: styles.pillWait, completed: styles.pillOk };
-const MARK: Record<CatalogItem['status'], string> = { new: '', in_progress: '…', completed: '✓' };
+const ICON_TONE = ['c1', 'c2', 'c3', 'c4'] as const;
 
-function Skeleton() {
-  return <div role="status" aria-live="polite" aria-busy="true">
-    <p className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Loading lessons…</p>
-    <ul className={styles.catalog} aria-hidden="true">{[0, 1].map(n => <li key={n} className={`${styles.lessonCard} ${styles.skeleton}`}><span className={styles.skelLine} /><span className={`${styles.skelLine} ${styles.skelShort}`} /></li>)}</ul>
-  </div>;
+function Row({ item, n }: { item: CatalogItem; n: number }) {
+  const done = item.status === 'completed';
+  const detail = [item.cefr, item.accents[0] ? accentLabel(item.accents[0]) : null, lengthLabel(item.duration_ms), statusLine(item)].filter(Boolean).join(' · ');
+  return <li><Link className={styles.row} href={`/listening/${item.lesson_id}`}>
+    <span className={`${styles.rowIcon} ${styles[ICON_TONE[n % 4]]}`}><Icon name={done ? 'check' : 'headphones'} /></span>
+    <span className={styles.rowBody}><p className={styles.rowTitle}>{item.title}</p><p className={styles.rowMeta}>{detail}<span className={styles.srOnly}> · {lessonAction(item)}</span></p>
+      {done && item.spoken_status ? <p className={styles.rowMeta}>{SPOKEN_NOTE[item.spoken_status]}</p> : null}</span>
+    <span className={styles.chev}><Icon name="chevron" /></span></Link></li>;
 }
 
-function LessonCard({ item }: { item: CatalogItem }) {
-  const action = lessonAction(item);
-  return <li>
-    <Link className={styles.lessonCard} href={`/listening/${item.lesson_id}`}>
-      <span className={styles.cardTop}>
-        <span className={styles.heading} style={{ fontSize: 20 }}>{item.title}</span>
-        <span className={`${styles.tag} ${styles.level}`}><span className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Level </span>{item.cefr}</span>
-      </span>
-      <span className={styles.cardMeta}>{lengthLabel(item.duration_ms)} of listening · {item.total || 4} questions</span>
-      <span className={styles.cardBottom}>
-        <span className={`${styles.pill} ${PILL[item.status]}`}><span aria-hidden="true">{MARK[item.status]}</span> {statusLine(item)}</span>
-        <span className={styles.cardAction}>{action} <span aria-hidden="true">→</span></span>
-      </span>
-      {item.status !== 'new' && item.spoken_status ? <span className={styles.note}>{SPOKEN_NOTE[item.spoken_status]}</span> : null}
-    </Link>
-  </li>;
-}
-
-function Recent({ items }: { items: RecentItem[] }) {
-  return <section aria-labelledby="recent-title" className={styles.panel}>
-    <h2 id="recent-title" className={styles.kicker}>Recent activity</h2>
-    <ul className={styles.recent}>
-      {items.map(r => <li key={r.attempt_id}>
-        <Link className={styles.recentRow} href={`/listening/${r.lesson_id}`}>
-          <span><b>{r.title}</b><span className={styles.note}> · {whenLabel(r.when)}</span></span>
-          <span className={styles.note}>
-            {r.status === 'completed' ? (r.scored ? `${r.correct} of ${r.scored} correct` : 'Finished') : 'In progress'}
-            {r.status === 'completed' && r.spoken_status ? ` · ${SPOKEN_NOTE[r.spoken_status].replace('Spoken answer: ', 'spoken answer ')}` : ''}
-          </span>
-        </Link>
-      </li>)}
-    </ul>
-  </section>;
-}
-
+/** Figma 03 Discover (D03 / M03): search, level, accent and length filters, topics, and the lesson list. Filters work on the saved library. */
 export function ListeningCatalog() {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const fetchAll = useCallback(async (): Promise<Load> => {
-    try {
-      // Progress is a nicety: if only it fails, the library still works.
-      const [items, progress] = await Promise.all([listCatalog(), getProgress().catch(() => null)]);
-      return { kind: 'ready', items, progress };
-    } catch (cause) {
+    try { return { kind: 'ready', items: await listCatalog() }; }
+    catch (cause) {
       // While 2.0 is limited to named accounts the server answers 404 to everyone else: say so plainly instead of offering a retry that cannot help.
       return cause instanceof ApiError && cause.status === 404 ? { kind: 'unavailable' } : { kind: 'error' };
     }
   }, []);
-  useEffect(() => {
-    let live = true;
-    void fetchAll().then(result => { if (live) setLoad(result); });
-    return () => { live = false; };
-  }, [fetchAll]);
+  useEffect(() => { let live = true; void fetchAll().then(r => { if (live) setLoad(r); }); return () => { live = false; }; }, [fetchAll]);
   const retry = () => { setLoad({ kind: 'loading' }); void fetchAll().then(setLoad); };
+  const items = load.kind === 'ready' ? load.items : [];
+  const shown = useMemo(() => applyFilters(items, filters), [items, filters]);
+  const tiles = useMemo(() => topicTiles(items), [items]);
+  const accents = useMemo(() => [...new Set(items.flatMap(i => i.accents))].sort(), [items]);
+  const set = (patch: Partial<Filters>) => setFilters(f => ({ ...f, ...patch }));
+  const filtered = JSON.stringify(filters) !== JSON.stringify(NO_FILTERS);
 
-  const shell = (children: React.ReactNode) => <LessonShell phase={null} closeHref="/" closeLabel="Back to Audli home">{children}</LessonShell>;
-  if (load.kind === 'unavailable') return shell(<div className={styles.status} role="status"><div className={styles.heroMascot}><AudliMascot state="Idle" small /></div><p><b>Audli listening lessons aren’t available on your account yet.</b></p><Link className={styles.secondary} href="/">Back to Audli</Link></div>);
-  if (load.kind === 'error') return shell(<AttemptRecovery state="error" onRetry={retry} />);
-  if (load.kind === 'loading') return shell(<><h1 className={`${styles.heading} ${styles.title}`}>Listening lessons</h1><Skeleton /></>);
-  const { items, progress } = load;
-  return shell(<>
-    <header className={styles.libHead}>
-      <div className={styles.libMascot}><AudliMascot state="Idle" small /></div>
-      <div>
-        <h1 className={`${styles.heading} ${styles.title}`}>Listening lessons</h1>
-        <p className={styles.note}>Listen first, then answer four questions.</p>
+  if (load.kind === 'unavailable') return <AppShell active="discover"><div className={styles.status} role="status"><div style={{ width: 96 }}><AudliMascot small face /></div>
+    <p><b>Audli listening lessons aren’t available on your account yet.</b></p><Link className={`${styles.btn} ${styles.btnSecondary}`} href="/">Back to Audli</Link></div></AppShell>;
+  if (load.kind === 'error') return <AppShell active="discover"><AttemptRecovery state="error" onRetry={retry} /></AppShell>;
+  if (load.kind === 'loading') return <AppShell active="discover"><h1 className={`${styles.display} ${styles.h1}`}>Discover</h1>
+    <div role="status" aria-live="polite" aria-busy="true"><p className={styles.srOnly}>Loading lessons…</p>
+      <div className={styles.list} aria-hidden="true" style={{ marginTop: 20 }}>{[0, 1, 2].map(n => <div key={n} className={styles.skeleton} />)}</div></div></AppShell>;
+
+  return <AppShell active="discover">
+    <h1 className={`${styles.display} ${styles.h1}`} style={{ marginBottom: 16 }}>Discover</h1>
+    {items.length === 0 ? <div className={styles.status} role="status"><div style={{ width: 96 }}><AudliMascot state="Thinking" small face /></div>
+      <p><b>No lessons yet.</b></p><p className={styles.muted}>New lessons will appear here. Check back soon.</p></div> : <>
+      <label className={styles.search}><Icon name="search" /><span className={styles.srOnly}>Search topics</span>
+        <input type="search" placeholder="Search topics — “airport”, “small talk”" value={filters.query} onChange={e => set({ query: e.target.value })} /></label>
+      <div className={styles.filters}>
+        <select className={styles.select} aria-label="Accent" value={filters.accent} onChange={e => set({ accent: e.target.value })}>
+          <option value="All">All accents</option>{accents.map(a => <option key={a} value={a}>{accentLabel(a)}</option>)}</select>
       </div>
-    </header>
-    {items.length === 0 ? <div className={styles.status} role="status">
-      <div className={styles.heroMascot}><AudliMascot state="Thinking" small /></div>
-      <p><b>No lessons yet.</b></p>
-      <p className={styles.note}>New lessons will appear here. Check back soon.</p>
-    </div> : <>
-      {progress ? <section aria-labelledby="progress-title" className={styles.panel}>
-        <h2 id="progress-title" className={styles.kicker}>Your progress</h2>
-        <p className={styles.score}>{progressLine(progress)}</p>
-        {progress.questions_scored > 0 ? <p className={styles.note}>{progress.questions_correct} of {progress.questions_scored} scored questions correct in your finished lessons. Spoken answers are not scored.</p> : null}
-      </section> : null}
-      <ul className={styles.catalog} aria-label="Lessons">{items.map(item => <LessonCard key={item.lesson_id} item={item} />)}</ul>
-      {progress && progress.recent.length > 0 ? <Recent items={progress.recent} /> : null}
+      <div className={styles.filters} role="group" aria-label="Level">
+        {['All', ...LEVELS].map(l => <button key={l} type="button" className={styles.chip} aria-pressed={filters.cefr === l} onClick={() => set({ cefr: l })}>{l}</button>)}
+      </div>
+      <div className={styles.discoverGrid}>
+        <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+          <section className={styles.card} aria-labelledby="topics-title"><h2 id="topics-title" className={`${styles.display} ${styles.h3}`} style={{ marginBottom: 12 }}>Topics</h2>
+            <div className={styles.topics}>{tiles.map((t, n) => <button key={t.topic} type="button" className={`${styles.topic} ${styles[`tone${n % 4}`]}`} aria-pressed={filters.topic === t.topic}
+              onClick={() => set({ topic: filters.topic === t.topic ? null : t.topic })}><b>{t.topic}</b><span>{countLabel(t.count)}</span></button>)}</div></section>
+          <section className={styles.card} aria-labelledby="length-title"><h2 id="length-title" className={`${styles.display} ${styles.h3}`} style={{ marginBottom: 12 }}>Length</h2>
+            <div className={styles.filters} style={{ margin: 0 }}>{(Object.keys(LENGTH_LABEL) as Exclude<Length, 'any'>[]).map(k => <button key={k} type="button" className={styles.chip}
+              aria-pressed={filters.length === k} onClick={() => set({ length: filters.length === k ? 'any' : k })}>{LENGTH_LABEL[k]}</button>)}</div></section>
+        </div>
+        <section aria-labelledby="results-title">
+          <div className={styles.sectionHead} style={{ marginTop: 0 }}><h2 id="results-title" className={`${styles.display} ${styles.h2}`}>{countLabel(shown.length)}</h2>
+            {filtered ? <button type="button" className={styles.linkBtn} onClick={() => setFilters(NO_FILTERS)}>Clear filters</button> : null}</div>
+          {shown.length === 0 ? <div className={styles.status} role="status"><p><b>No lessons match your filters.</b></p>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => setFilters(NO_FILTERS)}>Clear filters</button></div>
+            : <ul className={styles.list} aria-label="Lessons">{shown.map((item, n) => <Row key={item.lesson_id} item={item} n={n} />)}</ul>}
+        </section>
+      </div>
     </>}
-  </>);
+  </AppShell>;
 }

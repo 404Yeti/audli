@@ -11,7 +11,18 @@ function WavePair({ id }: { id: string }) {
 }
 
 /** Geometry from Figma Mascot System, node 7:23; state marks follow its storyboard. */
-export function AudliMascot({ state = 'Idle', activity = false, small = false, staticPose = false, artworkHidden = false, children }: { state?: MascotState; activity?: boolean; small?: boolean; staticPose?: boolean; artworkHidden?: boolean; children?: ReactNode }) {
+/** Figma "Mascot expression" (Developer Handoff): the face is drawn only where `face` is set (the Audli 2.0 screens), so the 1.x screens are unchanged. */
+function Face({ state }: { state: MascotState }) {
+  const happy = state === 'Success' || state === 'Speaking';
+  const mouth = happy ? 'M77 70 Q86 80 95 70' : state === 'Retry' ? 'M79 72 Q86 76 93 72' : state === 'Listening' ? 'M80 71 Q86 76 92 71' : 'M82 72 L90 72';
+  return <g className="mascot-face" fill="none" stroke="#0E1B36" strokeLinecap="round" strokeWidth="2.4">
+    {state === 'Success' ? <><path d="M68 62 Q73 56 78 62"/><path d="M94 62 Q99 56 104 62"/></> : <><ellipse cx="73" cy={state === 'Thinking' ? 58 : 61} rx="2.4" ry="3.2" fill="#0E1B36" stroke="none"/><ellipse cx="99" cy={state === 'Thinking' ? 58 : 61} rx="2.4" ry="3.2" fill="#0E1B36" stroke="none"/></>}
+    <path d={mouth}/>
+    <circle cx="65" cy="70" r="4.2" fill="#FFB3AA" stroke="none" opacity=".75"/><circle cx="107" cy="70" r="4.2" fill="#FFB3AA" stroke="none" opacity=".75"/>
+  </g>;
+}
+
+export function AudliMascot({ state = 'Idle', activity = false, small = false, staticPose = false, artworkHidden = false, face = false, children }: { state?: MascotState; activity?: boolean; small?: boolean; staticPose?: boolean; artworkHidden?: boolean; face?: boolean; children?: ReactNode }) {
   const waveId = useId();
   return <div className={`audli-mascot ${small ? 'small' : ''}`} data-state={state} data-active={activity} data-static={staticPose || undefined} style={{ '--voice-activity': activity ? 1 : .35 } as CSSProperties} aria-hidden="true">
     <svg style={artworkHidden ? { visibility: 'hidden' } : undefined} viewBox="0 0 172.8 151.2" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -19,6 +30,7 @@ export function AudliMascot({ state = 'Idle', activity = false, small = false, s
       <g className="mascot-pose"><g className="mascot-body">
         <ellipse cx="86.4" cy="55.44" rx="54" ry="42.48" fill="#14B8A6"/>
         <ellipse cx="86.04" cy="65.52" rx="37.8" ry="29.52" fill="white"/>
+        {face ? <Face state={state}/> : null}
         <circle cx="47.52" cy="97.92" r="22.32" fill="#2563EB"/>
         <ellipse cx="123.665" cy="99.9292" rx="22.32" ry="28.08" transform="rotate(10 123.665 99.9292)" fill="#FF6B5B"/>
       </g></g>

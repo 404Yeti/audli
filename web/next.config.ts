@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next';
-import { cutoverRedirects, cutoverRewrites } from './lib/cutover.ts';
+import { cutoverAfterFiles, cutoverBeforeFiles, cutoverRedirects } from './lib/cutover.ts';
 const config: NextConfig = {
   distDir: process.env.AUDLI_BROWSER_TEST === '1' ? '.next-browser-tests' : '.next',
   agentRules: false,
@@ -16,7 +16,11 @@ const config: NextConfig = {
     return cutoverRedirects();       // empty unless both Audli 2.0 flags are on
   },
   async rewrites() {
-    return [...cutoverRewrites(), { source: '/api/:path*', destination: `${process.env.BACKEND_URL || 'http://127.0.0.1:8000'}/api/:path*` }];
+    return {
+      beforeFiles: cutoverBeforeFiles(),     // "/" -> the 2.0 home (only when both flags are on)
+      afterFiles: [...cutoverAfterFiles(), { source: '/api/:path*', destination: `${process.env.BACKEND_URL || 'http://127.0.0.1:8000'}/api/:path*` }],
+      fallback: [],
+    };
   },
 };
 export default config;

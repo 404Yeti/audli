@@ -14,7 +14,7 @@ import { api, currentAuthRevision, setAccessTokenProvider } from '../lib/api';
 const AccountContext = createContext<{ scope: string; homeworkEnabled: boolean; email?: string; signOut?: (accountDeleted?: boolean) => Promise<void> }>({ scope: 'local', homeworkEnabled: false });
 export const useAccount = () => useContext(AccountContext);
 
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({ children, landingView }: { children: ReactNode; landingView?: (actions: { signUp: () => void; signIn: () => void }) => ReactNode }) {
   const [homeworkEnabled, setHomeworkEnabled] = useState(false);
   const [mode, setMode] = useState<'loading' | 'local' | 'supabase' | 'failed'>('loading');
   const [client, setClient] = useState<SupabaseClient | null>(null);
@@ -192,6 +192,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (mode === 'failed') return <AudliLoadingScreen error={message} onRetry={() => { if (timedOut.current) markAuthTimeoutRetry(); window.location.reload(); }}/>;
   if (mode === 'local') return <AccountContext.Provider value={{ scope: 'local', homeworkEnabled }}>{children}</AccountContext.Provider>;
   if (mode === 'supabase' && session) return <AccountContext.Provider value={{ scope: sessionIdentity(session)!, homeworkEnabled, email: session.user.email, signOut: logout }}><div key={sessionIdentity(session)}>{children}</div></AccountContext.Provider>;
+  if (mode === 'supabase' && ready && landing && !message && landingView) return <>{landingView({ signUp: () => { setSignup(true); setLanding(false); }, signIn: () => { setSignup(false); setLanding(false); } })}</>;
   if (mode === 'supabase' && ready && landing && !message) return <main className="landing"><strong className="wordmark">audli</strong><AudliMascot/><h1>Train your ears.</h1><p>AI listening practice that adapts to what you actually understand.</p><button className="primary" onClick={() => { setSignup(true); setLanding(false); }}>Start listening</button><button className="text-button" onClick={() => { setSignup(false); setLanding(false); }}>I already have an account</button><footer>Eyes optional. Ears essential.</footer></main>;
   return <main className="auth-screen"><header><strong className="wordmark">audli</strong><span className="language">TRAIN YOUR EARS</span></header><section className="card">
     <>

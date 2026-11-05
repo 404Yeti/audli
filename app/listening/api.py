@@ -61,6 +61,8 @@ class ProgressOut(BaseModel):
     attempts_completed: int
     questions_correct: int
     questions_scored: int
+    accent_counts: dict[str, int] = {}        # distinct lessons finished, per accent heard
+    level_counts: dict[str, int] = {}         # distinct lessons finished, per CEFR level
     recent: list[RecentOut]
 
 

@@ -31,9 +31,10 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
     await page.goto('/listening');
     const card = lessonCard(page, /At the pharmacy/);
     await expect(card).toContainText('A2');
-    await expect(card).toContainText('About 1 min of listening · 4 questions');
+    await expect(card).toContainText('About 1 min');
     await expect(card).toContainText('New');
     await expect(card).toContainText('Start');
+    await page.goto('/listening/progress');
     await expect(page.getByText('Nothing finished yet. Pick a lesson to begin.')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Recent activity' })).toHaveCount(0);
   });
@@ -56,6 +57,7 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
     await expect(card('Pending lesson')).toContainText('See results');
     await expect(card('Failed lesson')).toContainText('Spoken answer: couldn’t be checked');
     await expect(card('Skipped lesson')).toContainText('Spoken answer: skipped');
+    await page.goto('/listening/progress');
     await expect(page.getByText('3 of 4 lessons finished')).toBeVisible();
     await expect(page.getByText('6 of 9 scored questions correct in your finished lessons. Spoken answers are not scored.')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible();
@@ -76,7 +78,7 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
     await page.route('**/api/listening/progress', route => route.fulfill({ json: NO_PROGRESS }));
     await page.goto('/listening');
     await expect(page.getByRole('status').filter({ hasText: 'Loading lessons…' })).toBeAttached();
-    await expect(page.getByRole('heading', { name: 'Listening lessons' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
     release();
     await expect(lessonCard(page, /At the pharmacy/)).toBeVisible();
     // error then retry
@@ -108,6 +110,61 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
     await expect(page.getByRole('heading', { name: 'Your progress' })).toHaveCount(0);
   });
 
+  test('the Learner Home resumes the open lesson, recommends an unseen one and states only facts', async ({ page }) => {
+    const when = new Date().toISOString();
+    await mockLibrary(page, [
+      item({ title: 'Open lesson', lesson_id: '22222222-2222-4222-8222-222222222222', status: 'in_progress', answered: 2, attempt_id: 'a', last_activity_at: when }),
+      item({ title: 'Fresh lesson', lesson_id: '88888888-8888-4888-8888-888888888888' }),
+      item({ title: 'Done lesson', lesson_id: '33333333-3333-4333-8333-333333333333', status: 'completed', correct: 3, scored: 3, spoken_status: 'assessed', completed_count: 1 }),
+    ], { lessons_available: 3, lessons_completed: 1, attempts_completed: 1, questions_correct: 3, questions_scored: 3, accent_counts: { american: 1 }, level_counts: { A2: 1 }, recent: [
+      { attempt_id: 'x', lesson_id: '33333333-3333-4333-8333-333333333333', title: 'Done lesson', cefr: 'A2', status: 'completed', when, correct: 3, scored: 3, spoken_status: 'assessed' }] });
+    await page.goto('/home');
+    await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Open lesson' })).toBeVisible();
+    await expect(page.getByText('Step 3 of 5')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Resume lesson' })).toHaveAttribute('href', '/listening/22222222-2222-4222-8222-222222222222');
+    await expect(page.getByRole('heading', { name: 'Recently completed' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Fresh lesson/ })).toBeVisible();                  // the recommendation is a lesson not yet tried
+    await expect(page.getByText('1 of 3 lessons')).toBeVisible();
+    for (const word of ['streak', 'mastery', 'proficiency', 'level up']) await expect(page.getByText(new RegExp(word, 'i'))).toHaveCount(0);
+    for (const [width, height] of [[390, 844], [320, 640], [1024, 768], [1440, 900]]) {
+      await page.setViewportSize({ width, height });
+      expect(await noHorizontalScroll(page), `width ${width}`).toBe(true);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Discover' })).toBeVisible();
+    const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(result.violations.map(v => v.id)).toEqual([]);
+  });
+
+  test('the Learner Home with nothing open offers the next lesson, and without lessons says so', async ({ page }) => {
+    await mockLibrary(page, [item({})]);
+    await page.goto('/home');
+    await expect(page.getByRole('heading', { name: 'Ready for your next lesson?' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Start At the pharmacy/ })).toBeVisible();
+    await page.unroute('**/api/listening/lessons');
+    await page.route('**/api/listening/lessons', route => route.fulfill({ json: [] }));
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'You’ve finished everything for now' })).toBeVisible();
+  });
+
+  test('Discover filters narrow the saved library and can always be cleared', async ({ page }) => {
+    await mockLibrary(page, [item({}), item({ title: 'Booking a train', lesson_id: '77777777-7777-4777-8777-777777777777', topic: 'Travel', cefr: 'B1', accents: ['british'] })]);
+    await page.goto('/listening');
+    await expect(page.getByRole('heading', { name: '2 lessons' })).toBeVisible();
+    await page.getByRole('searchbox', { name: 'Search topics' }).fill('train');
+    await expect(page.getByRole('heading', { name: '1 lesson' })).toBeVisible();
+    await expect(lessonCard(page, /Booking a train/)).toBeVisible();
+    await expect(lessonCard(page, /At the pharmacy/)).toHaveCount(0);
+    await page.getByRole('searchbox', { name: 'Search topics' }).fill('zzz');
+    await expect(page.getByRole('status').filter({ hasText: 'No lessons match your filters.' })).toBeVisible();
+    await page.getByRole('button', { name: 'Clear filters' }).first().click();
+    await expect(page.getByRole('heading', { name: '2 lessons' })).toBeVisible();
+    await page.getByRole('group', { name: 'Level' }).getByRole('button', { name: 'A2', exact: true }).click();
+    await expect(lessonCard(page, /At the pharmacy/)).toBeVisible();
+    await expect(lessonCard(page, /Booking a train/)).toHaveCount(0);
+  });
+
   test('the library is accessible, keyboard operable and fits every width', async ({ page }) => {
     await mockLibrary(page, [item({}), item({ title: 'Finished lesson', lesson_id: '66666666-6666-4666-8666-666666666666', status: 'completed', correct: 3, scored: 3, spoken_status: 'assessed', completed_count: 1 })],
       { lessons_available: 2, lessons_completed: 1, attempts_completed: 1, questions_correct: 3, questions_scored: 3, recent: [
@@ -125,9 +182,8 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
       const box = (await link.boundingBox())!;
       expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
     }
-    await page.getByRole('link', { name: 'Back to Audli home' }).focus();
-    await page.keyboard.press('Tab');
-    await expect(lessonCard(page, /At the pharmacy/)).toBeFocused();       // first interactive thing after the top bar is the first lesson
+    await lessonCard(page, /At the pharmacy/).focus();
+    await expect(lessonCard(page, /At the pharmacy/)).toBeFocused();       // every lesson row is reachable by keyboard
   });
 });
 
@@ -178,11 +234,13 @@ test.describe.serial('2.0 library with the real API and worker', () => {
     await expect(done).toContainText('Finished · 3 of 3 correct');
     await expect(done).toContainText('Spoken answer: checked');
     await expect(done).toContainText('See results');
+    await page.goto('/listening/progress');
     await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible();
     await expect(page.getByRole('link', { name: /At the pharmacy · Today/ }).first()).toContainText('3 of 3 correct');   // newest first; earlier runs may add rows
+    await page.goto('/listening');
     const progress = await (await request.get('/api/listening/progress')).json();
     expect(progress.lessons_completed).toBeGreaterThanOrEqual(1);
-    expect(Object.keys(progress).sort()).toEqual(['attempts_completed', 'lessons_available', 'lessons_completed', 'questions_correct', 'questions_scored', 'recent']);
+    expect(Object.keys(progress).sort()).toEqual(['accent_counts', 'attempts_completed', 'lessons_available', 'lessons_completed', 'level_counts', 'questions_correct', 'questions_scored', 'recent']);
 
     await done.click();                                                                      // "See results" opens the saved summary, it does not restart
     await expect(page).toHaveURL(/\/listening\/[0-9a-f-]{36}/);

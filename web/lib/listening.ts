@@ -1,0 +1,37 @@
+// API calls for the 2.0 listening lesson. Authentication comes from the shared token provider behind api().
+import { api, resolveApiUrl } from './api.ts';
+import { newRequestId, type AttemptView, type CatalogItem } from './listening-core.ts';
+
+export const listCatalog = () => api<CatalogItem[]>('/listening/lessons');
+export const currentAttemptId = (lessonId: string) =>
+  api<{ attempt_id: string | null }>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts/current`).then(r => r.attempt_id);
+export const getAttempt = (attemptId: string) => api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}`);
+export const submitAnswer = (attemptId: string, exerciseId: string, optionId: string) =>
+  api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}/answers`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ exercise_id: exerciseId, option_id: optionId }) });
+
+const requestKey = (lessonId: string) => `audli.listening.request.${lessonId}`;
+
+/** Creates (or resumes) the attempt. The request id survives a refresh mid-request, so the server never makes two. */
+export async function startAttempt(lessonId: string, fresh = false): Promise<AttemptView> {
+  let id: string | null = null;
+  try { id = fresh ? null : sessionStorage.getItem(requestKey(lessonId)); } catch { /* storage can be unavailable; the id then lives only for this call */ }
+  if (!id) {
+    id = newRequestId();
+    try { sessionStorage.setItem(requestKey(lessonId), id); } catch { /* ignore */ }
+  }
+  const view = await api<AttemptView>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_request_id: id }) });
+  try { sessionStorage.removeItem(requestKey(lessonId)); } catch { /* ignore */ }
+  return view;
+}
+
+/** A short-lived signed link. Absolute (object storage) links are used as given; API paths honour the configured API origin. */
+export async function signedAudioUrl(attemptId: string): Promise<{ url: string; durationMs: number }> {
+  const info = await api<{ url: string; duration_ms: number }>(`/listening/attempts/${encodeURIComponent(attemptId)}/audio`);
+  return { url: info.url.startsWith('/') ? resolveApiUrl(info.url) : info.url, durationMs: info.duration_ms };
+}
+
+const startedKey = (attemptId: string) => `audli.listening.started.${attemptId}`;
+export function rememberStarted(attemptId: string) { try { sessionStorage.setItem(startedKey(attemptId), '1'); } catch { /* per-viewer convenience only */ } }
+export function wasStarted(attemptId: string): boolean { try { return sessionStorage.getItem(startedKey(attemptId)) === '1'; } catch { return false; } }

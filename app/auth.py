@@ -87,6 +87,10 @@ def lease_exempt(method: str, path: str) -> bool:
     return path in LEASE_EXEMPT_PATHS or any(method == verb and pattern.fullmatch(path) for verb, pattern in LEASE_EXEMPT_ROUTES)
 
 
+# Signed, expiring media links carry their own credential (an <audio> element cannot send a bearer token).
+PUBLIC_PREFIXES = ('/api/listening/media/',)
+
+
 class LearnerAuthentication:
     def __init__(self, app, identity, repository, request_repository, timing=False, ack_exempt=False, lease_pool=False, pool_size=2, pool_overflow=6, offload=None):
         self.app, self.identity = app, identity
@@ -154,7 +158,7 @@ class LearnerAuthentication:
             return candidate, acquired
 
     async def __call__(self, scope, receive, send):
-        public = scope.get('path') in ('/api/health', '/api/auth/config')
+        public = scope.get('path') in ('/api/health', '/api/auth/config') or scope.get('path', '').startswith(PUBLIC_PREFIXES)
         if scope['type'] != 'http' or public or not scope.get('path', '').startswith('/api'):
             return await self.app(scope, receive, send)
         try:

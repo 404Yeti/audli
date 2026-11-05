@@ -4,7 +4,11 @@ import psycopg
 from app.config import Settings
 
 
-def migrate(settings: Settings):
+# (version, file) applied in order, recorded in listening_migrations.
+LISTENING_MIGRATIONS = ((9, 'postgres-009.sql'),)
+
+
+def migrate(settings: Settings, listening: bool = False):
     if settings.persistence != 'postgres':
         raise RuntimeError('Set AUDLI_PERSISTENCE=postgres before running this migration')
     url = settings.database_url.get_secret_value().replace('postgresql+psycopg://', 'postgresql://', 1)
@@ -20,6 +24,18 @@ def migrate(settings: Settings):
                 if (version,) not in versions:
                     db.execute((root / name).read_text(), prepare=False)
                     changed = True
+            if listening:
+                # Explicit opt-in (python -m scripts.migrate_postgres --listening). The 2.0 module keeps its own ledger on purpose:
+                # app/claims/runtime.py reads max(schema_migrations.version) >= 8 as "claims schema present" and migration 008
+                # asserts that ledger is exactly 1-7, so a 9 there would stop 1.x from starting. 009 needs only 001-007 (checked by
+                # its SQL) and works before or after 008. Future 2.0 migrations are appended to LISTENING_MIGRATIONS.
+                applied = set()
+                if db.execute("SELECT to_regclass('public.listening_migrations')").fetchone()[0] is not None:
+                    applied = {row[0] for row in db.execute('SELECT version FROM listening_migrations')}
+                for version, name in LISTENING_MIGRATIONS:
+                    if version not in applied:
+                        db.execute((root / name).read_text(), prepare=False)
+                        changed = True
             return changed
     except Exception:
         raise RuntimeError('Postgres migration failed. Check backend database access and schema compatibility; credentials were not logged.') from None
@@ -27,6 +43,6 @@ def migrate(settings: Settings):
 
 if __name__ == '__main__':
     try:
-        print('Postgres migrations applied.' if migrate(Settings()) else 'Postgres migrations already applied.')
+        print('Postgres migrations applied.' if migrate(Settings(), listening='--listening' in __import__('sys').argv) else 'Postgres migrations already applied.')
     except Exception:
         raise SystemExit('Postgres migration could not run. Check persistence/auth configuration, AUDLI_DATABASE_URL and database/schema access.') from None

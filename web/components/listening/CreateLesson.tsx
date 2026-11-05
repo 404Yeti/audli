@@ -183,7 +183,7 @@ export function CreateLesson() {
 
       <span className={styles.fieldLabel} id="gen-level">CEFR level{defaulted.has('cefr') ? <span className={styles.muted} style={{ fontWeight: 600 }}> · we assumed B1</span> : null}</span>
       <div className={styles.filters} role="radiogroup" aria-labelledby="gen-level" style={{ margin: 0 }}>{LEVELS.map(l => <button key={l} type="button" role="radio" aria-checked={spec.cefr === l} className={styles.chip}
-        aria-pressed={spec.cefr === l} onClick={() => set({ cefr: l })}>{l}</button>)}</div>
+        onClick={() => set({ cefr: l })}>{l}</button>)}</div>
       <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }}>{LEVEL_HELP[spec.cefr]}</p>
 
       <span className={styles.fieldLabel} id="gen-accent">Accent</span>
@@ -195,11 +195,11 @@ export function CreateLesson() {
 
       <span className={styles.fieldLabel} id="gen-format">Format</span>
       <div className={styles.filters} role="radiogroup" aria-labelledby="gen-format" style={{ margin: 0 }}>{FORMATS.map(f => <button key={f} type="button" role="radio" aria-checked={spec.format === f}
-        className={styles.chip} aria-pressed={spec.format === f} onClick={() => set({ format: f })}>{spec.format === f ? <Icon name="check" size={16} /> : null}{FORMAT_LABEL[f]}</button>)}</div>
+        className={styles.chip} onClick={() => set({ format: f })}>{spec.format === f ? <Icon name="check" size={16} /> : null}{FORMAT_LABEL[f]}</button>)}</div>
 
       <span className={styles.fieldLabel} id="gen-length">Length</span>
       <div className={styles.filters} role="radiogroup" aria-labelledby="gen-length" style={{ margin: 0 }}>{choices.map(m => <button key={m} type="button" role="radio" aria-checked={spec.minutes === m}
-        className={styles.chip} aria-pressed={spec.minutes === m} onClick={() => set({ minutes: m })}>{spec.minutes === m ? <Icon name="check" size={16} /> : null}~{m} min</button>)}
+        className={styles.chip} onClick={() => set({ minutes: m })}>{spec.minutes === m ? <Icon name="check" size={16} /> : null}~{m} min</button>)}
         {max < 3 ? <span className={`${styles.chip} ${styles.chipOff}`} aria-disabled="true">Longer · coming soon</span> : null}</div>
     </div>
     <aside className={styles.stickySide} aria-label="Your lesson" style={{ marginTop: 24 }}>

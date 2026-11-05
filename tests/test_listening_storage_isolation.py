@@ -97,3 +97,18 @@ def test_each_store_signs_with_its_own_credential():
     recordings.put(KEY, b'x', 'audio/wav')
     lessons.put('lessons/a/b.mp3', b'x', 'audio/mpeg')
     assert 'Credential=RECORDKEY/' in seen[0][1] and 'Credential=LESSONKEY/' in seen[1][1] and 'LESSONKEY' not in seen[0][1] and 'RECORDKEY' not in seen[1][1]
+
+
+def test_the_worker_needs_only_the_recordings_bucket_and_refuses_lesson_credentials():
+    import pytest
+    from app.config import Settings
+    base = dict(environment='production', persistence='postgres', database_url='postgresql://w.ref:pw@h.example.com:5432/postgres?sslmode=require',
+                auth_mode='supabase', supabase_url='https://abcdefghijklmnopqrst.supabase.co', supabase_publishable_key='sb_publishable_x',
+                listening_enabled=True, listening_provider='openai', openai_api_key='sk-x', listening_storage='s3', listening_process='worker',
+                listening_recordings_endpoint='https://r2.example.com', listening_recordings_bucket='audli-recordings',
+                listening_recordings_access_key='rec-access', listening_recordings_secret_key='rec-secret')
+    Settings(_env_file=None, **base)
+    with pytest.raises(ValueError, match='must not hold lesson-audio'):
+        Settings(_env_file=None, **base, listening_s3_access_key='lesson-access', listening_s3_secret_key='lesson-secret')
+    with pytest.raises(ValueError, match='recordings bucket'):
+        Settings(_env_file=None, **{**base, 'listening_recordings_bucket': ''})

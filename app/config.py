@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Audli 2.0 structured listening lessons. OFF = no route, no table access. ON needs migration 009 on PostgreSQL.
     listening_enabled: bool = False
     listening_storage: Literal['local', 's3'] = 'local'
+    listening_process: Literal['api', 'worker'] = 'api'     # 'worker' = the spoken-answer worker: it needs the recordings bucket only, never lesson-audio credentials
     listening_signing_secret: SecretStr | None = None
     listening_s3_endpoint: str = ''
     listening_s3_bucket: str = ''
@@ -189,11 +190,18 @@ class Settings(BaseSettings):
             return self
         if self.environment == 'production' and self.listening_storage != 's3':
             raise ValueError('Production listening lessons require S3-compatible object storage (AUDLI_LISTENING_STORAGE=s3)')
-        if self.listening_storage == 's3':
+        worker = self.listening_process == 'worker'
+        if self.listening_storage == 's3' and worker:
+            if (not self.listening_recordings_endpoint.startswith('https://') or not self.listening_recordings_bucket
+                    or not self.listening_recordings_access_key or not self.listening_recordings_secret_key):
+                raise ValueError('The listening worker needs the recordings bucket: an https endpoint, bucket, access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
+            if self.listening_s3_access_key or self.listening_s3_secret_key:
+                raise ValueError('The listening worker must not hold lesson-audio credentials')
+        elif self.listening_storage == 's3':
             if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
                     or not self.listening_s3_access_key or not self.listening_s3_secret_key):
                 raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
-        if self.listening_storage == 's3':
+        if self.listening_storage == 's3' and not worker:
             if not self.listening_recordings_bucket or not self.listening_recordings_access_key or not self.listening_recordings_secret_key:
                 raise ValueError('S3 listening storage needs a separate recordings bucket with its own access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
             if self.listening_recordings_bucket == self.listening_s3_bucket or (

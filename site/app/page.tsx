@@ -87,6 +87,6 @@ export default function Home() {
     </section>
 
     <section className="footer-cta"><div><h2>Ready to hear the difference?</h2><p>Try the early beta. Tell us what works and what could be better.</p><a className="feedback-link" href={feedbackHref}>Send feedback →</a></div><a className="button button-white" href={accessHref}>Try the early beta</a></section>
-    <footer><span>Audli · Eyes optional. Ears essential.</span><div className="footer-links"><a href={feedbackHref}>Early beta feedback</a><a href={reportHref}>Report a bug or suggest a feature</a><a href="mailto:robbie@audli.ai">Contact</a></div></footer>
+    <footer><span>Audli · Eyes optional. Ears essential.</span><div className="footer-links"><a href={feedbackHref}>Early beta feedback</a><a href={reportHref}>Report a bug or suggest a feature</a><a href="https://app.audli.ai/privacy">Privacy</a><a href="mailto:robbie@audli.ai">Contact</a></div></footer>
   </main>;
 }

@@ -1,0 +1,16 @@
+.page { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; font-family: 'Nunito', system-ui, sans-serif; color: #0E1B36; line-height: 1.55; background: #FAF8F3; min-height: 100vh; }
+.page h1 { font-family: 'Fredoka', system-ui, sans-serif; font-weight: 600; font-size: 32px; margin: 16px 0 4px; }
+.page h2 { font-family: 'Fredoka', system-ui, sans-serif; font-weight: 600; font-size: 22px; margin: 32px 0 8px; }
+.page a { color: #06786E; font-weight: 700; }
+.page a:focus-visible { outline: 3px solid #1763E8; outline-offset: 2px; }
+.updated { color: #3A4560; }
+.back { margin-top: 8px; }
+.table { display: grid; gap: 12px; }
+.table [role='row'] { display: grid; grid-template-columns: 1fr; gap: 4px; background: #fff; border: 1px solid #DDE1EA; border-radius: 16px; padding: 14px 16px; }
+.table [role='row'] > span:first-child { font-weight: 700; }
+.head { display: none !important; }
+@media (min-width: 820px) {
+  .page { max-width: 960px; }
+  .table [role='row'] { grid-template-columns: 140px 1fr 1.2fr; gap: 16px; }
+  .head { display: grid !important; background: transparent !important; border: 0 !important; font-weight: 800; color: #636D86; padding-bottom: 0 !important; }
+}

@@ -94,9 +94,10 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
     await page.route('**/api/listening/lessons', route => route.fulfill({ status: 404, json: { detail: 'Not found.' } }));
     await page.route('**/api/listening/progress', route => route.fulfill({ status: 404, json: { detail: 'Not found.' } }));
     await page.goto('/listening');
-    await expect(page.getByRole('status').filter({ hasText: 'aren’t available on your account yet' })).toBeVisible();
+    const notice = page.getByRole('status').filter({ hasText: 'aren’t available on your account yet' });
+    await expect(notice).toBeVisible();
     await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Back to Audli' })).toBeVisible();
+    await expect(notice.getByRole('link', { name: 'Back to Audli' })).toBeVisible();
   });
 
   test('a failing progress request does not take the library down', async ({ page }) => {

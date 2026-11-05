@@ -12,7 +12,7 @@ export type NavKey = 'home' | 'discover' | 'create' | 'progress' | 'settings';
 export const NAV: { key: NavKey; href: string; label: string; icon: string; ready: boolean }[] = [
   { key: 'home', href: '/', label: 'Home', icon: 'home', ready: true },
   { key: 'discover', href: '/listening', label: 'Discover', icon: 'discover', ready: true },
-  { key: 'create', href: '/listening/create', label: 'Create lesson', icon: 'create', ready: false },
+  { key: 'create', href: '/listening/create', label: 'Create lesson', icon: 'create', ready: process.env.NEXT_PUBLIC_AUDLI_LISTENING_GENERATOR === 'true' },
   { key: 'progress', href: '/listening/progress', label: 'Progress', icon: 'progress', ready: true },
   { key: 'settings', href: '/listening/settings', label: 'Settings', icon: 'settings', ready: false },
 ];

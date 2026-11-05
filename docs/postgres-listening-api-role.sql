@@ -3,10 +3,10 @@
 -- cascades from users through foreign keys, which run as the table owner).
 BEGIN;
 GRANT USAGE ON SCHEMA public TO audli_api_runtime;
-GRANT SELECT, INSERT, UPDATE ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_migrations TO audli_api_runtime;
-REVOKE ALL ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_migrations FROM anon;
-REVOKE ALL ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_migrations FROM authenticated;
-REVOKE ALL ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_migrations FROM service_role;
+GRANT SELECT, INSERT, UPDATE ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_lesson_owners, listening_generation_requests, listening_generation_limits, listening_migrations TO audli_api_runtime;
+REVOKE ALL ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_lesson_owners, listening_generation_requests, listening_generation_limits, listening_migrations FROM anon;
+REVOKE ALL ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_lesson_owners, listening_generation_requests, listening_generation_limits, listening_migrations FROM authenticated;
+REVOKE ALL ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_attempts, listening_answers, listening_responses, listening_spoken, listening_jobs, listening_ai_limits, listening_lesson_owners, listening_generation_requests, listening_generation_limits, listening_migrations FROM service_role;
 DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_lessons;
 CREATE POLICY audli_api_runtime_listening ON listening_lessons FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_lesson_versions;
@@ -31,6 +31,12 @@ DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_jobs;
 CREATE POLICY audli_api_runtime_listening ON listening_jobs FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_ai_limits;
 CREATE POLICY audli_api_runtime_listening ON listening_ai_limits FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_lesson_owners;
+CREATE POLICY audli_api_runtime_listening ON listening_lesson_owners FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_generation_requests;
+CREATE POLICY audli_api_runtime_listening ON listening_generation_requests FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_generation_limits;
+CREATE POLICY audli_api_runtime_listening ON listening_generation_limits FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_migrations;
 CREATE POLICY audli_api_runtime_listening ON listening_migrations FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
 COMMIT;

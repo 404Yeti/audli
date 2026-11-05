@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Audli 2.0 structured listening lessons. OFF = no route, no table access. ON needs migration 009 on PostgreSQL.
     listening_enabled: bool = False
     listening_storage: Literal['local', 's3'] = 'local'
-    listening_process: Literal['api', 'worker'] = 'api'     # 'worker' = the spoken-answer worker: it needs the recordings bucket only, never lesson-audio credentials
+    listening_process: Literal['api', 'worker', 'generator'] = 'api'     # 'worker' = spoken-answer worker (recordings bucket only); 'generator' = lesson generator (lesson bucket + speech key, never recordings)
     listening_signing_secret: SecretStr | None = None
     listening_s3_endpoint: str = ''
     listening_s3_bucket: str = ''
@@ -48,7 +48,16 @@ class Settings(BaseSettings):
     listening_assessment_model: str = 'gpt-6-luna'
     listening_assessment_api: Literal['responses', 'chat'] = 'responses'
     listening_assessment_reasoning: Literal['', 'none', 'minimal', 'low', 'medium'] = ''   # '' = do not send the parameter
-    listening_generation_model: str = 'gpt-6.1-terra'        # not used by any request path yet: lesson generation is evaluated, not shipped
+    listening_generation_model: str = 'gpt-6.1-terra'        # script writing and request interpretation (AI lesson generator)
+    # AI lesson generator (Milestone 05). Off by default; its own limits, separate from the assessment guard above (docs/LISTENING-GENERATION.md).
+    listening_generation_enabled: bool = False
+    listening_gen_speech_model: Literal['eleven_flash_v2_5', 'eleven_turbo_v2_5', 'eleven_multilingual_v2'] = 'eleven_flash_v2_5'
+    listening_gen_max_minutes: int = Field(default=2, ge=1, le=10)                   # longest lesson that can be generated
+    listening_gen_daily_budget_usd: float = Field(default=5.0, ge=0, le=1000)        # reserved per UTC day across all generation (script + speech estimates)
+    listening_gen_monthly_credits: int = Field(default=100_000, ge=0, le=10_000_000) # provider credits (characters x the model's multiplier) per UTC month
+    listening_gen_per_learner_daily: int = Field(default=2, ge=0, le=100)            # generated lessons per learner per UTC day
+    listening_gen_voices: str = ''                                                   # JSON {"american": [id, id], ...}; '' = the verified defaults in app/listening/generation.py
+    listening_gen_usd_per_1k_credits: float = Field(default=0.22, gt=0, le=10)       # list price estimate used only to size the USD reservation
     # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.
     listening_ops_token: SecretStr | None = None          # enables GET /api/listening/ops/health for an external monitor (aggregate numbers only)
     listening_allowed_learners: str = ''           # comma-separated learner ids (Supabase user ids); empty = every signed-in learner. Others get a plain 404.
@@ -191,6 +200,7 @@ class Settings(BaseSettings):
         if self.environment == 'production' and self.listening_storage != 's3':
             raise ValueError('Production listening lessons require S3-compatible object storage (AUDLI_LISTENING_STORAGE=s3)')
         worker = self.listening_process == 'worker'
+        generator = self.listening_process == 'generator'
         if self.listening_storage == 's3' and worker:
             if (not self.listening_recordings_endpoint.startswith('https://') or not self.listening_recordings_bucket
                     or not self.listening_recordings_access_key or not self.listening_recordings_secret_key):
@@ -201,7 +211,12 @@ class Settings(BaseSettings):
             if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
                     or not self.listening_s3_access_key or not self.listening_s3_secret_key):
                 raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
-        if self.listening_storage == 's3' and not worker:
+        if generator:
+            if self.listening_recordings_access_key or self.listening_recordings_secret_key:
+                raise ValueError('The lesson generator must not hold recordings credentials')
+            if self.elevenlabs_api_key is None or not self.elevenlabs_api_key.get_secret_value().strip():
+                raise ValueError('The lesson generator needs ELEVENLABS_API_KEY')
+        if self.listening_storage == 's3' and not worker and not generator:
             if not self.listening_recordings_bucket or not self.listening_recordings_access_key or not self.listening_recordings_secret_key:
                 raise ValueError('S3 listening storage needs a separate recordings bucket with its own access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
             if self.listening_recordings_bucket == self.listening_s3_bucket or (

@@ -49,8 +49,11 @@ class FakeSpeech:
     """Deterministic, offline stand-in: a short tone whose length follows the text and whose pitch follows the voice. Tests and local runs only."""
     name = 'fake'
 
-    def __init__(self):
-        self.calls = []
+    def __init__(self, remaining: int | None = 1_000_000):
+        self.calls, self.remaining = [], remaining
+
+    def remaining_credits(self) -> int | None:
+        return self.remaining
 
     def synthesize(self, text: str, voice: str) -> bytes:
         from imageio_ffmpeg import get_ffmpeg_exe
@@ -79,6 +82,16 @@ class ElevenLabsSpeech:
         self.api_key, self.model, self.budget, self.client, self.timeout = api_key, model, budget, client, timeout
         self.settings = {'stability': stability, 'similarity_boost': similarity_boost, 'style': style, 'use_speaker_boost': True}
         self.last_character_cost = None
+
+    def remaining_credits(self) -> int | None:
+        """Credits left on the account's plan this month (limit minus used), straight from the provider; None if it cannot be read (callers then refuse to start)."""
+        import httpx
+        try:
+            response = (self.client or httpx).get('https://api.elevenlabs.io/v1/user/subscription', headers={'xi-api-key': self.api_key}, timeout=15, follow_redirects=False)
+            data = response.json()
+            return int(data['character_limit']) - int(data['character_count']) if response.status_code == 200 else None
+        except Exception:
+            return None
 
     def synthesize(self, text: str, voice: str) -> bytes:
         import httpx

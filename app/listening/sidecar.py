@@ -24,13 +24,26 @@ PASS_THROUGH = (
     'AUDLI_LISTENING_ASSESSMENT_API', 'AUDLI_LISTENING_ASSESSMENT_REASONING', 'AUDLI_LISTENING_GENERATION_MODEL', 'AUDLI_LISTENING_AI_ENABLED',
     'AUDLI_LISTENING_AI_DAILY_BUDGET_USD', 'AUDLI_LISTENING_PROVIDER_TIMEOUT_SECONDS', 'AUDLI_DATA_DIR')
 WORKER_URL = 'AUDLI_LISTENING_WORKER_DATABASE_URL'
+# The lesson GENERATOR (Milestone 05) is a second, separate process with its own role and its own allow-list: it gets the lesson bucket write key and the
+# speech key, and never the recordings credentials, the signing secret or the ops token. The spoken-answer worker above never gets either of the first two.
+GENERATOR_URL = 'AUDLI_LISTENING_GENERATOR_DATABASE_URL'
+GENERATOR_PASS_THROUGH = (
+    'PATH', 'LANG', 'PYTHONUNBUFFERED', 'AUDLI_ENVIRONMENT', 'AUDLI_PERSISTENCE', 'AUDLI_AUTH_MODE', 'AUDLI_SUPABASE_URL', 'AUDLI_SUPABASE_PUBLISHABLE_KEY',
+    'AUDLI_LISTENING_ENABLED', 'AUDLI_LISTENING_GENERATION_ENABLED', 'AUDLI_LISTENING_PROVIDER', 'OPENAI_API_KEY', 'ELEVENLABS_API_KEY',
+    'AUDLI_LISTENING_STORAGE', 'AUDLI_LISTENING_S3_ENDPOINT', 'AUDLI_LISTENING_S3_BUCKET', 'AUDLI_LISTENING_S3_REGION', 'AUDLI_LISTENING_S3_ACCESS_KEY',
+    'AUDLI_LISTENING_S3_SECRET_KEY', 'AUDLI_LISTENING_GENERATION_MODEL', 'AUDLI_LISTENING_AI_ENABLED', 'AUDLI_LISTENING_PROVIDER_TIMEOUT_SECONDS',
+    'AUDLI_LISTENING_GEN_SPEECH_MODEL', 'AUDLI_LISTENING_GEN_MAX_MINUTES', 'AUDLI_LISTENING_GEN_DAILY_BUDGET_USD', 'AUDLI_LISTENING_GEN_MONTHLY_CREDITS',
+    'AUDLI_LISTENING_GEN_PER_LEARNER_DAILY', 'AUDLI_LISTENING_GEN_USD_PER_1K_CREDITS', 'AUDLI_LISTENING_GEN_VOICES', 'AUDLI_DATA_DIR')
+ROLES = {'worker': ('app.listening.worker', WORKER_URL, PASS_THROUGH, 'worker'),
+         'generator': ('app.listening.generator', GENERATOR_URL, GENERATOR_PASS_THROUGH, 'generator')}
 MIN_PAUSE, MAX_PAUSE, HEALTHY_AFTER = 5.0, 120.0, 60.0
 
 
-def worker_environment(source) -> dict[str, str]:
-    env = {key: source[key] for key in PASS_THROUGH if source.get(key)}
-    env['AUDLI_DATABASE_URL'] = source[WORKER_URL]
-    env['AUDLI_LISTENING_PROCESS'] = 'worker'
+def worker_environment(source, role: str = 'worker') -> dict[str, str]:
+    _, url_var, allowed, process = ROLES[role]
+    env = {key: source[key] for key in allowed if source.get(key)}
+    env['AUDLI_DATABASE_URL'] = source[url_var]
+    env['AUDLI_LISTENING_PROCESS'] = process
     env.setdefault('PYTHONUNBUFFERED', '1')
     return env
 
@@ -40,22 +53,23 @@ def next_pause(previous: float, ran_seconds: float) -> float:
     return MIN_PAUSE if ran_seconds >= HEALTHY_AFTER else min(MAX_PAUSE, max(MIN_PAUSE, previous * 2))
 
 
-def main(source=None, run=subprocess.run, sleep=time.sleep, clock=time.monotonic, rounds: int | None = None) -> int:
+def main(source=None, run=subprocess.run, sleep=time.sleep, clock=time.monotonic, rounds: int | None = None, role: str = 'worker') -> int:
     source = os.environ if source is None else source
-    if not source.get(WORKER_URL):
-        print(f'{WORKER_URL} is not set; no worker to run.', file=sys.stderr)
+    module, url_var, _, _ = ROLES[role]
+    if not source.get(url_var):
+        print(f'{url_var} is not set; no {role} to run.', file=sys.stderr)
         return 1
-    env, pause, stopping, count = worker_environment(source), MIN_PAUSE, [False], 0
+    env, pause, stopping, count = worker_environment(source, role), MIN_PAUSE, [False], 0
     signal.signal(signal.SIGTERM, lambda *_: stopping.__setitem__(0, True))
     while not stopping[0] and (rounds is None or count < rounds):
         count += 1
         started = clock()
-        result = run([sys.executable, '-m', 'app.listening.worker'], env=env, check=False)
+        result = run([sys.executable, '-m', module], env=env, check=False)
         pause = next_pause(pause, clock() - started)
-        print(f'listening worker exited with status {result.returncode}; restarting in {pause:.0f}s', file=sys.stderr, flush=True)
+        print(f'listening {role} exited with status {result.returncode}; restarting in {pause:.0f}s', file=sys.stderr, flush=True)
         sleep(pause)
     return 0
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(main(role=sys.argv[1] if len(sys.argv) > 1 else 'worker'))

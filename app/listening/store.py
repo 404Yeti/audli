@@ -7,7 +7,7 @@ is indistinguishable from a missing row. Answer keys are read only by ``submit_a
 from dataclasses import dataclass
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_, update, insert, case
+from sqlalchemy import select, func, and_, or_, update, insert, case
 
 from app.listening import schema as t
 from app.listening.domain import (LessonContent, Cue, validate_alignment, score_multiple_choice, AnswerKey, FillKey, SequenceKey, score_fill_blank,
@@ -103,6 +103,18 @@ def publish_version(db, content: LessonContent, audio: AudioFile) -> tuple[str, 
 
 # ---- learner-safe reads ----------------------------------------------------------------------------------------------
 
+def _visible(user_id: str | None):
+    """Shared-library lessons (no owner row) are visible to every learner; a generated lesson only to the learner who made it. No learner: shared only."""
+    owned = select(t.lesson_owners.c.lesson_id).where(t.lesson_owners.c.lesson_id == t.lessons.c.id)
+    if user_id is None:
+        return ~owned.exists()
+    return or_(~owned.exists(), owned.where(t.lesson_owners.c.user_id == user_id).exists())
+
+
+def lesson_visible(db, user_id: str | None, lesson_id: str) -> bool:
+    return db.execute(select(t.lessons.c.id).where(and_(t.lessons.c.id == lesson_id, _visible(user_id)))).first() is not None
+
+
 def _latest_published(lesson_id: str):
     return (select(t.versions).where(and_(t.versions.c.lesson_id == lesson_id, t.versions.c.status == 'published'))
             .order_by(t.versions.c.version_no.desc()).limit(1))
@@ -144,6 +156,7 @@ def list_catalog(db, user_id: str | None = None) -> list[dict]:
         t.versions.c.topic, t.versions.c.cefr, t.versions.c.listen_for)
         .join(latest, latest.c.lesson_id == t.lessons.c.id)
         .join(t.versions, and_(t.versions.c.lesson_id == latest.c.lesson_id, t.versions.c.version_no == latest.c.n))
+        .where(_visible(user_id))
         .order_by(t.versions.c.cefr, t.versions.c.title)).mappings().all()
     result = []
     for row in rows:
@@ -219,9 +232,9 @@ def _public_audio(db, version_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def lesson_detail(db, lesson_id: str) -> dict:
+def lesson_detail(db, lesson_id: str, user_id: str | None = None) -> dict:
     version = db.execute(_latest_published(lesson_id)).mappings().first()
-    if not version:
+    if not version or not lesson_visible(db, user_id, lesson_id):
         raise NotFound('Lesson not found.')
     return {'lesson_id': lesson_id, 'version_id': version['id'], 'version_no': version['version_no'],
             **{k: version[k] for k in ('title', 'topic', 'cefr', 'listen_for', 'speakers', 'sentences')},
@@ -336,7 +349,7 @@ def create_attempt(db, user_id: str, lesson_id: str, client_request_id: str, acc
             raise Conflict('This request id was already used for a different lesson.')
         return prior.id, False
     version = db.execute(_latest_published(lesson_id)).mappings().first()
-    if not version:
+    if not version or not lesson_visible(db, user_id, lesson_id):          # another learner's generated lesson answers exactly like an unknown one
         raise NotFound('Lesson not found.')
     open_attempt = db.execute(select(t.attempts.c.id).where(and_(t.attempts.c.user_id == user_id, t.attempts.c.version_id == version['id'],
                                                                  t.attempts.c.status == 'in_progress'))).scalar_one_or_none()

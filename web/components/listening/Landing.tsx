@@ -74,6 +74,18 @@ export function Landing({ onSignUp, onSignIn }: { onSignUp: () => void; onSignIn
         </div>
       </div></section>
 
+      {process.env.NEXT_PUBLIC_AUDLI_LISTENING_GENERATOR === 'true' ? <section className={`${styles.lpSection} ${styles.lpAlt}`}><div className={`${styles.lpInner} ${styles.lpSplit}`}>
+        <div className={styles.card} aria-hidden="true" style={{ display: 'grid', gap: 12 }}>
+          <div className={styles.lpLine} style={{ background: 'var(--white)', borderLeftColor: 'var(--sun-400)' }}>“I want a B1 lesson about ordering food at a restaurant.”</div>
+          <span className={styles.muted} style={{ fontSize: 14 }}>→ a couple of minutes later, saved to your library</span>
+          <div className={styles.readyCard}><div className={styles.readyArt} style={{ minHeight: 72 }}><span className={`${styles.tag} ${styles.tagLevel}`} style={{ alignSelf: 'flex-start' }}>B1</span></div>
+            <div className={styles.readyBody}><b>Ordering food at a restaurant</b><span className={styles.muted} style={{ fontSize: 14 }}>American · Dialogue · about 2 min</span></div></div>
+        </div>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p className={styles.eyebrow}>Personalised lessons</p><h2 className={`${styles.display} ${styles.h1}`}>Describe it. We’ll build it.</h2>
+          <p className={styles.muted} style={{ margin: 0 }}>Tell Audli what you want to practise, in your own words. It writes the script at your level, records it in the accent you choose, syncs the transcript and writes four exercises. Every lesson is saved to your library, only for you.</p>
+        </div></div></section> : null}
+
       <section className={`${styles.lpSection} ${styles.lpAlt}`}><div className={styles.lpInner}>
         <div className={styles.lpCenter}><p className={styles.eyebrow}>The four-exercise model</p><h2 className={`${styles.display} ${styles.h1}`}>Four exercises. One clear picture.</h2>
           <p className={styles.muted} style={{ margin: 0 }}>Each exercise checks a different kind of understanding, so feedback is specific, not a vague score.</p></div>

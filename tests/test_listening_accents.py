@@ -10,7 +10,7 @@ import pytest
 from app import accent_catalog as cat
 from app import accent_registry as registry
 from app.listening import generation as g
-from app.listening.generation import FakeInterpreter, Spec, clamp_spec, resolve_accent, voices_from
+from app.listening.generation import FakeInterpreter, Spec, clamp_spec, resolve_accent, spec_problem, voices_from
 from app.config import Settings
 from pydantic import ValidationError
 
@@ -95,22 +95,33 @@ def test_a_learners_words_resolve_to_one_catalog_accent_or_nothing(said, expecte
 
 def test_enabled_accents_are_kept_whatever_the_spelling():
     for said, accent in (('British English', 'british'), ('australian', 'australian'), ('American', 'american')):
-        spec, notes = clamp_spec({'topic': 'x', 'cefr': 'B1', 'accent': said, 'minutes': 2, 'format': 'dialogue'}, 2)
+        spec, notes = clamp_spec({'topic': 'x y z', 'cefr': 'B1', 'accent': said, 'minutes': 2, 'format': 'dialogue'}, 2)
         assert spec['accent'] == accent and not [n for n in notes if 'accent' in n and not n.startswith('defaulted')]
 
 
 @pytest.mark.parametrize('said,requested', [('Irish', 'irish'), ('Indian English', 'indian'), ('Scottish', 'scottish'), ('Canadian', 'canadian'), ('New Zealand', 'new_zealand'),
                                             ('Welsh', 'welsh'), ('South African', 'south_african')])
-def test_a_named_accent_without_an_enabled_pair_is_refused_loudly_not_swapped_silently(said, requested):
-    spec, notes = clamp_spec({'topic': 'x', 'cefr': 'B1', 'accent': said, 'minutes': 2, 'format': 'dialogue'}, 2)
-    assert spec['accent'] == 'american' and 'accent_unavailable' in notes and f'requested_accent:{requested}' in notes    # the learner is told which accent was asked for
+def test_a_named_accent_that_cannot_be_generated_is_never_swapped_the_learner_must_choose(said, requested):
+    spec, notes = clamp_spec({'topic': 'x y z', 'cefr': 'B1', 'accent': said, 'minutes': 2, 'format': 'dialogue'}, 2)
+    assert spec['accent'] == requested and 'accent_unavailable' in notes and f'requested_accent:{requested}' in notes     # what they asked for is kept, not replaced
+    choice = g.needs_choice(spec, notes)
+    assert choice and 'isn’t available' in choice['reason'] and choice['options']                                          # an explanation and alternatives, no silent choice
+    assert {'patch': {'accent': 'british'}, 'label': 'Use British English instead'} in choice['options']
     with pytest.raises(ValidationError):
-        Spec.model_validate({**spec, 'accent': requested})                           # and the server will not generate it even if a client insists
+        Spec.model_validate({**spec, 'accent': 'klingon'})
+    assert spec_problem(Spec.model_validate(spec)) and requested not in g.ACCENTS            # and the server will not generate it even if a client insists
 
 
-def test_an_unrecognised_accent_word_is_unavailable_without_pretending_to_know_it():
-    spec, notes = clamp_spec({'topic': 'x', 'cefr': 'B1', 'accent': 'Klingon', 'minutes': 2, 'format': 'dialogue'}, 2)
-    assert 'accent_unavailable' in notes and not any(n.startswith('requested_accent') for n in notes)
+def test_an_unrecognised_accent_word_asks_the_learner_instead_of_guessing():
+    spec, notes = clamp_spec({'topic': 'x y z', 'cefr': 'B1', 'accent': 'Klingon', 'minutes': 2, 'format': 'dialogue'}, 2)
+    assert spec['accent'] is None and 'accent_unrecognised' in notes
+    assert g.needs_choice(spec, notes)['reason'] == 'We couldn’t tell which accent you meant.'
+
+
+def test_nothing_is_asked_when_the_learner_said_nothing_or_asked_for_something_available():
+    for raw in ({'accent': None}, {'accent': 'British English'}, {'accent': 'american'}):
+        spec, notes = clamp_spec({'topic': 'x y z', 'cefr': 'B1', 'minutes': 2, 'format': 'dialogue', **raw}, 2)
+        assert g.needs_choice(spec, notes) is None and spec['accent'] in ('american', 'british')                          # today's default behaviour is unchanged
 
 
 def test_natural_requests_name_an_accent_only_when_the_learner_does_and_a_place_alone_is_not_one():
@@ -147,7 +158,7 @@ from test_listening_generation_api import api, create  # noqa: E402,F401  (fixtu
 def test_the_availability_endpoint_offers_only_generatable_accents_and_names_the_coming_ones(api):
     body = api.a.get('/api/listening/generation/availability').json()
     assert body['accents'] == ['american', 'british', 'australian']
-    assert body['coming_accents'] == ['irish', 'indian', 'scottish', 'canadian', 'new_zealand']
+    assert body['coming_accents'] == [a for a in cat.ACCENT_IDS if a not in ('american', 'british', 'australian')]      # flag off: everything else is still coming
     assert body['accent_labels']['irish'] == 'Irish English' and body['accent_labels']['american'] == 'American English'
     assert not set(body['accents']) & set(body['coming_accents'])
 

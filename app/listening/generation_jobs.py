@@ -14,7 +14,7 @@ from app.listening import jobs, schema as t, store
 from app.listening.audio_build import AudioQualityError, build_audio
 from app.listening.domain import Cue
 from app.listening.generation import (Deps, GenerationFailed, GenerationRefused, LLM_MICRO_PER_CALL, MIN_CREDIT_MARGIN, RETRYABLE_CHECKS, Spec,
-                                      assemble, assign_voices, clamp_spec, credit_cost, estimate_chars, spec_problem, usd_micro_for_credits)
+                                      DEFAULTS, assemble, assign_voices, clamp_spec, credit_cost, estimate_chars, spec_problem, usd_micro_for_credits)
 from app.listening.providers import ProviderPermanent, ProviderTemporary
 from app.listening.speech import SpeechBudget, SpeechBudgetExceeded, SpeechPermanent, SpeechTemporary
 from app.storage.repository import utcnow
@@ -184,11 +184,13 @@ def run_interpret(deps: Deps, job: jobs.Job, request_id: str) -> None:
         _set(deps.engine, job, request_id, phase='needs_input', question=(raw.get('question') or 'What would you like the lesson to be about?')[:300])
         return
     spec, notes = clamp_spec({k: raw.get(k) for k in ('topic', 'cefr', 'accent', 'accent2', 'minutes', 'format', 'scenario')}, deps.settings.listening_gen_max_minutes, deps.settings)
-    try:
-        validated = Spec.model_validate(spec)
+    try:                                                           # the learner's own request is kept even when it cannot be generated yet; Spec validates everything else
+        validated = Spec.model_validate({**spec, 'accent': spec['accent'] or DEFAULTS['accent']})
     except Exception:
         raise GenerationFailed('rejected') from None
-    _set(deps.engine, job, request_id, phase='interpreted', spec={**validated.model_dump(), 'notes': notes}, question=None)
+    stored = validated.model_dump()
+    stored['accent'] = spec['accent']                               # None when we could not tell which accent they meant: they must choose
+    _set(deps.engine, job, request_id, phase='interpreted', spec={**stored, 'notes': notes}, question=None)
 
 
 def run_generate(deps: Deps, job: jobs.Job, request_id: str) -> None:

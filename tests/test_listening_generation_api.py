@@ -96,7 +96,7 @@ def test_the_settings_are_validated_on_the_server_and_longer_lessons_are_limited
 def test_availability_and_the_unavailable_state_after_two_lessons(api):
     assert api.a.get('/api/listening/generation/availability').json() == {'available': True, 'reason': None, 'max_minutes': 2,
         'accents': ['american', 'british', 'australian'], 'per_learner_daily': 2,
-        'coming_accents': ['irish', 'indian', 'scottish', 'canadian', 'new_zealand'], 'formats_enabled': False,
+        'coming_accents': [a for a in ACCENT_LABELS if a not in ('american', 'british', 'australian')], 'formats_enabled': False,
         'formats': {'monologue': ['british', 'american', 'australian'], 'conversation': ['american', 'british', 'australian'], 'mixed_accent_conversation': []},
         'accent_labels': ACCENT_LABELS}
     create(api.a); create(api.a)

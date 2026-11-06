@@ -91,7 +91,9 @@ LISTENING_CANDIDATES = {
         ('NxUQ5SgevJvRsX9HsM0O', 'Wenchang-Chinese accent', 'calm, clear, steady, instructional (gender not labelled)')]},
     'japanese': {'first': 'DiHqGqDdN8tWkUxlsPeg', 'approved': None, 'second': [                        # speaker 1 (Yuki) is female
         ('69Na567Zr0bPvmBYuGdc', 'Tatsuya Watanabe - Narration, Japanese male', 'male, young, Japanese accent'),
-        ('1MPZGta71qtdTm2BpYUl', 'Tahm - Deep narration & Storytelling', 'male, young, labelled Japanese accent')]},
+        ('1MPZGta71qtdTm2BpYUl', 'Tahm - Deep narration & Storytelling', 'male, young, labelled Japanese accent'),
+        ('UznIBkKIQe3ZG2tGydre', 'Taro - Young Japanese Accented Guy', 'male, young, "true Japanese accented English", higher pitch'),
+        ('FMgBdHe1YV2Xi0B9anXW', 'Hideo - Japanese Asian Accent', 'male, middle-aged, Japanese accent with emphasised vowels (character-like)')]},
     'filipino': {'first': '7IA6NDxeqmtXCKLKb5nf', 'approved': None, 'second': [                        # speaker 1 (Amara) is female
         ('84RXm9MY2lATjoJi5K8P', 'JC - Calm & Friendly', 'male, young, Filipino accent'),
         ('DBL96vXYYbWbRYCYG3wC', 'Jabby - Informational, Casual, Friendly', 'male, Filipino accent')]},
@@ -105,7 +107,10 @@ LISTENING_CANDIDATES = {
         ('DZ2ULBbuhpX6zJYCQic4', 'Alise - Calm Urban City Alto', 'female, young, calm, subtle NYC tone'),
         ('C3x1TEM7scV4p2AXJyrp', 'Zuri - Professional New Yorker', 'female, middle-aged New York')]},
     'boston': {'first': 'UZvBfqEdvCFLqsBOo9Zr', 'approved': None, 'second': [                            # speaker 1 (Jerry B.) is male
-        ('6B43gMdWDCu6YLdbVZFc', 'Shelly - Boston Native', 'female, middle-aged, Boston')]},
+        ('6B43gMdWDCu6YLdbVZFc', 'Shelly - Boston Native', 'female, middle-aged, Boston'),
+        ('Ufjib38uSsKFbrDM99ro', 'Jonathan Bowen', 'male, calm grounded baritone, labelled Boston, restrained delivery (same gender as speaker 1)'),
+        ('nrpkgNCrVFdOm3K0SqBQ', 'Boston Patrick', 'male, slight Boston accent, kind (same gender as speaker 1)'),
+        ('mksYbFDhHsciAVdAPydq', 'Pereira - Calm Talk Show Host', 'male, calm, labelled Boston (same gender as speaker 1)')]},
 }
 # No candidate and no 1.x voice: welsh, south_african (refused until a voice is approved).
 

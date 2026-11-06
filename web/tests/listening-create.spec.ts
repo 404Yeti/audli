@@ -154,4 +154,48 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
     await expect(group.getByRole('radio')).toHaveCount(3);
     await expect(page.getByText('Coming soon: Irish, Indian, Scottish, Canadian, New Zealand.')).toBeVisible();
   });
+
+  const FORMATS_ON = { ...AVAILABLE, formats_enabled: true, accents: ['american', 'british', 'australian'], coming_accents: ['scottish'],
+    accent_labels: { irish: 'Irish English', indian: 'Indian English' },
+    formats: { monologue: ['american', 'british', 'australian', 'irish', 'indian'], conversation: ['american', 'british', 'australian'], mixed_accent_conversation: ['american', 'british', 'australian', 'irish', 'indian'] } };
+
+  test('flexible formats: a monologue offers one accent, a conversation only two-voice accents, and a mixed-accent lesson asks for each speaker', async ({ page }) => {
+    await available(page, FORMATS_ON);
+    let posted: Posted | null = null;
+    await page.route('**/api/listening/generation/interpret', route => route.fulfill({ json: view({ id: 'int-m', kind: 'interpret', phase: 'interpreted',
+      spec: { ...SPEC, topic: 'a hotel check-in', accent: 'american', accent2: 'irish', format: 'dialogue' }, notes: [] }) }));
+    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON() as Posted; await route.fulfill({ json: view({ phase: 'queued' }) }); });
+    await page.route(`**/api/listening/generation/requests/${REQUEST}`, route => route.fulfill({ json: view({ phase: 'script' }) }));
+    await page.goto('/listening/create');
+    const accents = page.getByRole('radiogroup', { name: 'Accent' });
+    await page.getByRole('radio', { name: 'Story' }).click();                                           // monologue: one speaker
+    await expect(accents.getByRole('radio', { name: /Irish/ })).toBeVisible();
+    await expect(page.getByRole('switch', { name: /second speaker/ })).toHaveCount(0);                   // nothing about a second speaker
+    await accents.getByRole('radio', { name: /Irish/ }).click();
+    await page.getByRole('radio', { name: 'Dialogue' }).click();                                        // two speakers: Irish has no second voice, so it is not offered and the change is visible
+    await expect(accents.getByRole('radio', { name: /Irish/ })).toHaveCount(0);
+    await expect(page.getByTestId('only-elsewhere')).toContainText('Irish, Indian');
+    await expect(accents.getByRole('radio', { name: /American/ })).toBeChecked();
+    await page.getByRole('switch', { name: 'Different accent for the second speaker' }).click();
+    const second = page.getByRole('radiogroup', { name: 'Second speaker’s accent' });
+    await expect(page.getByRole('radiogroup', { name: 'First speaker’s accent' }).getByRole('radio', { name: /Irish/ })).toBeVisible();
+    await expect(second.getByRole('radio', { name: /American/ })).toBeDisabled();                       // the two speakers cannot share an accent here
+    await second.getByRole('radio', { name: /Irish/ }).click();
+    await expect(page.getByText('American + Irish')).toBeVisible();
+    await page.getByRole('button', { name: 'Airport delay' }).click();
+    await page.getByRole('button', { name: 'Fill in the details' }).click();                              // the interpretation returns a mixed-accent spec: it reaches the review screen intact
+    await expect(page.getByText('We filled in the details below')).toBeVisible();
+    await expect(page.getByRole('radio', { name: /Irish/, checked: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Create lesson' }).click();
+    await expect(page.getByRole('status', { name: 'Lesson progress' })).toBeVisible();
+    expect(posted!.spec).toMatchObject({ accent: 'american', accent2: 'irish', format: 'dialogue' });
+  });
+
+  test('with the flag off, mixed-accent lessons are clearly unavailable and cannot be requested', async ({ page }) => {
+    await available(page, { ...AVAILABLE, formats_enabled: false, formats: { monologue: ['american', 'british', 'australian'], conversation: ['american', 'british', 'australian'], mixed_accent_conversation: [] } });
+    await page.goto('/listening/create');
+    await expect(page.getByTestId('mixed-unavailable')).toContainText('aren’t available yet');
+    await expect(page.getByRole('switch', { name: /second speaker/ })).toHaveCount(0);
+    expect(await noOverflow(page)).toBe(true);
+  });
 });

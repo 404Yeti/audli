@@ -4,10 +4,12 @@ Every learner-scoped function takes the verified ``user_id`` and filters on it, 
 is indistinguishable from a missing row. Answer keys are read only by ``submit_answer`` and, after an answer exists, by
 ``attempt_view`` for that one answered exercise.
 """
+from contextlib import nullcontext
 from dataclasses import dataclass
 from uuid import uuid4
 
 from sqlalchemy import select, func, and_, or_, update, insert, case
+from sqlalchemy.exc import DBAPIError
 
 from app.listening import schema as t
 from app.listening.domain import (LessonContent, Cue, validate_alignment, score_multiple_choice, AnswerKey, FillKey, SequenceKey, score_fill_blank,
@@ -168,7 +170,12 @@ def library_categories(db) -> dict[str, str]:
         if not sa_inspect(db).has_table(t.library_entries.name):
             return {}
         _LIBRARY_TABLE_SEEN = True
-    return {r.lesson_id: r.category for r in db.execute(select(t.library_entries.c.lesson_id, t.library_entries.c.category))}
+    # A categories lookup must never take the catalog down (a role without the read grant, a half-applied migration): on any database error fall back to none.
+    try:
+        with (db.begin_nested() if db.dialect.name == 'postgresql' else nullcontext()):
+            return {r.lesson_id: r.category for r in db.execute(select(t.library_entries.c.lesson_id, t.library_entries.c.category))}
+    except DBAPIError:
+        return {}
 
 
 def list_catalog(db, user_id: str | None = None) -> list[dict]:

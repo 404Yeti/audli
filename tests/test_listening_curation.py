@@ -262,3 +262,14 @@ def test_the_catalog_tells_learners_each_lessons_format_and_curated_category(lib
     with lib.engine.connect() as db:
         item = next(i for i in store.list_catalog(db, lib.other) if i['lesson_id'] == lib.lesson)      # a different learner sees it, with its category
     assert item['category'] == 'travel' and set(item) >= {'format', 'category', 'accents', 'cefr', 'topic'}
+
+
+def test_a_failing_category_lookup_never_takes_the_catalog_down(lib, monkeypatch):
+    from sqlalchemy import text
+    with lib.engine.begin() as db:
+        db.execute(text('DROP TABLE listening_library_entries')) if lib.engine.dialect.name == 'sqlite' else None
+    if lib.engine.dialect.name == 'sqlite':
+        monkeypatch.setattr(store, '_LIBRARY_TABLE_SEEN', True)                  # as if the table had been seen, then became unreadable
+        with lib.engine.connect() as db:
+            items = store.list_catalog(db, lib.curator)
+        assert items and all(i['category'] is None for i in items)

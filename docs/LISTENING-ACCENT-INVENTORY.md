@@ -15,11 +15,11 @@ not proof of the accent. Model: 2.0 synthesises with `eleven_flash_v2_5` (the mo
 ## Candidates: 1.x voice reusable as speaker 1, second voice proposed
 | Accent | 1.x voice (speaker 1) | 1.x character check | Proposed speaker 2 (alt.) | Model compat (Flash 2.5) | Quality review | Rollout readiness |
 |---|---|---|---|---|---|---|
-| Irish | `DbwWo4rVEd5NrejHYUnm` Jessica Gallagher: female, "clear and neutral", e-learning | natural, suitable | `BOt7zZh6gzfWlIUYnyPz` Darragh, male, neutral, calm, casual (alt. `fNG1TqnY9mWgIFIExmZA` Andrew EMTS, clear teaching) | 1.x voice: verified (AUD-20 evidence). Proposed: not yet checked | none for 2-speaker | **Not ready**: needs voice check + owner listening |
-| Canadian | `RorawgRgSS2YxWqy31vY` Catherine: educational and conversational | natural, suitable | `bE3COCGjWQ0g9MBhv2cf` Jeff, male, "neutral Canadian" (alt. `D7u5tN2bpWtEVjAD7c1M` Aaron, educational) | 1.x: verified (AUD-38). Proposed: not yet checked | none | **Not ready** |
-| Scottish | `csXxiUN2BUFflsCaDxPM` Chris: "Scottish Casual" | **flag**: casual style, intelligibility for ESL to be judged | `TVmbglAk3F1GkiCoOq47` Isla Skye, female, Edinburgh, e-learning (alt. `2Cg6E8rBwJfseh8Mk7sj` Nicola, West of Scotland, neutral) | 1.x: verified. Proposed: not yet checked | none | **Not ready**; owner to confirm the casual 1.x voice |
-| Indian | `fydPJq00SigRIaPxWgiS` Pooja: "Upbeat UGC Creator" (female) | **flag**: social-media creator style; may not suit neutral dialogue | `eH0983ZXSi0hJkuHbC3i` Vishesh, male, clear, conversational (alt. `fSTPf9bYe9OOsdVPpz21` Lavkush, calm, articulate) | 1.x: verified. Proposed: not yet checked | none | **Not ready**; owner to confirm or replace speaker 1 |
-| New Zealand | `pDZ0CqONaFi2LrK1f413` Torey Slatter (gender not recorded) | unknown; check | `XcScRctIXQsuUPQQwzsz` Becca, female Kiwi, conversational, if Torey is male; else `UqC26gfNvU9pUmY9theE` Jonty, male, e-learning | 1.x: verified. Proposed: not yet checked | none | **Not ready** |
+| Irish | `DbwWo4rVEd5NrejHYUnm` Jessica Gallagher: female, "clear and neutral", e-learning | natural, suitable | `BOt7zZh6gzfWlIUYnyPz` Darragh, male, neutral, calm, casual (alt. `fNG1TqnY9mWgIFIExmZA` Andrew EMTS, clear teaching) | 1.x voice: verified (AUD-20 evidence). Proposed: sample synthesised OK on Flash 2.5 (2026-11-06); accent NOT verified by ear | none for 2-speaker | **Not ready**: needs voice check + owner listening |
+| Canadian | `RorawgRgSS2YxWqy31vY` Catherine: educational and conversational | natural, suitable | `bE3COCGjWQ0g9MBhv2cf` Jeff, male, "neutral Canadian" (alt. `D7u5tN2bpWtEVjAD7c1M` Aaron, educational) | 1.x: verified (AUD-38). Proposed: sample synthesised OK on Flash 2.5 (2026-11-06); accent NOT verified by ear | none | **Not ready** |
+| Scottish | `csXxiUN2BUFflsCaDxPM` Chris: "Scottish Casual" | **flag**: casual style, intelligibility for ESL to be judged | `TVmbglAk3F1GkiCoOq47` Isla Skye, female, Edinburgh, e-learning (alt. `2Cg6E8rBwJfseh8Mk7sj` Nicola, West of Scotland, neutral) | 1.x: verified. Proposed: sample synthesised OK on Flash 2.5 (2026-11-06); accent NOT verified by ear | none | **Not ready**; owner to confirm the casual 1.x voice |
+| Indian | `fydPJq00SigRIaPxWgiS` Pooja: "Upbeat UGC Creator" (female) | **flag**: social-media creator style; may not suit neutral dialogue | `eH0983ZXSi0hJkuHbC3i` Vishesh, male, clear, conversational (alt. `fSTPf9bYe9OOsdVPpz21` Lavkush, calm, articulate) | 1.x: verified. Proposed: sample synthesised OK on Flash 2.5 (2026-11-06); accent NOT verified by ear | none | **Not ready**; owner to confirm or replace speaker 1 |
+| New Zealand | `pDZ0CqONaFi2LrK1f413` Torey Slatter (gender not recorded) | unknown; check | `XcScRctIXQsuUPQQwzsz` Becca, female Kiwi, conversational, if Torey is male; else `UqC26gfNvU9pUmY9theE` Jonty, male, e-learning | 1.x: verified. Proposed: sample synthesised OK on Flash 2.5 (2026-11-06); accent NOT verified by ear | none | **Not ready** |
 
 ## Not proposed for 2.0 dialogue (owner decisions needed)
 | Accent | 1.x voice | Why held back |
@@ -38,3 +38,7 @@ You can change it." The server rejects `accent: irish` outright until the pair i
 `python -m scripts.verify_generation_voices --synthesize --ids irish=DbwWo4rVEd5NrejHYUnm,BOt7zZh6gzfWlIUYnyPz` makes one ~45-character request per voice (about 25 credits
 each on Flash 2.5; about 50 per accent, 250 for all five, roughly US$0.06 at the configured price). That checks the voices work on Flash 2.5, not that the accent is right:
 you then listen to a real two-speaker lesson per accent and approve in writing before `status` is changed to `enabled` in `app/accent_catalog.py`.
+
+
+## Update 2026-11-06
+Samples for the five proposed second voices were generated (245 credits, about US$0.045) and are in `docs/listening-accent-review/`; see `docs/LISTENING-ACCENT-REVIEW.md` for the review sheet. They prove availability on Flash 2.5 only; every pair is still `proposed`.

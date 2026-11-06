@@ -1,0 +1,26 @@
+.page { min-height: 100vh; background: #FAF8F3; color: #0E1B36; font-family: 'Nunito', system-ui, sans-serif; display: flex; justify-content: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); }
+.column { width: 100%; max-width: 560px; display: grid; gap: 20px; align-content: start; }
+.mascot { width: 210px; max-width: 60%; margin: 8px auto 0; }
+.title { font-family: 'Fredoka', system-ui, sans-serif; font-weight: 600; font-size: 40px; line-height: 1.1; text-align: center; margin: 0; outline: none; }
+.sub { margin: 0; text-align: center; color: #3A4560; display: flex; gap: 6px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.badge { background: #D6E4FF; color: #1252C4; border-radius: 8px; padding: 4px 8px; font-weight: 700; font-size: 13px; }
+.card { background: #fff; border: 1px solid #DDE1EA; border-radius: 32px; padding: 20px; display: grid; gap: 12px; }
+.row { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; font-size: 15px; }
+.row strong { color: #0B7A52; }
+.bar { height: 8px; background: #EDEFF4; border-radius: 4px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: #08B3A4; border-radius: 4px; }
+.spoken { margin: 0; font-size: 14px; color: #3A4560; }
+.label { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: #3A4560; }
+.tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { background: #EAF8F5; color: #06786E; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+.next { display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid #DDE1EA; border-radius: 16px; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 56px; }
+.nextText { display: grid; flex: 1; gap: 2px; }
+.muted { color: #636D86; font-size: 14px; font-weight: 600; margin: 0; }
+.actions { display: grid; gap: 8px; position: sticky; bottom: 0; background: #FAF8F3; padding: 12px 0 8px; }
+.primary, .secondary, .ghost { min-height: 56px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; text-decoration: none; cursor: pointer; padding: 0 32px; font-family: inherit; }
+.primary { background: #0E1B36; color: #fff; border: 0; }
+.secondary { background: #fff; color: #0E1B36; border: 1.5px solid #B5BCCB; }
+.ghost { background: transparent; color: #0E1B36; border: 0; }
+.primary:focus-visible, .secondary:focus-visible, .ghost:focus-visible, .next:focus-visible { outline: 3px solid #1763E8; outline-offset: 2px; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (min-width: 1024px) { .page { padding-top: 40px; } .actions { position: static; } }

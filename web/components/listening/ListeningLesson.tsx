@@ -14,6 +14,7 @@ import { Debrief } from './Debrief';
 import { AttemptRecovery, ResumedBanner } from './AttemptRecovery';
 import { AudliMascot } from '../audli-mascot';
 import { ApiError } from '../../lib/api.ts';
+import { successPath } from '../../lib/success-core.ts';
 import { useLearnerSettings } from '../../lib/use-settings.ts';
 import { currentAttemptId, getAttempt, rememberStarted, retrySpoken, sendRecording, skipSpoken, startAttempt, submitAnswer, wasStarted, type AnswerBody } from '../../lib/listening.ts';
 import { firstUndecided, hasPendingAssessment, newRequestId, phaseOf, pollDelayMs, resumePosition, type AttemptView, type Exercise } from '../../lib/listening-core.ts';
@@ -119,7 +120,8 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
     <button type="button" className={styles.primary} onClick={begin}>Start exercises</button>
     <p className={styles.note}>Replay as often as you like</p>
   </> : phase === 'result' ? <>
-    <button type="button" className={styles.primary} onClick={() => { setStarted(false); void open(true); }}>Listen again</button>
+    <Link href={successPath(view.lesson.lesson_id, view.attempt.id)} className={styles.primary}>Finish lesson</Link>
+    <button type="button" className={styles.secondary} onClick={() => { setStarted(false); void open(true); }}>Listen again</button>
     <Link href="/listening" className={styles.secondary}>Back to lessons</Link>
   </> : reviewing ? <button type="button" className={styles.primary} onClick={next}>{lastQuestion ? 'See your summary' : 'Next question'}</button> : null;
 

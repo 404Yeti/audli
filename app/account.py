@@ -94,6 +94,23 @@ def erase_application_data(db, owner):
             db.execute(delete(table).where(predicate))
 
 
+def erase_listening(db, owner, listening_erasure):
+    """Audli 2.0 data (generated lessons, private audio, attempts, progress, recordings). Fails closed: if 2.0 holds anything for this learner and no
+    eraser is configured, or the eraser refuses or cannot delete a stored object, the whole deletion rolls back and the account is untouched."""
+    from app.listening.erasure import ErasureFailed, ErasureRefused
+    if listening_erasure is None:
+        present = set(inspect(db).get_table_names())
+        if 'listening_attempts' in present and db.execute(text('SELECT 1 FROM listening_attempts WHERE user_id = :o LIMIT 1'), {'o': owner}).first():
+            raise HTTPException(503, 'Account deletion needs a storage review. Contact Audli support; your account has not been deleted.')
+        return
+    try:
+        listening_erasure(db, owner)
+    except ErasureRefused as error:
+        raise HTTPException(503, f'{error}') from None
+    except ErasureFailed:
+        raise HTTPException(503, 'Some of your lesson audio could not be deleted, so nothing was deleted. Please try again.') from None
+
+
 def require_live_session(repo, request):
     """Bind the already Auth-verified JWT to a still-live, owned session."""
     if repo.engine.dialect.name != 'postgresql':
@@ -110,7 +127,7 @@ def require_live_session(repo, request):
             raise HTTPException(401, 'Sign in again before deleting your account.')
 
 
-def delete_account(repo, audio_dir, *, prepare_claim_erasure=None):
+def delete_account(repo, audio_dir, *, prepare_claim_erasure=None, listening_erasure=None):
     if repo.engine.dialect.name != 'postgresql':
         raise HTTPException(503, 'Account deletion requires the trusted PostgreSQL backend.')
     with repo.transaction() as db:
@@ -147,6 +164,7 @@ def delete_account(repo, audio_dir, *, prepare_claim_erasure=None):
                 raise HTTPException(503, 'Audio cleanup requires support. Your account has not been deleted.')
             # Cache removal can be retried; DB blobs remain available if rollback occurs.
             (root / name).unlink(missing_ok=True)
+        erase_listening(db, owner, listening_erasure)
         erase_application_data(db, owner)
         db.execute(text('DELETE FROM auth.refresh_tokens WHERE user_id = :owner'), {'owner': owner})
         db.execute(text('DELETE FROM auth.sessions WHERE user_id = :owner'), {'owner': owner})
@@ -221,7 +239,7 @@ def register_account_routes(app, repo, settings, identity, lock, audio_dir):
             require_live_session(repo, request)
             await reauthenticate(identity, request, body.password, repo.learner_id)
             try:
-                return delete_account(repo, audio_dir)
+                return delete_account(repo, audio_dir, listening_erasure=getattr(app.state, 'listening_erasure', None))
             except HTTPException:
                 raise
             except Exception:

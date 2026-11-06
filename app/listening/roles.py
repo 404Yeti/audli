@@ -80,9 +80,9 @@ def api_role_sql(role: str = EXAMPLE_API_ROLE) -> str:
         raise ValueError('Role names are letters, digits and underscores')
     tables = ', '.join(API_TABLES)
     lines = ['-- Grants and row-level-security policies for the Audli 2.0 API on a host where it runs as a non-owner role (Supabase).',
-             '-- Run once as the database owner AFTER migrations 009-011. Read, insert and update only: the API never removes 2.0 rows (account erasure',
-             '-- cascades from users through foreign keys, which run as the table owner).',
-             'BEGIN;', f'GRANT USAGE ON SCHEMA public TO {role};', f'GRANT SELECT, INSERT, UPDATE ON {tables} TO {role};']
+             '-- Run once as the database owner AFTER migrations 009-012 (and 013 for account erasure). The API reads, inserts and updates; it deletes 2.0 rows',
+             '-- only inside the account-erasure transaction (app/listening/erasure.py), where migration 013 lets a lesson be removed only by its own owner.',
+             'BEGIN;', f'GRANT USAGE ON SCHEMA public TO {role};', f'GRANT SELECT, INSERT, UPDATE, DELETE ON {tables} TO {role};']
     for client in CLIENT_ROLES:
         lines.append(f'REVOKE ALL ON {tables} FROM {client};')
     for table in API_TABLES:

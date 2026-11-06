@@ -198,4 +198,50 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
     await expect(page.getByRole('switch', { name: /second speaker/ })).toHaveCount(0);
     expect(await noOverflow(page)).toBe(true);
   });
+
+  const LIBRARY = ['american', 'british', 'australian', 'scottish', 'indian', 'irish', 'canadian', 'new_zealand', 'chinese', 'japanese', 'filipino', 'nigerian', 'southern', 'new_york', 'boston'];
+  const FULL = { ...AVAILABLE, formats_enabled: true, coming_accents: ['welsh', 'south_african'],
+    formats: { monologue: LIBRARY, conversation: ['american', 'british', 'australian'], mixed_accent_conversation: LIBRARY } };
+
+  test('the whole released library is discoverable per format: 15 accents for a monologue and mixed speakers, 3 for one-accent conversations, Welsh and South African coming', async ({ page }) => {
+    await available(page, FULL);
+    await page.goto('/listening/create');
+    const accents = page.getByRole('radiogroup', { name: 'Accent' });
+    await page.getByRole('radio', { name: 'Story' }).click();
+    await expect(accents.getByRole('radio')).toHaveCount(15);
+    for (const name of ['Scottish', 'Indian', 'Irish', 'Canadian', 'New Zealand', 'Chinese', 'Japanese', 'Filipino', 'Nigerian', 'Southern', 'New York', 'Boston'])
+      await expect(accents.getByRole('radio', { name: new RegExp(name) })).toBeVisible();
+    await expect(page.getByText('Coming soon: Welsh, South African.')).toBeVisible();
+    await page.getByRole('radio', { name: 'Dialogue' }).click();
+    await expect(accents.getByRole('radio')).toHaveCount(3);
+    await expect(page.getByTestId('only-elsewhere')).toContainText('monologues or as one speaker in a mixed-accent conversation');
+    await page.getByRole('switch', { name: 'Different accent for the second speaker' }).click();
+    await expect(page.getByRole('radiogroup', { name: 'First speaker’s accent' }).getByRole('radio')).toHaveCount(15);
+    await expect(page.getByRole('radiogroup', { name: 'Second speaker’s accent' }).getByRole('radio')).toHaveCount(15);
+    expect(await noOverflow(page)).toBe(true);
+  });
+
+  test('an unavailable request is kept, explained with alternatives, and nothing is created until the learner chooses', async ({ page }) => {
+    await available(page, { ...AVAILABLE, formats_enabled: true, formats: { monologue: ['american', 'british', 'australian', 'irish'], conversation: ['american', 'british', 'australian'], mixed_accent_conversation: ['american', 'british', 'australian', 'irish'] } });
+    await page.route('**/api/listening/generation/interpret', route => route.fulfill({ json: view({ id: 'int-c', kind: 'interpret', phase: 'interpreted',
+      spec: { ...SPEC, topic: 'a day in Dublin', accent: 'irish', accent2: null, format: 'dialogue' }, notes: ['accent_unavailable', 'requested_accent:irish'],
+      needs_choice: { reason: 'Irish English isn’t available for two-speaker conversations in one accent yet.', options: [
+        { label: 'Make it a monologue in Irish English', patch: { format: 'story', accent2: null } }, { label: 'Use American English instead', patch: { accent: 'american' } }] } }) }));
+    let posted: Posted | null = null;
+    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON() as Posted; await route.fulfill({ json: view({ phase: 'queued' }) }); });
+    await page.route(`**/api/listening/generation/requests/${REQUEST}`, route => route.fulfill({ json: view({ phase: 'script' }) }));
+    await page.goto('/listening/create');
+    await page.getByLabel('What do you want to listen to?').fill('A conversation between two Irish speakers about a day in Dublin.');
+    await page.getByRole('button', { name: 'Fill in the details' }).click();
+    const panel = page.getByTestId('needs-choice');
+    await expect(panel).toContainText('Irish English isn’t available for two-speaker conversations in one accent yet.');
+    await expect(panel).toContainText('Nothing has changed');
+    await expect(page.getByRole('button', { name: 'Create lesson' })).toBeDisabled();                    // not replaced with American, not created
+    expect(posted).toBeNull();
+    await panel.getByRole('button', { name: 'Make it a monologue in Irish English' }).click();           // the learner confirms the alternative
+    await expect(panel).toHaveCount(0);
+    await page.getByRole('button', { name: 'Create lesson' }).click();
+    await expect(page.getByRole('status', { name: 'Lesson progress' })).toBeVisible();
+    expect(posted!.spec).toMatchObject({ accent: 'irish', accent2: null, format: 'story' });
+  });
 });

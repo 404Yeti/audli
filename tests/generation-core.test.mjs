@@ -15,7 +15,7 @@ test('building steps follow the phase the server reports and never run ahead of 
 });
 test('the notes about an interpreted request are said honestly', () => {
   assert.deepEqual(noteLines(['minutes_limited:2', 'defaulted:format'], 2), ['Lessons are up to 2 minutes for now, so we shortened it.']);
-  assert.match(noteLines(['accent_unavailable'], 2)[0], /picked American/);
+  assert.deepEqual(noteLines(['accent_unavailable', 'requested_accent:irish', 'mixed_unavailable'], 2), []);       // explained by the choice panel, never by quietly picking something else
   assert.deepEqual(defaultedFields(['defaulted:cefr', 'minutes_limited:2', 'defaulted:accent']), ['cefr', 'accent']);
   assert.deepEqual(lengthChoices(2), [1, 2]); assert.deepEqual(lengthChoices(10), [1, 2, 3, 4, 5]); assert.deepEqual(lengthChoices(0), [1]);
 });
@@ -38,13 +38,12 @@ test('AUD-110: accents come from the server catalog and nothing unvalidated is s
   assert.deepEqual(accentOptions(avail), ['american', 'british', 'australian']);
   assert.deepEqual(accentOptions({ ...avail, accents: ['american', 'irish'] }), ['american', 'irish']);   // a newly enabled accent appears with no code change
   assert.deepEqual(comingAccentLabels(avail), ['Irish', 'New Zealand']);
+  assert.equal(accentNote('new_zealand').code, 'NZ'); assert.equal(accentNote('boston').place, 'Boston'); assert.equal(accentNote('chinese').code, 'CN');
   assert.equal(accentLabel('new_zealand'), 'New Zealand'); assert.equal(accentLabel('south_african'), 'South African'); assert.equal(accentLabel('british'), 'British');
   assert.equal(accentNote('irish').place, 'Irish'); assert.equal(accentNote('american').code.length > 0, true);
   const spec = { topic: 'tea', cefr: 'B1', accent: 'irish', minutes: 2, format: 'dialogue', scenario: '' };
   assert.equal(canCreate(spec, ''), false);                                                      // not offered, so not creatable
   assert.equal(canCreate(spec, '', ['american', 'irish']), true);
-  assert.match(noteLines(['accent_unavailable', 'requested_accent:irish'], 2)[0], /Irish English isn’t available for lessons yet, so we picked American/);
-  assert.match(noteLines(['accent_unavailable'], 2)[0], /That accent isn’t available yet/);
 });
 
 test('AUD-112: the three listening formats, and only combinations the server can generate', () => {
@@ -67,7 +66,6 @@ test('AUD-112: the three listening formats, and only combinations the server can
   assert.equal(specAvailable({ ...base, accent2: 'british' }, on), false);                      // british has no mixed-accent opening here
   assert.equal(specLine({ ...base, accent2: 'irish' }), 'B1 · American + Irish · Dialogue · about 2 min');
   assert.equal(voicesLabel({ format: 'story', accent2: null }), '1 voice'); assert.equal(voicesLabel({ format: 'dialogue', accent2: 'irish' }), '2 voices, 2 accents');
-  assert.match(noteLines(['mixed_unavailable', 'requested_accent2:indian'], 2)[0], /Indian English isn’t available yet, so both speakers share one accent/);
-  assert.match(noteLines(['mixed_unavailable'], 2)[0], /Mixed-accent conversations aren’t available yet/);
+  assert.deepEqual(noteLines(['mixed_unavailable', 'requested_accent2:indian', 'accent2_unrecognised'], 2), []);
   assert.match(noteLines(['second_accent_ignored'], 2)[0], /monologue has one speaker/);
 });

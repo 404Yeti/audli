@@ -448,6 +448,7 @@ INTERPRET_SYSTEM = (
     'You turn a learner\'s request for an English listening lesson into settings. Reply only with the JSON object. '
     'topic: a short noun phrase for what the lesson is about (null ONLY if the request names no usable subject). '
     'cefr: A1-C2 if stated or clearly implied, else null. accent: the English accent or variety the learner names (for example american, british, australian, irish, indian, scottish, canadian, new zealand) ONLY if they name one, else null; a place or a person\'s origin on its own is NOT an accent. '
+    'Examples: "a Scottish monologue" -> format story, accent scottish. "a conversation between an Irish speaker and an American speaker" -> format dialogue, accent irish, accent2 american. '
     'accent2: ONLY when the learner asks for two speakers with DIFFERENT accents (for example "a British interviewer and an Indian applicant": accent=british, accent2=indian), the second speaker\'s accent; otherwise null. '
     'minutes: the length asked for, a whole number, else null. format: story for ONE speaker (a monologue, a talk, a presentation, "a speaker telling/explaining"), dialogue or conversation for two speakers, only if stated or clearly implied, else null. '
     'scenario: any extra setting details the learner gave (place, people, situation), else null. '
@@ -637,10 +638,10 @@ class FakeInterpreter:
         if first and second and first != second:                       # "between a British interviewer and an Indian applicant"
             accent, accent2 = ACCENT_LABELS[first], ACCENT_LABELS[second]
         else:                                                           # an accent is named only as "<accent> accent/English/speaker(s)/voice(s)"; a place alone is not one
-            accent = (next((ACCENT_LABELS[a] for a in ACCENT_ALIASES if re.search(rf'\b(?:{ACCENT_ALIASES[a]})\s+(?:accents?|english|speakers?|voices?)\b', lowered)), None)
+            accent = (next((ACCENT_LABELS[a] for a in ACCENT_ALIASES if re.search(rf'\b(?:{ACCENT_ALIASES[a]})\s+(?:accents?|english|speakers?|voices?|monologues?|conversations?|dialogues?|stor(?:y|ies)|talks?|presentations?|lessons?)\b', lowered)), None)
                       or (ACCENT_LABELS[first] if first and between else None)
                       or next((a for a in ('american', 'british', 'australian') if a in lowered), None))
-        if re.search(r'\b(monologue|one speaker|a single speaker|speaker (?:telling|explaining|giving|describing)|tells? a story|telling a story|presentation|a talk)\b', lowered):
+        if re.search(r'\b(monologue|one speaker|a single speaker|speaker (?:telling|explaining|giving|describing)|tells? a story|telling a story|presentation|a talk|a story|story)\b', lowered):
             fmt = 'story'
         return {**base, 'topic': found.group(1).strip() if found else None,
                 'cefr': next((l for l in LEVELS if l.lower() in lowered.split() or l in text.split()), None),

@@ -10,8 +10,8 @@ import { accentLabel } from '../../lib/home-core.ts';
 import { formatTime, newRequestId } from '../../lib/listening-core.ts';
 import { createGeneration, getAvailability, getGeneration, interpretRequest, rememberRequest, rememberedRequest } from '../../lib/generation.ts';
 import {
-  DEFAULT_SPEC, KIND_LABEL, accentNote, accentOptions, accentsFor, comingAccentLabels, kindOf, onlyElsewhere, specAvailable, voicesLabel, EXAMPLES, FORMATS, FORMAT_LABEL, LEVELS, LEVEL_HELP, MAX_TEXT, POLL_MS, SLOW_AFTER_MS, STEPS, canCreate, defaultedFields,
-  isLive, lengthChoices, noteLines, specLine, stepStates, unavailableCopy, type Availability, type GenerationView, type Spec,
+  DEFAULT_SPEC, KIND_LABEL, elsewhereLine, accentNote, accentOptions, accentsFor, comingAccentLabels, kindOf, onlyElsewhere, specAvailable, voicesLabel, EXAMPLES, FORMATS, FORMAT_LABEL, LEVELS, LEVEL_HELP, MAX_TEXT, POLL_MS, SLOW_AFTER_MS, STEPS, canCreate, defaultedFields,
+  isLive, lengthChoices, noteLines, specLine, stepStates, unavailableCopy, type Availability, type GenerationView, type NeedsChoice, type Spec,
 } from '../../lib/generation-core.ts';
 
 type Screen = 'loading' | 'form' | 'reading' | 'building' | 'ready' | 'failed' | 'rejected' | 'unavailable' | 'broken';
@@ -25,6 +25,7 @@ function Panel({ mascot = 'Idle', title, children }: { mascot?: MascotState; tit
 export function CreateLesson() {
   const [screen, setScreen] = useState<Screen>('loading');
   const [avail, setAvail] = useState<Availability | null>(null);
+  const [choice, setChoice] = useState<NeedsChoice | null>(null);       // set while the server is asking the learner to pick an alternative; nothing is created until it is answered
   const [text, setText] = useState('');
   const [spec, setSpec] = useState<Spec>(DEFAULT_SPEC);
   const [notes, setNotes] = useState<string[]>([]);
@@ -36,15 +37,15 @@ export function CreateLesson() {
   const [problem, setProblem] = useState<string | null>(null);
   const started = useRef<number>(0);
   const max = avail?.max_minutes ?? 2;
-  const set = (patch: Partial<Spec>) => setSpec(s => ({ ...s, ...patch }));
+  const set = (patch: Partial<Spec>) => { setChoice(null); setSpec(s => ({ ...s, ...patch })); };
   const kind = kindOf(spec);
   /** Changing format keeps the learner's choices whenever the server can make them, and otherwise says what changed: never a silent swap. */
-  const chooseFormat = (f: Spec['format']) => setSpec(s => {
+  const chooseFormat = (f: Spec['format']) => { setChoice(null); setSpec(s => {
     const next: Spec = { ...s, format: f, accent2: f === 'story' ? null : s.accent2 };
     if (specAvailable(next, avail)) return next;
     const first = accentsFor(avail, kindOf(next))[0] ?? DEFAULT_SPEC.accent;
     return { ...next, accent: accentsFor(avail, kindOf(next)).includes(s.accent) ? s.accent : first, accent2: kindOf(next) === 'mixed_accent_conversation' ? null : next.accent2 };
-  });
+  }); };
 
   const show = useCallback((next: GenerationView) => {
     setView(next);
@@ -85,7 +86,7 @@ export function CreateLesson() {
     try {
       let v = await interpretRequest(text.trim());
       for (let n = 0; n < 40 && v.phase === 'queued'; n++) { await new Promise(r => setTimeout(r, 1000)); v = await getGeneration(v.id); }
-      if (v.phase === 'interpreted' && v.spec) { setSpec(v.spec); setNotes(v.notes); setReviewed(true); setScreen('form'); }
+      if (v.phase === 'interpreted' && v.spec) { setSpec({ ...v.spec, accent: v.spec.accent ?? '', accent2: v.spec.accent2 ?? null }); setNotes(v.notes); setChoice(v.needs_choice ?? null); setReviewed(true); setScreen('form'); }
       else if (v.phase === 'needs_input') { setQuestion(v.question); setScreen('form'); }
       else if (v.phase === 'rejected') { setView(v); setScreen('rejected'); }
       else { setProblem('We couldn’t read that just now. Please try again, or use the settings below.'); setScreen('form'); }
@@ -184,6 +185,10 @@ export function CreateLesson() {
       {question ? <p className={styles.notice} role="status"><span aria-hidden="true"><Icon name="info" size={18} /></span>{question}</p> : null}
       {problem ? <p className={styles.notice} role="alert"><span aria-hidden="true"><Icon name="info" size={18} /></span>{problem}</p> : null}
       {reviewed ? <p className={styles.ok} role="status"><Icon name="check" size={18} /> We filled in the details below from your description — change anything.</p> : null}
+      {choice ? <div className={styles.notice} role="alert" data-testid="needs-choice" style={{ display: 'grid', gap: 8 }}>
+        <span><span aria-hidden="true"><Icon name="info" size={18} /></span> <b>{choice.reason}</b> Nothing has changed: choose how you’d like to continue.</span>
+        <span className={styles.filters} style={{ margin: 0 }}>{choice.options.map(o => <button key={o.label} type="button" className={styles.chip}
+          onClick={() => { setChoice(null); setSpec(s => ({ ...s, ...o.patch } as Spec)); }}>{o.label}</button>)}</span></div> : null}
       {lines.map(l => <p key={l} className={styles.notice} role="status"><span aria-hidden="true"><Icon name="info" size={18} /></span>{l}</p>)}
 
       <span className={styles.fieldLabel} id="gen-lang">Language</span>
@@ -200,7 +205,7 @@ export function CreateLesson() {
           onClick={() => set({ accent: a })}>
           <span className={styles.code} aria-hidden="true">{accentNote(a).code}</span><span><b>{accentNote(a).place}</b><br /><span className={styles.muted} style={{ fontSize: 14 }}>{accentNote(a).feel}</span></span><span className={styles.dot} aria-hidden="true" /></button>)}
       </div>
-      {onlyElsewhere(avail, kind).length ? <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }} data-testid="only-elsewhere">Not available for this kind of lesson yet: {onlyElsewhere(avail, kind).map(accentLabel).join(', ')}.</p> : null}
+      {onlyElsewhere(avail, kind).length ? <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }} data-testid="only-elsewhere">{elsewhereLine(avail, kind)}</p> : null}
       <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }}>Coming soon: {comingAccentLabels(avail).join(', ')}.</p>
       {kind === 'mixed_accent_conversation' ? <>
         <span className={styles.fieldLabel} id="gen-accent2">Second speaker’s accent</span>
@@ -235,7 +240,7 @@ export function CreateLesson() {
         <div className={styles.summaryRow}><span>Length</span><span>About {spec.minutes} minute{spec.minutes === 1 ? '' : 's'}</span></div>
         <p className={styles.muted} style={{ fontSize: 13, margin: '8px 0 0' }}>Includes audio, a synced transcript and 4 exercises with answer keys. You can leave this screen while it’s built.</p>
       </div>
-      <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} style={{ marginTop: 16 }} disabled={busy || !canCreate(spec, text, accentsFor(avail, kind)) || !specAvailable(spec, avail)} onClick={() => void create()}>
+      <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} style={{ marginTop: 16 }} disabled={busy || !!choice || !canCreate(spec, text, accentsFor(avail, kind)) || !specAvailable(spec, avail)} onClick={() => void create()}>
         {screen === 'reading' ? 'Reading your request…' : busy ? 'Starting…' : !reviewed && text.trim().length >= 3 && spec.topic.trim().length < 3 ? 'Fill in the details' : 'Create lesson'}</button>
       <p className={styles.muted} style={{ textAlign: 'center', fontSize: 13, marginTop: 8 }}>{avail ? `Up to ${avail.per_learner_daily} lessons a day · you can leave this screen` : ''}</p>
     </aside>

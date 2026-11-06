@@ -30,27 +30,65 @@ def test_the_real_interpreter_is_told_the_same_rules_and_its_schema_carries_the_
         assert phrase in g.INTERPRET_SYSTEM
 
 
-def test_an_irish_monologue_request_is_understood_and_available_only_when_the_owner_has_opened_it(lab):
+def test_an_irish_monologue_request_is_understood_and_asks_for_a_choice_when_it_is_not_open(lab):
     text = 'Create a B1 listening lesson with an Irish speaker telling a story about Dublin.'
     seen = interpret(lab, lab.deps(settings=on('irish')), text, request='ie-on')
     assert seen['spec']['format'] == 'story' and seen['spec']['accent'] == 'irish' and seen['spec']['accent2'] is None
-    assert not [n for n in seen['notes'] if 'accent' in n or 'mixed' in n]
-    seen = interpret(lab, lab.deps(settings=gen_settings()), text, request='ie-off')
-    assert seen['spec']['accent'] == 'american' and 'accent_unavailable' in seen['notes'] and 'requested_accent:irish' in seen['notes']       # said, not silent
+    assert not [n for n in seen['notes'] if 'accent' in n or 'mixed' in n] and g.needs_choice(seen['spec'], seen['notes'], on('irish')) is None
+    closed = lab.deps(settings=gen_settings())
+    seen = interpret(lab, closed, text, request='ie-off')
+    assert seen['spec']['accent'] == 'irish' and 'requested_accent:irish' in seen['notes']                                 # kept: never replaced by American
+    choice = g.needs_choice(seen['spec'], seen['notes'], closed.settings)
+    assert 'Irish English isn’t available for monologues yet.' == choice['reason'] and choice['options'] and all('Irish' not in o['label'] or 'instead' not in o['label'] for o in choice['options'])
 
 
-def test_a_mixed_accent_request_keeps_both_accents_when_open_and_falls_back_visibly_when_not(lab):
+def test_a_mixed_accent_request_keeps_both_accents_when_open_and_asks_when_not(lab):
     text = 'Create a B2 listening lesson about a job interview between a British interviewer and an Indian applicant.'
     seen = interpret(lab, lab.deps(settings=on('indian')), text, request='mx-on')
     assert seen['spec']['accent'] == 'british' and seen['spec']['accent2'] == 'indian' and seen['spec']['format'] == 'dialogue'
-    seen = interpret(lab, lab.deps(settings=gen_settings()), text, request='mx-off')
-    assert seen['spec']['accent'] == 'british' and seen['spec']['accent2'] is None
+    closed = lab.deps(settings=gen_settings())
+    seen = interpret(lab, closed, text, request='mx-off')
+    assert (seen['spec']['accent'], seen['spec']['accent2']) == ('british', 'indian')                                       # the request is kept
     assert 'mixed_unavailable' in seen['notes'] and 'requested_accent2:indian' in seen['notes']
+    choice = g.needs_choice(seen['spec'], seen['notes'], closed.settings)
+    assert choice['reason'] == 'Mixed-accent conversations aren’t available yet.' and choice['options'][0]['patch'] == {'accent2': None}
 
 
 def test_same_accent_conversation_and_place_only_requests_keep_todays_defaults(lab):
     seen = interpret(lab, lab.deps(settings=on()), 'Create an A2 listening lesson about ordering coffee between two American speakers.', request='am')
     assert seen['spec']['accent'] == 'american' and seen['spec']['accent2'] is None and seen['spec']['format'] == 'dialogue'
-    seen = interpret(lab, lab.deps(settings=on('canadian')), 'Create an A2 listening lesson about visiting a doctor in Canada.', request='ca')
+    seen = interpret(lab, lab.deps(settings=on('canadian')), 'Create an A2 listening lesson about visiting a doctor in Canada.', request='ca')   # defaults: nothing was requested, so nothing to confirm
     assert seen['spec']['accent'] == 'american' and seen['spec']['accent2'] is None            # "in Canada" did not become Canadian English
     assert 'defaulted:accent' in seen['notes'] and 'defaulted:format' in seen['notes']
+
+
+# ---- the whole released library, in the learner's own words -----------------------------------------------------------------------------------
+
+from app import accent_catalog as cat  # noqa: E402
+from test_listening_formats import library  # noqa: E402
+
+ALL = cat.format_eligible_accents()
+
+
+@pytest.mark.parametrize('accent', ALL)
+def test_every_available_accent_can_be_asked_for_as_a_monologue_in_plain_words(lab, accent):
+    label = cat.LABELS[accent].removesuffix(' English').replace(' US', '').replace('Southern', 'Southern').strip()
+    seen = interpret(lab, lab.deps(settings=library()), f'Create a {label} monologue about the weekend.', request=f'mono-{accent}')
+    assert seen['spec']['accent'] == accent and seen['spec']['format'] == 'story' and seen['spec']['accent2'] is None, label
+    assert g.needs_choice(seen['spec'], seen['notes'], library()) is None
+
+
+@pytest.mark.parametrize('first,second', [('irish', 'american'), ('american', 'irish'), ('scottish', 'indian'), ('new_york', 'southern'), ('nigerian', 'british'), ('boston', 'japanese')])
+def test_a_conversation_between_two_named_accents_resolves_to_a_mixed_accent_lesson(lab, first, second):
+    name = lambda a: cat.LABELS[a].removesuffix(' English').replace(' US', '')
+    seen = interpret(lab, lab.deps(settings=library()), f'Create a conversation between {"an" if name(first)[0] in "AEIOU" else "a"} {name(first)} speaker and {"an" if name(second)[0] in "AEIOU" else "a"} {name(second)} speaker about a shop.', request=f'mix-{first}-{second}')
+    assert (seen['spec']['accent'], seen['spec']['accent2']) == (first, second) and seen['spec']['format'] == 'dialogue'
+    assert g.needs_choice(seen['spec'], seen['notes'], library()) is None
+
+
+def test_welsh_and_south_african_requests_are_kept_and_asked_about_never_swapped(lab):
+    for text, accent in (('Create a Welsh monologue about hills.', 'welsh'), ('Create a South African monologue about a braai.', 'south_african')):
+        seen = interpret(lab, lab.deps(settings=library()), text, request=f'x-{accent}')
+        assert seen['spec']['accent'] == accent and f'requested_accent:{accent}' in seen['notes']
+        choice = g.needs_choice(seen['spec'], seen['notes'], library())
+        assert choice['reason'].endswith('isn’t available for monologues yet.') and choice['options']

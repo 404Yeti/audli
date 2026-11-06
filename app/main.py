@@ -489,16 +489,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     register_upload_policy_routes(app, upload_policy)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
-    def listening_erasure(db, owner):
-        """Built on use, so deletion works (or refuses safely) whether or not the 2.0 feature is switched on."""
-        from app.listening.erasure import ErasureRefused, erase_learner_data
-        from app.listening.objects import build_recording_store, build_store
-        try:
-            lesson_objects, recordings = build_store(settings, settings.data_dir), build_recording_store(settings, settings.data_dir)
-        except Exception:
-            raise ErasureRefused('Private storage is not available right now, so nothing was deleted. Please try again later.') from None
-        return erase_learner_data(db, owner, lesson_objects, recordings)
-    app.state.listening_erasure = listening_erasure
+    from app.listening.erasure import Eraser
+    from app.listening.objects import build_recording_store, build_store
+    app.state.listening_eraser = Eraser(lambda: (build_store(settings, settings.data_dir), build_recording_store(settings, settings.data_dir)))
     from app.account import register_account_routes
     register_account_routes(app, repo, settings, identity, lock, audio_dir)
     register_review_routes(app, repo, settings)

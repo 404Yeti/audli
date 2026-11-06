@@ -1,20 +1,22 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import styles from './listening.module.css';
+import { useLearnerSettings } from '../../lib/use-settings.ts';
 import { formatTime, type Cue, type Sentence, type Speaker } from '../../lib/listening-core.ts';
 
 /** Sentence-level transcript. The active line follows playback; tapping a line replays from it. */
 export function TranscriptViewer({ sentences, speakers, cues, activeIndex, playing, onReplay }: {
   sentences: Sentence[]; speakers: Speaker[]; cues: Cue[]; activeIndex: number | null; playing: boolean; onReplay: (startMs: number) => void;
 }) {
+  const { settings } = useLearnerSettings();
   const active = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!playing || activeIndex === null) return;
-    const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const reduced = typeof window !== 'undefined' && (settings.reduceMotion || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
     active.current?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
-  }, [activeIndex, playing]);
+  }, [activeIndex, playing, settings.reduceMotion]);
   const order = speakers.map(s => s.id);
-  return <div>
+  return <div className={`${settings.textSize === 'large' ? styles.tsLarge : ''} ${settings.highContrast ? styles.tsContrast : ''}`} data-text-size={settings.textSize} data-high-contrast={settings.highContrast}>
     <p className={styles.transcriptNote}>Tap any line to replay it</p>
     <ol className={styles.transcript} aria-label="Transcript">
       {sentences.map(sentence => {

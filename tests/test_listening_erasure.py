@@ -230,3 +230,31 @@ def test_the_real_erasure_path_on_postgres_deletes_published_lessons_through_the
     run_erasure(w)
     with w.api.engine.connect() as db:
         assert count(db, t.lessons, id=w.lesson) == 0 and count(db, t.lessons, id=w.shared) == 1
+
+
+def test_a_lesson_published_to_the_library_keeps_its_audio_when_its_curator_is_erased(world):
+    w = world
+    with w.api.engine.begin() as db:
+        built = db.execute(select(t.generation_requests.c.audio_key).where(t.generation_requests.c.user_id == w.a)).scalar_one()
+        assert built in w.audio_keys                                              # the request names the same object the lesson plays
+        db.execute(t.lesson_owners.delete().where(t.lesson_owners.c.lesson_id == w.lesson))      # what publishing to the shared library does
+    summary = run_erasure(w)
+    assert summary['attempts'] == 1
+    assert all(w.objects.exists(k) for k in w.audio_keys)                         # the shared lesson still plays
+    with w.api.engine.connect() as db:
+        assert count(db, t.lessons, id=w.lesson) == 1 and count(db, t.audio) >= len(w.audio_keys)
+        assert count(db, t.generation_requests, user_id=w.a) == 0 and count(db, t.attempts, user_id=w.a) == 0     # the curator's own records still go
+
+
+def test_an_object_still_played_by_another_lesson_is_never_planned_for_deletion(world):
+    w = world
+    from app.listening.erasure import plan_erasure
+    with w.api.engine.connect() as db:
+        assert set(w.audio_keys) <= plan_erasure(db, w.a).lesson_keys             # normally the account's own audio is planned
+    with w.api.engine.begin() as db:                                              # another lesson reuses one of the objects (content-addressed audio)
+        row = db.execute(select(t.audio).where(t.audio.c.object_key == w.audio_keys[0])).mappings().first()
+        other = db.execute(select(t.versions.c.id).where(t.versions.c.lesson_id == w.shared)).scalars().first()
+        db.execute(insert(t.audio).values({**dict(row), 'id': str(uuid4()), 'version_id': other, 'voice': 'reuse', 'created_at': store.utcnow()}))
+    with w.api.engine.connect() as db:
+        planned = plan_erasure(db, w.a).lesson_keys
+    assert w.audio_keys[0] not in planned and set(w.audio_keys[1:]) <= planned

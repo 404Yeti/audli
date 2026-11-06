@@ -74,6 +74,11 @@ def plan_erasure(db, owner: str) -> ErasurePlan:
     lesson_keys = [k for k in db.execute(select(t.audio.c.object_key).where(t.audio.c.version_id.in_(versions))).scalars() if k] if versions else []
     if generation and t.generation_requests.name in present:
         lesson_keys += [k for k in db.execute(select(t.generation_requests.c.audio_key).where(t.generation_requests.c.user_id == owner)).scalars() if k]
+    # Audio objects are content-addressed and a generation request keeps the key of the audio it built, so a lesson that was published to the shared library
+    # (its owner row removed) or any other lesson can still point at an object this account's rows also name. Never delete an object a lesson that
+    # is NOT being erased still plays.
+    still_used = set(db.execute(select(t.audio.c.object_key).where(t.audio.c.version_id.not_in(versions) if versions else True)).scalars())
+    lesson_keys = [k for k in lesson_keys if k not in still_used]
     recording_keys = [k for k in db.execute(select(t.spoken.c.recording_key).join(t.attempts, t.attempts.c.id == t.spoken.c.attempt_id)
                                             .where(t.attempts.c.user_id == owner)).scalars() if k]
     # A key must belong to the store it is deleted from: recordings only under the recording prefix, lesson audio never under it.

@@ -136,4 +136,22 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
     const ready = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     expect(ready.violations.map(v => `${v.id} ${v.nodes.map(n => n.target).join(' | ')}`)).toEqual([]);
   });
+
+  test('the accent choices are exactly what the server can generate: a newly enabled accent appears, the rest are only "coming soon"', async ({ page }) => {
+    await available(page, { ...AVAILABLE, accents: ['american', 'british', 'australian', 'irish'], coming_accents: ['scottish', 'new_zealand'], accent_labels: { irish: 'Irish English' } });
+    await page.goto('/listening/create');
+    const group = page.getByRole('radiogroup', { name: 'Accent' });
+    await expect(group.getByRole('radio')).toHaveCount(4);
+    await expect(group.getByRole('radio', { name: /Irish/ })).toBeVisible();
+    await expect(page.getByText('Coming soon: Scottish, New Zealand.')).toBeVisible();
+    await expect(group.getByRole('radio', { name: /Scottish/ })).toHaveCount(0);        // named, but never selectable
+  });
+
+  test('with only the original three, Irish is shown as coming soon and cannot be chosen', async ({ page }) => {
+    await available(page, { ...AVAILABLE, coming_accents: ['irish', 'indian', 'scottish', 'canadian', 'new_zealand'] });
+    await page.goto('/listening/create');
+    const group = page.getByRole('radiogroup', { name: 'Accent' });
+    await expect(group.getByRole('radio')).toHaveCount(3);
+    await expect(page.getByText('Coming soon: Irish, Indian, Scottish, Canadian, New Zealand.')).toBeVisible();
+  });
 });

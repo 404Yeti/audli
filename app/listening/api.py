@@ -240,6 +240,8 @@ class Availability(BaseModel):
     reason: str | None = None            # disabled | paused | daily_limit | budget | credits
     max_minutes: int
     accents: list[str]
+    accent_labels: dict[str, str] = {}      # id -> learner-facing label, from the shared catalog
+    coming_accents: list[str] = []         # accents Audli can name but cannot generate in two voices yet: shown, never selectable
     per_learner_daily: int
 
 
@@ -374,6 +376,8 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
             if ok and _halted():
                 ok, reason = False, 'paused'
             return Availability(available=ok, reason=reason or None, max_minutes=settings.listening_gen_max_minutes, accents=list(gen.ACCENTS),
+                                accent_labels={a: gen.ACCENT_LABELS[a] for a in (*gen.ACCENTS, *gen.upcoming_listening_accents())},
+                                coming_accents=list(gen.upcoming_listening_accents()),
                                 per_learner_daily=settings.listening_gen_per_learner_daily)
 
         def _generation_view(request_id: str) -> GenerationView:

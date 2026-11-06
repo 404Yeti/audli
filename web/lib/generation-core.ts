@@ -1,5 +1,5 @@
 // Pure rules for the AI Lesson Generator screens (Figma 04 / 04b / 04c and edge states E01-E04). Nothing here talks to the network.
-import { AVAILABLE_ACCENTS, accentLabel } from './home-core.ts';
+import { AVAILABLE_ACCENTS, COMING_ACCENTS, accentLabel } from './home-core.ts';
 
 export const FORMATS = ['story', 'dialogue', 'conversation'] as const;
 export type Format = (typeof FORMATS)[number];
@@ -31,14 +31,27 @@ export type GenerationView = {
   id: string; kind: 'interpret' | 'generate'; phase: Phase; spec: Spec | null; notes: string[]; question: string | null; title: string | null;
   lesson_id: string | null; failure: string | null; unavailable_reason: string | null; updated_at: string | null;
 };
-export type Availability = { available: boolean; reason: string | null; max_minutes: number; accents: string[]; per_learner_daily: number };
+export type Availability = { available: boolean; reason: string | null; max_minutes: number; accents: string[]; per_learner_daily: number;
+  accent_labels?: Record<string, string>; coming_accents?: string[] };
+
+/** The accents a learner can pick: exactly what the server says it can generate in two voices (the built-in three until it has answered). Never a guess. */
+export const accentOptions = (avail: Availability | null): string[] => (avail?.accents?.length ? avail.accents : [...AVAILABLE_ACCENTS]);
+/** Accents Audli can name but not generate yet: shown as coming soon, never selectable. */
+export const comingAccentLabels = (avail: Availability | null): string[] =>
+  avail?.coming_accents ? avail.coming_accents.map(a => accentLabel(a)) : [...COMING_ACCENTS];
+/** Card text for an accent; a newly enabled accent needs no code change here. */
+export const accentNote = (accent: string): { code: string; place: string; feel: string } =>
+  ACCENT_NOTE[accent] ?? { code: accentLabel(accent).slice(0, 2).toUpperCase(), place: accentLabel(accent), feel: 'English' };
 
 /** What the server said about the interpretation, in the learner's words. */
 export function noteLines(notes: string[], maxMinutes: number): string[] {
   const out: string[] = [];
   for (const note of notes) {
     if (note.startsWith('minutes_limited')) out.push(`Lessons are up to ${maxMinutes} minute${maxMinutes === 1 ? '' : 's'} for now, so we shortened it.`);
-    else if (note === 'accent_unavailable') out.push('That accent isn’t available yet, so we picked American. You can change it.');
+    else if (note === 'accent_unavailable') {
+      const asked = notes.find(n => n.startsWith('requested_accent:'))?.slice('requested_accent:'.length);
+      out.push(asked ? `${accentLabel(asked)} English isn’t available for lessons yet, so we picked American. You can change it.` : 'That accent isn’t available yet, so we picked American. You can change it.');
+    }
   }
   return out;
 }
@@ -73,4 +86,4 @@ export function unavailableCopy(reason: string | null, perDay: number): { title:
     default: return { title: 'Lesson creation isn’t available yet', text: 'You can still browse and play every lesson in the library.' };
   }
 }
-export const canCreate = (spec: Spec, text: string): boolean => (spec.topic.trim().length >= 3 || text.trim().length >= 3) && text.length <= MAX_TEXT && AVAILABLE_ACCENTS.includes(spec.accent as never);
+export const canCreate = (spec: Spec, text: string, allowed: readonly string[] = AVAILABLE_ACCENTS): boolean => (spec.topic.trim().length >= 3 || text.trim().length >= 3) && text.length <= MAX_TEXT && allowed.includes(spec.accent);

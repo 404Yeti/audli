@@ -183,8 +183,6 @@ def run_interpret(deps: Deps, job: jobs.Job, request_id: str) -> None:
         _set(deps.engine, job, request_id, phase='needs_input', question=(raw.get('question') or 'What would you like the lesson to be about?')[:300])
         return
     spec, notes = clamp_spec({k: raw.get(k) for k in ('topic', 'cefr', 'accent', 'minutes', 'format', 'scenario')}, deps.settings.listening_gen_max_minutes)
-    if raw.get('accent') and raw['accent'].lower() not in ('american', 'british', 'australian') and 'accent_unavailable' not in notes:
-        notes.append('accent_unavailable')
     try:
         validated = Spec.model_validate(spec)
     except Exception:

@@ -6,11 +6,11 @@ import { AppShell } from './AppShell';
 import { AudliMascot, type MascotState } from '../audli-mascot';
 import { Icon } from './Icons';
 import { ApiError } from '../../lib/api.ts';
-import { AVAILABLE_ACCENTS, COMING_ACCENTS, accentLabel } from '../../lib/home-core.ts';
+import { accentLabel } from '../../lib/home-core.ts';
 import { formatTime, newRequestId } from '../../lib/listening-core.ts';
 import { createGeneration, getAvailability, getGeneration, interpretRequest, rememberRequest, rememberedRequest } from '../../lib/generation.ts';
 import {
-  ACCENT_NOTE, DEFAULT_SPEC, EXAMPLES, FORMATS, FORMAT_LABEL, LEVELS, LEVEL_HELP, MAX_TEXT, POLL_MS, SLOW_AFTER_MS, STEPS, VOICES_LABEL, canCreate, defaultedFields,
+  DEFAULT_SPEC, accentNote, accentOptions, comingAccentLabels, EXAMPLES, FORMATS, FORMAT_LABEL, LEVELS, LEVEL_HELP, MAX_TEXT, POLL_MS, SLOW_AFTER_MS, STEPS, VOICES_LABEL, canCreate, defaultedFields,
   isLive, lengthChoices, noteLines, specLine, stepStates, unavailableCopy, type Availability, type GenerationView, type Spec,
 } from '../../lib/generation-core.ts';
 
@@ -188,10 +188,10 @@ export function CreateLesson() {
 
       <span className={styles.fieldLabel} id="gen-accent">Accent</span>
       <div className={styles.radioCards} role="radiogroup" aria-labelledby="gen-accent">
-        {AVAILABLE_ACCENTS.map(a => <button key={a} type="button" role="radio" aria-checked={spec.accent === a} className={styles.radioCard} onClick={() => set({ accent: a })}>
-          <span className={styles.code} aria-hidden="true">{ACCENT_NOTE[a].code}</span><span><b>{ACCENT_NOTE[a].place}</b><br /><span className={styles.muted} style={{ fontSize: 14 }}>{ACCENT_NOTE[a].feel}</span></span><span className={styles.dot} aria-hidden="true" /></button>)}
+        {accentOptions(avail).map(a => <button key={a} type="button" role="radio" aria-checked={spec.accent === a} className={styles.radioCard} onClick={() => set({ accent: a })}>
+          <span className={styles.code} aria-hidden="true">{accentNote(a).code}</span><span><b>{accentNote(a).place}</b><br /><span className={styles.muted} style={{ fontSize: 14 }}>{accentNote(a).feel}</span></span><span className={styles.dot} aria-hidden="true" /></button>)}
       </div>
-      <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }}>Coming soon: {COMING_ACCENTS.join(', ')}.</p>
+      <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }}>Coming soon: {comingAccentLabels(avail).join(', ')}.</p>
 
       <span className={styles.fieldLabel} id="gen-format">Format</span>
       <div className={styles.filters} role="radiogroup" aria-labelledby="gen-format" style={{ margin: 0 }}>{FORMATS.map(f => <button key={f} type="button" role="radio" aria-checked={spec.format === f}
@@ -206,12 +206,12 @@ export function CreateLesson() {
       <div className={styles.summary}>
         <p className={styles.eyebrow}>Your lesson</p><h2 className={`${styles.display} ${styles.h3}`}>{label}</h2>
         <div className={styles.summaryRow}><span>Language</span><span>English</span></div><div className={styles.summaryRow}><span>Level</span><span>{spec.cefr}</span></div>
-        <div className={styles.summaryRow}><span>Accent</span><span>{ACCENT_NOTE[spec.accent]?.place ?? accentLabel(spec.accent)}</span></div>
+        <div className={styles.summaryRow}><span>Accent</span><span>{accentNote(spec.accent).place}</span></div>
         <div className={styles.summaryRow}><span>Format</span><span>{FORMAT_LABEL[spec.format]} · {VOICES_LABEL[spec.format]}</span></div>
         <div className={styles.summaryRow}><span>Length</span><span>About {spec.minutes} minute{spec.minutes === 1 ? '' : 's'}</span></div>
         <p className={styles.muted} style={{ fontSize: 13, margin: '8px 0 0' }}>Includes audio, a synced transcript and 4 exercises with answer keys. You can leave this screen while it’s built.</p>
       </div>
-      <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} style={{ marginTop: 16 }} disabled={busy || !canCreate(spec, text)} onClick={() => void create()}>
+      <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} style={{ marginTop: 16 }} disabled={busy || !canCreate(spec, text, accentOptions(avail))} onClick={() => void create()}>
         {screen === 'reading' ? 'Reading your request…' : busy ? 'Starting…' : !reviewed && text.trim().length >= 3 && spec.topic.trim().length < 3 ? 'Fill in the details' : 'Create lesson'}</button>
       <p className={styles.muted} style={{ textAlign: 'center', fontSize: 13, marginTop: 8 }}>{avail ? `Up to ${avail.per_learner_daily} lessons a day · you can leave this screen` : ''}</p>
     </aside>

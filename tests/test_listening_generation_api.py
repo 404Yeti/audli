@@ -7,6 +7,7 @@ import httpx
 import pytest
 from sqlalchemy import func, select
 
+from app.accent_catalog import LABELS as ACCENT_LABELS
 from app.listening import generation as g, generation_jobs as gj, schema as t
 from app.listening.generation import FakeInterpreter, FakeScriptWriter, Ledger
 from app.listening.generator import run_once
@@ -95,9 +96,9 @@ def test_the_settings_are_validated_on_the_server_and_longer_lessons_are_limited
 def test_availability_and_the_unavailable_state_after_two_lessons(api):
     assert api.a.get('/api/listening/generation/availability').json() == {'available': True, 'reason': None, 'max_minutes': 2,
         'accents': ['american', 'british', 'australian'], 'per_learner_daily': 2,
-        'coming_accents': ['irish', 'indian', 'scottish', 'canadian', 'new_zealand'],
-        'accent_labels': {'american': 'American English', 'british': 'British English', 'australian': 'Australian English', 'irish': 'Irish English', 'indian': 'Indian English',
-                          'scottish': 'Scottish English', 'canadian': 'Canadian English', 'new_zealand': 'New Zealand English'}}
+        'coming_accents': ['irish', 'indian', 'scottish', 'canadian', 'new_zealand'], 'formats_enabled': False,
+        'formats': {'monologue': ['british', 'american', 'australian'], 'conversation': ['american', 'british', 'australian'], 'mixed_accent_conversation': []},
+        'accent_labels': ACCENT_LABELS}
     create(api.a); create(api.a)
     third = create(api.a).json()
     assert third['phase'] == 'unavailable' and third['unavailable_reason'] == 'daily_limit'

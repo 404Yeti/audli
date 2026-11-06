@@ -247,3 +247,18 @@ def test_the_library_never_touches_object_storage_and_its_keys_cascade_with_the_
 def entry_rows(lib):
     with lib.engine.connect() as db:
         return db.execute(select(l.library_entries)).all()
+
+
+def test_the_catalog_tells_learners_each_lessons_format_and_curated_category(lib):
+    from app.listening.store import lesson_format
+    assert lesson_format([{'id': 'a'}]) == 'story' and lesson_format([{'id': 'a', 'accent': 'irish'}, {'id': 'b', 'accent': 'irish'}]) == 'dialogue'
+    assert lesson_format([{'id': 'a', 'accent': 'irish'}, {'id': 'b', 'accent': 'american'}]) == 'mixed' and lesson_format([{'id': 'a'}, {'id': 'b'}]) == 'dialogue'
+    with lib.engine.connect() as db:
+        item = next(i for i in store.list_catalog(db, lib.curator) if i['lesson_id'] == lib.lesson)
+    assert item['format'] in ('dialogue', 'mixed') and item['category'] is None                       # not registered yet: no category, nothing breaks
+    run(lib, library.register, lib.lesson, 'travel')
+    run(lib, library.approve, lib.lesson, 'Robbie')
+    run(lib, library.publish, lib.lesson)
+    with lib.engine.connect() as db:
+        item = next(i for i in store.list_catalog(db, lib.other) if i['lesson_id'] == lib.lesson)      # a different learner sees it, with its category
+    assert item['category'] == 'travel' and set(item) >= {'format', 'category', 'accents', 'cefr', 'topic'}

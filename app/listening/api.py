@@ -296,7 +296,7 @@ def prepare(engine, worker: bool = False, generation: bool = False, generator: b
     with engine.connect() as db:
         present = set(inspect(db).get_table_names(schema='public'))
     generation = generation or generator
-    required = tuple(n for n in schema.NAMES if generation or n not in schema.NAMES_012)
+    required = tuple(n for n in schema.NAMES if n not in schema.NAMES_014 and (generation or n not in schema.NAMES_012))      # 014 (curated library) is operator-only: the API never reads it
     if not set(required) <= present:
         raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011' + (' (and 012 for lesson generation)' if generation else '')
                            + '. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql' + (' and docs/postgres-012.sql' if generation else '') + ' as the backend database owner.')

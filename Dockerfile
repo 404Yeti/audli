@@ -17,6 +17,7 @@ COPY docs/postgres-009.sql docs/postgres-009.sql
 COPY docs/postgres-010.sql docs/postgres-010.sql
 COPY docs/postgres-011.sql docs/postgres-011.sql
 COPY docs/postgres-012.sql docs/postgres-012.sql
+COPY docs/postgres-013.sql docs/postgres-013.sql
 COPY docs/accent-release-evidence /app/data/voice-evaluation/aud20-validation-20261010
 COPY docs/aud38-release-evidence /app/data/voice-evaluation/aud38-approved
 CMD ["sh", "scripts/start.sh"]

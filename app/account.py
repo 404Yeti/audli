@@ -94,6 +94,25 @@ def erase_application_data(db, owner):
             db.execute(delete(table).where(predicate))
 
 
+def erase_listening(db, owner, eraser, plan):
+    """The 2.0 rows (the stored objects were already deleted, outside any transaction, by eraser.prepare). Fails closed: if 2.0 holds anything for this
+    learner and no eraser or plan is available, or something changed since the plan, the whole deletion rolls back and the account is untouched."""
+    from app.listening.erasure import ErasureChanged, ErasureFailed, ErasureRefused
+    if eraser is None:
+        present = set(inspect(db).get_table_names())
+        if 'listening_attempts' in present and db.execute(text('SELECT 1 FROM listening_attempts WHERE user_id = :o LIMIT 1'), {'o': owner}).first():
+            raise HTTPException(503, 'Account deletion needs a storage review. Contact Audli support; your account has not been deleted.')
+        return
+    if plan is None:
+        raise HTTPException(503, 'Account deletion could not prepare your lesson data, so nothing was deleted. Please try again.')
+    try:
+        eraser.rows(db, owner, plan)
+    except (ErasureRefused, ErasureChanged) as error:
+        raise HTTPException(503, f'{error}') from None
+    except ErasureFailed:
+        raise HTTPException(503, 'Some of your lesson audio could not be deleted, so nothing was deleted. Please try again.') from None
+
+
 def require_live_session(repo, request):
     """Bind the already Auth-verified JWT to a still-live, owned session."""
     if repo.engine.dialect.name != 'postgresql':
@@ -110,7 +129,7 @@ def require_live_session(repo, request):
             raise HTTPException(401, 'Sign in again before deleting your account.')
 
 
-def delete_account(repo, audio_dir, *, prepare_claim_erasure=None):
+def delete_account(repo, audio_dir, *, prepare_claim_erasure=None, listening_eraser=None, listening_plan=None):
     if repo.engine.dialect.name != 'postgresql':
         raise HTTPException(503, 'Account deletion requires the trusted PostgreSQL backend.')
     with repo.transaction() as db:
@@ -147,6 +166,7 @@ def delete_account(repo, audio_dir, *, prepare_claim_erasure=None):
                 raise HTTPException(503, 'Audio cleanup requires support. Your account has not been deleted.')
             # Cache removal can be retried; DB blobs remain available if rollback occurs.
             (root / name).unlink(missing_ok=True)
+        erase_listening(db, owner, listening_eraser, listening_plan)
         erase_application_data(db, owner)
         db.execute(text('DELETE FROM auth.refresh_tokens WHERE user_id = :owner'), {'owner': owner})
         db.execute(text('DELETE FROM auth.sessions WHERE user_id = :owner'), {'owner': owner})
@@ -220,8 +240,21 @@ def register_account_routes(app, repo, settings, identity, lock, audio_dir):
         async with lock:
             require_live_session(repo, request)
             await reauthenticate(identity, request, body.password, repo.learner_id)
+            eraser = getattr(app.state, 'listening_eraser', None)
+            plan = None
+            if eraser is not None:
+                from starlette.concurrency import run_in_threadpool
+                from app.listening.erasure import ErasureFailed, ErasureRefused
+                try:
+                    plan = await run_in_threadpool(eraser.prepare, repo.engine, repo.learner_id)       # stored objects, outside any database transaction
+                except ErasureRefused as error:
+                    raise HTTPException(503, f'{error}') from None
+                except ErasureFailed:
+                    raise HTTPException(503, 'Some of your lesson audio could not be deleted, so nothing was deleted from your account. Please try again.') from None
+                except Exception:
+                    raise HTTPException(503, 'Deletion could not be started. Your account has not been deleted; retry or contact support.') from None
             try:
-                return delete_account(repo, audio_dir)
+                return delete_account(repo, audio_dir, listening_eraser=eraser, listening_plan=plan)
             except HTTPException:
                 raise
             except Exception:

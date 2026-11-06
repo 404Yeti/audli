@@ -87,6 +87,14 @@ jobs:
           python -m pytest -q ci/test_safety.py
           python -m pytest -q
           python -m pytest -q experiments/assessment_claims/test_stage.py experiments/assessment_claims/test_additional.py experiments/assessment_claims/test_integration.py experiments/release_readiness
+      - name: Account erasure runs through the real PostgreSQL triggers (fails if skipped)
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ci:${{ github.workspace }}
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_listening_erasure.py -v -rs 2>&1 | tee erasure.log
+          grep -q "test_the_real_erasure_path_on_postgres_deletes_published_lessons_through_the_guards\[postgres\] PASSED" erasure.log
+          grep -q "test_on_postgres_the_guards_stay_strict_everywhere_except_inside_the_owners_own_erasure\[postgres\] PASSED" erasure.log
 
   schema:
     name: Rollback schema ${{ matrix.schema }}

@@ -71,8 +71,8 @@ def test_default_migration_never_applies_009_and_the_opt_in_is_repeatable(databa
     assert migrate(settings) is False
     assert migrate(settings, listening=True) is True
     assert migrate(settings, listening=True) is False            # repeated execution is a safe no-op
-    assert ledgers(database()) == ([1, 2, 3, 4, 5, 6, 7], [9, 10, 11, 12])
-    assert [v for v, _ in LISTENING_MIGRATIONS] == [9, 10, 11, 12]
+    assert ledgers(database()) == ([1, 2, 3, 4, 5, 6, 7], [9, 10, 11, 12, 13])
+    assert [v for v, _ in LISTENING_MIGRATIONS] == [9, 10, 11, 12, 13]
 
 
 def test_fresh_database_starts_1x_and_2x(database):
@@ -91,7 +91,8 @@ def test_009_and_the_real_008_apply_in_either_order(database, order):
     run_file(engine, 'postgres-010.sql')
     run_file(engine, 'postgres-011.sql')
     run_file(engine, 'postgres-012.sql')
-    assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12])
+    run_file(engine, 'postgres-013.sql')
+    assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13])
     # The claims runtime's gate reads max(schema_migrations.version); 009 must leave it exactly where 008 put it.
     with engine.connect() as db:
         assert db.execute(text('SELECT max(version) FROM schema_migrations')).scalar_one() == 8
@@ -205,7 +206,7 @@ def test_010_needs_009_first_and_is_not_part_of_the_default_run(database):
     run_file(engine, 'postgres-009.sql')
     assert not set(l.NAMES_010) & tables(engine)
     migrate(database.settings(), listening=True)                  # applies only what is missing: 010
-    assert set(l.NAMES_010) <= tables(engine) and ledgers(engine)[1] == [9, 10, 11, 12]
+    assert set(l.NAMES_010) <= tables(engine) and ledgers(engine)[1] == [9, 10, 11, 12, 13]
 
 
 def test_a_database_on_009_upgrades_to_010_without_touching_milestone_01_data(database):
@@ -285,7 +286,7 @@ def test_011_needs_010_and_is_applied_only_by_the_opt_in(database):
     run_file(engine, 'postgres-010.sql')
     assert not set(l.NAMES_011) & tables(engine)
     migrate(database.settings(), listening=True)                  # applies only what is missing: 011
-    assert set(l.NAMES_011) <= tables(engine) and ledgers(engine)[1] == [9, 10, 11, 12]       # the opt-in applies 011 and 012 together
+    assert set(l.NAMES_011) <= tables(engine) and ledgers(engine)[1] == [9, 10, 11, 12, 13]       # the opt-in applies 011, 012 and 013 together
 
 
 def test_a_repeated_011_is_refused_and_the_table_is_private_and_constrained(database):

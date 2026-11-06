@@ -489,6 +489,9 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
     register_upload_policy_routes(app, upload_policy)
     from app.homework_api import register_homework_routes
     register_homework_routes(app, repo, settings, database, ai, lock)
+    from app.listening.erasure import Eraser
+    from app.listening.objects import build_recording_store, build_store
+    app.state.listening_eraser = Eraser(lambda: (build_store(settings, settings.data_dir), build_recording_store(settings, settings.data_dir)))
     from app.account import register_account_routes
     register_account_routes(app, repo, settings, identity, lock, audio_dir)
     register_review_routes(app, repo, settings)

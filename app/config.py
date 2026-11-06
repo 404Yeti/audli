@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.
     listening_ops_token: SecretStr | None = None          # enables GET /api/listening/ops/health for an external monitor (aggregate numbers only)
     listening_allowed_learners: str = ''           # comma-separated learner ids (Supabase user ids); empty = every signed-in learner. Others get a plain 404.
+    listening_curator_ids: str = ''                # comma-separated account ids allowed to curate shared lessons; read only by `python -m app.listening.library`; empty = nobody
     listening_ai_enabled: bool = True                                           # False = no new AI request is accepted or dispatched
     listening_ai_daily_budget_usd: float = Field(default=2.0, ge=0, le=1000)    # reserved per UTC day across every 2.0 AI operation
     listening_provider_timeout_seconds: float = Field(default=45, gt=0, le=120)
@@ -181,6 +182,11 @@ class Settings(BaseSettings):
             if routing_allowed(accent, voice.voice_id)} if self.accent_practice_enabled else {}
 
     @property
+    def listening_curator_set(self) -> frozenset[str]:
+        """Accounts whose generated lessons may enter the library workflow (operator tool only; empty = nobody)."""
+        return frozenset(part.strip().lower() for part in self.listening_curator_ids.split(',') if part.strip())
+
+    @property
     def listening_gen_allowed_set(self) -> frozenset[str]:
         return frozenset(part.strip().lower() for part in self.listening_gen_allowed_learners.split(',') if part.strip())
 
@@ -195,7 +201,7 @@ class Settings(BaseSettings):
     @model_validator(mode='after')
     def listening_configuration(self):
         from uuid import UUID
-        for learner in (*self.listening_allowed_set, *self.listening_gen_allowed_set):
+        for learner in (*self.listening_allowed_set, *self.listening_gen_allowed_set, *self.listening_curator_set):
             try:
                 UUID(learner)
             except ValueError:

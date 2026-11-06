@@ -12,6 +12,7 @@ _FIRST = [t for t in l.OWNED if not t.info.get('since')]
 _SECOND = [t for t in l.OWNED if t.info.get('since') == 10]
 _THIRD = [t for t in l.OWNED if t.info.get('since') == 11]
 _FOURTH = [t for t in l.OWNED if t.info.get('since') == 12]
+_FIFTH = [t for t in l.OWNED if t.info.get('since') == 14]
 
 
 def postgres_listening_migration() -> str:
@@ -156,6 +157,41 @@ BEGIN
     END IF;
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (12, now());', 'COMMIT;']
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_migration_014() -> str:
+    """Curated shared library: one workflow table. Alters nothing; no learner read path depends on it. Independent of 013 (account erasure)."""
+    dialect = postgresql.dialect()
+    names = ', '.join(t.name for t in _FIFTH)
+    lines = [
+        '\n'.join(['-- Migration 014: Audli 2.0 curated library (one additive table: listening_library_entries).',
+        '-- Requires 009-012 (recorded in listening_migrations). Leaves schema_migrations untouched and alters no existing table. Independent of 013.']),
+        'BEGIN;', "SET LOCAL lock_timeout='5s';", 'LOCK TABLE public.listening_migrations IN EXCLUSIVE MODE;',
+        """DO $$ BEGIN
+ IF NOT (ARRAY[9, 10, 11, 12] <@ ARRAY(SELECT version FROM public.listening_migrations)) THEN
+  RAISE EXCEPTION 'Expected migrations 009, 010, 011 and 012 first';
+ END IF;
+ IF 14 IN (SELECT version FROM public.listening_migrations) OR to_regclass('public.listening_library_entries') IS NOT NULL THEN
+  RAISE EXCEPTION 'Migration 014 is already applied or partially present; review before retrying';
+ END IF;
+END $$;""",
+    ]
+    lines += [str(CreateTable(t).compile(dialect=dialect)).strip() + ';' for t in _FIFTH]
+    for table in _FIFTH:
+        lines += [str(CreateIndex(i).compile(dialect=dialect)) + ';' for i in sorted(table.indexes, key=lambda i: i.name)]
+    for table in _FIFTH:
+        lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
+    lines += [f"""DO $audli$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE {names} FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE {names} FROM authenticated;
+    END IF;
+END
+$audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (14, now());', 'COMMIT;']
     return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
 
 

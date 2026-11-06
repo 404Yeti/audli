@@ -244,4 +244,22 @@ test.describe('AI lesson generator screens (real pages, controlled responses)', 
     await expect(page.getByRole('status', { name: 'Lesson progress' })).toBeVisible();
     expect(posted!.spec).toMatchObject({ accent: 'irish', accent2: null, format: 'story' });
   });
+
+  test('an accent whose second voice has been approved appears for same-accent dialogue with no interface change', async ({ page }) => {
+    await available(page, { ...FULL, formats: { ...FULL.formats, conversation: ['american', 'british', 'australian', 'irish'] } });
+    let posted: Posted | null = null;
+    await page.route('**/api/listening/generation/requests', async route => { posted = route.request().postDataJSON() as Posted; await route.fulfill({ json: view({ phase: 'queued' }) }); });
+    await page.route(`**/api/listening/generation/requests/${REQUEST}`, route => route.fulfill({ json: view({ phase: 'script' }) }));
+    await page.route('**/api/listening/generation/interpret', route => route.fulfill({ json: view({ id: 'int-i', kind: 'interpret', phase: 'interpreted', spec: { ...SPEC, accent: 'irish', accent2: null, format: 'dialogue' }, notes: [] }) }));
+    await page.goto('/listening/create');
+    const accents = page.getByRole('radiogroup', { name: 'Accent' });
+    await expect(accents.getByRole('radio')).toHaveCount(4);
+    await expect(accents.getByRole('radio', { name: /Irish/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Airport delay' }).click();
+    await page.getByRole('button', { name: 'Fill in the details' }).click();
+    await expect(page.getByTestId('needs-choice')).toHaveCount(0);                                      // nothing to confirm: it can be generated as asked
+    await page.getByRole('button', { name: 'Create lesson' }).click();
+    await expect(page.getByRole('status', { name: 'Lesson progress' })).toBeVisible();
+    expect(posted!.spec).toMatchObject({ accent: 'irish', accent2: null, format: 'dialogue' });
+  });
 });

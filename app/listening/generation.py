@@ -29,7 +29,9 @@ from app.listening.domain import (AnswerKey, FillBlank, FillKey, LessonContent, 
 from app.models import StrictModel
 from app.storage.repository import utcnow
 
-ACCENTS = ('american', 'british', 'australian')                   # accents with verified voices; the others are shown as unavailable and refused
+from app.accent_catalog import ALIASES as ACCENT_ALIASES, LABELS as ACCENT_LABELS, LISTENING_PAIRS, enabled_listening_accents, upcoming_listening_accents
+
+ACCENTS = enabled_listening_accents()                             # accents with an enabled, distinguishable two-voice pair (app/accent_catalog.py); others are refused, never substituted
 FORMATS = ('story', 'dialogue', 'conversation')
 LEVELS = ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')
 DEFAULTS = {'cefr': 'B1', 'accent': 'american', 'minutes': 2, 'format': 'dialogue'}
@@ -46,9 +48,7 @@ UNAVAILABLE = ('disabled', 'paused', 'daily_limit', 'budget', 'credits')
 
 # Voice ids per accent: (speaker 1, speaker 2). The American pair is the one used for the two published lessons; every id is verified against the
 # configured speech model before generation is enabled (scripts/verify_generation_voices.py). Override with AUDLI_LISTENING_GEN_VOICES (JSON).
-DEFAULT_VOICES = {'american': ('EXAVITQu4vr4xnSDxMaL', 'CwhRBWXzGAHq8TQ4Fs17'),
-                  'british': ('Xb7hH8MSUJpSbSDYk0k2', 'onwK4e9ZLuTAKqWW03F9'),
-                  'australian': ('tyepWYJJwJM9TTFIg5U7', 'IKne3meq5aSn9XLyUdCD')}
+DEFAULT_VOICES = {accent: tuple(LISTENING_PAIRS[accent]['voices']) for accent in ACCENTS}
 
 
 def voices_from(settings) -> dict:
@@ -79,7 +79,7 @@ class GenerationFailed(Exception):
 class Spec(StrictModel):
     topic: str = Field(min_length=3, max_length=120)
     cefr: Literal['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
-    accent: Literal['american', 'british', 'australian']
+    accent: Literal[ACCENTS]          # type: ignore[valid-type]  # exactly the accents with an enabled pair
     minutes: int = Field(ge=1, le=10)
     format: Literal['story', 'dialogue', 'conversation']
     scenario: str = Field(default='', max_length=200)
@@ -109,6 +109,19 @@ def usd_micro_for_credits(credits: int, usd_per_1k: float) -> int:
     return round(credits * usd_per_1k * 1000)         # 1 credit = usd_per_1k / 1000 dollars = usd_per_1k * 1000 micro-dollars
 
 
+def resolve_accent(value) -> str | None:
+    """The catalog accent a learner's words name ('Irish', 'irish english', 'new_zealand', 'a Kiwi accent'), or None. The longest match wins, so
+    'Southern American' is the Southern accent, not American. Naming a place alone is not naming an accent: callers pass what the interpreter extracted."""
+    import re
+    text = str(value or '').strip().lower().replace('_', ' ')
+    best: tuple[int, str] | None = None
+    for accent, pattern in ACCENT_ALIASES.items():
+        for match in re.finditer(rf'\b(?:{pattern})\b', text):
+            if best is None or len(match.group(0)) > best[0]:
+                best = (len(match.group(0)), accent)
+    return best[1] if best else None
+
+
 def clamp_spec(raw: dict, max_minutes: int) -> tuple[dict, list[str]]:
     """Fill what the learner did not say with the documented defaults, keep within what is supported today, and say so. Returns (spec, notes)."""
     spec, notes = dict(raw), []
@@ -116,8 +129,13 @@ def clamp_spec(raw: dict, max_minutes: int) -> tuple[dict, list[str]]:
         if spec.get(field) in (None, ''):
             spec[field] = default
             notes.append(f'defaulted:{field}')
-    if spec['accent'] not in ACCENTS:
-        notes.append('accent_unavailable')
+    requested = resolve_accent(spec['accent'])
+    if requested in ACCENTS:
+        spec['accent'] = requested
+    else:
+        notes.append('accent_unavailable')                      # said to the learner, who reviews the settings before anything is generated
+        if requested:
+            notes.append(f'requested_accent:{requested}')       # names the accent they asked for, so the message is specific
         spec['accent'] = DEFAULTS['accent']
     if spec['cefr'] not in LEVELS:
         spec['cefr'] = DEFAULTS['cefr']
@@ -284,7 +302,7 @@ SCRIPT_SCHEMA = {
 INTERPRET_SYSTEM = (
     'You turn a learner\'s request for an English listening lesson into settings. Reply only with the JSON object. '
     'topic: a short noun phrase for what the lesson is about (null ONLY if the request names no usable subject). '
-    'cefr: A1-C2 if stated or clearly implied, else null. accent: american, british, australian or another accent name if stated, else null. '
+    'cefr: A1-C2 if stated or clearly implied, else null. accent: the English accent or variety the learner names (for example american, british, australian, irish, indian, scottish, canadian, new zealand) ONLY if they name one, else null; a place or a person\'s origin on its own is NOT an accent. '
     'minutes: the length asked for, a whole number, else null. format: story, dialogue or conversation if stated or clearly implied, else null. '
     'scenario: any extra setting details the learner gave (place, people, situation), else null. '
     'question: ONE short question ONLY if the topic cannot be inferred at all; otherwise null. '
@@ -465,7 +483,8 @@ class FakeInterpreter:
         found = re.search(r'about ([a-z ]+?)(?:,| with| around|\.|$)', lowered)
         return {**base, 'topic': found.group(1).strip() if found else None,
                 'cefr': next((l for l in LEVELS if l.lower() in lowered.split() or l in text.split()), None),
-                'accent': next((a for a in ('american', 'british', 'australian') if a in lowered), None),
+                'accent': next((ACCENT_LABELS[a] for a in ACCENT_ALIASES if re.search(rf'\b(?:{ACCENT_ALIASES[a]})\s+(?:accents?|english)\b', lowered)),
+                               next((a for a in ('american', 'british', 'australian') if a in lowered), None)),
                 'minutes': 3 if 'three' in lowered else None, 'question': None if found else 'What would you like the lesson to be about?'}
 
 

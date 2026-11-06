@@ -2,7 +2,8 @@
 import type { CatalogItem, Progress, RecentItem } from './listening-core.ts';
 
 export const ACCENT_LABEL: Record<string, string> = { american: 'American', british: 'British', australian: 'Australian' };
-export const accentLabel = (accent: string): string => ACCENT_LABEL[accent] ?? accent.charAt(0).toUpperCase() + accent.slice(1);
+/** Learner-facing name for an accent id: known labels first, otherwise the id in words ("new_zealand" -> "New Zealand"). The server's catalog is the source of truth for which accents exist. */
+export const accentLabel = (accent: string): string => ACCENT_LABEL[accent] ?? accent.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 /** Accents that can be generated and recorded today. The others stay visible in the design but are marked unavailable and cannot be chosen. */
 export const AVAILABLE_ACCENTS = ['american', 'british', 'australian'] as const;
 export const COMING_ACCENTS = ['Irish', 'Indian', 'Scottish', 'Nigerian', 'Canadian', 'South African', 'Singaporean', 'New Zealand', 'Welsh'] as const;

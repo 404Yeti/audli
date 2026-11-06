@@ -13,6 +13,7 @@ export const LEVEL_HELP: Record<string, string> = {
   C2: 'C2 · Proficient — you understand virtually everything you hear.' };
 export const FORMAT_LABEL: Record<Format, string> = { story: 'Story', dialogue: 'Dialogue', conversation: 'Conversation' };
 export const VOICES_LABEL: Record<Format, string> = { story: '1 voice', dialogue: '2 voices', conversation: '2 voices' };
+export const voicesLabel = (s: Pick<Spec, 'format' | 'accent2'>): string => (s.format !== 'story' && s.accent2 ? '2 voices, 2 accents' : VOICES_LABEL[s.format]);
 export const ACCENT_NOTE: Record<string, { code: string; place: string; feel: string }> = {
   british: { code: 'UK', place: 'British · London', feel: 'Clear, mid-paced' },
   american: { code: 'US', place: 'American · General', feel: 'Relaxed, slightly faster' },
@@ -20,19 +21,42 @@ export const ACCENT_NOTE: Record<string, { code: string; place: string; feel: st
 export const EXAMPLES = ['Job interview', 'Doctor’s appointment', 'Airport delay', 'Team stand-up'] as const;
 export const MAX_TEXT = 280;
 
-export type Spec = { topic: string; cefr: string; accent: string; minutes: number; format: Format; scenario: string };
-export const DEFAULT_SPEC: Spec = { topic: '', cefr: 'B1', accent: 'american', minutes: 2, format: 'dialogue', scenario: '' };
+export type Spec = { topic: string; cefr: string; accent: string; /* '' = we could not tell which accent they meant: they choose */ minutes: number; format: Format; scenario: string; accent2?: string | null };
+export const DEFAULT_SPEC: Spec = { topic: '', cefr: 'B1', accent: 'american', minutes: 2, format: 'dialogue', scenario: '', accent2: null };
 
 /** The lengths the learner may pick: only what the server will generate today (minutes <= max). */
 export const lengthChoices = (maxMinutes: number): number[] => Array.from({ length: Math.max(1, Math.min(maxMinutes, 5)) }, (_, i) => i + 1);
 
 export type Phase = 'queued' | 'script' | 'audio' | 'transcript_sync' | 'exercises' | 'ready' | 'failed' | 'rejected' | 'unavailable' | 'interpreted' | 'needs_input';
 export type GenerationView = {
-  id: string; kind: 'interpret' | 'generate'; phase: Phase; spec: Spec | null; notes: string[]; question: string | null; title: string | null;
+  id: string; kind: 'interpret' | 'generate'; phase: Phase; spec: Spec | null; notes: string[]; needs_choice?: NeedsChoice | null; question: string | null; title: string | null;
   lesson_id: string | null; failure: string | null; unavailable_reason: string | null; updated_at: string | null;
 };
+/** What the server says when the learner asked for something that cannot be generated as asked: why, and concrete alternatives (each a change to the settings). */
+export type NeedsChoice = { reason: string; options: { label: string; patch: Partial<Spec> }[] };
 export type Availability = { available: boolean; reason: string | null; max_minutes: number; accents: string[]; per_learner_daily: number;
-  accent_labels?: Record<string, string>; coming_accents?: string[] };
+  accent_labels?: Record<string, string>; coming_accents?: string[];
+  formats?: Record<string, string[]>; formats_enabled?: boolean };
+
+export type ListeningKind = 'monologue' | 'conversation' | 'mixed_accent_conversation';
+/** The three listening formats a learner thinks in. The stored values stay story / dialogue / conversation (+ a second accent), so nothing existing changes. */
+export const kindOf = (s: Pick<Spec, 'format' | 'accent2'>): ListeningKind => s.format === 'story' ? 'monologue' : s.accent2 ? 'mixed_accent_conversation' : 'conversation';
+export const KIND_LABEL: Record<ListeningKind, string> = { monologue: 'Monologue', conversation: 'Conversation', mixed_accent_conversation: 'Mixed-accent conversation' };
+/** Accents that can really be generated in this kind of lesson, per the server; the built-in three until it has answered. Never a guess. */
+export const accentsFor = (avail: Availability | null, kind: ListeningKind): string[] =>
+  avail?.formats?.[kind] ?? (kind === 'mixed_accent_conversation' ? [] : accentOptions(avail));
+/** Accents the server can voice for some other kind of lesson but not this one (for example one approved voice: fine for a monologue, not for two speakers of that accent). */
+export const onlyElsewhere = (avail: Availability | null, kind: ListeningKind): string[] => {
+  const here = new Set(accentsFor(avail, kind));
+  const other = new Set(Object.values(avail?.formats ?? {}).flat());
+  return [...other].filter(a => !here.has(a));
+};
+/** Can the server make exactly this spec? Mirrors the server's rule so the button is never offered for something it will refuse. */
+export function specAvailable(spec: Spec, avail: Availability | null): boolean {
+  const kind = kindOf(spec);
+  if (!accentsFor(avail, kind).includes(spec.accent)) return false;
+  return kind !== 'mixed_accent_conversation' || (!!spec.accent2 && spec.accent2 !== spec.accent && accentsFor(avail, kind).includes(spec.accent2));
+}
 
 /** The accents a learner can pick: exactly what the server says it can generate in two voices (the built-in three until it has answered). Never a guess. */
 export const accentOptions = (avail: Availability | null): string[] => (avail?.accents?.length ? avail.accents : [...AVAILABLE_ACCENTS]);
@@ -40,18 +64,19 @@ export const accentOptions = (avail: Availability | null): string[] => (avail?.a
 export const comingAccentLabels = (avail: Availability | null): string[] =>
   avail?.coming_accents ? avail.coming_accents.map(a => accentLabel(a)) : [...COMING_ACCENTS];
 /** Card text for an accent; a newly enabled accent needs no code change here. */
+export const ACCENT_CODE: Record<string, string> = { irish: 'IE', scottish: 'SC', indian: 'IN', canadian: 'CA', new_zealand: 'NZ', chinese: 'CN', japanese: 'JP', filipino: 'PH',
+  nigerian: 'NG', southern: 'SO', new_york: 'NY', boston: 'BO', welsh: 'WL', south_african: 'ZA' };
+/** Card text for an accent; every accent the server offers renders without a code change, with the learner-facing label the catalog gives it. */
 export const accentNote = (accent: string): { code: string; place: string; feel: string } =>
-  ACCENT_NOTE[accent] ?? { code: accentLabel(accent).slice(0, 2).toUpperCase(), place: accentLabel(accent), feel: 'English' };
+  ACCENT_NOTE[accent] ?? { code: ACCENT_CODE[accent] ?? accentLabel(accent).slice(0, 2).toUpperCase(), place: accentLabel(accent), feel: 'English' };
 
 /** What the server said about the interpretation, in the learner's words. */
 export function noteLines(notes: string[], maxMinutes: number): string[] {
   const out: string[] = [];
   for (const note of notes) {
     if (note.startsWith('minutes_limited')) out.push(`Lessons are up to ${maxMinutes} minute${maxMinutes === 1 ? '' : 's'} for now, so we shortened it.`);
-    else if (note === 'accent_unavailable') {
-      const asked = notes.find(n => n.startsWith('requested_accent:'))?.slice('requested_accent:'.length);
-      out.push(asked ? `${accentLabel(asked)} English isn’t available for lessons yet, so we picked American. You can change it.` : 'That accent isn’t available yet, so we picked American. You can change it.');
-    }
+    else if (note === 'second_accent_ignored') out.push('A monologue has one speaker, so the second accent was left out.');
+    // accent_unavailable / mixed_unavailable / accent2_unrecognised: explained by the server's needs_choice panel, which asks before anything changes.
   }
   return out;
 }
@@ -75,7 +100,7 @@ export function stepStates(phase: Phase): StepState[] {
 export const SLOW_AFTER_MS = 60_000;
 export const POLL_MS = 2000;
 export const isLive = (phase: Phase): boolean => ['queued', 'script', 'audio', 'transcript_sync', 'exercises'].includes(phase);
-export const specLine = (s: Spec): string => `${s.cefr} · ${accentLabel(s.accent)} · ${FORMAT_LABEL[s.format]} · about ${s.minutes} min`;
+export const specLine = (s: Spec): string => `${s.cefr} · ${accentLabel(s.accent)}${s.accent2 ? ` + ${accentLabel(s.accent2)}` : ''} · ${FORMAT_LABEL[s.format]} · about ${s.minutes} min`;
 
 /** Why creation is unavailable, in the learner's words, and what they can do. */
 export function unavailableCopy(reason: string | null, perDay: number): { title: string; text: string } {
@@ -87,3 +112,8 @@ export function unavailableCopy(reason: string | null, perDay: number): { title:
   }
 }
 export const canCreate = (spec: Spec, text: string, allowed: readonly string[] = AVAILABLE_ACCENTS): boolean => (spec.topic.trim().length >= 3 || text.trim().length >= 3) && text.length <= MAX_TEXT && allowed.includes(spec.accent);
+
+/** Plain explanation for accents that work in some lesson formats but not this one. */
+export const elsewhereLine = (avail: Availability | null, kind: ListeningKind): string =>
+  kind === 'conversation' ? `Other accents work as monologues or as one speaker in a mixed-accent conversation: ${onlyElsewhere(avail, kind).map(accentLabel).join(', ')}.`
+    : `Not available for this kind of lesson yet: ${onlyElsewhere(avail, kind).map(accentLabel).join(', ')}.`;

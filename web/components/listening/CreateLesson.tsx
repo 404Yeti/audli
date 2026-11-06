@@ -10,8 +10,8 @@ import { accentLabel } from '../../lib/home-core.ts';
 import { formatTime, newRequestId } from '../../lib/listening-core.ts';
 import { createGeneration, getAvailability, getGeneration, interpretRequest, rememberRequest, rememberedRequest } from '../../lib/generation.ts';
 import {
-  DEFAULT_SPEC, accentNote, accentOptions, comingAccentLabels, EXAMPLES, FORMATS, FORMAT_LABEL, LEVELS, LEVEL_HELP, MAX_TEXT, POLL_MS, SLOW_AFTER_MS, STEPS, VOICES_LABEL, canCreate, defaultedFields,
-  isLive, lengthChoices, noteLines, specLine, stepStates, unavailableCopy, type Availability, type GenerationView, type Spec,
+  DEFAULT_SPEC, KIND_LABEL, elsewhereLine, accentNote, accentOptions, accentsFor, comingAccentLabels, kindOf, onlyElsewhere, specAvailable, voicesLabel, EXAMPLES, FORMATS, FORMAT_LABEL, LEVELS, LEVEL_HELP, MAX_TEXT, POLL_MS, SLOW_AFTER_MS, STEPS, canCreate, defaultedFields,
+  isLive, lengthChoices, noteLines, specLine, stepStates, unavailableCopy, type Availability, type GenerationView, type NeedsChoice, type Spec,
 } from '../../lib/generation-core.ts';
 
 type Screen = 'loading' | 'form' | 'reading' | 'building' | 'ready' | 'failed' | 'rejected' | 'unavailable' | 'broken';
@@ -25,6 +25,7 @@ function Panel({ mascot = 'Idle', title, children }: { mascot?: MascotState; tit
 export function CreateLesson() {
   const [screen, setScreen] = useState<Screen>('loading');
   const [avail, setAvail] = useState<Availability | null>(null);
+  const [choice, setChoice] = useState<NeedsChoice | null>(null);       // set while the server is asking the learner to pick an alternative; nothing is created until it is answered
   const [text, setText] = useState('');
   const [spec, setSpec] = useState<Spec>(DEFAULT_SPEC);
   const [notes, setNotes] = useState<string[]>([]);
@@ -36,7 +37,15 @@ export function CreateLesson() {
   const [problem, setProblem] = useState<string | null>(null);
   const started = useRef<number>(0);
   const max = avail?.max_minutes ?? 2;
-  const set = (patch: Partial<Spec>) => setSpec(s => ({ ...s, ...patch }));
+  const set = (patch: Partial<Spec>) => { setChoice(null); setSpec(s => ({ ...s, ...patch })); };
+  const kind = kindOf(spec);
+  /** Changing format keeps the learner's choices whenever the server can make them, and otherwise says what changed: never a silent swap. */
+  const chooseFormat = (f: Spec['format']) => { setChoice(null); setSpec(s => {
+    const next: Spec = { ...s, format: f, accent2: f === 'story' ? null : s.accent2 };
+    if (specAvailable(next, avail)) return next;
+    const first = accentsFor(avail, kindOf(next))[0] ?? DEFAULT_SPEC.accent;
+    return { ...next, accent: accentsFor(avail, kindOf(next)).includes(s.accent) ? s.accent : first, accent2: kindOf(next) === 'mixed_accent_conversation' ? null : next.accent2 };
+  }); };
 
   const show = useCallback((next: GenerationView) => {
     setView(next);
@@ -77,7 +86,7 @@ export function CreateLesson() {
     try {
       let v = await interpretRequest(text.trim());
       for (let n = 0; n < 40 && v.phase === 'queued'; n++) { await new Promise(r => setTimeout(r, 1000)); v = await getGeneration(v.id); }
-      if (v.phase === 'interpreted' && v.spec) { setSpec(v.spec); setNotes(v.notes); setReviewed(true); setScreen('form'); }
+      if (v.phase === 'interpreted' && v.spec) { setSpec({ ...v.spec, accent: v.spec.accent ?? '', accent2: v.spec.accent2 ?? null }); setNotes(v.notes); setChoice(v.needs_choice ?? null); setReviewed(true); setScreen('form'); }
       else if (v.phase === 'needs_input') { setQuestion(v.question); setScreen('form'); }
       else if (v.phase === 'rejected') { setView(v); setScreen('rejected'); }
       else { setProblem('We couldn’t read that just now. Please try again, or use the settings below.'); setScreen('form'); }
@@ -130,7 +139,7 @@ export function CreateLesson() {
         {STEPS.map((step, i) => <div key={step.key} className={`${styles.stepRow} ${styles[states[i] === 'active' ? 'now' : states[i]]}`}>
           <span className={styles.stepIcon} aria-hidden="true">{states[i] === 'done' ? <Icon name="check" size={14} /> : null}</span>
           <span><b>{states[i] === 'done' ? step.done : step.label}</b><span className={styles.srOnly}>{states[i] === 'active' ? ' — in progress' : states[i] === 'todo' ? ' — waiting' : ''}</span>
-            {step.key === 'audio' && states[i] !== 'todo' ? <><br /><span className={styles.muted} style={{ fontSize: 14 }}>{accentLabel(s.accent)} voices · {VOICES_LABEL[s.format]}</span></> : null}</span></div>)}
+            {step.key === 'audio' && states[i] !== 'todo' ? <><br /><span className={styles.muted} style={{ fontSize: 14 }}>{accentLabel(s.accent)}{s.accent2 ? ` + ${accentLabel(s.accent2)}` : ''} voices · {voicesLabel(s)}</span></> : null}</span></div>)}
       </div>
       <p className={styles.infoBar}><span aria-hidden="true"><Icon name="info" size={18} /></span><span>You can leave this screen. The lesson will be in your library when it’s ready.</span></p>
       <div className={styles.actionsStack}><Link className={`${styles.btn} ${styles.btnSecondary}`} href="/listening">Browse while you wait</Link></div>
@@ -147,7 +156,7 @@ export function CreateLesson() {
         <div className={styles.readyBody}><h1 className={`${styles.display} ${styles.h2}`} style={{ fontSize: 24 }}>{view.title}</h1>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><span className={styles.tag}><Icon name="globe" size={14} />{accentLabel(s.accent)}</span><span className={`${styles.tag} ${styles.tagMuted}`}>{FORMAT_LABEL[s.format]}</span></div></div></div>
       <div className={styles.infoRows}>
-        <div className={styles.infoRow}><Icon name="headphones" /><span><b>Audio</b><br /><span className={styles.muted}>{accentLabel(s.accent)} · {VOICES_LABEL[s.format]}</span></span></div>
+        <div className={styles.infoRow}><Icon name="headphones" /><span><b>Audio</b><br /><span className={styles.muted}>{accentLabel(s.accent)}{s.accent2 ? ` + ${accentLabel(s.accent2)}` : ''} · {voicesLabel(s)}</span></span></div>
         <div className={styles.infoRow}><Icon name="lines" /><span><b>Transcript</b><br /><span className={styles.muted}>Synced to the audio</span></span></div>
         <div className={styles.infoRow}><Icon name="check" /><span><b>4 exercises</b><br /><span className={styles.muted}>Choose · Speak · Fill · Order</span></span></div>
       </div>
@@ -176,6 +185,10 @@ export function CreateLesson() {
       {question ? <p className={styles.notice} role="status"><span aria-hidden="true"><Icon name="info" size={18} /></span>{question}</p> : null}
       {problem ? <p className={styles.notice} role="alert"><span aria-hidden="true"><Icon name="info" size={18} /></span>{problem}</p> : null}
       {reviewed ? <p className={styles.ok} role="status"><Icon name="check" size={18} /> We filled in the details below from your description — change anything.</p> : null}
+      {choice ? <div className={styles.notice} role="alert" data-testid="needs-choice" style={{ display: 'grid', gap: 8 }}>
+        <span><span aria-hidden="true"><Icon name="info" size={18} /></span> <b>{choice.reason}</b> Nothing has changed: choose how you’d like to continue.</span>
+        <span className={styles.filters} style={{ margin: 0 }}>{choice.options.map(o => <button key={o.label} type="button" className={styles.chip}
+          onClick={() => { setChoice(null); setSpec(s => ({ ...s, ...o.patch } as Spec)); }}>{o.label}</button>)}</span></div> : null}
       {lines.map(l => <p key={l} className={styles.notice} role="status"><span aria-hidden="true"><Icon name="info" size={18} /></span>{l}</p>)}
 
       <span className={styles.fieldLabel} id="gen-lang">Language</span>
@@ -186,16 +199,32 @@ export function CreateLesson() {
         onClick={() => set({ cefr: l })}>{l}</button>)}</div>
       <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }}>{LEVEL_HELP[spec.cefr]}</p>
 
-      <span className={styles.fieldLabel} id="gen-accent">Accent</span>
+      <span className={styles.fieldLabel} id="gen-accent">{kind === 'mixed_accent_conversation' ? 'First speaker’s accent' : 'Accent'}</span>
       <div className={styles.radioCards} role="radiogroup" aria-labelledby="gen-accent">
-        {accentOptions(avail).map(a => <button key={a} type="button" role="radio" aria-checked={spec.accent === a} className={styles.radioCard} onClick={() => set({ accent: a })}>
+        {accentsFor(avail, kind).map(a => <button key={a} type="button" role="radio" aria-checked={spec.accent === a} className={styles.radioCard} disabled={kind === 'mixed_accent_conversation' && spec.accent2 === a}
+          onClick={() => set({ accent: a })}>
           <span className={styles.code} aria-hidden="true">{accentNote(a).code}</span><span><b>{accentNote(a).place}</b><br /><span className={styles.muted} style={{ fontSize: 14 }}>{accentNote(a).feel}</span></span><span className={styles.dot} aria-hidden="true" /></button>)}
       </div>
+      {onlyElsewhere(avail, kind).length ? <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }} data-testid="only-elsewhere">{elsewhereLine(avail, kind)}</p> : null}
       <p className={styles.muted} style={{ fontSize: 14, margin: '8px 0 0' }}>Coming soon: {comingAccentLabels(avail).join(', ')}.</p>
+      {kind === 'mixed_accent_conversation' ? <>
+        <span className={styles.fieldLabel} id="gen-accent2">Second speaker’s accent</span>
+        <div className={styles.radioCards} role="radiogroup" aria-labelledby="gen-accent2">
+          {accentsFor(avail, kind).map(a => <button key={a} type="button" role="radio" aria-checked={spec.accent2 === a} className={styles.radioCard} disabled={spec.accent === a} onClick={() => set({ accent2: a })}>
+            <span className={styles.code} aria-hidden="true">{accentNote(a).code}</span><span><b>{accentNote(a).place}</b><br /><span className={styles.muted} style={{ fontSize: 14 }}>{accentNote(a).feel}</span></span><span className={styles.dot} aria-hidden="true" /></button>)}
+        </div></> : null}
 
       <span className={styles.fieldLabel} id="gen-format">Format</span>
       <div className={styles.filters} role="radiogroup" aria-labelledby="gen-format" style={{ margin: 0 }}>{FORMATS.map(f => <button key={f} type="button" role="radio" aria-checked={spec.format === f}
-        className={styles.chip} onClick={() => set({ format: f })}>{spec.format === f ? <Icon name="check" size={16} /> : null}{FORMAT_LABEL[f]}</button>)}</div>
+        className={styles.chip} onClick={() => chooseFormat(f)}>{spec.format === f ? <Icon name="check" size={16} /> : null}{FORMAT_LABEL[f]}</button>)}</div>
+
+      {spec.format !== 'story' ? <div style={{ margin: '8px 0 0' }}>
+        {avail?.formats?.mixed_accent_conversation?.length
+          ? <button type="button" role="switch" aria-checked={kind === 'mixed_accent_conversation'} className={styles.chip}
+              onClick={() => set({ accent2: kind === 'mixed_accent_conversation' ? null : (accentsFor(avail, 'mixed_accent_conversation').find(a => a !== spec.accent) ?? null) })}>
+              {kind === 'mixed_accent_conversation' ? <Icon name="check" size={16} /> : null}Different accent for the second speaker</button>
+          : <p className={styles.muted} style={{ fontSize: 14, margin: 0 }} data-testid="mixed-unavailable">Mixed-accent conversations (a different accent for each speaker) aren’t available yet.</p>}
+      </div> : null}
 
       <span className={styles.fieldLabel} id="gen-length">Length</span>
       <div className={styles.filters} role="radiogroup" aria-labelledby="gen-length" style={{ margin: 0 }}>{choices.map(m => <button key={m} type="button" role="radio" aria-checked={spec.minutes === m}
@@ -206,12 +235,12 @@ export function CreateLesson() {
       <div className={styles.summary}>
         <p className={styles.eyebrow}>Your lesson</p><h2 className={`${styles.display} ${styles.h3}`}>{label}</h2>
         <div className={styles.summaryRow}><span>Language</span><span>English</span></div><div className={styles.summaryRow}><span>Level</span><span>{spec.cefr}</span></div>
-        <div className={styles.summaryRow}><span>Accent</span><span>{accentNote(spec.accent).place}</span></div>
-        <div className={styles.summaryRow}><span>Format</span><span>{FORMAT_LABEL[spec.format]} · {VOICES_LABEL[spec.format]}</span></div>
+        <div className={styles.summaryRow}><span>Accent</span><span>{spec.accent2 ? `${accentLabel(spec.accent)} + ${accentLabel(spec.accent2)}` : accentNote(spec.accent).place}</span></div>
+        <div className={styles.summaryRow}><span>Format</span><span>{kind === 'mixed_accent_conversation' ? KIND_LABEL[kind] : FORMAT_LABEL[spec.format]} · {voicesLabel(spec)}</span></div>
         <div className={styles.summaryRow}><span>Length</span><span>About {spec.minutes} minute{spec.minutes === 1 ? '' : 's'}</span></div>
         <p className={styles.muted} style={{ fontSize: 13, margin: '8px 0 0' }}>Includes audio, a synced transcript and 4 exercises with answer keys. You can leave this screen while it’s built.</p>
       </div>
-      <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} style={{ marginTop: 16 }} disabled={busy || !canCreate(spec, text, accentOptions(avail))} onClick={() => void create()}>
+      <button type="button" className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} style={{ marginTop: 16 }} disabled={busy || !!choice || !canCreate(spec, text, accentsFor(avail, kind)) || !specAvailable(spec, avail)} onClick={() => void create()}>
         {screen === 'reading' ? 'Reading your request…' : busy ? 'Starting…' : !reviewed && text.trim().length >= 3 && spec.topic.trim().length < 3 ? 'Fill in the details' : 'Create lesson'}</button>
       <p className={styles.muted} style={{ textAlign: 'center', fontSize: 13, marginTop: 8 }}>{avail ? `Up to ${avail.per_learner_daily} lessons a day · you can leave this screen` : ''}</p>
     </aside>

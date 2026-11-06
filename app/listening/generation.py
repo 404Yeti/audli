@@ -413,10 +413,10 @@ class ScriptWriter(Protocol):
 
 SPEC_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
-    'required': ['topic', 'cefr', 'accent', 'minutes', 'format', 'scenario', 'question', 'rejected_reason'],
+    'required': ['topic', 'cefr', 'accent', 'accent2', 'minutes', 'format', 'scenario', 'question', 'rejected_reason'],
     'properties': {
         'topic': {'type': ['string', 'null']}, 'cefr': {'type': ['string', 'null'], 'enum': [*LEVELS, None]},
-        'accent': {'type': ['string', 'null']}, 'minutes': {'type': ['integer', 'null']},
+        'accent': {'type': ['string', 'null']}, 'accent2': {'type': ['string', 'null']}, 'minutes': {'type': ['integer', 'null']},
         'format': {'type': ['string', 'null'], 'enum': [*FORMATS, None]}, 'scenario': {'type': ['string', 'null']},
         'question': {'type': ['string', 'null']}, 'rejected_reason': {'type': ['string', 'null']}}}
 
@@ -448,7 +448,9 @@ INTERPRET_SYSTEM = (
     'You turn a learner\'s request for an English listening lesson into settings. Reply only with the JSON object. '
     'topic: a short noun phrase for what the lesson is about (null ONLY if the request names no usable subject). '
     'cefr: A1-C2 if stated or clearly implied, else null. accent: the English accent or variety the learner names (for example american, british, australian, irish, indian, scottish, canadian, new zealand) ONLY if they name one, else null; a place or a person\'s origin on its own is NOT an accent. '
-    'minutes: the length asked for, a whole number, else null. format: story, dialogue or conversation if stated or clearly implied, else null. '
+    'Examples: "a Scottish monologue" -> format story, accent scottish. "a conversation between an Irish speaker and an American speaker" -> format dialogue, accent irish, accent2 american. '
+    'accent2: ONLY when the learner asks for two speakers with DIFFERENT accents (for example "a British interviewer and an Indian applicant": accent=british, accent2=indian), the second speaker\'s accent; otherwise null. '
+    'minutes: the length asked for, a whole number, else null. format: story for ONE speaker (a monologue, a talk, a presentation, "a speaker telling/explaining"), dialogue or conversation for two speakers, only if stated or clearly implied, else null. '
     'scenario: any extra setting details the learner gave (place, people, situation), else null. '
     'question: ONE short question ONLY if the topic cannot be inferred at all; otherwise null. '
     'rejected_reason: a short reason if the request asks for harmful, hateful, sexual, violent, illegal, or personal-data content, or is not a request for a lesson; otherwise null. '
@@ -625,15 +627,25 @@ class FakeInterpreter:
 
     def interpret(self, text: str, max_minutes: int) -> dict:
         self.calls += 1
-        base = {'topic': None, 'cefr': None, 'accent': None, 'minutes': None, 'format': None, 'scenario': None, 'question': None, 'rejected_reason': None}
+        base = {'topic': None, 'cefr': None, 'accent': None, 'accent2': None, 'minutes': None, 'format': None, 'scenario': None, 'question': None, 'rejected_reason': None}
         if self.result is not None:
             return {**base, **self.result}
         lowered = text.lower()
-        found = re.search(r'about ([a-z ]+?)(?:,| with| around|\.|$)', lowered)
+        found = re.search(r'about ([a-z ]+?)(?:,| with| around| between| using|\.|$)', lowered)
+        accent, accent2, fmt = None, None, None
+        between = re.search(r'between (?:an? |the |two )?(.+?) and (?:an? |the )?(.+?)(?:[,.]| about| in |$)', lowered)
+        first, second = (resolve_accent(between.group(1)), resolve_accent(between.group(2))) if between else (None, None)
+        if first and second and first != second:                       # "between a British interviewer and an Indian applicant"
+            accent, accent2 = ACCENT_LABELS[first], ACCENT_LABELS[second]
+        else:                                                           # an accent is named only as "<accent> accent/English/speaker(s)/voice(s)"; a place alone is not one
+            accent = (next((ACCENT_LABELS[a] for a in ACCENT_ALIASES if re.search(rf'\b(?:{ACCENT_ALIASES[a]})\s+(?:accents?|english|speakers?|voices?|monologues?|conversations?|dialogues?|stor(?:y|ies)|talks?|presentations?|lessons?)\b', lowered)), None)
+                      or (ACCENT_LABELS[first] if first and between else None)
+                      or next((a for a in ('american', 'british', 'australian') if a in lowered), None))
+        if re.search(r'\b(monologue|one speaker|a single speaker|speaker (?:telling|explaining|giving|describing)|tells? a story|telling a story|presentation|a talk|a story|story)\b', lowered):
+            fmt = 'story'
         return {**base, 'topic': found.group(1).strip() if found else None,
                 'cefr': next((l for l in LEVELS if l.lower() in lowered.split() or l in text.split()), None),
-                'accent': next((ACCENT_LABELS[a] for a in ACCENT_ALIASES if re.search(rf'\b(?:{ACCENT_ALIASES[a]})\s+(?:accents?|english)\b', lowered)),
-                               next((a for a in ('american', 'british', 'australian') if a in lowered), None)),
+                'accent': accent, 'accent2': accent2, 'format': fmt,
                 'minutes': 3 if 'three' in lowered else None, 'question': None if found else 'What would you like the lesson to be about?'}
 
 

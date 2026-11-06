@@ -67,29 +67,67 @@ LISTENING_PAIRS = {
 # (labels and descriptions only; no audio was generated and no credits were spent). The first voice is the approved 1.x voice, kept so both versions
 # sound the same; each proposal is the opposite gender from it where known, so the two speakers are easy to tell apart. All need an owner listening
 # review and a real two-speaker test before status can become 'enabled'.
+# 'approved' stays None until the OWNER has listened and approved a second voice in writing; then it is set to that voice's id (one line, reviewed in a PR) and the accent's
+# same-accent two-speaker conversation opens (still behind AUDLI_LISTENING_FORMATS_ENABLED and the accent being opened in AUDLI_LISTENING_FORMAT_ACCENTS).
+# Each row: (voice_id, name, provider-labelled gender/style). The first row is the proposal; later rows are alternates. Metadata only: nothing here is verified by ear.
 LISTENING_CANDIDATES = {
-    'irish': {'first': 'DbwWo4rVEd5NrejHYUnm', 'status': 'proposed', 'second': [
+    'irish': {'first': 'DbwWo4rVEd5NrejHYUnm', 'approved': None, 'second': [
         ('BOt7zZh6gzfWlIUYnyPz', 'Darragh - Warm, Friendly, Calm and Clear', 'male, neutral Irish, casual conversation'),
         ('fNG1TqnY9mWgIFIExmZA', 'Andrew EMTS', 'male, clear teaching style')]},
-    'indian': {'first': 'fydPJq00SigRIaPxWgiS', 'status': 'proposed', 'second': [
+    'indian': {'first': 'fydPJq00SigRIaPxWgiS', 'approved': None, 'second': [
         ('eH0983ZXSi0hJkuHbC3i', 'Vishesh - Friendly Indian English', 'male, light accent, clear and conversational'),
         ('fSTPf9bYe9OOsdVPpz21', 'Lavkush - Calm, Warm, and Articulate', 'male, clear diction')]},
-    'scottish': {'first': 'csXxiUN2BUFflsCaDxPM', 'status': 'proposed', 'second': [
+    'scottish': {'first': 'csXxiUN2BUFflsCaDxPM', 'approved': None, 'second': [
         ('TVmbglAk3F1GkiCoOq47', 'Isla Skye - Authentic Scottish Female', 'female, Edinburgh, e-learning'),
         ('2Cg6E8rBwJfseh8Mk7sj', 'Nicola - Warm & Neutral Scottish Voice', 'female, West of Scotland, conversational')]},
-    'canadian': {'first': 'RorawgRgSS2YxWqy31vY', 'status': 'proposed', 'second': [
+    'canadian': {'first': 'RorawgRgSS2YxWqy31vY', 'approved': None, 'second': [
         ('bE3COCGjWQ0g9MBhv2cf', 'Jeff - Smooth Canadian', 'male, neutral Canadian accent'),
         ('D7u5tN2bpWtEVjAD7c1M', 'Aaron - Educational', 'male, educational')]},
-    'new_zealand': {'first': 'pDZ0CqONaFi2LrK1f413', 'status': 'proposed', 'second': [
-        ('XcScRctIXQsuUPQQwzsz', 'Becca - Calm Friendly Kiwi', 'female, conversational (use if the 1.x voice is male)'),
-        ('UqC26gfNvU9pUmY9theE', 'Jonty - Professional Warm Kiwi', 'male, e-learning (use if the 1.x voice is female)')]},
+    'new_zealand': {'first': 'pDZ0CqONaFi2LrK1f413', 'approved': None, 'second': [                    # speaker 1 (Torey Slatter) is male, so the second speaker is female
+        ('XcScRctIXQsuUPQQwzsz', 'Becca - Calm Friendly Kiwi', 'female, conversational'),
+        ('7R9vnLAE0ZSpY0xWp0mv', 'Jenna - NZ Female, clear', 'female, young, clear narration')]},
+    'chinese': {'first': '1a0nAYA3FcNQcMMfbddY', 'approved': None, 'second': [                        # speaker 1 (Ziyu) is female
+        ('mBoVD3461U2BagYEwjeo', "Lee's voice", 'male, young, Chinese-Mandarin accent'),
+        ('NxUQ5SgevJvRsX9HsM0O', 'Wenchang-Chinese accent', 'calm, clear, steady, instructional (gender not labelled)')]},
+    'japanese': {'first': 'DiHqGqDdN8tWkUxlsPeg', 'approved': None, 'second': [                        # speaker 1 (Yuki) is female
+        ('69Na567Zr0bPvmBYuGdc', 'Tatsuya Watanabe - Narration, Japanese male', 'male, young, Japanese accent'),
+        ('1MPZGta71qtdTm2BpYUl', 'Tahm - Deep narration & Storytelling', 'male, young, labelled Japanese accent')]},
+    'filipino': {'first': '7IA6NDxeqmtXCKLKb5nf', 'approved': None, 'second': [                        # speaker 1 (Amara) is female
+        ('84RXm9MY2lATjoJi5K8P', 'JC - Calm & Friendly', 'male, young, Filipino accent'),
+        ('DBL96vXYYbWbRYCYG3wC', 'Jabby - Informational, Casual, Friendly', 'male, Filipino accent')]},
+    'nigerian': {'first': '8P18CIVcRlwP98FOjZDm', 'approved': None, 'second': [                        # speaker 1 (Ola) is male
+        ('2vbhUP8zyKg4dEZaTWGn', 'Stella - warm, natural and conversational', 'female, young, Nigerian accent'),
+        ('E7AdVOKapxpnuchBH9Fa', 'Taiwo O', 'female, middle-aged, warm and assertive')]},
+    'southern': {'first': '9XNfIsDIvdnSURk8DW4z', 'approved': None, 'second': [                        # speaker 1 (Wade) is male
+        ('BVA1oNX6xZt6o7QaUwxr', 'Dr. Kendall', 'female, calm, soft Southern accent, steady pace'),
+        ('5xZj4vEjtKaYKe3vCreA', 'Leah - Warm Southern voice', 'female, middle-aged, subtle Southern accent')]},
+    'new_york': {'first': 'QzTKubutNn9TjrB7Xb2Q', 'approved': None, 'second': [                        # speaker 1 (Jerry B.) is male
+        ('DZ2ULBbuhpX6zJYCQic4', 'Alise - Calm Urban City Alto', 'female, young, calm, subtle NYC tone'),
+        ('C3x1TEM7scV4p2AXJyrp', 'Zuri - Professional New Yorker', 'female, middle-aged New York')]},
+    'boston': {'first': 'UZvBfqEdvCFLqsBOo9Zr', 'approved': None, 'second': [                            # speaker 1 (Jerry B.) is male
+        ('6B43gMdWDCu6YLdbVZFc', 'Shelly - Boston Native', 'female, middle-aged, Boston')]},
 }
-# No candidate and no 1.x voice: welsh, south_african (refused until a voice is approved). Not proposed for 2.0 dialogue: chinese, japanese, filipino,
-# nigerian (accents shaped by a learner's first language, so a separate owner decision), southern, new_york, boston (1.x voices are character voices).
+# No candidate and no 1.x voice: welsh, south_african (refused until a voice is approved).
 
 
 def enabled_listening_accents() -> tuple[str, ...]:
     return tuple(accent for accent, pair in LISTENING_PAIRS.items() if pair['status'] == 'enabled')
+
+
+def approved_second_voices() -> dict:
+    """accent -> the owner-approved second voice id. Empty until the owner approves; each entry must be one of that accent's listed candidates and differ from speaker 1."""
+    out = {}
+    for accent, row in LISTENING_CANDIDATES.items():
+        if row.get('approved'):
+            if row['approved'] not in [v for v, _, _ in row['second']] or row['approved'] == row['first']:
+                raise ValueError(f'{accent}: an approved second voice must be a listed candidate and differ from speaker 1')
+            out[accent] = row['approved']
+    return out
+
+
+def approved_pairs() -> dict:
+    """accent -> (speaker 1, speaker 2) for accents whose second voice the owner has approved: two genuinely different voices, speaker 1 always the owner's 1.x voice."""
+    return {accent: (LISTENING_CANDIDATES[accent]['first'], voice) for accent, voice in approved_second_voices().items()}
 
 
 def upcoming_listening_accents() -> tuple[str, ...]:

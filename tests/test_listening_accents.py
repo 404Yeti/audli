@@ -69,19 +69,19 @@ def test_only_accents_with_an_enabled_pair_of_two_different_voices_can_be_genera
 
 def test_proposed_second_voices_are_only_a_shortlist_and_never_usable():
     approved_1x = {**{a: v for a, v, *_ in cat.SELECTED_PASSAGE_VOICES}, **{a: v for a, v, *_ in cat.EXISTING_PASSAGE_VOICES}}
-    assert set(cat.LISTENING_CANDIDATES) == {'irish', 'indian', 'scottish', 'canadian', 'new_zealand'}
+    assert set(cat.LISTENING_CANDIDATES) == set(approved_1x) - {'american', 'british', 'australian'} and len(cat.LISTENING_CANDIDATES) == 12
     for accent, row in cat.LISTENING_CANDIDATES.items():
-        assert row['status'] == 'proposed' and accent not in cat.LISTENING_PAIRS and accent not in g.ACCENTS
+        assert row['approved'] is None and accent not in cat.LISTENING_PAIRS and accent not in g.ACCENTS
         assert row['first'] == approved_1x[accent]                                  # the first speaker is the voice 1.x already runs: both versions sound alike
         seconds = [v for v, _, _ in row['second']]
         assert row['first'] not in seconds and len(set(seconds)) == len(seconds)     # two distinguishable voices, never the same one twice
         assert all(re.fullmatch(r'[A-Za-z0-9]{20}', v) for v in seconds)
-    assert cat.upcoming_listening_accents() == ('irish', 'indian', 'scottish', 'canadian', 'new_zealand')
+    assert cat.upcoming_listening_accents() == tuple(cat.LISTENING_CANDIDATES)
 
 
-def test_accents_that_are_not_proposed_have_no_two_voice_path_at_all():
-    for accent in ('welsh', 'south_african', 'chinese', 'japanese', 'filipino', 'nigerian', 'southern', 'new_york', 'boston'):
-        assert accent not in cat.LISTENING_PAIRS and accent not in cat.LISTENING_CANDIDATES
+def test_accents_without_any_voice_have_no_path_at_all():
+    for accent in ('welsh', 'south_african'):
+        assert accent not in cat.LISTENING_PAIRS and accent not in cat.LISTENING_CANDIDATES and accent not in cat.single_voices()
 
 
 # ---- interpretation --------------------------------------------------------------------------------------------------------------------------

@@ -29,7 +29,7 @@ from app.listening.domain import (AnswerKey, FillBlank, FillKey, LessonContent, 
 from app.models import StrictModel
 from app.storage.repository import utcnow
 
-from app.accent_catalog import (ACCENT_IDS, ALIASES as ACCENT_ALIASES, LABELS as ACCENT_LABELS, LISTENING_PAIRS, enabled_listening_accents, single_voices,
+from app.accent_catalog import (ACCENT_IDS, approved_pairs, ALIASES as ACCENT_ALIASES, LABELS as ACCENT_LABELS, LISTENING_PAIRS, enabled_listening_accents, single_voices,
                                 upcoming_listening_accents)
 
 ACCENTS = enabled_listening_accents()                             # accents with an enabled, distinguishable two-voice pair (app/accent_catalog.py); others are refused, never substituted
@@ -55,7 +55,8 @@ DEFAULT_VOICES = {accent: tuple(LISTENING_PAIRS[accent]['voices']) for accent in
 def voices_from(settings) -> dict:
     import json
     configured = json.loads(settings.listening_gen_voices) if settings.listening_gen_voices.strip() else {}
-    merged = {**DEFAULT_VOICES, **{k: tuple(v) for k, v in configured.items() if k in ACCENTS}}
+    pairs = {**DEFAULT_VOICES, **approved_pairs()}              # the original three, plus any accent whose second voice the owner has approved (none until then)
+    merged = {**pairs, **{k: tuple(v) for k, v in configured.items() if k in pairs}}       # an override may swap voices of an accent that already has a pair, never create one
     if any(len(v) < 1 for v in merged.values()):
         raise ValueError('every accent needs at least one voice id')
     return merged
@@ -120,7 +121,9 @@ def format_availability(settings=None) -> dict:
     on = bool(settings is not None and settings.listening_formats_enabled)
     singles = set(single_voices()) | set(LISTENING_PAIRS)
     opened = [a for a in ACCENT_IDS if a in ACCENTS or (on and a in _csv(settings.listening_format_accents) and a in singles)]
-    return {MONOLOGUE: opened, CONVERSATION: list(ACCENTS), MIXED: opened if on else []}
+    # Same-accent dialogue: the original three, plus an accent whose second voice the owner approved, once it is opened by the same two settings as everything else.
+    dialogue = list(ACCENTS) + [a for a in ACCENT_IDS if on and a in approved_pairs() and a in opened and a not in ACCENTS]
+    return {MONOLOGUE: opened, CONVERSATION: dialogue, MIXED: opened if on else []}
 
 
 def coming_accents(settings=None) -> list[str]:

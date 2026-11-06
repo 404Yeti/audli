@@ -10,6 +10,7 @@ from app import accent_catalog as cat, accent_registry as registry
 from app.config import Settings
 from app.listening import generation as g
 from app.listening.generation import Spec, assign_voices, format_availability, needs_choice, clamp_spec, spec_problem
+from pending_voices import pending_unless_owner_approved, unapprove_all  # noqa: F401  (autouse fixture)
 from test_listening import make_repository  # noqa: F401  (fixture)
 from test_listening_generation import VOICES, lab, run, settings as gen_settings, start, view  # noqa: F401  (fixtures/helpers)
 from test_listening_formats import lesson_rows, library, spec  # noqa: F401
@@ -22,11 +23,12 @@ def speaker_one(accent):
     return registry.SELECTED_VOICES[accent].voice_id if accent in registry.SELECTED_VOICES else {v.accent: v.voice_id for v in registry.EXISTING_VOICES}[accent]
 
 
+@pytest.mark.owner_approved
 def test_every_one_of_the_twelve_accents_has_candidates_with_the_owners_voice_as_speaker_one():
     assert set(cat.LISTENING_CANDIDATES) == set(TWELVE) and len(TWELVE) == 12
     for accent, row in cat.LISTENING_CANDIDATES.items():
         assert row['first'] == speaker_one(accent), accent                                 # the owner's Audli 1.x selection, never replaced
-        assert row['approved'] is None, accent                                              # and nothing is approved yet
+        assert row['approved'] == row['second'][0][0] and row['approved'] not in row['rejected'], accent      # the owner approved the proposed voice (AUD-117), no substitute
 
 
 def test_candidates_are_real_distinct_voices_never_reused_across_accents_or_as_a_speaker_one():
@@ -42,7 +44,8 @@ def test_candidates_are_real_distinct_voices_never_reused_across_accents_or_as_a
         assert all(label.strip() for _, _, label in row['second'])
 
 
-def test_until_the_owner_approves_a_voice_same_accent_dialogue_is_unavailable_and_alternatives_are_offered():
+def test_until_the_owner_approves_a_voice_same_accent_dialogue_is_unavailable_and_alternatives_are_offered(monkeypatch):
+    unapprove_all(monkeypatch)
     assert cat.approved_second_voices() == {} and cat.approved_pairs() == {}
     assert format_availability(library())['conversation'] == list(ORIGINAL)
     for accent in TWELVE:
@@ -81,6 +84,7 @@ def test_once_approved_an_accent_gets_same_accent_dialogue_with_its_two_distinct
 
 
 def test_approving_one_accent_changes_nothing_else_and_mixed_accent_stays_open_for_all_fifteen(monkeypatch):
+    unapprove_all(monkeypatch)
     before = format_availability(library())
     monkeypatch.setitem(cat.LISTENING_CANDIDATES['irish'], 'approved', cat.LISTENING_CANDIDATES['irish']['second'][0][0])
     after = format_availability(library())
@@ -105,3 +109,22 @@ def test_an_approval_that_is_not_a_listed_candidate_or_equals_speaker_one_is_ref
 def test_a_configuration_override_cannot_give_an_unapproved_accent_a_pair():
     configured = '{"irish": ["' + 'A' * 20 + '", "' + 'B' * 20 + '"]}'
     assert 'irish' not in g.voices_from(Settings(listening_gen_voices=configured, _env_file=None))
+
+
+@pytest.mark.owner_approved
+def test_all_twelve_owner_approvals_make_all_fifteen_accents_available_in_every_format():
+    approved = cat.approved_second_voices()
+    assert set(approved) == set(TWELVE) and len(approved) == 12
+    assert {a: approved[a] for a in approved} == {a: cat.LISTENING_CANDIDATES[a]['second'][0][0] for a in TWELVE}      # exactly the voices the owner listened to
+    available = format_availability(library())
+    assert set(available['conversation']) == set(available['monologue']) == set(available['mixed_accent_conversation']) == set(cat.format_eligible_accents()) and len(available['conversation']) == 15
+    assert format_availability(gen_settings())['conversation'] == [] or set(format_availability(gen_settings())['conversation']) <= set(ORIGINAL)      # flag off: nothing new
+    voices = g.voices_from(library())
+    two = [SimpleNamespace(id='a'), SimpleNamespace(id='b')]
+    for accent in TWELVE:
+        assert spec_problem(spec(accent=accent), library()) is None, accent
+        pair = assign_voices(spec(accent=accent), two, voices)
+        assert pair == {'a': speaker_one(accent), 'b': approved[accent]} and pair['a'] != pair['b'], accent          # distinct voices, speaker 1 is still the 1.x voice
+    assert len({v for a in TWELVE for v in (speaker_one(a), approved[a])}) == 24                                       # no voice shared between accents
+    for accent in ORIGINAL:
+        assert voices[accent] == cat.LISTENING_PAIRS[accent]['voices'] or tuple(voices[accent]) == tuple(cat.LISTENING_PAIRS[accent]['voices'])      # the original three are untouched

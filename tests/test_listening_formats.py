@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+
+from pending_voices import pending_unless_owner_approved  # noqa: F401  (autouse fixture)
 from pydantic import ValidationError
 from sqlalchemy import select
 
@@ -333,3 +335,23 @@ def test_the_public_health_endpoint_reports_which_accents_each_format_offers_wit
     health = api.a.get('/api/health').json()['listening_formats']
     assert health['enabled'] is True and len(health['monologue']) == 15 and len(health['mixed_accent_conversation']) == 15 and health['conversation'] == list(ORIGINAL)
     assert not any(len(str(v)) == 20 and str(v).isalnum() for value in health.values() if isinstance(value, list) for v in value)       # ids of accents only, never a voice id
+
+
+@pytest.mark.owner_approved
+def test_with_the_owners_twelve_approvals_every_format_offers_all_fifteen_accents():
+    available = format_availability(library())
+    assert set(available['monologue']) == set(available['mixed_accent_conversation']) == set(available['conversation']) == set(ALL) and len(available['conversation']) == 15
+    assert g.coming_accents(library()) == ['welsh', 'south_african']                      # still not offered, never substituted
+    assert format_availability(gen_settings())['conversation'] == list(ORIGINAL) or format_availability(gen_settings())['conversation'] == []      # flag off: unchanged
+    for accent in ALL:
+        for kwargs in ({}, {'format': 'story'}, {'accent2': 'american'}):
+            assert spec_problem(spec(accent=accent, **kwargs), library()) is None, (accent, kwargs)
+
+
+@pytest.mark.owner_approved
+def test_the_public_health_endpoint_reports_all_fifteen_accents_in_all_three_formats(api):
+    api_with(api, listening_formats_enabled=True, listening_format_accents=PRODUCTION_ACCENTS)
+    health = api.a.get('/api/health').json()['listening_formats']
+    assert health['enabled'] is True
+    assert set(health['conversation']) == set(health['monologue']) == set(health['mixed_accent_conversation']) == set(ALL) and len(health['conversation']) == 15
+    assert not any(len(str(v)) == 20 and str(v).isalnum() for value in health.values() if isinstance(value, list) for v in value)      # accents only, never a voice id

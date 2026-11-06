@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from pending_voices import pending_unless_owner_approved  # noqa: F401  (autouse fixture)
+
 from app import accent_catalog as cat
 from app import accent_registry as registry
 from app.listening import generation as g
@@ -71,7 +73,7 @@ def test_proposed_second_voices_are_only_a_shortlist_and_never_usable():
     approved_1x = {**{a: v for a, v, *_ in cat.SELECTED_PASSAGE_VOICES}, **{a: v for a, v, *_ in cat.EXISTING_PASSAGE_VOICES}}
     assert set(cat.LISTENING_CANDIDATES) == set(approved_1x) - {'american', 'british', 'australian'} and len(cat.LISTENING_CANDIDATES) == 12
     for accent, row in cat.LISTENING_CANDIDATES.items():
-        assert row['approved'] is None and accent not in cat.LISTENING_PAIRS and accent not in g.ACCENTS
+        assert accent not in cat.LISTENING_PAIRS and accent not in g.ACCENTS      # approval enables same-accent dialogue through approved_pairs(), never the original pair table
         assert row['first'] == approved_1x[accent]                                  # the first speaker is the voice 1.x already runs: both versions sound alike
         seconds = [v for v, _, _ in row['second']]
         assert row['first'] not in seconds and len(set(seconds)) == len(seconds)     # two distinguishable voices, never the same one twice

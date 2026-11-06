@@ -1,3 +1,4 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = ["owner_approved: runs on the real catalog with the owner's approved second voices (other listening tests run in the pre-review state)"]

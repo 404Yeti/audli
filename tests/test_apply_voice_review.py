@@ -27,6 +27,10 @@ Boston: no decision (Shelly (female) 6B43gMdWDCu6YLdbVZFc)
 def catalog_copy(tmp_path):
     path = tmp_path / 'accent_catalog.py'
     shutil.copy(ROOT / 'app/accent_catalog.py', path)
+    pending = review.load_catalog(path)
+    revoke = review.plan(review.parse('\n'.join(f'{review.NAMES[a]}: revoke' for a in pending.approved_second_voices())), pending)
+    if revoke:                                                              # start every test from the state before the owner's review, built with the tool's own revoke
+        path.write_text(review.apply(path.read_text(), revoke))
     return path
 
 
@@ -36,8 +40,8 @@ def run(catalog_copy, text, *flags, tmp_path=None):
     return review.main([str(decisions), '--catalog', str(catalog_copy), *flags])
 
 
-def test_the_page_output_parses_and_only_explicit_approvals_and_rejections_become_changes():
-    changes = review.plan(review.parse(COPY), cat)
+def test_the_page_output_parses_and_only_explicit_approvals_and_rejections_become_changes(catalog_copy):
+    changes = review.plan(review.parse(COPY), review.load_catalog(catalog_copy))
     assert [(c['accent'], c['action'], c['voice']) for c in changes] == [
         ('irish', 'approve', 'BOt7zZh6gzfWlIUYnyPz'), ('canadian', 'reject', 'bE3COCGjWQ0g9MBhv2cf'),
         ('new_zealand', 'approve', 'XcScRctIXQsuUPQQwzsz'), ('chinese', 'reject', 'mBoVD3461U2BagYEwjeo'),
@@ -45,7 +49,8 @@ def test_the_page_output_parses_and_only_explicit_approvals_and_rejections_becom
     assert not [c for c in changes if c['accent'] in ('scottish', 'indian', 'filipino', 'nigerian', 'southern', 'new_york', 'boston')]    # unsure / no decision: untouched
 
 
-def test_successful_synthesis_or_silence_never_approves_anything():
+def test_successful_synthesis_or_silence_never_approves_anything(catalog_copy):
+    cat = review.load_catalog(catalog_copy)
     assert review.plan(review.parse('\n'.join(f'{review.NAMES[a]}: no decision' for a in review.NAMES)), cat) == []
     assert review.plan(review.parse(''), cat) == []
     assert review.plan(review.parse('Irish: unsure\nBoston: unsure'), cat) == []
@@ -105,8 +110,9 @@ def test_ambiguous_or_invalid_decisions_change_nothing(catalog_copy, capsys, tex
     assert fragment in capsys.readouterr().out and catalog_copy.read_text() == before
 
 
-def test_the_real_catalog_still_has_nothing_approved():
-    assert cat.approved_second_voices() == {} and all(row['rejected'] == [] for row in cat.LISTENING_CANDIDATES.values())
+def test_the_real_catalog_holds_exactly_the_owners_twelve_approvals_and_no_rejections():
+    assert len(cat.approved_second_voices()) == 12 and all(row['rejected'] == [] for row in cat.LISTENING_CANDIDATES.values())
+    assert all(row['approved'] == row['second'][0][0] for row in cat.LISTENING_CANDIDATES.values())
 
 
 def test_an_existing_approval_is_never_silently_overwritten(catalog_copy, capsys):
@@ -146,7 +152,7 @@ def test_the_dry_run_shows_current_and_proposed_state_for_every_affected_accent(
     assert 'Darragh' in out and 'none (disabled)' in out and 'Dry run: nothing was changed.' in out
 
 
-def test_status_lists_all_twelve_accents(capsys):
-    assert review.main(['--status']) == 0
+def test_status_lists_all_twelve_accents(capsys, catalog_copy):
+    assert review.main(['--status', '--catalog', str(catalog_copy)]) == 0
     out = capsys.readouterr().out
     assert len(out.strip().splitlines()) == 12 and out.count('none (disabled)') == 12

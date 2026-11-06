@@ -71,42 +71,42 @@ LISTENING_PAIRS = {
 # same-accent two-speaker conversation opens (still behind AUDLI_LISTENING_FORMATS_ENABLED and the accent being opened in AUDLI_LISTENING_FORMAT_ACCENTS).
 # Each row: (voice_id, name, provider-labelled gender/style). The first row is the proposal; later rows are alternates. Metadata only: nothing here is verified by ear.
 LISTENING_CANDIDATES = {
-    'irish': {'first': 'DbwWo4rVEd5NrejHYUnm', 'approved': None, 'rejected': [], 'second': [
+    'irish': {'first': 'DbwWo4rVEd5NrejHYUnm', 'approved': 'BOt7zZh6gzfWlIUYnyPz', 'rejected': [], 'second': [
         ('BOt7zZh6gzfWlIUYnyPz', 'Darragh - Warm, Friendly, Calm and Clear', 'male, neutral Irish, casual conversation'),
         ('fNG1TqnY9mWgIFIExmZA', 'Andrew EMTS', 'male, clear teaching style')]},
-    'indian': {'first': 'fydPJq00SigRIaPxWgiS', 'approved': None, 'rejected': [], 'second': [
+    'indian': {'first': 'fydPJq00SigRIaPxWgiS', 'approved': 'eH0983ZXSi0hJkuHbC3i', 'rejected': [], 'second': [
         ('eH0983ZXSi0hJkuHbC3i', 'Vishesh - Friendly Indian English', 'male, light accent, clear and conversational'),
         ('fSTPf9bYe9OOsdVPpz21', 'Lavkush - Calm, Warm, and Articulate', 'male, clear diction')]},
-    'scottish': {'first': 'csXxiUN2BUFflsCaDxPM', 'approved': None, 'rejected': [], 'second': [
+    'scottish': {'first': 'csXxiUN2BUFflsCaDxPM', 'approved': 'TVmbglAk3F1GkiCoOq47', 'rejected': [], 'second': [
         ('TVmbglAk3F1GkiCoOq47', 'Isla Skye - Authentic Scottish Female', 'female, Edinburgh, e-learning'),
         ('2Cg6E8rBwJfseh8Mk7sj', 'Nicola - Warm & Neutral Scottish Voice', 'female, West of Scotland, conversational')]},
-    'canadian': {'first': 'RorawgRgSS2YxWqy31vY', 'approved': None, 'rejected': [], 'second': [
+    'canadian': {'first': 'RorawgRgSS2YxWqy31vY', 'approved': 'bE3COCGjWQ0g9MBhv2cf', 'rejected': [], 'second': [
         ('bE3COCGjWQ0g9MBhv2cf', 'Jeff - Smooth Canadian', 'male, neutral Canadian accent'),
         ('D7u5tN2bpWtEVjAD7c1M', 'Aaron - Educational', 'male, educational')]},
-    'new_zealand': {'first': 'pDZ0CqONaFi2LrK1f413', 'approved': None, 'rejected': [], 'second': [                    # speaker 1 (Torey Slatter) is male, so the second speaker is female
+    'new_zealand': {'first': 'pDZ0CqONaFi2LrK1f413', 'approved': 'XcScRctIXQsuUPQQwzsz', 'rejected': [], 'second': [                    # speaker 1 (Torey Slatter) is male, so the second speaker is female
         ('XcScRctIXQsuUPQQwzsz', 'Becca - Calm Friendly Kiwi', 'female, conversational'),
         ('7R9vnLAE0ZSpY0xWp0mv', 'Jenna - NZ Female, clear', 'female, young, clear narration')]},
-    'chinese': {'first': '1a0nAYA3FcNQcMMfbddY', 'approved': None, 'rejected': [], 'second': [                        # speaker 1 (Ziyu) is female
+    'chinese': {'first': '1a0nAYA3FcNQcMMfbddY', 'approved': 'mBoVD3461U2BagYEwjeo', 'rejected': [], 'second': [                        # speaker 1 (Ziyu) is female
         ('mBoVD3461U2BagYEwjeo', "Lee's voice", 'male, young, Chinese-Mandarin accent'),
         ('NxUQ5SgevJvRsX9HsM0O', 'Wenchang-Chinese accent', 'calm, clear, steady, instructional (gender not labelled)')]},
-    'japanese': {'first': 'DiHqGqDdN8tWkUxlsPeg', 'approved': None, 'rejected': [], 'second': [                        # speaker 1 (Yuki) is female
+    'japanese': {'first': 'DiHqGqDdN8tWkUxlsPeg', 'approved': '69Na567Zr0bPvmBYuGdc', 'rejected': [], 'second': [                        # speaker 1 (Yuki) is female
         ('69Na567Zr0bPvmBYuGdc', 'Tatsuya Watanabe - Narration, Japanese male', 'male, young, Japanese accent'),
         ('1MPZGta71qtdTm2BpYUl', 'Tahm - Deep narration & Storytelling', 'male, young, labelled Japanese accent'),
         ('UznIBkKIQe3ZG2tGydre', 'Taro - Young Japanese Accented Guy', 'male, young, "true Japanese accented English", higher pitch'),
         ('FMgBdHe1YV2Xi0B9anXW', 'Hideo - Japanese Asian Accent', 'male, middle-aged, Japanese accent with emphasised vowels (character-like)')]},
-    'filipino': {'first': '7IA6NDxeqmtXCKLKb5nf', 'approved': None, 'rejected': [], 'second': [                        # speaker 1 (Amara) is female
+    'filipino': {'first': '7IA6NDxeqmtXCKLKb5nf', 'approved': '84RXm9MY2lATjoJi5K8P', 'rejected': [], 'second': [                        # speaker 1 (Amara) is female
         ('84RXm9MY2lATjoJi5K8P', 'JC - Calm & Friendly', 'male, young, Filipino accent'),
         ('DBL96vXYYbWbRYCYG3wC', 'Jabby - Informational, Casual, Friendly', 'male, Filipino accent')]},
-    'nigerian': {'first': '8P18CIVcRlwP98FOjZDm', 'approved': None, 'rejected': [], 'second': [                        # speaker 1 (Ola) is male
+    'nigerian': {'first': '8P18CIVcRlwP98FOjZDm', 'approved': '2vbhUP8zyKg4dEZaTWGn', 'rejected': [], 'second': [                        # speaker 1 (Ola) is male
         ('2vbhUP8zyKg4dEZaTWGn', 'Stella - warm, natural and conversational', 'female, young, Nigerian accent'),
         ('E7AdVOKapxpnuchBH9Fa', 'Taiwo O', 'female, middle-aged, warm and assertive')]},
-    'southern': {'first': '9XNfIsDIvdnSURk8DW4z', 'approved': None, 'rejected': [], 'second': [                        # speaker 1 (Wade) is male
+    'southern': {'first': '9XNfIsDIvdnSURk8DW4z', 'approved': 'BVA1oNX6xZt6o7QaUwxr', 'rejected': [], 'second': [                        # speaker 1 (Wade) is male
         ('BVA1oNX6xZt6o7QaUwxr', 'Dr. Kendall', 'female, calm, soft Southern accent, steady pace'),
         ('5xZj4vEjtKaYKe3vCreA', 'Leah - Warm Southern voice', 'female, middle-aged, subtle Southern accent')]},
-    'new_york': {'first': 'QzTKubutNn9TjrB7Xb2Q', 'approved': None, 'rejected': [], 'second': [                        # speaker 1 (Jerry B.) is male
+    'new_york': {'first': 'QzTKubutNn9TjrB7Xb2Q', 'approved': 'DZ2ULBbuhpX6zJYCQic4', 'rejected': [], 'second': [                        # speaker 1 (Jerry B.) is male
         ('DZ2ULBbuhpX6zJYCQic4', 'Alise - Calm Urban City Alto', 'female, young, calm, subtle NYC tone'),
         ('C3x1TEM7scV4p2AXJyrp', 'Zuri - Professional New Yorker', 'female, middle-aged New York')]},
-    'boston': {'first': 'UZvBfqEdvCFLqsBOo9Zr', 'approved': None, 'rejected': [], 'second': [                            # speaker 1 (Jerry B.) is male
+    'boston': {'first': 'UZvBfqEdvCFLqsBOo9Zr', 'approved': '6B43gMdWDCu6YLdbVZFc', 'rejected': [], 'second': [                            # speaker 1 (Jerry B.) is male
         ('6B43gMdWDCu6YLdbVZFc', 'Shelly - Boston Native', 'female, middle-aged, Boston'),
         ('Ufjib38uSsKFbrDM99ro', 'Jonathan Bowen', 'male, calm grounded baritone, labelled Boston, restrained delivery (same gender as speaker 1)'),
         ('nrpkgNCrVFdOm3K0SqBQ', 'Boston Patrick', 'male, slight Boston accent, kind (same gender as speaker 1)'),

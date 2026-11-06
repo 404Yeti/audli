@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
+from app.accent_catalog import ACCENT_IDS
 from app.listening import spoken, store
 from app.listening.ai_budget import AiGuard
 from app.listening.recordings import RecordingRejected, validate_recording
@@ -77,6 +78,7 @@ class Speaker(BaseModel):
     id: str
     name: str
     role: str
+    accent: str | None = None            # the accent this speaker is voiced in (lessons made after per-speaker accents); a catalog id, not an identity
 
 
 class SentenceOut(BaseModel):
@@ -202,10 +204,11 @@ class SpecIn(BaseModel):
     model_config = {'extra': 'forbid'}
     topic: str = Field(min_length=3, max_length=120)
     cefr: Literal['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
-    accent: Literal['american', 'british', 'australian']
+    accent: Literal[ACCENT_IDS]      # type: ignore[valid-type]  # any catalog accent: which ones can actually be generated is decided by gen.spec_problem()
     minutes: int = Field(ge=1, le=10)
     format: Literal['story', 'dialogue', 'conversation']
     scenario: str = Field(default='', max_length=200)
+    accent2: Literal[ACCENT_IDS] | None = None   # type: ignore[valid-type]  # the second speaker's accent in a mixed-accent conversation
 
 
 class InterpretBody(BaseModel):
@@ -227,6 +230,7 @@ class GenerationView(BaseModel):
     phase: str                           # interpreted | needs_input | queued | script | audio | transcript_sync | exercises | ready | failed | rejected | unavailable
     spec: dict | None = None
     notes: list[str] = []
+    needs_choice: dict | None = None     # {reason, options:[{label, patch}]}: the requested accent or format cannot be generated as asked; the learner picks before anything is generated
     question: str | None = None
     title: str | None = None
     lesson_id: str | None = None
@@ -242,6 +246,8 @@ class Availability(BaseModel):
     accents: list[str]
     accent_labels: dict[str, str] = {}      # id -> learner-facing label, from the shared catalog
     coming_accents: list[str] = []         # accents Audli can name but cannot generate in two voices yet: shown, never selectable
+    formats: dict[str, list[str]] = {}     # listening format -> accents that can be generated in it right now (monologue | conversation | mixed_accent_conversation)
+    formats_enabled: bool = False          # the flexible-formats flag (mixed-accent conversations and accents beyond the original three)
     per_learner_daily: int
 
 
@@ -376,8 +382,9 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
             if ok and _halted():
                 ok, reason = False, 'paused'
             return Availability(available=ok, reason=reason or None, max_minutes=settings.listening_gen_max_minutes, accents=list(gen.ACCENTS),
-                                accent_labels={a: gen.ACCENT_LABELS[a] for a in (*gen.ACCENTS, *gen.upcoming_listening_accents())},
-                                coming_accents=list(gen.upcoming_listening_accents()),
+                                accent_labels={a: gen.ACCENT_LABELS[a] for a in gen.ACCENT_IDS},
+                                formats=gen.format_availability(settings), formats_enabled=settings.listening_formats_enabled,
+                                coming_accents=gen.coming_accents(settings),
                                 per_learner_daily=settings.listening_gen_per_learner_daily)
 
         def _generation_view(request_id: str) -> GenerationView:
@@ -385,6 +392,8 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 data = genjobs.request_view(db, repo.learner_id, request_id)
             if data is None:
                 raise HTTPException(404, 'Not found.')                        # also what another learner's request id gets
+            if data['phase'] == 'interpreted' and data.get('spec'):
+                data['needs_choice'] = gen.needs_choice(data['spec'], data.get('notes') or [], settings)
             return GenerationView(**data)
 
         @router.post('/generation/interpret', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
@@ -402,7 +411,10 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
         @router.post('/generation/requests', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])
         def generation_create(body: GenerateBody):
             user_id = repo.learner_id
-            spec_raw, notes = gen.clamp_spec(body.spec.model_dump(), settings.listening_gen_max_minutes)
+            problem = gen.spec_problem(body.spec, settings)             # the structured form can only ask for what exists: refuse, never swap an accent behind the learner's back
+            if problem:
+                raise HTTPException(422, problem)
+            spec_raw, notes = gen.clamp_spec(body.spec.model_dump(), settings.listening_gen_max_minutes, settings)
             spec = gen.Spec.model_validate(spec_raw)
             if _halted():
                 raise HTTPException(503, 'Lesson creation is paused for a little while.')

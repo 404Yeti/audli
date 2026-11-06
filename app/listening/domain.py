@@ -24,6 +24,7 @@ class Speaker(StrictModel):
     id: str = Field(pattern=ID)
     name: str = Field(min_length=1, max_length=40)
     role: str = Field(min_length=1, max_length=40)
+    accent: str | None = None      # the accent this speaker is voiced in (new lessons); None on lessons published before per-speaker accents (hash ignores None)
 
 
 class Sentence(StrictModel):

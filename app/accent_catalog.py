@@ -95,3 +95,39 @@ def enabled_listening_accents() -> tuple[str, ...]:
 def upcoming_listening_accents() -> tuple[str, ...]:
     """Accents Audli can name but not yet generate in two voices: shown as coming soon, never selectable."""
     return tuple(accent for accent in LISTENING_CANDIDATES if accent not in enabled_listening_accents())
+
+
+# ---- single approved voices (monologues and mixed-accent speakers) ---------------------------------------------------------------------------
+
+def single_voices() -> dict:
+    """accent -> the one approved voice Audli 2.0 can use for a monologue or for one speaker of a mixed-accent conversation, for accents that are NOT already
+    in LISTENING_PAIRS (those use the first voice of their pair, so production behaviour is unchanged). These are exactly the voices the owner curated and
+    approved for Audli 1.x (EXISTING_PASSAGE_VOICES and SELECTED_PASSAGE_VOICES); nothing is invented or substituted. Whether an accent is OFFERED is a deployment
+    decision (AUDLI_LISTENING_FORMATS_ENABLED and AUDLI_LISTENING_FORMAT_ACCENTS), not a property of this table."""
+    out = {}
+    for row in (*EXISTING_PASSAGE_VOICES, *SELECTED_PASSAGE_VOICES):
+        if row[0] not in LISTENING_PAIRS:
+            out[row[0]] = row[1]
+    return out
+
+
+# Voices kept as the owner curated them but flagged for the listening review (never removed, never silently replaced). The flag says why a human should listen
+# before the accent is offered for ESL practice; it is not a verdict.
+REVIEW_FLAGS = {
+    'australian': ('quiet_voice_aud39',),
+    'indian': ('creator_style_voice',),
+    'scottish': ('casual_style_voice',),
+    'new_zealand': ('speaker_gender_not_recorded',),
+    'chinese': ('voice_named_unclear',),
+    'nigerian': ('storyteller_style_voice',),
+    'southern': ('character_voice',),
+    'new_york': ('character_voice',),
+    'boston': ('character_voice', 'shares_a_name_with_new_york_voice'),
+}
+
+
+def format_eligible_accents() -> tuple[str, ...]:
+    """Every accent with at least one approved voice, in catalog order: the original three plus every owner-curated Audli 1.x voice. These are the accents that
+    can be OPENED for monologues and mixed-accent speakers (AUDLI_LISTENING_FORMAT_ACCENTS). Welsh and South African are absent: no approved voice exists."""
+    voices = set(single_voices()) | set(LISTENING_PAIRS)
+    return tuple(a for a in ACCENT_IDS if a in voices)

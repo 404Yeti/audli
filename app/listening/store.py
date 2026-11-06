@@ -153,16 +153,20 @@ def list_catalog(db, user_id: str | None = None) -> list[dict]:
     latest = (select(t.versions.c.lesson_id, func.max(t.versions.c.version_no).label('n')).where(t.versions.c.status == 'published')
               .group_by(t.versions.c.lesson_id).subquery())
     rows = db.execute(select(t.lessons.c.id.label('lesson_id'), t.lessons.c.slug, t.versions.c.id.label('version_id'), t.versions.c.title,
-        t.versions.c.topic, t.versions.c.cefr, t.versions.c.listen_for)
+        t.versions.c.topic, t.versions.c.cefr, t.versions.c.listen_for, t.versions.c.speakers)
         .join(latest, latest.c.lesson_id == t.lessons.c.id)
         .join(t.versions, and_(t.versions.c.lesson_id == latest.c.lesson_id, t.versions.c.version_no == latest.c.n))
         .where(_visible(user_id))
         .order_by(t.versions.c.cefr, t.versions.c.title)).mappings().all()
     result = []
     for row in rows:
+        row = dict(row)
+        speakers = row.pop('speakers', None) or []
         variants = db.execute(select(t.audio.c.accent, t.audio.c.duration_ms).where(t.audio.c.version_id == row['version_id'])
                               .order_by(t.audio.c.accent)).all()
-        result.append({**row, 'accents': [v.accent for v in variants], 'duration_ms': max((v.duration_ms for v in variants), default=0)})
+        # A mixed-accent lesson lists every speaker's accent (so the library and filters tell the truth); older lessons carry none and fall back to the audio's accent.
+        spoken = [a for a in dict.fromkeys(s.get('accent') for s in speakers if isinstance(s, dict)) if a]
+        result.append({**row, 'accents': spoken or [v.accent for v in variants], 'duration_ms': max((v.duration_ms for v in variants), default=0)})
     if user_id is not None:
         _add_progress(db, user_id, result)
     return result

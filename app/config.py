@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     listening_gen_monthly_credits: int = Field(default=100_000, ge=0, le=10_000_000) # provider credits (characters x the model's multiplier) per UTC month
     listening_gen_per_learner_daily: int = Field(default=2, ge=0, le=100)            # generated lessons per learner per UTC day
     listening_gen_allowed_learners: str = ''                                          # comma-separated learner ids; empty = every learner the 2.0 allow-list admits. Others get a plain 404.
+    listening_formats_enabled: bool = False                                           # mixed-accent conversations and accents beyond the original three (off: today's behaviour exactly)
+    listening_format_accents: str = ''                                                # comma-separated catalog accent ids opened for monologues and mixed-accent speakers while the flag is on
     listening_gen_voices: str = ''                                                   # JSON {"american": [id, id], ...}; '' = the verified defaults in app/listening/generation.py
     listening_gen_usd_per_1k_credits: float = Field(default=0.22, gt=0, le=10)       # list price estimate used only to size the USD reservation
     # Global AI spending ceiling and kill switch (app/listening/ai_budget.py). Estimates, not billing: keep the provider's own spend limit too.

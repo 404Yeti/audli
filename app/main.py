@@ -226,12 +226,18 @@ def create_app(settings: Settings | None = None, provider: AIProvider | None = N
                         Path(temporary).unlink(missing_ok=True)
         return path
 
+    def listening_formats_summary(settings):
+        from app.listening.generation import format_availability
+        return {'enabled': settings.listening_formats_enabled, **format_availability(settings)}
+
     @app.get('/api/health')
     async def health():
         return {'status': 'ok', 'provider': settings.provider,
                 'revision': os.getenv('RENDER_GIT_COMMIT'),
                 'expanded_accent_library_enabled': settings.expanded_accent_library_enabled,
                 'available_passage_accents': sorted(settings.available_passage_voices),
+                # Audli 2.0 listening formats: which accents can be generated in each format right now (ids only; no voices, no learner data), so a release can be verified without a login.
+                'listening_formats': listening_formats_summary(settings) if settings.listening_enabled else None,
                 'passage_voice_ids': {accent: voice.voice_id for accent, voice in settings.available_passage_voices.items()},
                 'tutor_tts_provider': settings.tutor_tts_provider,
                 'tutor_voice_id': settings.elevenlabs_voice_id,

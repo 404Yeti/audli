@@ -84,10 +84,10 @@ def test_a_natural_language_request_becomes_reviewable_settings_with_honest_note
     assert 'minutes_limited:2' in result['notes'] and 'defaulted:format' in result['notes']          # three minutes asked, two supported: said so
 
 
-def test_an_unavailable_accent_is_replaced_and_said_so_and_a_missing_topic_asks_one_question(lab):
+def test_an_unavailable_accent_is_kept_and_the_learner_is_asked_and_a_missing_topic_asks_one_question(lab):
     d = lab.deps(interpreter=FakeInterpreter({'topic': 'a train booking', 'accent': 'Irish', 'cefr': 'A2'}))
     result = interpret(lab, d, 'a train booking in Irish please')
-    assert result['spec']['accent'] == 'american' and 'accent_unavailable' in result['notes']
+    assert result['spec']['accent'] == 'irish' and 'accent_unavailable' in result['notes'] and 'requested_accent:irish' in result['notes']     # not replaced
     d = lab.deps(interpreter=FakeInterpreter({'question': 'What would you like it to be about?'}))
     asked = interpret(lab, d, 'make me a lesson', request='i2')
     assert asked['phase'] == 'needs_input' and asked['question'] and asked['spec'] is None

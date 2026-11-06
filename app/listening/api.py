@@ -230,6 +230,7 @@ class GenerationView(BaseModel):
     phase: str                           # interpreted | needs_input | queued | script | audio | transcript_sync | exercises | ready | failed | rejected | unavailable
     spec: dict | None = None
     notes: list[str] = []
+    needs_choice: dict | None = None     # {reason, options:[{label, patch}]}: the requested accent or format cannot be generated as asked; the learner picks before anything is generated
     question: str | None = None
     title: str | None = None
     lesson_id: str | None = None
@@ -383,7 +384,7 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
             return Availability(available=ok, reason=reason or None, max_minutes=settings.listening_gen_max_minutes, accents=list(gen.ACCENTS),
                                 accent_labels={a: gen.ACCENT_LABELS[a] for a in gen.ACCENT_IDS},
                                 formats=gen.format_availability(settings), formats_enabled=settings.listening_formats_enabled,
-                                coming_accents=list(gen.upcoming_listening_accents()),
+                                coming_accents=gen.coming_accents(settings),
                                 per_learner_daily=settings.listening_gen_per_learner_daily)
 
         def _generation_view(request_id: str) -> GenerationView:
@@ -391,6 +392,8 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
                 data = genjobs.request_view(db, repo.learner_id, request_id)
             if data is None:
                 raise HTTPException(404, 'Not found.')                        # also what another learner's request id gets
+            if data['phase'] == 'interpreted' and data.get('spec'):
+                data['needs_choice'] = gen.needs_choice(data['spec'], data.get('notes') or [], settings)
             return GenerationView(**data)
 
         @router.post('/generation/interpret', response_model=GenerationView, dependencies=[Depends(require_generation_allowed)])

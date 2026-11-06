@@ -123,6 +123,12 @@ def format_availability(settings=None) -> dict:
     return {MONOLOGUE: opened, CONVERSATION: list(ACCENTS), MIXED: opened if on else []}
 
 
+def coming_accents(settings=None) -> list[str]:
+    """Accents Audli can name that cannot be generated in ANY format right now (no approved voice, or not yet opened): shown as coming soon, never selectable."""
+    open_somewhere = {a for accents in format_availability(settings).values() for a in accents}
+    return [a for a in ACCENT_IDS if a not in open_somewhere]
+
+
 def single_voice(accent: str, pairs: dict) -> str | None:
     """The voice for a monologue or for one speaker of a mixed-accent conversation: the first voice of the accent's production pair (so overrides and published
     lessons are unchanged), else the owner-approved Audli 1.x voice."""
@@ -201,10 +207,15 @@ def resolve_accent(value) -> str | None:
     return best[1] if best else None
 
 
+KIND_NAME = {MONOLOGUE: 'monologues', CONVERSATION: 'two-speaker conversations in one accent', MIXED: 'mixed-accent conversations'}
+
+
 def clamp_spec(raw: dict, max_minutes: int, settings=None) -> tuple[dict, list[str]]:
-    """Fill what the learner did not say with the documented defaults, keep within what can be generated today, and say so. Returns (spec, notes).
-    Nothing is substituted silently: every fallback adds a note the learner sees on the review screen before anything is generated."""
+    """Fill what the learner did NOT say with the documented defaults and keep within the length limit. What the learner DID ask for is never replaced: an accent
+    or format that cannot be generated stays in the settings (an unrecognised accent becomes None) with notes, and needs_choice() turns that into a plain explanation
+    plus alternatives that the learner must pick from before anything is generated. Returns (spec, notes)."""
     spec, notes = dict(raw), []
+    said_accent = spec.get('accent') not in (None, '')
     for field, default in DEFAULTS.items():
         if spec.get(field) in (None, ''):
             spec[field] = default
@@ -215,26 +226,23 @@ def clamp_spec(raw: dict, max_minutes: int, settings=None) -> tuple[dict, list[s
     if spec['format'] == 'story':
         if second_said:
             notes.append('second_accent_ignored')                       # a monologue has one speaker
-        second = None
-    first = resolve_accent(spec['accent'])
+        second_said, second = None, None
+    first = resolve_accent(spec['accent']) if said_accent else spec['accent']
+    if said_accent and first is None:
+        notes += ['accent_unavailable', 'accent_unrecognised']          # we could not tell which accent; the learner is asked, nothing is guessed
     if second is not None and second == first:
         second = None                                                    # both speakers sharing an accent is an ordinary conversation
-    elif second_said and second is None and spec['format'] != 'story':
-        notes.append('mixed_unavailable')                                # said an accent we do not know for the second speaker
+    elif second_said and second is None:
+        notes.append('accent2_unrecognised')
     kind = MONOLOGUE if spec['format'] == 'story' else MIXED if second else CONVERSATION
-    if kind == MIXED and not (available[MIXED] and first in available[MIXED] and second in available[MIXED]):
-        notes.append('mixed_unavailable')
-        if second not in available[MIXED]:
-            notes.append(f'requested_accent2:{second}')
-        second, kind = None, CONVERSATION                                # a plain conversation in the first accent, said on the review screen
-    if first in available[kind]:
-        spec['accent'] = first
+    if kind == MIXED and not available[MIXED]:
+        notes += ['mixed_unavailable', f'requested_accent2:{second}']     # the whole format is not open: say that, not that an accent is missing
     else:
-        notes.append('accent_unavailable')                               # said to the learner, who reviews the settings before anything is generated
-        if first:
-            notes.append(f'requested_accent:{first}')                    # names the accent they asked for, so the message is specific
-        spec['accent'], second = DEFAULTS['accent'], None
-    spec['accent2'] = second
+        if first and first not in available[kind]:
+            notes += ['accent_unavailable', f'requested_accent:{first}']
+        if kind == MIXED and second not in available[MIXED]:
+            notes += ['mixed_unavailable', f'requested_accent2:{second}']
+    spec['accent'], spec['accent2'] = first, second
     if spec['cefr'] not in LEVELS:
         spec['cefr'] = DEFAULTS['cefr']
     if int(spec['minutes']) > max_minutes:
@@ -242,6 +250,45 @@ def clamp_spec(raw: dict, max_minutes: int, settings=None) -> tuple[dict, list[s
     spec['minutes'] = max(1, min(int(spec['minutes']), max_minutes))
     spec['scenario'] = (spec.get('scenario') or '')[:200]
     return spec, notes
+
+
+def needs_choice(spec: dict, notes: list[str], settings=None) -> dict | None:
+    """None when the settings can be generated exactly as they stand. Otherwise {'reason': plain words, 'options': [{'label', 'patch'}]}: concrete alternatives the
+    learner can pick (each a change to the settings). Nothing is chosen for them and nothing is generated until they do."""
+    if not spec:
+        return None
+    available = format_availability(settings)
+    first, second, fmt = spec.get('accent'), spec.get('accent2'), spec.get('format', 'dialogue')
+    kind = MONOLOGUE if fmt == 'story' else MIXED if second else CONVERSATION
+    label = lambda a: ACCENT_LABELS[a]
+    reason = None
+    if first is None:
+        reason = 'We couldn’t tell which accent you meant.'
+    elif kind == MIXED and not available[MIXED]:
+        reason = 'Mixed-accent conversations aren’t available yet.'
+    elif first not in available[kind]:
+        reason = (f'{label(first)} isn’t available for {KIND_NAME[kind]} yet.' if kind != MIXED else f'{label(first)} isn’t available in mixed-accent conversations yet.')
+    elif kind == MIXED and second not in available[MIXED]:
+        reason = f'{label(second)} isn’t available as a second speaker yet.'
+    elif 'accent2_unrecognised' in notes:
+        reason = 'We couldn’t tell which accent you meant for the second speaker.'
+    if reason is None:
+        return None
+    options = []
+    if first and first in available[CONVERSATION] and kind == MIXED:       # keep the first speaker's accent, drop the unavailable second one
+        options.append({'label': f'Keep two speakers, both {label(first)}', 'patch': {'accent2': None}})
+    if first and first in available[MONOLOGUE] and kind != MONOLOGUE:
+        options.append({'label': f'Make it a monologue in {label(first)}', 'patch': {'format': 'story', 'accent2': None}})
+    if first and first in available[CONVERSATION] and kind == MONOLOGUE:
+        options.append({'label': f'Make it a conversation, both speakers {label(first)}', 'patch': {'format': 'dialogue', 'accent2': None}})
+    if first and 'accent2_unrecognised' in notes:
+        options.insert(0, {'label': f'Keep two speakers, both {label(first)}', 'patch': {'accent2': None}})
+        options += [{'label': f'Use {label(a)} for the second speaker', 'patch': {'accent2': a}} for a in available[MIXED] if a != first]
+    elif kind == MIXED and available[MIXED]:
+        options += [{'label': f'Use {label(a)} for the second speaker', 'patch': {'accent2': a}} for a in available[MIXED] if a not in (first, second) and first in available[MIXED]]
+    elif kind != MIXED:                                                  # or keep the format and change the accent
+        options += [{'label': f'Use {label(a)} instead', 'patch': {'accent': a}} for a in available[kind] if a != first]
+    return {'reason': reason, 'options': options}
 
 
 # ---- the ledger: per-learner, per-day USD and monthly credits, reserved atomically -------------------------------------------------

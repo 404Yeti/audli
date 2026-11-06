@@ -124,3 +124,10 @@ REVIEW_FLAGS = {
     'new_york': ('character_voice',),
     'boston': ('character_voice', 'shares_a_name_with_new_york_voice'),
 }
+
+
+def format_eligible_accents() -> tuple[str, ...]:
+    """Every accent with at least one approved voice, in catalog order: the original three plus every owner-curated Audli 1.x voice. These are the accents that
+    can be OPENED for monologues and mixed-accent speakers (AUDLI_LISTENING_FORMAT_ACCENTS). Welsh and South African are absent: no approved voice exists."""
+    voices = set(single_voices()) | set(LISTENING_PAIRS)
+    return tuple(a for a in ACCENT_IDS if a in voices)

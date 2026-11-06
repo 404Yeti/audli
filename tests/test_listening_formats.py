@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.config import Settings
+from app import accent_catalog as cat
 from app.listening import generation as g, generation_jobs as gj, schema as t, store
 from app.listening.generation import FakeScriptWriter, GenerationRefused, Spec, assign_voices, clamp_spec, format_availability, spec_problem
 from test_listening import make_repository  # noqa: F401  (fixture)
@@ -81,18 +82,24 @@ def test_voices_are_assigned_per_speaker_and_never_shared_or_substituted():
         assign_voices(spec(accent2='british'), two, {**VOICES, 'british': ('v-a1', 'v-b2')})
 
 
-def test_the_natural_language_path_names_what_it_could_not_do_instead_of_swapping_silently():
+def test_the_natural_language_path_never_substitutes_it_keeps_the_request_and_offers_alternatives():
     base = {'topic': 'a day in Dublin', 'cefr': 'B1', 'minutes': 2}
     spec_raw, notes = clamp_spec({**base, 'format': 'dialogue', 'accent': 'british', 'accent2': 'indian'}, 2, Settings(_env_file=None))
-    assert spec_raw['accent2'] is None and 'mixed_unavailable' in notes and 'requested_accent2:indian' in notes            # flag off: said so
+    assert (spec_raw['accent'], spec_raw['accent2']) == ('british', 'indian') and 'mixed_unavailable' in notes and 'requested_accent2:indian' in notes     # kept, flag off
+    choice = g.needs_choice(spec_raw, notes, Settings(_env_file=None))
+    assert choice['reason'] == 'Mixed-accent conversations aren’t available yet.'
+    assert [o['label'] for o in choice['options']] == ['Keep two speakers, both British English', 'Make it a monologue in British English']
     spec_raw, notes = clamp_spec({**base, 'format': 'dialogue', 'accent': 'british', 'accent2': 'indian'}, 2, on())
-    assert spec_raw['accent2'] == 'indian' and spec_raw['accent'] == 'british' and not [n for n in notes if 'accent' in n or 'mixed' in n]
+    assert spec_raw['accent2'] == 'indian' and g.needs_choice(spec_raw, notes, on()) is None                       # open: generatable as asked, nothing to confirm
     spec_raw, notes = clamp_spec({**base, 'format': 'story', 'accent': 'Irish English', 'accent2': 'indian'}, 2, on())
-    assert spec_raw['accent'] == 'irish' and spec_raw['accent2'] is None and 'second_accent_ignored' in notes                # a monologue has one speaker
+    assert spec_raw['accent'] == 'irish' and spec_raw['accent2'] is None and 'second_accent_ignored' in notes     # a monologue has one speaker (said)
     spec_raw, notes = clamp_spec({**base, 'format': 'story', 'accent': 'Welsh'}, 2, on())
-    assert spec_raw['accent'] == 'american' and 'accent_unavailable' in notes and 'requested_accent:welsh' in notes
+    assert spec_raw['accent'] == 'welsh' and 'requested_accent:welsh' in notes and g.needs_choice(spec_raw, notes, on())['options']
     spec_raw, notes = clamp_spec({**base, 'format': 'dialogue', 'accent': 'american', 'accent2': 'american'}, 2, on())
-    assert spec_raw['accent2'] is None and 'mixed_unavailable' not in notes                                                 # same accent twice is an ordinary conversation
+    assert spec_raw['accent2'] is None and g.needs_choice(spec_raw, notes, on()) is None                          # same accent twice is an ordinary conversation
+    spec_raw, notes = clamp_spec({**base, 'format': 'dialogue', 'accent': 'american', 'accent2': 'martian'}, 2, on())
+    choice = g.needs_choice(spec_raw, notes, on())
+    assert spec_raw['accent2'] is None and 'accent2_unrecognised' in notes and choice['options'][0]['patch'] == {'accent2': None}   # a second accent we could not read is asked about, never dropped silently
 
 
 # ---- real jobs, mocked synthesis ----------------------------------------------------------------------------------------------------------
@@ -233,3 +240,96 @@ def test_a_monologue_lesson_plays_with_one_speaker_and_the_existing_exercises(ap
     assert len(view['lesson']['speakers']) == 1 and view['lesson']['speakers'][0]['accent'] == 'irish'
     assert [e['kind'] for e in view['exercises']] == ['multiple_choice', 'spoken', 'fill_blank', 'sequencing']
     assert view['audio']['accent'] == 'irish' and api.a.get(f'/api/listening/attempts/{view["attempt"]["id"]}/audio').status_code == 200
+
+
+# ---- the released library: every owner-curated Audli 1.x accent ----------------------------------------------------------------------------------
+
+ALL = cat.format_eligible_accents()
+ORIGINAL = ('american', 'british', 'australian')
+PRODUCTION_ACCENTS = ','.join(a for a in ALL if a not in ORIGINAL)           # the value AUDLI_LISTENING_FORMAT_ACCENTS is set to in production
+
+
+def library():
+    return gen_settings(listening_formats_enabled=True, listening_format_accents=PRODUCTION_ACCENTS)
+
+
+def test_the_released_library_is_exactly_the_approved_accents_and_nothing_else():
+    assert ALL == ('british', 'american', 'australian', 'scottish', 'indian', 'irish', 'canadian', 'new_zealand', 'chinese', 'japanese', 'filipino', 'nigerian', 'southern', 'new_york', 'boston')
+    available = format_availability(library())
+    assert set(available['monologue']) == set(available['mixed_accent_conversation']) == set(ALL) and len(available['monologue']) == 15
+    assert available['conversation'] == list(ORIGINAL)                                   # same accent twice needs two distinct approved voices
+    assert g.coming_accents(library()) == ['welsh', 'south_african']                      # no approved voice: unavailable, never substituted
+    for gone in ('welsh', 'south_african'):
+        for kwargs in ({'format': 'story'}, {}, {'accent2': 'american'}):
+            assert spec_problem(spec(accent=gone, **kwargs), library())
+    assert 'welsh' not in PRODUCTION_ACCENTS and 'south_african' not in PRODUCTION_ACCENTS
+
+
+def test_the_owners_original_voice_selections_are_the_voices_that_speak():
+    from app import accent_registry as registry
+    voices = g.voices_from(library())
+    for accent in ALL:
+        expected = voices[accent][0] if accent in voices else registry.SELECTED_VOICES[accent].voice_id if accent in registry.SELECTED_VOICES else {v.accent: v.voice_id for v in registry.EXISTING_VOICES}[accent]
+        assert g.single_voice(accent, voices) == expected
+    assert voices['american'] == ('EXAVITQu4vr4xnSDxMaL', 'CwhRBWXzGAHq8TQ4Fs17') and voices['british'] == ('Xb7hH8MSUJpSbSDYk0k2', 'onwK4e9ZLuTAKqWW03F9')   # untouched
+    assert voices['australian'] == ('tyepWYJJwJM9TTFIg5U7', 'IKne3meq5aSn9XLyUdCD')
+    for accent in ('southern', 'new_york', 'boston', 'chinese', 'japanese', 'filipino', 'nigerian'):               # character and first-language accents are in the library on purpose
+        assert accent in ALL and spec_problem(spec(format='story', accent=accent), library()) is None
+
+
+@pytest.mark.parametrize('accent', ALL)
+def test_every_available_accent_speaks_a_monologue_in_its_own_approved_voice(lab, accent):
+    d = lab.deps(settings=library())
+    request_id = start(lab, d, spec=spec(format='story', accent=accent), request=uuid4().hex[:16])
+    assert run(lab, d) == 'done'
+    done = view(lab, lab.owner, request_id)
+    version, audio, kinds, item = lesson_rows(lab, done['lesson_id'])
+    voice = g.single_voice(accent, VOICES)
+    assert len(version['speakers']) == 1 and version['speakers'][0]['accent'] == accent and item['accents'] == [accent]
+    assert {v for _, v in d.speech.inner.calls} == {voice} and audio['accent'] == accent
+    assert kinds == ['multiple_choice', 'spoken', 'fill_blank', 'sequencing']                                 # all four exercises work for a monologue
+    cues = audio['alignment']
+    assert len(cues) == len(version['sentences']) and all(a['start_ms'] < a['end_ms'] <= b['start_ms'] + 1 for a, b in zip(cues, cues[1:]))      # transcript sync
+
+
+@pytest.mark.parametrize('accent', [a for a in ALL if a != 'american'])
+def test_every_available_accent_can_be_one_speaker_of_a_mixed_accent_conversation(lab, accent):
+    d = lab.deps(settings=library())
+    request_id = start(lab, d, spec=spec(accent='american', accent2=accent), request=uuid4().hex[:16])
+    assert run(lab, d) == 'done'
+    version, audio, kinds, item = lesson_rows(lab, view(lab, lab.owner, request_id)['lesson_id'])
+    first, second = (s['id'] for s in version['speakers'])
+    expected = {first: g.single_voice('american', VOICES), second: g.single_voice(accent, VOICES)}
+    assert [(s['text'], expected[s['speaker']]) for s in version['sentences']] == list(d.speech.inner.calls)      # each sentence in its own speaker's voice and accent
+    assert [s['accent'] for s in version['speakers']] == ['american', accent] and item['accents'] == ['american', accent]
+    assert kinds == ['multiple_choice', 'spoken', 'fill_blank', 'sequencing'] and len(audio['alignment']) == len(version['sentences'])
+
+
+def test_every_pair_of_different_available_accents_gets_two_distinct_voices_in_speaker_order():
+    voices = g.voices_from(library())
+    speakers = [SimpleNamespace(id='a'), SimpleNamespace(id='b')]
+    seen = 0
+    for first in ALL:
+        for second in ALL:
+            if first == second:
+                continue
+            assigned = assign_voices(spec(accent=first, accent2=second), speakers, voices)
+            assert assigned['a'] == g.single_voice(first, voices) and assigned['b'] == g.single_voice(second, voices) and assigned['a'] != assigned['b']
+            assert spec_problem(spec(accent=first, accent2=second), library()) is None
+            seen += 1
+    assert seen == 15 * 14
+
+
+def test_same_accent_conversations_stay_limited_to_accents_with_two_distinct_voices():
+    for accent in ALL:
+        problem = spec_problem(spec(accent=accent), library())
+        assert (problem is None) == (accent in ORIGINAL), accent
+
+
+def test_the_public_health_endpoint_reports_which_accents_each_format_offers_with_no_voice_ids(api):
+    health = api.a.get('/api/health').json()['listening_formats']
+    assert health['enabled'] is False and set(health['monologue']) == set(ORIGINAL) and health['mixed_accent_conversation'] == []
+    api_with(api, listening_formats_enabled=True, listening_format_accents=PRODUCTION_ACCENTS)
+    health = api.a.get('/api/health').json()['listening_formats']
+    assert health['enabled'] is True and len(health['monologue']) == 15 and len(health['mixed_accent_conversation']) == 15 and health['conversation'] == list(ORIGINAL)
+    assert not any(len(str(v)) == 20 and str(v).isalnum() for value in health.values() if isinstance(value, list) for v in value)       # ids of accents only, never a voice id

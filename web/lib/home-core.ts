@@ -54,8 +54,13 @@ export const recentlyCompleted = (progress: Progress | null, count = 3): RecentI
   (progress?.recent ?? []).filter(r => r.status === 'completed').slice(0, count);
 
 export type Length = 'any' | 'short' | 'mid' | 'long';
-export type Filters = { query: string; cefr: string; accent: string; length: Length; topic: string | null };
-export const NO_FILTERS: Filters = { query: '', cefr: 'All', accent: 'All', length: 'any', topic: null };
+export type Format = 'story' | 'dialogue' | 'mixed';
+export type Filters = { query: string; cefr: string; accent: string; length: Length; topic: string | null; format: 'All' | Format };
+export const NO_FILTERS: Filters = { query: '', cefr: 'All', accent: 'All', length: 'any', topic: null, format: 'All' };
+export const FORMAT_LABEL: Record<Format, string> = { story: 'Story', dialogue: 'Conversation', mixed: 'Mixed accents' };
+export const CATEGORY_LABEL: Record<string, string> = { everyday: 'Everyday', workplace: 'Workplace', travel: 'Travel', culture: 'Culture', stories: 'Stories' };
+/** The browsing topic of a lesson: its curated category when it has one, otherwise the lesson's own topic text (older and private lessons). */
+export const topicOf = (i: Pick<CatalogItem, 'topic' | 'category'>): string => (i.category ? CATEGORY_LABEL[i.category] ?? i.category : i.topic);
 const MIN = 60_000;
 export const LENGTH_LABEL: Record<Exclude<Length, 'any'>, string> = { short: 'Under 3 min', mid: '3–5 min', long: '5+ min' };
 const lengthOf = (ms: number): Exclude<Length, 'any'> => (ms < 3 * MIN ? 'short' : ms <= 5 * MIN ? 'mid' : 'long');
@@ -67,11 +72,12 @@ export function applyFilters(items: CatalogItem[], f: Filters): CatalogItem[] {
     (f.cefr === 'All' || i.cefr === f.cefr) &&
     (f.accent === 'All' || i.accents.includes(f.accent)) &&
     (f.length === 'any' || lengthOf(i.duration_ms) === f.length) &&
-    (!f.topic || i.topic === f.topic));
+    (f.format === 'All' || (i.format ?? 'story') === f.format) &&
+    (!f.topic || topicOf(i) === f.topic));
 }
 export function topicTiles(items: CatalogItem[]): { topic: string; count: number }[] {
   const counts = new Map<string, number>();
-  for (const i of items) counts.set(i.topic, (counts.get(i.topic) ?? 0) + 1);
+  for (const i of items) counts.set(topicOf(i), (counts.get(topicOf(i)) ?? 0) + 1);
   return [...counts].map(([topic, count]) => ({ topic, count })).sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
 }
 export const countLabel = (n: number): string => `${n} lesson${n === 1 ? '' : 's'}`;

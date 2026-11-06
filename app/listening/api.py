@@ -32,6 +32,8 @@ class CatalogItem(BaseModel):
     listen_for: str
     accents: list[str]
     duration_ms: int
+    format: str = 'story'                 # story | dialogue | mixed (derived from the speakers)
+    category: str | None = None          # curated topic (everyday, workplace, travel, culture, stories) once the library table exists
     # Where this learner is with the lesson (filled in per account; a lesson nobody has opened is simply "new").
     status: str = 'new'                  # new | in_progress | completed
     attempt_id: str | None = None

@@ -38,11 +38,10 @@ def run(catalog_copy, text, *flags, tmp_path=None):
 
 def test_the_page_output_parses_and_only_explicit_approvals_and_rejections_become_changes():
     changes = review.plan(review.parse(COPY), cat)
-    assert changes == [{'accent': 'irish', 'action': 'approve', 'voice': 'BOt7zZh6gzfWlIUYnyPz'},
-                       {'accent': 'canadian', 'action': 'reject', 'voice': 'bE3COCGjWQ0g9MBhv2cf'},
-                       {'accent': 'new_zealand', 'action': 'approve', 'voice': 'XcScRctIXQsuUPQQwzsz'},
-                       {'accent': 'chinese', 'action': 'reject', 'voice': 'mBoVD3461U2BagYEwjeo'},
-                       {'accent': 'japanese', 'action': 'approve', 'voice': '1MPZGta71qtdTm2BpYUl'}]            # Japanese: an ALTERNATE named by id
+    assert [(c['accent'], c['action'], c['voice']) for c in changes] == [
+        ('irish', 'approve', 'BOt7zZh6gzfWlIUYnyPz'), ('canadian', 'reject', 'bE3COCGjWQ0g9MBhv2cf'),
+        ('new_zealand', 'approve', 'XcScRctIXQsuUPQQwzsz'), ('chinese', 'reject', 'mBoVD3461U2BagYEwjeo'),
+        ('japanese', 'approve', '1MPZGta71qtdTm2BpYUl')]            # Japanese: an ALTERNATE named by id
     assert not [c for c in changes if c['accent'] in ('scottish', 'indian', 'filipino', 'nigerian', 'southern', 'new_york', 'boston')]    # unsure / no decision: untouched
 
 
@@ -89,7 +88,7 @@ def test_rejecting_a_candidate_moves_the_proposal_to_the_next_listed_one_and_it_
     assert run(catalog_copy, 'Japanese: approve 69Na567Zr0bPvmBYuGdc') == 2                          # cannot approve a rejected voice
     assert run(catalog_copy, 'Japanese: approve') == 0                                                # a bare approve now means the next listed candidate
     plan = review.plan(review.parse('Japanese: approve'), edited)
-    assert plan == [{'accent': 'japanese', 'action': 'approve', 'voice': '1MPZGta71qtdTm2BpYUl'}]
+    assert [(c['accent'], c['action'], c['voice']) for c in plan] == [('japanese', 'approve', '1MPZGta71qtdTm2BpYUl')]
 
 
 @pytest.mark.parametrize('text,fragment', [
@@ -108,3 +107,46 @@ def test_ambiguous_or_invalid_decisions_change_nothing(catalog_copy, capsys, tex
 
 def test_the_real_catalog_still_has_nothing_approved():
     assert cat.approved_second_voices() == {} and all(row['rejected'] == [] for row in cat.LISTENING_CANDIDATES.values())
+
+
+def test_an_existing_approval_is_never_silently_overwritten(catalog_copy, capsys):
+    run(catalog_copy, 'Japanese: approve 69Na567Zr0bPvmBYuGdc', '--write')
+    before = catalog_copy.read_text()
+    assert run(catalog_copy, 'Japanese: approve 1MPZGta71qtdTm2BpYUl', '--write') == 2             # a different voice for an approved accent is refused
+    captured = capsys.readouterr(); assert 'already approved' in captured.out + captured.err
+    assert catalog_copy.read_text() == before
+    assert run(catalog_copy, 'Japanese: approve 69Na567Zr0bPvmBYuGdc', '--write') == 0            # the same voice again is an idempotent no-op
+    assert catalog_copy.read_text() == before
+    assert run(catalog_copy, 'Japanese: reject 69Na567Zr0bPvmBYuGdc', '--write') == 2             # an approved voice cannot be rejected in place either
+    assert catalog_copy.read_text() == before
+
+
+def test_changing_an_approval_needs_an_explicit_revoke_in_its_own_round(catalog_copy):
+    run(catalog_copy, 'Japanese: approve 69Na567Zr0bPvmBYuGdc', '--write')
+    assert run(catalog_copy, 'Boston: revoke', '--write') == 2                                      # nothing to revoke
+    run(catalog_copy, 'Japanese: revoke', '--write')
+    assert review.load_catalog(catalog_copy).approved_second_voices() == {}
+    run(catalog_copy, 'Japanese: approve 1MPZGta71qtdTm2BpYUl', '--write')
+    assert review.load_catalog(catalog_copy).approved_second_voices() == {'japanese': '1MPZGta71qtdTm2BpYUl'}
+
+
+def test_one_voice_cannot_be_approved_for_two_accents(catalog_copy):
+    assert run(catalog_copy, 'Irish: approve BOt7zZh6gzfWlIUYnyPz\nCanadian: approve BOt7zZh6gzfWlIUYnyPz', '--write') == 2
+    assert review.load_catalog(catalog_copy).approved_second_voices() == {}
+
+
+def test_the_dry_run_shows_current_and_proposed_state_for_every_affected_accent(catalog_copy, capsys):
+    run(catalog_copy, 'Irish: approve', '--write')
+    capsys.readouterr()
+    run(catalog_copy, 'Canadian: approve\nChinese: reject\nIrish: revoke')
+    out = capsys.readouterr().out
+    for accent in ('Canadian', 'Chinese', 'Irish'):
+        assert accent in out
+    assert out.count('now:') == 3 and out.count('after:') == 3
+    assert 'Darragh' in out and 'none (disabled)' in out and 'Dry run: nothing was changed.' in out
+
+
+def test_status_lists_all_twelve_accents(capsys):
+    assert review.main(['--status']) == 0
+    out = capsys.readouterr().out
+    assert len(out.strip().splitlines()) == 12 and out.count('none (disabled)') == 12

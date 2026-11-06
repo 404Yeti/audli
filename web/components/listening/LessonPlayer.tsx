@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import styles from './listening.module.css';
 import { signedAudioUrl } from '../../lib/listening.ts';
+import { useLearnerSettings } from '../../lib/use-settings.ts';
 import { SKIP_MS, activeSentence, clampMs, formatTime, nextSpeed, speedLabel, waveformBars, type Cue, type Speaker } from '../../lib/listening-core.ts';
 
 export type PlayerHandle = { playFrom: (ms: number) => void };
@@ -20,7 +21,8 @@ export function LessonPlayer({ attemptId, durationMs, cues, speakers, compact, o
   const [failed, setFailed] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [ms, setMs] = useState(0);
-  const [speed, setSpeed] = useState<number>(1);
+  const { settings } = useLearnerSettings();
+  const [speed, setSpeed] = useState<number>(settings.speed);      // the learner's default from Settings; the button still cycles it for this lesson
   const resume = useRef<{ at: number; play: boolean } | null>(null);
   const refreshed = useRef(false);
   const lastActive = useRef<number | null | undefined>(undefined);

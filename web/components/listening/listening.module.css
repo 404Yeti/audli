@@ -176,3 +176,10 @@
 .skeleton { pointer-events: none; }
 .skelLine { display: block; height: 18px; border-radius: 8px; background: var(--ink-100); } .skelShort { width: 55%; }
 @media (prefers-reduced-motion: no-preference) { .skelLine { animation: skelPulse 1.4s ease-in-out infinite; } @keyframes skelPulse { 50% { opacity: .5; } } }
+
+/* Settings: transcript text size and contrast (Figma D15 "Accessibility") */
+.tsLarge .said, .tsLarge .line { font-size: 24px; line-height: 1.45; }
+.tsContrast .line { color: #000; }
+.tsContrast .lineActive { background: #000; color: #fff; border-left-color: #fff; }
+.tsContrast .lineActive .said { color: #fff; }
+.tsContrast .linePlayed .said { color: #000; }

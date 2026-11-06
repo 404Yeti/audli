@@ -14,6 +14,7 @@ import { Debrief } from './Debrief';
 import { AttemptRecovery, ResumedBanner } from './AttemptRecovery';
 import { AudliMascot } from '../audli-mascot';
 import { ApiError } from '../../lib/api.ts';
+import { useLearnerSettings } from '../../lib/use-settings.ts';
 import { currentAttemptId, getAttempt, rememberStarted, retrySpoken, sendRecording, skipSpoken, startAttempt, submitAnswer, wasStarted, type AnswerBody } from '../../lib/listening.ts';
 import { firstUndecided, hasPendingAssessment, newRequestId, phaseOf, pollDelayMs, resumePosition, type AttemptView, type Exercise } from '../../lib/listening-core.ts';
 
@@ -22,7 +23,8 @@ type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; view: Att
 export function ListeningLesson({ lessonId }: { lessonId: string }) {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [started, setStarted] = useState(false);
-  const [guided, setGuided] = useState(false);
+  const { settings } = useLearnerSettings();
+  const [guided, setGuided] = useState(settings.transcriptMode === 'guided');
   const [active, setActive] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);

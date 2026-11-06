@@ -344,8 +344,9 @@ def test_with_the_owners_twelve_approvals_every_format_offers_all_fifteen_accent
     assert g.coming_accents(library()) == ['welsh', 'south_african']                      # still not offered, never substituted
     assert format_availability(gen_settings())['conversation'] == list(ORIGINAL) or format_availability(gen_settings())['conversation'] == []      # flag off: unchanged
     for accent in ALL:
-        for kwargs in ({}, {'format': 'story'}, {'accent2': 'american'}):
-            assert spec_problem(spec(accent=accent, **kwargs), library()) is None, (accent, kwargs)
+        other = 'american' if accent != 'american' else 'british'
+        for candidate in (spec(accent=accent), spec(format='story', accent=accent), spec(accent=other, accent2=accent)):
+            assert spec_problem(candidate, library()) is None, (accent, candidate)
 
 
 @pytest.mark.owner_approved

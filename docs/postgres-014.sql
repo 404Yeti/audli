@@ -24,6 +24,7 @@ CREATE TABLE listening_library_entries (
 	curator_id UUID,
 	reviewer VARCHAR(80),
 	review_note VARCHAR(500),
+	reviewed_digest VARCHAR(64),
 	approved_at TIMESTAMP WITH TIME ZONE,
 	published_at TIMESTAMP WITH TIME ZONE,
 	unpublished_at TIMESTAMP WITH TIME ZONE,
@@ -31,12 +32,14 @@ CREATE TABLE listening_library_entries (
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	PRIMARY KEY (lesson_id),
 	CONSTRAINT listening_library_state CHECK (state IN ('draft','approved','published','unpublished')),
-	CONSTRAINT listening_library_reviewed CHECK (state NOT IN ('approved','published') OR (reviewer IS NOT NULL AND approved_at IS NOT NULL)),
+	CONSTRAINT listening_library_reviewed CHECK (state NOT IN ('approved','published') OR (reviewer IS NOT NULL AND approved_at IS NOT NULL AND reviewed_digest IS NOT NULL)),
 	CONSTRAINT listening_library_published CHECK (state <> 'published' OR published_at IS NOT NULL),
-	FOREIGN KEY(lesson_id) REFERENCES listening_lessons (id),
-	FOREIGN KEY(version_id) REFERENCES listening_lesson_versions (id),
+	FOREIGN KEY(lesson_id) REFERENCES listening_lessons (id) ON DELETE CASCADE,
+	FOREIGN KEY(version_id) REFERENCES listening_lesson_versions (id) ON DELETE CASCADE,
 	FOREIGN KEY(curator_id) REFERENCES users (id) ON DELETE SET NULL
 );
+
+CREATE INDEX listening_library_by_curator ON listening_library_entries (curator_id);
 
 CREATE INDEX listening_library_by_state ON listening_library_entries (state);
 

@@ -193,18 +193,20 @@ generation_limits = Table('listening_generation_limits', metadata,
 # listening_lesson_owners, so no learner read path needs this table and a deployment without it behaves as before. Publishing is one operator transaction
 # (app/listening/library.py) that removes the owner row; unpublishing puts an owner back. The audio object is never copied.
 library_entries = Table('listening_library_entries', metadata,
-    Column('lesson_id', identifier, ForeignKey('listening_lessons.id'), primary_key=True),
-    Column('version_id', identifier, ForeignKey('listening_lesson_versions.id'), nullable=False),     # the exact version that was reviewed
+    Column('lesson_id', identifier, ForeignKey('listening_lessons.id', ondelete='CASCADE'), primary_key=True),       # erasing a draft's owner erases the draft and this record
+    Column('version_id', identifier, ForeignKey('listening_lesson_versions.id', ondelete='CASCADE'), nullable=False),     # the exact version that was reviewed
     Column('state', String(12), nullable=False),                                                       # draft approved published unpublished
     Column('category', String(20), nullable=False),
     Column('curator_id', identifier, ForeignKey('users.id', ondelete='SET NULL')),                    # who it is private to while a draft; the lesson outlives that account once published
     Column('reviewer', String(80)), Column('review_note', String(500)),
+    Column('reviewed_digest', String(64)),                                                             # sha256 of what the reviewer heard and read: script, exercises and every audio variant
     Column('approved_at', timestamp), Column('published_at', timestamp), Column('unpublished_at', timestamp),
     Column('created_at', timestamp, nullable=False), Column('updated_at', timestamp, nullable=False),
     CheckConstraint("state IN ('draft','approved','published','unpublished')", name='listening_library_state'),
-    CheckConstraint("state NOT IN ('approved','published') OR (reviewer IS NOT NULL AND approved_at IS NOT NULL)", name='listening_library_reviewed'),
+    CheckConstraint("state NOT IN ('approved','published') OR (reviewer IS NOT NULL AND approved_at IS NOT NULL AND reviewed_digest IS NOT NULL)", name='listening_library_reviewed'),
     CheckConstraint("state <> 'published' OR published_at IS NOT NULL", name='listening_library_published'), info={'since': 14})
 Index('listening_library_by_state', library_entries.c.state)
+Index('listening_library_by_curator', library_entries.c.curator_id)       # the users foreign key is checked on every account deletion
 
 OWNED = [t for t in metadata.sorted_tables if t is not users_ref]
 NAMES = tuple(t.name for t in OWNED)

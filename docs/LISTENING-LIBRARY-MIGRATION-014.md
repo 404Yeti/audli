@@ -62,3 +62,71 @@ No application rollback is required for the migration alone. If PR #151 must be 
 
 ## 7. Operating the workflow (after approval, for the curator)
 Set `AUDLI_LISTENING_CURATOR_IDS=<your account id>` **in the operator's shell only** (the API never reads it). `python -m app.listening.library status | review ID | register ID --category C | approve ID --reviewer NAME | publish ID | unpublish ID`. Each step prints what it did or `Refused: <reason>` and changes nothing on refusal.
+
+## 8. Final preflight (2026-11-07) and execution sequence
+Nothing below has been executed against production except read-only catalog queries (no learner row data).
+
+### Verified (read-only catalog queries against the production project)
+| Check | Result |
+|---|---|
+| Database | one Supabase project (`postgres`, PostgreSQL 17.11, ap-northeast-1, ACTIVE_HEALTHY) |
+| Ledger | `listening_migrations` = 9, 10, 11, 12; 013 and 014 absent; `listening_library_entries` absent; 17 `listening_*` tables |
+| Roles that exist | `audli_api_runtime`, `audli_listening_worker`, `audli_listening_generator`, `audli_claim_recovery_operator`, `anon`, `authenticated`, `service_role`, `postgres` |
+| Live connections | the API connects as **`audli_api_runtime`** (via Supavisor); the worker as `audli_listening_worker`; the generator as `audli_listening_generator`. Nothing connects as `service_role` or `anon`. |
+| API privileges today | `audli_api_runtime` holds INSERT, SELECT, UPDATE on the listening tables (no DELETE) |
+| `service_role` / `anon` / `authenticated` | **0** grants on the existing `listening_*` tables, so revoking them on the new table changes no existing worker, generator or admin path. The application never uses `service_role`. |
+| Table owner | `postgres` (the operator CLI and migration run as this role) |
+| Effect on 1.x | none: the migration creates one table and a ledger row; the app does not require the table |
+
+### Needs operator confirmation (not verifiable from here)
+1. **Backup status.** The management tools do not expose it. In the Supabase dashboard (Database > Backups) record: plan tier, whether PITR is enabled, the latest daily backup timestamp, and the PITR window. `archive_mode=on` is a Supabase default and is not evidence of a PITR entitlement.
+2. **A restore has NOT been tested.** The only untested recovery assumptions: (a) the dashboard backup restores cleanly, (b) the `pg_dump` of `listening_*` loads into a scratch database. Recommended before applying: restore the dump into a throwaway database/branch and run section 5's counts. Because the change is one additive table, rollback (section 6) does not depend on restore.
+3. The `$OWNER_URL` credential (role `postgres`), pointed at the direct connection, not a transaction pooler.
+
+### Privileges are now applied by the migration itself (PR #155, must merge first)
+Supabase default ACLs would give `service_role`, `anon` and `authenticated` DELETE, TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on a new table. `docs/postgres-014.sql` (after #155) revokes ALL (TRUNCATE included) from `PUBLIC`, `anon`, `authenticated` and `service_role`, grants `audli_api_runtime` SELECT only plus a SELECT-only policy, and then **asserts the resulting ACL in the same transaction**: any grantee other than the owner and `audli_api_runtime:SELECT` raises and rolls back the whole migration (no table, no ledger row). So there is no window with stray privileges and no second script on the critical path. `postgres-listening-api-role.sql` stays idempotent and is run afterwards only to keep the other 16 tables' grants consistent; it is no longer what protects this table. Worker and generator roles are never granted the table (the assertion would abort if a default ACL tried).
+
+### Owner connection check (run before step 3)
+The migration needs a direct session as a role that owns `listening_*` (here `postgres`). Transaction poolers (Supavisor port 6543) can break `LOCK TABLE`/`SET LOCAL` semantics and role context. Verify the exact URL:
+```sql
+SELECT current_user, session_user, inet_server_port(), current_setting('transaction_isolation'),
+       (SELECT tableowner FROM pg_tables WHERE tablename='listening_lessons') AS owner, pg_is_in_recovery();
+```
+Expect `current_user = owner = postgres`, `pg_is_in_recovery = false`, and the direct host `db.<ref>.supabase.co:5432` (or the session-mode pooler on 5432), not the transaction pooler on 6543. The API/worker/generator use Supavisor as their own roles; that is unchanged. **Operator must confirm this; I have not seen the owner URL.**
+
+### Execution sequence (needs explicit owner approval; expected downtime: none, the lock on `listening_migrations` lasts milliseconds and fails fast after 5 s)
+1. Preflight: `curl -fsS https://<api>/api/health`; confirm the dashboard backup/PITR facts above; take the dump
+   `pg_dump "$OWNER_URL" --no-owner -t 'listening_*' -f listening-pre-014-$(date -u +%Y%m%dT%H%M%SZ).sql`
+2. Confirm the ledger still reads 9,10,11,12 and the table is absent:
+   `SELECT string_agg(version::text, ',' ORDER BY version) FROM listening_migrations; SELECT to_regclass('public.listening_library_entries');`
+   Record `SELECT count(*) FROM listening_lesson_owners;` and `SELECT count(*) FROM listening_lessons;`.
+3. Apply: `psql "$OWNER_URL" -v ON_ERROR_STOP=1 -f docs/postgres-014.sql`
+4. Idempotent follow-up (optional for this table, keeps other grants consistent): `psql "$OWNER_URL" -v ON_ERROR_STOP=1 -f docs/postgres-listening-api-role.sql`
+5. Verify (all read-only):
+```sql
+SELECT string_agg(version::text, ',' ORDER BY version) FROM listening_migrations;   -- 9,10,11,12,14
+SELECT relrowsecurity FROM pg_class WHERE relname='listening_library_entries';        -- t
+SELECT count(*) FROM listening_library_entries;                                       -- 0
+SELECT grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) FROM information_schema.role_table_grants
+ WHERE table_name='listening_library_entries' GROUP BY grantee;                       -- audli_api_runtime: SELECT only; postgres (owner) all; NO anon/authenticated/service_role rows
+SELECT has_table_privilege('audli_api_runtime','listening_library_entries','INSERT'),   -- f
+       has_table_privilege('audli_listening_worker','listening_library_entries','SELECT'),     -- f
+       has_table_privilege('audli_listening_generator','listening_library_entries','SELECT');   -- f
+SELECT count(*) FROM listening_lesson_owners;  SELECT count(*) FROM listening_lessons;          -- equal to step 2
+```
+   Application: `/api/health` 200; `/api/listening/lessons` 200 as a signed-in learner (the same lessons, `category` null); a private generated lesson visible only to its owner (two accounts); `/classic` and a 1.x route 200; no new Render errors.
+6. If step 3 fails, nothing was committed (single transaction): read the error, stop and report; do not retry blindly.
+
+### Rollback, two separate cases
+**A. Before any lesson is published (the library table is empty or holds drafts only).** Safe and lossless for learners:
+```sql
+BEGIN; DROP TABLE listening_library_entries; DELETE FROM listening_migrations WHERE version = 14; COMMIT;
+```
+The catalog's category lookup tolerates the table's absence; shared/private visibility never depended on it.
+
+**B. After curated lessons exist.** The table is the review audit trail and the only record of which lessons were reviewed and by whom; dropping it does not unpublish anything (publishing removed owner rows, so lessons stay shared). Therefore: (1) export it privately first: `psql "$OWNER_URL" -c "\copy listening_library_entries TO 'library-entries.csv' CSV HEADER"`; (2) for each lesson that should go private again run `python -m app.listening.library unpublish <lesson>` (restores the owner row) *before* anything else; (3) only then, if still wanted, drop the table as in A. Recovery from a full database backup is for corruption, not for this change, and **has not been tested** (see below).
+
+### What is and is not evidenced about recovery
+* Evidenced: the migration is one additive transaction; case A/B rollback SQL is plain DDL exercised in CI for the apply path (tests added in #155); the production ledger/roles/privileges were read directly.
+* **Not evidenced:** a restore of the Supabase backup, a restore of the `pg_dump`, the PITR entitlement/window, and the owner connection string. These need operator confirmation or an explicit restore rehearsal; no restore was performed.
+

@@ -24,6 +24,7 @@ export type AttemptView = {
 };
 export type CatalogItem = {
   lesson_id: string; slug: string; title: string; topic: string; cefr: string; listen_for: string; accents: string[]; duration_ms: number;
+  format?: 'story' | 'dialogue' | 'mixed'; category?: string | null;
   status: 'new' | 'in_progress' | 'completed'; attempt_id: string | null; answered: number; total: number; correct: number | null; scored: number | null;
   spoken_status: 'pending' | 'assessed' | 'failed' | 'skipped' | null; last_activity_at: string | null; completed_count: number;
 };

@@ -62,3 +62,49 @@ No application rollback is required for the migration alone. If PR #151 must be 
 
 ## 7. Operating the workflow (after approval, for the curator)
 Set `AUDLI_LISTENING_CURATOR_IDS=<your account id>` **in the operator's shell only** (the API never reads it). `python -m app.listening.library status | review ID | register ID --category C | approve ID --reviewer NAME | publish ID | unpublish ID`. Each step prints what it did or `Refused: <reason>` and changes nothing on refusal.
+
+## 8. Final preflight (2026-11-07) and execution sequence
+Nothing below has been executed against production except read-only catalog queries (no learner row data).
+
+### Verified (read-only catalog queries against the production project)
+| Check | Result |
+|---|---|
+| Database | one Supabase project (`postgres`, PostgreSQL 17.11, ap-northeast-1, ACTIVE_HEALTHY) |
+| Ledger | `listening_migrations` = 9, 10, 11, 12; 013 and 014 absent; `listening_library_entries` absent; 17 `listening_*` tables |
+| Roles that exist | `audli_api_runtime`, `audli_listening_worker`, `audli_listening_generator`, `audli_claim_recovery_operator`, `anon`, `authenticated`, `service_role`, `postgres` |
+| Live connections | the API connects as **`audli_api_runtime`** (via Supavisor); the worker as `audli_listening_worker`; the generator as `audli_listening_generator`. Nothing connects as `service_role` or `anon`. |
+| API privileges today | `audli_api_runtime` holds INSERT, SELECT, UPDATE on the listening tables (no DELETE) |
+| `service_role` / `anon` / `authenticated` | **0** grants on the existing `listening_*` tables, so revoking them on the new table changes no existing worker, generator or admin path. The application never uses `service_role`. |
+| Table owner | `postgres` (the operator CLI and migration run as this role) |
+| Effect on 1.x | none: the migration creates one table and a ledger row; the app does not require the table |
+
+### Needs operator confirmation (not verifiable from here)
+1. **Backup status.** The management tools do not expose it. In the Supabase dashboard (Database > Backups) record: plan tier, whether PITR is enabled, the latest daily backup timestamp, and the PITR window. `archive_mode=on` is a Supabase default and is not evidence of a PITR entitlement.
+2. **A restore has NOT been tested.** The only untested recovery assumptions: (a) the dashboard backup restores cleanly, (b) the `pg_dump` of `listening_*` loads into a scratch database. Recommended before applying: restore the dump into a throwaway database/branch and run section 5's counts. Because the change is one additive table, rollback (section 6) does not depend on restore.
+3. The `$OWNER_URL` credential (role `postgres`), pointed at the direct connection, not a transaction pooler.
+
+### Known gap to close in the same session
+Supabase default ACLs give `service_role` (and `anon`/`authenticated`) DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN on every new `public` table. `docs/postgres-014.sql` revokes `PUBLIC`, `anon` and `authenticated` but **not `service_role`**; `postgres-listening-api-role.sql` does. Run the API-role script immediately after 014 (step 4) and verify with the query in step 5. Until then no application path uses `service_role`, and RLS blocks SELECT, but TRUNCATE is not covered by RLS, so do not leave the gap open.
+
+### Execution sequence (needs explicit owner approval; expected downtime: none, the lock on `listening_migrations` lasts milliseconds and fails fast after 5 s)
+1. Preflight: `curl -fsS https://<api>/api/health`; confirm the dashboard backup/PITR facts above; take the dump
+   `pg_dump "$OWNER_URL" --no-owner -t 'listening_*' -f listening-pre-014-$(date -u +%Y%m%dT%H%M%SZ).sql`
+2. Confirm the ledger still reads 9,10,11,12 and the table is absent:
+   `SELECT string_agg(version::text, ',' ORDER BY version) FROM listening_migrations; SELECT to_regclass('public.listening_library_entries');`
+   Record `SELECT count(*) FROM listening_lesson_owners;` and `SELECT count(*) FROM listening_lessons;`.
+3. Apply: `psql "$OWNER_URL" -v ON_ERROR_STOP=1 -f docs/postgres-014.sql`
+4. Grants: `psql "$OWNER_URL" -v ON_ERROR_STOP=1 -f docs/postgres-listening-api-role.sql`
+5. Verify (all read-only):
+```sql
+SELECT string_agg(version::text, ',' ORDER BY version) FROM listening_migrations;   -- 9,10,11,12,14
+SELECT relrowsecurity FROM pg_class WHERE relname='listening_library_entries';        -- t
+SELECT count(*) FROM listening_library_entries;                                       -- 0
+SELECT grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) FROM information_schema.role_table_grants
+ WHERE table_name='listening_library_entries' GROUP BY grantee;                       -- audli_api_runtime: SELECT only; postgres (owner) all; NO anon/authenticated/service_role rows
+SELECT has_table_privilege('audli_api_runtime','listening_library_entries','INSERT'),   -- f
+       has_table_privilege('audli_listening_worker','listening_library_entries','SELECT'),     -- f
+       has_table_privilege('audli_listening_generator','listening_library_entries','SELECT');   -- f
+SELECT count(*) FROM listening_lesson_owners;  SELECT count(*) FROM listening_lessons;          -- equal to step 2
+```
+   Application: `/api/health` 200; `/api/listening/lessons` 200 as a signed-in learner (the same lessons, `category` null); a private generated lesson visible only to its owner (two accounts); `/classic` and a 1.x route 200; no new Render errors.
+6. Rollback if anything is wrong: section 6 (before any lesson is published). Stop and report; do not retry.

@@ -71,6 +71,7 @@ def generator_role_sql(role: str = EXAMPLE_GENERATOR_ROLE) -> str:
 API_TABLES = ('listening_lessons', 'listening_lesson_versions', 'listening_audio_variants', 'listening_exercises', 'listening_exercise_keys',
               'listening_exercise_rubrics', 'listening_attempts', 'listening_answers', 'listening_responses', 'listening_spoken',
               'listening_jobs', 'listening_ai_limits', 'listening_lesson_owners', 'listening_generation_requests', 'listening_generation_limits', 'listening_migrations')
+LIBRARY_TABLE = 'listening_library_entries'       # read-only for the API; written only by the operator workflow (app/listening/library.py)
 EXAMPLE_API_ROLE = 'audli_api_runtime'
 CLIENT_ROLES = ('anon', 'authenticated', 'service_role')
 
@@ -87,5 +88,17 @@ def api_role_sql(role: str = EXAMPLE_API_ROLE) -> str:
         lines.append(f'REVOKE ALL ON {tables} FROM {client};')
     for table in API_TABLES:
         lines += [f'DROP POLICY IF EXISTS {role}_listening ON {table};', f'CREATE POLICY {role}_listening ON {table} FOR ALL TO {role} USING (true) WITH CHECK (true);']
+    # The curated-library workflow table (migration 014) is operator-written: the API may only READ lesson categories for the catalog. Conditional, so this
+    # script is safe to run before or after 014 and never fails because the table does not exist yet.
+    lines += [f"""DO $audli$
+BEGIN
+    IF to_regclass('public.{LIBRARY_TABLE}') IS NOT NULL THEN
+        GRANT SELECT ON {LIBRARY_TABLE} TO {role};
+        REVOKE ALL ON {LIBRARY_TABLE} FROM {', '.join(CLIENT_ROLES)};
+        DROP POLICY IF EXISTS {role}_listening_read ON {LIBRARY_TABLE};
+        CREATE POLICY {role}_listening_read ON {LIBRARY_TABLE} FOR SELECT TO {role} USING (true);
+    END IF;
+END
+$audli$;"""]
     lines.append('COMMIT;')
     return '\n'.join(lines) + '\n'

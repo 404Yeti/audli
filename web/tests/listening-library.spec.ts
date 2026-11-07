@@ -39,6 +39,34 @@ test.describe('2.0 library states (real pages, controlled responses)', () => {
     await expect(page.getByRole('heading', { name: 'Recent activity' })).toHaveCount(0);
   });
 
+  test('a learner can browse by level, topic, accent and format and open a lesson without generating anything', async ({ page }) => {
+    await mockLibrary(page, [
+      item({ title: 'Ordering a drink', lesson_id: '66666666-6666-4666-8666-666666666666', cefr: 'A1', accents: ['canadian'], format: 'dialogue', category: 'everyday' }),
+      item({ title: 'The lost umbrella', lesson_id: '77777777-7777-4777-8777-777777777777', cefr: 'A1', accents: ['australian'], format: 'story', category: 'stories' }),
+      item({ title: 'Moving a meeting', lesson_id: '88888888-8888-4888-8888-888888888888', cefr: 'B1', accents: ['indian', 'american'], format: 'mixed', category: 'workplace' }),
+      item({ title: 'Older lesson', lesson_id: '99999999-9999-4999-8999-999999999999', topic: 'At the pharmacy' }),
+    ]);
+    await page.goto('/listening');
+    await expect(lessonCard(page, /Ordering a drink/)).toContainText('Conversation');
+    await expect(lessonCard(page, /Moving a meeting/)).toContainText('Mixed accents');
+    const format = page.getByRole('group', { name: 'Format' });
+    await format.getByRole('button', { name: 'Conversation' }).click();
+    await expect(lessonCard(page, /Ordering a drink/)).toBeVisible();
+    await expect(lessonCard(page, /The lost umbrella/)).toHaveCount(0);
+    await format.getByRole('button', { name: 'All formats' }).click();
+    await page.getByRole('button', { name: /^Workplace/ }).click();                                  // a curated category tile
+    await expect(lessonCard(page, /Moving a meeting/)).toBeVisible();
+    await expect(lessonCard(page, /Ordering a drink/)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await page.getByRole('group', { name: 'Level' }).getByRole('button', { name: 'A1' }).click();
+    await page.getByLabel('Accent').selectOption('australian');
+    await expect(lessonCard(page, /The lost umbrella/)).toBeVisible();
+    await expect(lessonCard(page, /Ordering a drink/)).toHaveCount(0);
+    await expect(lessonCard(page, /The lost umbrella/)).toContainText('Start');                       // a published lesson starts straight away
+    expect(await noHorizontalScroll(page)).toBe(true);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+
   test('in progress, finished, pending, failed and skipped spoken answers are each stated truthfully', async ({ page }) => {
     const when = new Date().toISOString();
     await mockLibrary(page, [

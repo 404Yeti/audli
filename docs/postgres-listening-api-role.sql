@@ -39,4 +39,14 @@ DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_generation_limits
 CREATE POLICY audli_api_runtime_listening ON listening_generation_limits FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS audli_api_runtime_listening ON listening_migrations;
 CREATE POLICY audli_api_runtime_listening ON listening_migrations FOR ALL TO audli_api_runtime USING (true) WITH CHECK (true);
+DO $audli$
+BEGIN
+    IF to_regclass('public.listening_library_entries') IS NOT NULL THEN
+        GRANT SELECT ON listening_library_entries TO audli_api_runtime;
+        REVOKE ALL ON listening_library_entries FROM anon, authenticated, service_role;
+        DROP POLICY IF EXISTS audli_api_runtime_listening_read ON listening_library_entries;
+        CREATE POLICY audli_api_runtime_listening_read ON listening_library_entries FOR SELECT TO audli_api_runtime USING (true);
+    END IF;
+END
+$audli$;
 COMMIT;

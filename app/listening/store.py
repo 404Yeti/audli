@@ -7,7 +7,8 @@ is indistinguishable from a missing row. Answer keys are read only by ``submit_a
 from dataclasses import dataclass
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_, or_, update, insert, case
+from sqlalchemy import select, func, and_, or_, update, insert, case, text
+from sqlalchemy.exc import DBAPIError
 
 from app.listening import schema as t
 from app.listening.domain import (LessonContent, Cue, validate_alignment, score_multiple_choice, AnswerKey, FillKey, SequenceKey, score_fill_blank,
@@ -148,6 +149,41 @@ def _spoken_states(db, attempt_ids: list[str]) -> dict[str, str]:
         and_(t.spoken.c.attempt_id.in_(attempt_ids), t.spoken.c.status != 'receiving'))).all()}
 
 
+_LIBRARY_TABLE_SEEN = False
+
+
+def lesson_format(speakers) -> str:
+    """story = one speaker; dialogue = two speakers sharing an accent (or none recorded); mixed = two speakers with different accents."""
+    people = [s for s in (speakers or []) if isinstance(s, dict)]
+    if len(people) < 2:
+        return 'story'
+    accents = {s.get('accent') for s in people if s.get('accent')}
+    return 'mixed' if len(accents) > 1 else 'dialogue'
+
+
+def library_categories(db) -> dict[str, str]:
+    """lesson_id -> curated category, when migration 014 is applied; {} when it is not (nothing else reads that table, so an unmigrated deployment is unaffected).
+
+    The catalog is served on a read-only connection that rejects SAVEPOINT and PRAGMA, so this uses plain SELECTs only: PostgreSQL checks that the
+    table exists and that this role may read it up front (a role without the grant, or a half-applied migration, yields no categories, never an error);
+    SQLite just tries the SELECT.
+    """
+    global _LIBRARY_TABLE_SEEN
+    name = t.library_entries.name
+    if not _LIBRARY_TABLE_SEEN and db.dialect.name == 'postgresql':
+        readable = db.execute(text("SELECT CASE WHEN to_regclass(:n) IS NULL THEN false ELSE has_table_privilege(current_user, :n, 'SELECT') END"), {'n': name}).scalar()
+        if not readable:
+            return {}
+    try:
+        rows = {r.lesson_id: r.category for r in db.execute(select(t.library_entries.c.lesson_id, t.library_entries.c.category))}
+    except DBAPIError:
+        if db.dialect.name == 'postgresql':
+            raise
+        return {}
+    _LIBRARY_TABLE_SEEN = True
+    return rows
+
+
 def list_catalog(db, user_id: str | None = None) -> list[dict]:
     """Published lessons (latest version each). With a learner id, each lesson also says where that learner is with it."""
     latest = (select(t.versions.c.lesson_id, func.max(t.versions.c.version_no).label('n')).where(t.versions.c.status == 'published')
@@ -159,6 +195,7 @@ def list_catalog(db, user_id: str | None = None) -> list[dict]:
         .where(_visible(user_id))
         .order_by(t.versions.c.cefr, t.versions.c.title)).mappings().all()
     result = []
+    categories = library_categories(db)
     for row in rows:
         row = dict(row)
         speakers = row.pop('speakers', None) or []
@@ -166,7 +203,8 @@ def list_catalog(db, user_id: str | None = None) -> list[dict]:
                               .order_by(t.audio.c.accent)).all()
         # A mixed-accent lesson lists every speaker's accent (so the library and filters tell the truth); older lessons carry none and fall back to the audio's accent.
         spoken = [a for a in dict.fromkeys(s.get('accent') for s in speakers if isinstance(s, dict)) if a]
-        result.append({**row, 'accents': spoken or [v.accent for v in variants], 'duration_ms': max((v.duration_ms for v in variants), default=0)})
+        result.append({**row, 'accents': spoken or [v.accent for v in variants], 'duration_ms': max((v.duration_ms for v in variants), default=0),
+                       'format': lesson_format(speakers), 'category': categories.get(row['lesson_id'])})
     if user_id is not None:
         _add_progress(db, user_id, result)
     return result

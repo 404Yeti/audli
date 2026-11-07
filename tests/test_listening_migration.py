@@ -301,3 +301,53 @@ def test_a_repeated_011_is_refused_and_the_table_is_private_and_constrained(data
     with pytest.raises(DBAPIError):
         with engine.begin() as db:                                  # the ledger can never go negative
             db.execute(text("INSERT INTO listening_ai_limits VALUES ('2026-01-01', -1, 0, false, now())"))
+
+
+def _through_012(database):
+    migrate(database.settings())
+    engine = database()
+    for name in ('postgres-009.sql', 'postgres-010.sql', 'postgres-011.sql', 'postgres-012.sql'):
+        run_file(engine, name)
+    return engine
+
+
+def _privileges(engine):
+    with engine.connect() as db:
+        return {(r[0] or 'PUBLIC', r[1]) for r in db.execute(text(
+            "SELECT r.rolname, a.privilege_type FROM pg_class c CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a "
+            "LEFT JOIN pg_roles r ON r.oid = a.grantee WHERE c.relname = 'listening_library_entries' AND a.grantee <> c.relowner"))}
+
+
+def test_014_alone_leaves_only_select_for_the_api_role_even_when_defaults_hand_out_everything(database):
+    """Supabase default privileges give anon, authenticated and service_role (TRUNCATE included) every new table; 014 must undo that atomically, with no other script."""
+    engine = _through_012(database)
+    with engine.begin() as db:
+        db.exec_driver_sql("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='audli_api_runtime') THEN CREATE ROLE audli_api_runtime NOLOGIN; END IF; END $$")
+        for role in SUPABASE_ROLES + ('PUBLIC',):
+            db.exec_driver_sql(f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {role}')
+    run_file(engine, 'postgres-014.sql')
+    assert _privileges(engine) == {('audli_api_runtime', 'SELECT')}
+    with engine.connect() as db:
+        assert db.execute(text("SELECT relrowsecurity FROM pg_class WHERE relname='listening_library_entries'")).scalar_one()
+        assert db.execute(text("SELECT has_table_privilege('service_role','listening_library_entries','TRUNCATE')")).scalar_one() is False
+        assert db.execute(text("SELECT has_table_privilege('audli_api_runtime','listening_library_entries','INSERT')")).scalar_one() is False
+    run_file(engine, 'postgres-listening-api-role.sql') if (DOCS / 'postgres-listening-api-role.sql').exists() else None      # the idempotent follow-up changes nothing
+    assert _privileges(engine) == {('audli_api_runtime', 'SELECT')}
+
+
+def test_014_aborts_and_leaves_nothing_behind_if_an_unexpected_role_would_hold_a_privilege(database):
+    engine = _through_012(database)
+    role = 'audli_stray_' + uuid4().hex[:8]
+    with engine.begin() as db:
+        db.exec_driver_sql(f'CREATE ROLE {role} NOLOGIN')
+        db.exec_driver_sql(f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO {role}')
+    try:
+        with pytest.raises(DBAPIError, match='unexpected privileges'):
+            run_file(engine, 'postgres-014.sql')
+        with engine.connect() as db:
+            assert db.execute(text("SELECT to_regclass('public.listening_library_entries')")).scalar_one() is None      # the table was rolled back with the check
+        assert ledgers(engine)[1] == [9, 10, 11, 12]
+    finally:
+        with engine.begin() as db:
+            db.exec_driver_sql(f'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT ON TABLES FROM {role}')
+            db.exec_driver_sql(f'DROP ROLE {role}')

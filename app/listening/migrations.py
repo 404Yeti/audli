@@ -182,13 +182,33 @@ END $$;""",
         lines += [str(CreateIndex(i).compile(dialect=dialect)) + ';' for i in sorted(table.indexes, key=lambda i: i.name)]
     for table in _FIFTH:
         lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
+    # Fail closed, in this one transaction: Supabase default privileges hand a new public table to anon, authenticated and service_role (including TRUNCATE,
+    # which row-level security does not cover). Revoke ALL (every privilege, TRUNCATE included) from each of them, give the API role SELECT only, then
+    # ASSERT the resulting privilege set. Any unexpected grantee aborts and rolls back the whole migration, so no state with stray privileges can be committed.
     lines += [f"""DO $audli$
+DECLARE client text;
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-        REVOKE ALL ON TABLE {names} FROM anon;
+    FOREACH client IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = client) THEN
+            EXECUTE 'REVOKE ALL ON TABLE {names} FROM ' || quote_ident(client);
+        END IF;
+    END LOOP;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'audli_api_runtime') THEN
+        GRANT SELECT ON TABLE {names} TO audli_api_runtime;
+        CREATE POLICY audli_api_runtime_listening_read ON {names} FOR SELECT TO audli_api_runtime USING (true);
     END IF;
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-        REVOKE ALL ON TABLE {names} FROM authenticated;
+END
+$audli$;""", f"""DO $audli$
+DECLARE bad text;
+BEGIN
+    SELECT string_agg(coalesce(r.rolname, 'PUBLIC') || ':' || a.privilege_type, ', ') INTO bad
+      FROM pg_class c
+      CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+      LEFT JOIN pg_roles r ON r.oid = a.grantee
+     WHERE c.oid = 'public.{names}'::regclass AND a.grantee <> c.relowner
+       AND NOT (r.rolname = 'audli_api_runtime' AND a.privilege_type = 'SELECT');
+    IF bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = 'Refusing: unexpected privileges on {names}: ' || bad;
     END IF;
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (14, now());', 'COMMIT;']

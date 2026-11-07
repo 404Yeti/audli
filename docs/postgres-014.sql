@@ -48,12 +48,31 @@ ALTER TABLE listening_library_entries ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE listening_library_entries FROM PUBLIC;
 
 DO $audli$
+DECLARE client text;
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-        REVOKE ALL ON TABLE listening_library_entries FROM anon;
+    FOREACH client IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = client) THEN
+            EXECUTE 'REVOKE ALL ON TABLE listening_library_entries FROM ' || quote_ident(client);
+        END IF;
+    END LOOP;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'audli_api_runtime') THEN
+        GRANT SELECT ON TABLE listening_library_entries TO audli_api_runtime;
+        CREATE POLICY audli_api_runtime_listening_read ON listening_library_entries FOR SELECT TO audli_api_runtime USING (true);
     END IF;
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-        REVOKE ALL ON TABLE listening_library_entries FROM authenticated;
+END
+$audli$;
+
+DO $audli$
+DECLARE bad text;
+BEGIN
+    SELECT string_agg(coalesce(r.rolname, 'PUBLIC') || ':' || a.privilege_type, ', ') INTO bad
+      FROM pg_class c
+      CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+      LEFT JOIN pg_roles r ON r.oid = a.grantee
+     WHERE c.oid = 'public.listening_library_entries'::regclass AND a.grantee <> c.relowner
+       AND NOT (r.rolname = 'audli_api_runtime' AND a.privilege_type = 'SELECT');
+    IF bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = 'Refusing: unexpected privileges on listening_library_entries: ' || bad;
     END IF;
 END
 $audli$;

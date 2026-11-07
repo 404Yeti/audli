@@ -95,7 +95,8 @@ PRE="$(q "SELECT concat_ws('|', current_user, (SELECT tableowner FROM pg_tables 
 IFS='|' read -r P_USER P_OWNER P_REC P_MAJOR P_RO P_PORT P_LED_L P_LED_M P_LIB P_LESSONS P_OWNERS P_ROLES <<<"$PRE"
 echo "preflight: role=$P_USER owner=$P_OWNER in_recovery=$P_REC pg=$P_MAJOR read_only=$P_RO port=$P_PORT"
 echo "preflight: ledger listening=[$P_LED_L] main=[$P_LED_M] library_table=$P_LIB lessons=$P_LESSONS owners=$P_OWNERS app_roles=$P_ROLES/3"
-[[ "$P_USER" == postgres && "$P_OWNER" == postgres ]] || stop "connected role '$P_USER' must be postgres and own the listening tables (owner '$P_OWNER')"
+[[ "$P_USER" == "$P_OWNER" ]] || stop "connected role '$P_USER' must own the listening tables (owner '$P_OWNER')"
+[[ -n "$DISPOSABLE" || "$P_USER" == postgres ]] || stop "production owner role must be postgres, got '$P_USER'"
 [[ "$P_REC" == f ]] || stop 'server is a standby/recovering; the primary is required'
 [[ "$P_RO" == off ]] || stop 'session is read-only'
 [[ -n "$DISPOSABLE" ]] || [[ "$P_PORT" == 5432 ]] || stop "server port $P_PORT, expected 5432"

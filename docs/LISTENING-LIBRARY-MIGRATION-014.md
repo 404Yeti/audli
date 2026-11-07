@@ -130,3 +130,13 @@ The catalog's category lookup tolerates the table's absence; shared/private visi
 * Evidenced: the migration is one additive transaction; case A/B rollback SQL is plain DDL exercised in CI for the apply path (tests added in #155); the production ledger/roles/privileges were read directly.
 * **Not evidenced:** a restore of the Supabase backup, a restore of the `pg_dump`, the PITR entitlement/window, and the owner connection string. These need operator confirmation or an explicit restore rehearsal; no restore was performed.
 
+
+## 9. One-command guarded execution (`scripts/apply_migration_014.sh`)
+Packages sections 8's preflight, apply and verification into one fail-closed script. It does nothing until every check passes, applies only `docs/postgres-014.sql` (sha256 `451ca00a415119f4534c8c5b9a19aba7f66fcc67c6a9512288ab58d139cd0703`) once, never retries, never rolls back automatically and never prints, writes or passes the credentials on a command line.
+```bash
+cd /mnt/c/Users/Lenovo/projects/audli && git checkout main && git pull
+read -rsp 'Owner Session Pooler URL (port 5432): ' AUDLI_OWNER_URL; echo; export AUDLI_OWNER_URL
+bash scripts/apply_migration_014.sh ~/audli-backups/pre014-<verified stamp>
+```
+Checks before the SQL runs: SQL hash; backup checksum and manifest (pre-014 state, production project); URL = `*.pooler.supabase.com`, port 5432 (6543 refused), user `postgres.<project ref>`, database `postgres`; role `postgres` owning the listening tables; primary (not in recovery), writable session, PostgreSQL 17; ledgers exactly 9,10,11,12 and 1..8; library table absent; the three app roles exist. After: ledger 14, RLS, rows 0, the three indexes, the SELECT-only policy, exact privileges (nobody but the owner except `audli_api_runtime`: SELECT), no worker/generator/client-role access, lesson and owner counts unchanged. If verification fails after the apply, the script prints the case A rollback and stops; you decide.
+Tested only against disposable databases (`tests/test_apply_migration_014.py`); production has never been contacted by the tests.

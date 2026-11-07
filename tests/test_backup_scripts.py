@@ -73,3 +73,17 @@ def test_transaction_pooler_wrong_project_and_leaks_are_refused_before_any_conne
     assert not list(tmp_path.iterdir()), 'nothing may be written before the checks pass'
     traced = subprocess.run(['bash', '-x', str(BACKUP)], env={**os.environ, 'AUDLI_OWNER_URL': f'postgresql://postgres:{FAKE}@x:5432/postgres'}, capture_output=True, text=True, timeout=60)
     assert traced.returncode == 2 and FAKE not in traced.stdout + traced.stderr
+
+
+def test_fingerprint_ordering_does_not_depend_on_the_servers_collation():
+    # Found 2026-11-07: production sorted the scope '2026-11' after '2026-11-07' while the scratch server sorted it first, so identical rows hashed differently.
+    sql = '\n'.join(code_lines(FINGERPRINT))
+    assert 'order by r::text collate "C"' in sql
+    assert 'order by r::text)' not in sql
+
+
+def test_restore_test_creates_every_role_named_by_default_privileges():
+    # The dump carries ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin; without that role pg_restore reports errors (and exits 1).
+    code = '\n'.join(code_lines(VERIFY))
+    assert re.search(r'for role in supabase_admin ', code)
+    assert 'RC == 0 && ERRS == 0' in code, 'the restore must still require exit 0 and zero error lines'

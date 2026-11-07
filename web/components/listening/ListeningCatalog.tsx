@@ -9,7 +9,7 @@ import { Icon } from './Icons';
 import { ApiError } from '../../lib/api.ts';
 import { listCatalog } from '../../lib/listening.ts';
 import { lengthLabel, lessonAction, statusLine, SPOKEN_NOTE, type CatalogItem } from '../../lib/listening-core.ts';
-import { LENGTH_LABEL, LEVELS, NO_FILTERS, accentLabel, applyFilters, countLabel, topicTiles, type Filters, type Length } from '../../lib/home-core.ts';
+import { FORMAT_LABEL, LENGTH_LABEL, LEVELS, NO_FILTERS, accentLabel, applyFilters, countLabel, topicTiles, type Filters, type Format, type Length } from '../../lib/home-core.ts';
 
 type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[] };
 
@@ -17,7 +17,7 @@ const ICON_TONE = ['c1', 'c2', 'c3', 'c4'] as const;
 
 function Row({ item, n }: { item: CatalogItem; n: number }) {
   const done = item.status === 'completed';
-  const detail = [item.cefr, item.accents[0] ? accentLabel(item.accents[0]) : null, lengthLabel(item.duration_ms), statusLine(item)].filter(Boolean).join(' · ');
+  const detail = [item.cefr, item.accents[0] ? accentLabel(item.accents[0]) : null, item.format ? FORMAT_LABEL[item.format] : null, lengthLabel(item.duration_ms), statusLine(item)].filter(Boolean).join(' · ');
   return <li><Link className={styles.row} href={`/listening/${item.lesson_id}`}>
     <span className={`${styles.rowIcon} ${styles[ICON_TONE[n % 4]]}`}><Icon name={done ? 'check' : 'headphones'} /></span>
     <span className={styles.rowBody}><p className={styles.rowTitle}>{item.title}</p><p className={styles.rowMeta}>{detail}<span className={styles.srOnly}> · {lessonAction(item)}</span></p>
@@ -64,6 +64,10 @@ export function ListeningCatalog() {
       </div>
       <div className={styles.filters} role="group" aria-label="Level">
         {['All', ...LEVELS].map(l => <button key={l} type="button" className={styles.chip} aria-pressed={filters.cefr === l} onClick={() => set({ cefr: l })}>{l}</button>)}
+      </div>
+      <div className={styles.filters} role="group" aria-label="Format">
+        {(['All', 'story', 'dialogue', 'mixed'] as const).map(f => <button key={f} type="button" className={styles.chip} aria-pressed={filters.format === f}
+          onClick={() => set({ format: f })}>{f === 'All' ? 'All formats' : FORMAT_LABEL[f as Format]}</button>)}
       </div>
       <div className={styles.discoverGrid}>
         <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>

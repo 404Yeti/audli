@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { greeting, displayName, initials, continueItem, stepsDone, recommendedNext, applyFilters, topicTiles, NO_FILTERS, levelRows, accentRows, accentLabel, AVAILABLE_ACCENTS } from '../web/lib/home-core.ts';
+import { topicOf, FORMAT_LABEL, greeting, displayName, initials, continueItem, stepsDone, recommendedNext, applyFilters, topicTiles, NO_FILTERS, levelRows, accentRows, accentLabel, AVAILABLE_ACCENTS } from '../web/lib/home-core.ts';
 
 const item = (over) => ({ lesson_id: 'l', slug: 's', title: 'T', topic: 'Food', cefr: 'B1', listen_for: 'x', accents: ['american'], duration_ms: 60_000, status: 'new', attempt_id: null,
   answered: 0, total: 4, correct: null, scored: null, spoken_status: null, last_activity_at: null, completed_count: 0, ...over });
@@ -33,6 +33,18 @@ test('filters combine and topics are counted from the library', () => {
   assert.deepEqual(ids({ accent: 'australian' }), ['3']); assert.deepEqual(ids({ length: 'short' }), ['1']); assert.deepEqual(ids({ length: 'mid' }), ['2']); assert.deepEqual(ids({ length: 'long' }), ['3']);
   assert.deepEqual(ids({ topic: 'Travel', cefr: 'A2', accent: 'american' }), ['2']); assert.deepEqual(ids({ query: 'zzz' }), []);
   assert.deepEqual(topicTiles(items), [{ topic: 'Travel', count: 2 }, { topic: 'Food', count: 1 }]);
+});
+test('learners can browse by format and by curated category, and lessons without either still work', () => {
+  const items = [item({ lesson_id: 's', title: 'Story', topic: 'a rainy day', category: 'stories', format: 'story', cefr: 'A2' }),
+                 item({ lesson_id: 'd', title: 'Café', topic: 'ordering coffee', category: 'everyday', format: 'dialogue', cefr: 'A1' }),
+                 item({ lesson_id: 'm', title: 'Meeting', topic: 'moving a meeting', category: 'workplace', format: 'mixed', cefr: 'B1' }),
+                 item({ lesson_id: 'old', title: 'Older', topic: 'At the pharmacy', cefr: 'A2' })];       // no category, no format: an older lesson
+  const ids = (f) => applyFilters(items, { ...NO_FILTERS, ...f }).map(i => i.lesson_id);
+  assert.deepEqual(ids({ format: 'dialogue' }), ['d']); assert.deepEqual(ids({ format: 'mixed' }), ['m']); assert.deepEqual(ids({ format: 'story' }), ['s', 'old']);
+  assert.deepEqual(ids({ topic: 'Everyday' }), ['d']); assert.deepEqual(ids({ topic: 'At the pharmacy' }), ['old']);
+  assert.deepEqual(ids({ format: 'mixed', cefr: 'B1', topic: 'Workplace' }), ['m']); assert.deepEqual(ids({ format: 'mixed', cefr: 'A1' }), []);
+  assert.deepEqual(topicTiles(items).map(t => t.topic).sort(), ['At the pharmacy', 'Everyday', 'Stories', 'Workplace']);      // curated lessons group by category, not free text
+  assert.equal(topicOf({ topic: 'x', category: null }), 'x'); assert.deepEqual(Object.values(FORMAT_LABEL), ['Story', 'Conversation', 'Mixed accents']);
 });
 test('progress rows are facts from the server and only launch accents are selectable', () => {
   const p = { lessons_available: 2, lessons_completed: 1, attempts_completed: 1, questions_correct: 1, questions_scored: 3, recent: [], accent_counts: { british: 1, american: 3 }, level_counts: { B1: 2 } };

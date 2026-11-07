@@ -1,43 +1,41 @@
 #!/usr/bin/env bash
-# Restore a pre-migration dump into a DISPOSABLE local PostgreSQL 17 container and compare it with the manifest. Touches nothing but the container.
-#   scripts/verify_restore_pre_migration.sh ~/audli-backups/pre014-<stamp>        (Docker must be running; no production credentials are used)
+# Restore a pre-migration dump into a DISPOSABLE PostgreSQL 17 container and compare it with the fingerprint taken inside the dump's own snapshot.
+#   scripts/verify_restore_pre_migration.sh ~/audli-backups/pre014-<stamp>
+# Needs Docker Desktop running. Uses no production credentials and never opens a network connection to production. Everything happens inside one throwaway
+# container (random name, random password, no published port) that is removed on exit, pass or fail. Output: PASS or FAIL with the reasons.
 set -euo pipefail
-DIR="${1:?path to the pre014-<stamp> backup directory}"
-DUMP="$DIR/audli-public.dump"
-[[ -f "$DUMP" ]] || { echo "no $DUMP" >&2; exit 2; }
-(cd "$DIR" && sha256sum -c --quiet audli-public.dump.sha256) || { echo 'checksum mismatch: the backup file changed' >&2; exit 1; }
-DOCKER="$(command -v docker || command -v docker.exe || true)"; [[ -n "$DOCKER" ]] || { echo 'docker not found' >&2; exit 2; }
-"$DOCKER" info >/dev/null 2>&1 || { echo 'the Docker engine is not running; start Docker Desktop' >&2; exit 2; }
-NAME="audli-restore-test-$$"; PASS="$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"   # throwaway password, container-only
-cleanup() { "$DOCKER" rm -f "$NAME" >/dev/null 2>&1 || true; }; trap cleanup EXIT
-"$DOCKER" run -d --name "$NAME" -e POSTGRES_PASSWORD="$PASS" -p 127.0.0.1::5432 postgres:17 >/dev/null
-PORT="$("$DOCKER" port "$NAME" 5432/tcp | head -1 | sed 's/.*://')"
-export PGHOST=127.0.0.1 PGPORT="$PORT" PGUSER=postgres PGPASSWORD="$PASS" PGDATABASE=postgres
-for _ in $(seq 1 60); do pg_isready -q && break; sleep 1; done; pg_isready -q || { echo 'scratch server did not start' >&2; exit 1; }
-q() { psql -X -qAt -v ON_ERROR_STOP=1 -c "$1"; }
-# Recreate the roles the dump's grants refer to (names from the manifest's roles file; no passwords).
-for role in anon authenticated service_role audli_api_runtime audli_listening_worker audli_listening_generator audli_claim_recovery_operator; do
-  q "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='$role') THEN CREATE ROLE $role NOLOGIN; END IF; END \$\$"
+case "$-" in *x*) echo 'refusing to run with xtrace enabled' >&2; exit 2;; esac
+DIR="${1:?path to the pre014-<stamp> backup directory}"; DUMP="$DIR/audli-public.dump"; HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+for f in audli-public.dump audli-public.dump.sha256 fingerprint.txt; do [[ -s "$DIR/$f" ]] || { echo "FAIL: missing $DIR/$f" >&2; exit 1; }; done
+(cd "$DIR" && sha256sum -c --quiet audli-public.dump.sha256) || { echo 'FAIL: checksum mismatch, the backup file changed after it was taken' >&2; exit 1; }
+echo 'checksum OK'
+DOCKER=""; for c in docker docker.exe; do if command -v "$c" >/dev/null 2>&1 && timeout 30 "$c" info >/dev/null 2>&1; then DOCKER="$c"; break; fi; done
+[[ -n "$DOCKER" ]] || { echo 'FAIL: no running Docker engine. Start Docker Desktop, wait for "Engine running", then retry.' >&2; exit 2; }
+NAME="audli-restore-test-$$-$RANDOM"; PASS="$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"
+cleanup() { "$DOCKER" rm -f "$NAME" >/dev/null 2>&1 || true; echo "cleanup: container $NAME removed"; }; trap cleanup EXIT
+"$DOCKER" run -d --name "$NAME" -e POSTGRES_PASSWORD="$PASS" postgres:17 >/dev/null
+d() { "$DOCKER" exec -i "$NAME" "$@"; }
+for _ in $(seq 1 90); do d pg_isready -U postgres -q 2>/dev/null && d psql -U postgres -qAt -c 'select 1' >/dev/null 2>&1 && break; sleep 1; done
+d psql -U postgres -qAt -c 'select 1' >/dev/null || { echo 'FAIL: scratch server did not start' >&2; exit 1; }
+echo "scratch server: $(d psql -U postgres -qAt -c 'show server_version')"
+# The roles that the public schema's grants, policies and owners refer to (verified against production on 2026-11-07). No passwords, no login.
+for role in anon authenticated service_role audli_api_runtime audli_claim_recovery_operator audli_listening_generator audli_listening_worker; do
+  d psql -U postgres -qAt -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='$role') THEN CREATE ROLE $role NOLOGIN; END IF; END \$\$" >/dev/null
 done
-q 'CREATE SCHEMA IF NOT EXISTS extensions'; q 'CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions'; q 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions'
-set +e; pg_restore --dbname=postgres --no-password "$DUMP" 2> "$DIR/restore-errors.txt"; RC=$?; set -e
-ERRS="$(grep -c 'error' "$DIR/restore-errors.txt" || true)"
-echo "pg_restore exit=$RC, error lines=$ERRS (details: $DIR/restore-errors.txt)"
+# A fresh database already has an empty `public`; the dump recreates it, so drop the empty one (disposable DB) to get a clean, zero-error restore.
+d psql -U postgres -qAt -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public' >/dev/null
+# Restore (the archive goes in on stdin, so no file paths cross the Windows/WSL boundary).
+set +e; d pg_restore -U postgres -d postgres --no-password < "$DUMP" 2> "$DIR/restore-errors.txt"; RC=$?; set -e
+ERRS="$(grep -ci 'error' "$DIR/restore-errors.txt" || true)"
+echo "pg_restore: exit=$RC error_lines=$ERRS"
+# Fingerprint the restored copy with the same SQL and compare exactly.
+d psql -U postgres -qAt -v ON_ERROR_STOP=1 < "$HERE/pre_migration_fingerprint.sql" > "$DIR/fingerprint-restored.txt"
 FAIL=0
-COUNTS_SQL="SELECT table_name || E'\t' || (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY 1"
-q "$COUNTS_SQL" > "$DIR/row-counts-restored.tsv"
-python3 - "$DIR" <<'PY' || FAIL=1
-import sys, pathlib
-d = pathlib.Path(sys.argv[1]); rd = lambda n: dict(l.split('\t') for l in (d / n).read_text().split('\n') if l)
-b, a, r = rd('row-counts-before.tsv'), rd('row-counts-after.tsv'), rd('row-counts-restored.tsv')
-bad = 0
-for t in sorted(set(b) | set(r)):
-    lo, hi, got = int(b.get(t, 0)), int(a.get(t, 0)), int(r.get(t, -1))
-    exact = t in ('listening_migrations', 'schema_migrations')
-    ok = (lo == hi == got) if exact else (min(lo, hi) <= got <= max(lo, hi))
-    if not ok: bad += 1; print(f'  MISMATCH {t}: before={lo} after={hi} restored={got}')
-print(f'tables compared: {len(set(b) | set(r))}, mismatches: {bad}'); sys.exit(1 if bad else 0)
-PY
-echo "ledger listening=[$(q 'SELECT string_agg(version::text, chr(44) ORDER BY version) FROM listening_migrations')] main=[$(q 'SELECT string_agg(version::text, chr(44) ORDER BY version) FROM schema_migrations')] (expect 9,10,11,12 / 1..8)"
-echo "api role privileges on listening_lessons: $(q "SELECT coalesce(string_agg(privilege_type, chr(44) ORDER BY privilege_type), 'none') FROM information_schema.role_table_grants WHERE grantee='audli_api_runtime' AND table_name='listening_lessons'") (expect INSERT,SELECT,UPDATE)"
-(( RC == 0 && ERRS == 0 && FAIL == 0 )) && echo 'RESTORE TEST PASSED (disposable container removed)' || { echo 'RESTORE TEST DID NOT PASS: read restore-errors.txt and the mismatches above'; exit 1; }
+if diff -u "$DIR/fingerprint.txt" "$DIR/fingerprint-restored.txt" > "$DIR/fingerprint.diff"; then
+  echo "fingerprint: IDENTICAL ($(grep -c . "$DIR/fingerprint.txt") lines: object counts and a content hash for every table)"
+else FAIL=1; echo 'fingerprint: DIFFERENT (first differences below)'; head -20 "$DIR/fingerprint.diff"; fi
+LEDGER="$(d psql -U postgres -qAt -c "select (select string_agg(version::text, ',' order by version) from listening_migrations) || ' / ' || (select string_agg(version::text, ',' order by version) from schema_migrations)")"
+echo "ledgers restored (listening / main): $LEDGER"
+(( RC == 0 && ERRS == 0 )) || FAIL=1
+if (( FAIL == 0 )); then echo 'RESULT: PASS - the archive restored the complete public schema and every table matches the source snapshot.'
+else echo "RESULT: FAIL - see $DIR/restore-errors.txt and $DIR/fingerprint.diff (these may contain row data: keep them private)"; exit 1; fi

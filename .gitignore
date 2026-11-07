@@ -19,3 +19,10 @@ migration006.env
 
 # live provider validation results (verdicts only, but never committed by default)
 docs/listening-live-results/
+
+# AUD-113 manual database backups: contain learner data, never commit
+audli-backups/
+pre014-*/
+fingerprint*.txt
+restore-errors.txt
+roles-and-grants.txt

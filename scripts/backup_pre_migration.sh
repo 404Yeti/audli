@@ -26,7 +26,9 @@ port = u.port or 5432
 if port == 6543: fail('port 6543 is the TRANSACTION pooler; use the Session Pooler (port 5432) or the direct host')
 if port != 5432: fail(f'unexpected port {port}; expected 5432')
 db = (u.path or '/postgres').lstrip('/') or 'postgres'
-pairs = {'PGHOST': u.hostname, 'PGPORT': str(port), 'PGUSER': unquote(u.username), 'PGPASSWORD': unquote(u.password), 'PGDATABASE': db, 'PGSSLMODE': 'require', 'PGAPPNAME': 'audli-pre014-backup'}
+loopback = u.hostname in ('127.0.0.1', 'localhost', '::1')
+ssl = os.environ.get('AUDLI_TEST_SSLMODE') if loopback and os.environ.get('AUDLI_TEST_SSLMODE') else 'require'   # only a loopback test server may relax TLS
+pairs = {'PGHOST': u.hostname, 'PGPORT': str(port), 'PGUSER': unquote(u.username), 'PGPASSWORD': unquote(u.password), 'PGDATABASE': db, 'PGSSLMODE': ssl, 'PGAPPNAME': 'audli-pre014-backup'}
 for k, v in pairs.items(): print(f'export {k}={shlex.quote(v)}')
 kind = 'session-pooler' if 'pooler.supabase.com' in u.hostname else ('direct' if u.hostname.startswith('db.') else 'other')
 print(f'CONN_KIND={kind}; CONN_HOST={shlex.quote(u.hostname)}; CONN_USER={shlex.quote(unquote(u.username))}; CONN_PORT={port}')
@@ -44,7 +46,7 @@ IDENT="$(q "SELECT current_user || '|' || current_database() || '|' || (SELECT t
 IFS='|' read -r CUR_USER CUR_DB OWNER IN_REC SRV_NUM ISO <<<"$IDENT"
 echo "identity: current_user=$CUR_USER db=$CUR_DB listening_owner=$OWNER in_recovery=$IN_REC server_version_num=$SRV_NUM"
 [[ "$CUR_USER" == "$OWNER" ]] || { echo 'connected role is not the table owner; the owner connection is required' >&2; exit 2; }
-[[ "$IN_REC" == f ]] || { echo 'server is in recovery (replica); stopping' >&2; exit 2; }
+[[ "$IN_REC" == false ]] || { echo 'server is in recovery (replica); stopping' >&2; exit 2; }
 SRV_MAJOR=$((SRV_NUM / 10000)); CLI_MAJOR="$(pg_dump --version | sed -E 's/[^0-9]*([0-9]+).*/\1/')"
 echo "pg_dump major=$CLI_MAJOR server major=$SRV_MAJOR"
 (( CLI_MAJOR >= SRV_MAJOR )) || { echo 'pg_dump is older than the server; install a matching postgresql-client' >&2; exit 2; }
@@ -54,19 +56,29 @@ LIB="$(q "SELECT coalesce(to_regclass('public.listening_library_entries')::text,
 echo "ledger: listening=[$LEDGER_L] main=[$LEDGER_M] library_table=$LIB"
 [[ "$LEDGER_L" == 9,10,11,12 && "$LIB" == absent ]] || echo 'note: the ledger is not the expected pre-014 state (9,10,11,12 and table absent); a backup is still taken'
 
-# 3. Dump.
+# 3. Dump, in ONE repeatable-read snapshot: the fingerprint (object counts + a content hash per table) is computed inside the same snapshot that pg_dump
+#    reads (`pg_dump --snapshot`), so live writes during the backup cannot make the restore comparison fail falsely.
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"; OUT="${1:-$HOME/audli-backups}/pre014-$STAMP"
 mkdir -p -m 700 "$OUT"
-COUNTS_SQL="SELECT table_name || E'\t' || (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY 1"
-q "$COUNTS_SQL" > "$OUT/row-counts-before.tsv"
-pg_dump --format=custom --compress=6 --schema=public --no-password --file="$OUT/audli-public.dump"
-q "$COUNTS_SQL" > "$OUT/row-counts-after.tsv"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export AUDLI_OUT="$OUT"
+{
+  echo 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;'
+  echo 'SELECT pg_export_snapshot() AS snap \gset'
+  echo '\setenv AUDLI_SNAPSHOT :snap'
+  echo '\o | cat > "$AUDLI_OUT/fingerprint.txt"'
+  cat "$HERE/pre_migration_fingerprint.sql"
+  echo '\o'
+  echo '\! pg_dump --format=custom --compress=6 --schema=public --no-password --snapshot="$AUDLI_SNAPSHOT" --file="$AUDLI_OUT/audli-public.dump" || touch "$AUDLI_OUT/DUMP-FAILED"'
+  echo 'COMMIT;'
+} | psql -X -qAt -v ON_ERROR_STOP=1
+[[ ! -e "$OUT/DUMP-FAILED" && -s "$OUT/audli-public.dump" && -s "$OUT/fingerprint.txt" ]] || { echo 'pg_dump or the fingerprint failed; nothing usable was written' >&2; exit 1; }
 
 # 4. Roles, memberships, default ACLs and table grants as data (roles and passwords cannot be dumped on Supabase; this records what to recreate).
 {
   echo '# roles (no passwords)'; q "SELECT rolname, rolcanlogin, rolinherit, rolcreaterole, rolcreatedb, rolbypassrls, rolsuper, rolconnlimit FROM pg_roles WHERE rolname !~ '^(pg_|supabase_|pgbouncer|cli_login|dashboard_user)' ORDER BY 1"
   echo '# memberships'; q "SELECT r.rolname || ' -> ' || m.rolname FROM pg_auth_members a JOIN pg_roles r ON r.oid=a.member JOIN pg_roles m ON m.oid=a.roleid WHERE r.rolname !~ '^(pg_|supabase_|pgbouncer|cli_login|dashboard_user)' ORDER BY 1"
-  echo '# default ACLs (public)'; q "SELECT pg_get_userbyid(defaclrole) || ' ' || defaclobjtype || ' ' || defaclacl::text FROM pg_default_acl d JOIN pg_namespace n ON n.oid=d.defaclnamespace WHERE n.nspname='public' ORDER BY 1"
+  echo '# default ACLs (public)'; q "SELECT pg_get_userbyid(defaclrole) || ' ' || defaclobjtype::text || ' ' || defaclacl::text FROM pg_default_acl d JOIN pg_namespace n ON n.oid=d.defaclnamespace WHERE n.nspname='public' ORDER BY 1"
   echo '# table grants on listening_* (grantee, table, privilege)'; q "SELECT grantee || ' ' || table_name || ' ' || string_agg(privilege_type, ',' ORDER BY privilege_type) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name LIKE 'listening\\_%' GROUP BY grantee, table_name ORDER BY 1"
 } > "$OUT/roles-and-grants.txt"
 
@@ -80,7 +92,7 @@ taken_utc=$STAMP
 connection_kind=$CONN_KIND  host=$CONN_HOST  user=$CONN_USER
 server_version_num=$SRV_NUM  pg_dump_major=$CLI_MAJOR
 ledger_listening=$LEDGER_L  ledger_main=$LEDGER_M  library_table=$LIB
-dump_bytes=$BYTES  toc_entries=$ENTRIES
+dump_bytes=$BYTES  toc_entries=$ENTRIES  fingerprint_sha256=$(sha256sum "$OUT/fingerprint.txt" | cut -d' ' -f1)
 sha256=$(cut -d' ' -f1 "$OUT/audli-public.dump.sha256")
 MAN
 chmod 600 "$OUT"/*

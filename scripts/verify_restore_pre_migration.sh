@@ -18,8 +18,8 @@ d() { "$DOCKER" exec -i "$NAME" "$@"; }
 for _ in $(seq 1 90); do d pg_isready -U postgres -q 2>/dev/null && d psql -U postgres -qAt -c 'select 1' >/dev/null 2>&1 && break; sleep 1; done
 d psql -U postgres -qAt -c 'select 1' >/dev/null || { echo 'FAIL: scratch server did not start' >&2; exit 1; }
 echo "scratch server: $(d psql -U postgres -qAt -c 'show server_version')"
-# The roles that the public schema's grants, policies and owners refer to (verified against production on 2026-11-07). No passwords, no login.
-for role in anon authenticated service_role audli_api_runtime audli_claim_recovery_operator audli_listening_generator audli_listening_worker; do
+# The roles that the public schema's grants, policies, owners and ALTER DEFAULT PRIVILEGES refer to (supabase_admin: default ACLs FOR ROLE supabase_admin) (verified against production on 2026-11-07). No passwords, no login.
+for role in supabase_admin anon authenticated service_role audli_api_runtime audli_claim_recovery_operator audli_listening_generator audli_listening_worker; do
   d psql -U postgres -qAt -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='$role') THEN CREATE ROLE $role NOLOGIN; END IF; END \$\$" >/dev/null
 done
 # A fresh database already has an empty `public`; the dump recreates it, so drop the empty one (disposable DB) to get a clean, zero-error restore.

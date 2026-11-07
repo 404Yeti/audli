@@ -1,5 +1,5 @@
 -- Read-only fingerprint of the `public` schema: object counts and a content hash per table. Used identically on the source (inside the dump's snapshot)
--- and on the restored copy, so the two outputs can be compared byte for byte. Row text is hashed in a fixed order under UTC.
+-- and on the restored copy, so the two outputs can be compared byte for byte. Row text is hashed in byte order (COLLATE "C", so the result does not depend on either server's collation) under UTC.
 SET TIME ZONE 'UTC';
 SET extra_float_digits = 3;
 SELECT '## schema objects';
@@ -19,5 +19,5 @@ SELECT k || E'\t' || n FROM (
 SELECT '## table row counts and content hashes';
 SELECT t.table_name || E'\t' || (xpath('/row/n/text()', x.v))[1]::text || E'\t' || (xpath('/row/h/text()', x.v))[1]::text
 FROM information_schema.tables t
-CROSS JOIN LATERAL (SELECT query_to_xml(format('select count(*) as n, coalesce(md5(string_agg(r::text, chr(1) order by r::text)), ''empty'') as h from %I.%I r', t.table_schema, t.table_name), false, true, '') AS v) x
+CROSS JOIN LATERAL (SELECT query_to_xml(format('select count(*) as n, coalesce(md5(string_agg(r::text, chr(1) order by r::text collate "C")), ''empty'') as h from %I.%I r', t.table_schema, t.table_name), false, true, '') AS v) x
 WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE' ORDER BY t.table_name;

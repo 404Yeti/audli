@@ -1,0 +1,295 @@
+{
+ "manifest_id": "launch-1",
+ "description": "The 20-lesson launch library (docs/LISTENING-LIBRARY-LAUNCH.md). Only the five 'pilot' lessons may be submitted until their stage budget is approved; every other stage has budget 0 and cannot spend.",
+ "budgets_usd": {
+  "pilot": 1.0,
+  "batch1": 0,
+  "batch2": 0,
+  "batch3": 0,
+  "batch4": 0
+ },
+ "lessons": [
+  {
+   "slug": "a1-hello-my-name-is",
+   "stage": "batch1",
+   "title": "Hello, my name is…",
+   "category": "everyday",
+   "spec": {
+    "topic": "Introducing yourself",
+    "cefr": "A1",
+    "accent": "canadian",
+    "minutes": 1,
+    "format": "dialogue",
+    "scenario": "Two people meet for the first time and exchange names, where they are from and a simple greeting."
+   }
+  },
+  {
+   "slug": "a1-cafe-drink",
+   "stage": "pilot",
+   "title": "Ordering a drink at a café",
+   "category": "everyday",
+   "spec": {
+    "topic": "Ordering a drink at a café",
+    "cefr": "A1",
+    "accent": "american",
+    "minutes": 1,
+    "format": "dialogue",
+    "scenario": "A customer orders a coffee and a pastry from a friendly barista, and asks the price."
+   }
+  },
+  {
+   "slug": "a1-daily-routine",
+   "stage": "batch1",
+   "title": "My daily routine",
+   "category": "everyday",
+   "spec": {
+    "topic": "My daily routine",
+    "cefr": "A1",
+    "accent": "filipino",
+    "minutes": 1,
+    "format": "story",
+    "scenario": "A person describes a normal day: waking up, work, meals and going to bed, with simple times."
+   }
+  },
+  {
+   "slug": "a1-bus-to-station",
+   "stage": "batch1",
+   "title": "Which bus goes to the station?",
+   "category": "travel",
+   "spec": {
+    "topic": "Asking which bus to take",
+    "cefr": "A1",
+    "accent": "british",
+    "minutes": 1,
+    "format": "dialogue",
+    "scenario": "A traveller asks a passer-by which bus goes to the station and where the stop is."
+   }
+  },
+  {
+   "slug": "a1-lost-umbrella",
+   "stage": "batch1",
+   "title": "The lost umbrella",
+   "category": "stories",
+   "spec": {
+    "topic": "A lost umbrella",
+    "cefr": "A1",
+    "accent": "australian",
+    "minutes": 1,
+    "format": "story",
+    "scenario": "A short story about a girl who loses her umbrella on a rainy day and finds it again."
+   }
+  },
+  {
+   "slug": "a2-office-coffee",
+   "stage": "pilot",
+   "title": "Ordering coffee at the office",
+   "category": "workplace",
+   "spec": {
+    "topic": "Ordering coffee for colleagues at the office",
+    "cefr": "A2",
+    "accent": "japanese",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "Two colleagues decide who goes to get coffee, agree on everyone's orders and sort out who pays."
+   }
+  },
+  {
+   "slug": "a2-surprise-birthday",
+   "stage": "pilot",
+   "title": "The surprise birthday",
+   "category": "stories",
+   "spec": {
+    "topic": "A surprise birthday party",
+    "cefr": "A2",
+    "accent": "canadian",
+    "minutes": 2,
+    "format": "story",
+    "scenario": "A short story about friends who secretly plan a surprise birthday party and how it goes."
+   }
+  },
+  {
+   "slug": "a2-museum-directions",
+   "stage": "batch2",
+   "title": "Directions to the museum",
+   "category": "travel",
+   "spec": {
+    "topic": "Asking for directions to a museum",
+    "cefr": "A2",
+    "accent": "irish",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "A visitor asks a local for directions to the museum and gets simple left, right and straight instructions."
+   }
+  },
+  {
+   "slug": "a2-doctor-appointment",
+   "stage": "batch2",
+   "title": "Making a doctor's appointment",
+   "category": "everyday",
+   "spec": {
+    "topic": "Making a doctor's appointment by phone",
+    "cefr": "A2",
+    "accent": "southern",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "A patient phones a clinic to make an appointment and agrees a day and time."
+   }
+  },
+  {
+   "slug": "a2-airport-checkin",
+   "stage": "batch2",
+   "title": "Checking in at the airport",
+   "category": "travel",
+   "spec": {
+    "topic": "Checking in at the airport",
+    "cefr": "A2",
+    "accent": "new_zealand",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "A passenger checks in a bag at the airport desk and asks about the gate and boarding time."
+   }
+  },
+  {
+   "slug": "a2-new-colleague",
+   "stage": "batch2",
+   "title": "Meeting a new colleague",
+   "category": "workplace",
+   "spec": {
+    "topic": "Meeting a new colleague at work",
+    "cefr": "A2",
+    "accent": "chinese",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "A new colleague is introduced on a first day and the two talk about their jobs and the team."
+   }
+  },
+  {
+   "slug": "b1-weekend-trip",
+   "stage": "pilot",
+   "title": "Planning a weekend trip",
+   "category": "travel",
+   "spec": {
+    "topic": "Planning a weekend trip",
+    "cefr": "B1",
+    "accent": "scottish",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "Two friends compare destinations, travel times and budget, and agree a plan for a weekend away."
+   }
+  },
+  {
+   "slug": "b1-moving-a-meeting",
+   "stage": "pilot",
+   "title": "Moving a meeting",
+   "category": "workplace",
+   "spec": {
+    "topic": "Moving a meeting to a new time",
+    "cefr": "B1",
+    "accent": "indian",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "Two colleagues from different countries negotiate a new time for a meeting because of a clash.",
+    "accent2": "american"
+   }
+  },
+  {
+   "slug": "b1-train-delays",
+   "stage": "batch3",
+   "title": "Train delays and refunds",
+   "category": "travel",
+   "spec": {
+    "topic": "Train delays and asking for a refund",
+    "cefr": "B1",
+    "accent": "filipino",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "A passenger asks a station clerk about a delayed train and how to claim a refund."
+   }
+  },
+  {
+   "slug": "b1-hike-gone-wrong",
+   "stage": "batch3",
+   "title": "A hike that went wrong",
+   "category": "stories",
+   "spec": {
+    "topic": "A hike that went wrong",
+    "cefr": "B1",
+    "accent": "southern",
+    "minutes": 2,
+    "format": "story",
+    "scenario": "A short story about a hiking trip where the weather turns and the group has to change their plan."
+   }
+  },
+  {
+   "slug": "b1-working-from-home",
+   "stage": "batch3",
+   "title": "Working from home",
+   "category": "workplace",
+   "spec": {
+    "topic": "Working from home",
+    "cefr": "B1",
+    "accent": "canadian",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "Two colleagues discuss the good and bad sides of working from home and how they organise their day."
+   }
+  },
+  {
+   "slug": "b1-job-interview",
+   "stage": "batch3",
+   "title": "Preparing for a job interview",
+   "category": "workplace",
+   "spec": {
+    "topic": "Preparing for a job interview",
+    "cefr": "B1",
+    "accent": "british",
+    "minutes": 2,
+    "format": "story",
+    "scenario": "A person talks through how they prepare for a job interview: research, questions and nerves."
+   }
+  },
+  {
+   "slug": "b2-remote-or-office",
+   "stage": "batch4",
+   "title": "Remote or in the office?",
+   "category": "workplace",
+   "spec": {
+    "topic": "Remote work or the office",
+    "cefr": "B2",
+    "accent": "australian",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "Two colleagues weigh up working remotely against going to the office, with reasons and some disagreement."
+   }
+  },
+  {
+   "slug": "b2-customer-complaint",
+   "stage": "batch4",
+   "title": "Handling a customer complaint",
+   "category": "workplace",
+   "spec": {
+    "topic": "Handling a customer complaint",
+    "cefr": "B2",
+    "accent": "american",
+    "minutes": 2,
+    "format": "dialogue",
+    "scenario": "A support agent calmly handles a customer complaint and agrees a solution.",
+    "accent2": "filipino"
+   }
+  },
+  {
+   "slug": "b2-market-history",
+   "stage": "batch4",
+   "title": "The history of a neighbourhood market",
+   "category": "culture",
+   "spec": {
+    "topic": "The history of a neighbourhood market",
+    "cefr": "B2",
+    "accent": "irish",
+    "minutes": 2,
+    "format": "story",
+    "scenario": "A local explains how a neighbourhood market began, changed over the years and why it matters."
+   }
+  }
+ ]
+}

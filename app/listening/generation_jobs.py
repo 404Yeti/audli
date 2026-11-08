@@ -69,10 +69,15 @@ def create_generation(db, user_id: str, client_request_id: str, spec: Spec, note
     return request_id, True
 
 
+def reservation_for(settings, spec: Spec) -> tuple[int, int]:
+    """(provider credits, USD micro) reserved for one lesson of this spec: the worst case, shared by the learner API and the curator CLI."""
+    credits = credit_cost(settings.listening_gen_speech_model, estimate_chars(spec.minutes))
+    return credits, LLM_MICRO_PER_CALL * RETRYABLE_CHECKS + usd_micro_for_credits(credits, settings.listening_gen_usd_per_1k_credits)
+
+
 def finalize_reservation(engine, ledger, settings, user_id: str, request_id: str, spec: Spec) -> None:
     """Second step of create_generation, in its own transaction: reserve, then queue the job. Raises GenerationRefused with nothing queued."""
-    credits = credit_cost(settings.listening_gen_speech_model, estimate_chars(spec.minutes))
-    micro = LLM_MICRO_PER_CALL * RETRYABLE_CHECKS + usd_micro_for_credits(credits, settings.listening_gen_usd_per_1k_credits)
+    credits, micro = reservation_for(settings, spec)
     try:
         ledger.reserve(user_id, request_id, credits, micro)
     except GenerationRefused as refused:

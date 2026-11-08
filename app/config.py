@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     listening_gen_daily_budget_usd: float = Field(default=5.0, ge=0, le=1000)        # reserved per UTC day across all generation (script + speech estimates)
     listening_gen_monthly_credits: int = Field(default=100_000, ge=0, le=10_000_000) # provider credits (characters x the model's multiplier) per UTC month
     listening_gen_per_learner_daily: int = Field(default=2, ge=0, le=100)            # generated lessons per learner per UTC day
+    listening_gen_curator_daily: int | None = Field(default=None, ge=0, le=5)         # lessons per curator account per UTC day (ceiling 5); None = the ordinary per-learner cap. Read by whichever process reserves, i.e. the curator CLI
     listening_gen_allowed_learners: str = ''                                          # comma-separated learner ids; empty = every learner the 2.0 allow-list admits. Others get a plain 404.
     listening_formats_enabled: bool = False                                           # mixed-accent conversations and accents beyond the original three (off: today's behaviour exactly)
     listening_format_accents: str = ''                                                # comma-separated catalog accent ids opened for monologues and mixed-accent speakers while the flag is on

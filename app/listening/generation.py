@@ -300,6 +300,9 @@ def _scopes(now: datetime) -> tuple[str, str]:
     return now.strftime('%Y-%m-%d'), now.strftime('%Y-%m')
 
 
+CURATOR_DAILY_CEILING = 5               # no configuration can give a curator account more than this many generated lessons per UTC day
+
+
 class Ledger:
     """Reservations against the generation allowances. Everything is one transaction, so concurrent requests can never pass a limit together."""
     def __init__(self, engine, settings, clock=utcnow):
@@ -307,6 +310,14 @@ class Ledger:
         self.day_cap = round(settings.listening_gen_daily_budget_usd * 1_000_000)
         self.month_cap = settings.listening_gen_monthly_credits
         self.per_learner = settings.listening_gen_per_learner_daily
+
+    def cap_for(self, user_id: str) -> int:
+        """Lessons this account may generate per UTC day: the ordinary cap for everyone, a higher one (never above CURATOR_DAILY_CEILING, never below the ordinary
+        cap) only for accounts on the operator's curator list when AUDLI_LISTENING_GEN_CURATOR_DAILY is set. Unset = identical to before."""
+        configured = self.settings.listening_gen_curator_daily
+        if configured is None or user_id.strip().lower() not in self.settings.listening_curator_set:
+            return self.per_learner
+        return max(self.per_learner, min(configured, CURATOR_DAILY_CEILING))
 
     def _row(self, db, scope: str) -> None:
         if db.execute(t.generation_limits.select().where(t.generation_limits.c.scope == scope)).first() is None:
@@ -338,7 +349,7 @@ class Ledger:
                 mine = self._lessons_today(db, user_id)
         except Exception:
             return False, 'paused'
-        if mine >= self.per_learner:
+        if mine >= self.cap_for(user_id):
             return False, 'daily_limit'
         if used_day + max(micro, 1) > self.day_cap:
             return False, 'budget'
@@ -355,9 +366,11 @@ class Ledger:
                 if db.dialect.name == 'postgresql':
                     db.execute(text('SELECT pg_advisory_xact_lock(hashtext(:k))'), {'k': 'audli-gen:' + user_id})        # one learner's requests are serialised
                 self._row(db, day); self._row(db, month)
-                if self._lessons_today(db, user_id) >= self.per_learner:
-                    raise GenerationRefused('daily_limit')
                 lim = t.generation_limits
+                if db.dialect.name == 'sqlite':                     # the driver opens a transaction only at the first write: take the write lock BEFORE counting, as the advisory lock does on PostgreSQL
+                    db.execute(update(lim).where(lim.c.scope == day).values(updated_at=self.clock()))
+                if self._lessons_today(db, user_id) >= self.cap_for(user_id):
+                    raise GenerationRefused('daily_limit')
                 if db.execute(update(lim).where((lim.c.scope == day) & (lim.c.reserved_micro + micro <= self.day_cap))
                               .values(reserved_micro=lim.c.reserved_micro + micro, lessons=lim.c.lessons + 1, updated_at=self.clock())).rowcount != 1:
                     raise GenerationRefused('budget')

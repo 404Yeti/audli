@@ -129,3 +129,15 @@ def test_start_script_starts_the_generator_only_with_its_flag_and_database_url(t
     assert 'sidecar -m app.listening.sidecar generator' in out and 'api' in out
     out = run_start(tmp_path, **base, AUDLI_LISTENING_GENERATION_ENABLED='true')
     assert 'generator' not in out and 'api' in out
+
+
+def test_the_generator_sees_the_same_format_and_accent_switches_as_the_api():
+    """Regression: these two were missing from the allow-list, so the API accepted a Japanese lesson and the generator failed it with format_unavailable."""
+    from app.config import Settings
+    from app.listening.generation import Spec, spec_problem
+    api = {**GENERATOR_ENV, 'AUDLI_LISTENING_FORMATS_ENABLED': 'true', 'AUDLI_LISTENING_FORMAT_ACCENTS': 'canadian,japanese,scottish,indian'}
+    env = sidecar.worker_environment(api, 'generator')
+    assert env['AUDLI_LISTENING_FORMATS_ENABLED'] == 'true' and env['AUDLI_LISTENING_FORMAT_ACCENTS'] == 'canadian,japanese,scottish,indian'
+    spec = Spec(topic='ordering coffee at the office', cefr='A2', accent='japanese', minutes=2, format='dialogue', scenario='office')
+    assert spec_problem(spec, Settings(_env_file=None, listening_formats_enabled=True, listening_format_accents='canadian,japanese,scottish,indian')) is None
+    assert spec_problem(spec, Settings(_env_file=None)) is not None                    # without the switches (what the generator saw) it is refused

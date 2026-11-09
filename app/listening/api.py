@@ -303,7 +303,7 @@ def _view(db, user_id, attempt_id) -> AttemptView:
                        audio=AudioInfo(id=audio['id'], accent=audio['accent'], duration_ms=audio['duration_ms'], cues=audio['alignment']))
 
 
-def prepare(engine, worker: bool = False, generation: bool = False, generator: bool = False) -> None:
+def prepare(engine, worker: bool = False, generation: bool = False, generator: bool = False, daily: bool = False) -> None:
     """Local/test SQLite creates its tables; PostgreSQL must already have migrations 009-011 (fail closed with a fixed message).
     worker=True checks only what the spoken-answer worker needs (app.listening.roles), so it can run under its own least-privilege role.
     The Milestone 05 generation tables (migration 012) are required only when generation is switched on, so deploying this code never depends on 012."""
@@ -314,13 +314,14 @@ def prepare(engine, worker: bool = False, generation: bool = False, generator: b
         return
     with engine.connect() as db:
         present = set(inspect(db).get_table_names(schema='public'))
-    generation = generation or generator
-    required = tuple(n for n in schema.NAMES if n not in schema.NAMES_014 and n not in schema.NAMES_015 and (generation or n not in schema.NAMES_012))      # 014 (curated library) is operator-only: the API never reads it; 015 (daily) is read defensively and only when the feature is on
+    generation = generation or generator or daily
+    required = tuple(n for n in schema.NAMES if daily or (n not in schema.NAMES_014 and n not in schema.NAMES_015 and (generation or n not in schema.NAMES_012)))      # 014 (curated library) is operator-only: the API never reads it; 015 (daily) is read defensively and only when the feature is on
     if not set(required) <= present:
         raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011' + (' (and 012 for lesson generation)' if generation else '')
                            + '. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql' + (' and docs/postgres-012.sql' if generation else '') + ' as the backend database owner.')
-    needs = ({'SELECT': roles.GENERATOR_SELECT, 'UPDATE': roles.GENERATOR_UPDATE, 'INSERT': roles.GENERATOR_INSERT} if generator else
-             {'SELECT': roles.SELECT, 'UPDATE': roles.UPDATE, 'INSERT': roles.INSERT}) if (worker or generator) else {
+    needs = ({'SELECT': roles.DAILY_SELECT, 'UPDATE': roles.DAILY_UPDATE, 'INSERT': roles.DAILY_INSERT} if daily else
+             {'SELECT': roles.GENERATOR_SELECT, 'UPDATE': roles.GENERATOR_UPDATE, 'INSERT': roles.GENERATOR_INSERT} if generator else
+             {'SELECT': roles.SELECT, 'UPDATE': roles.UPDATE, 'INSERT': roles.INSERT}) if (worker or generator or daily) else {
         'SELECT': required, 'INSERT': ('listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'listening_jobs', 'listening_ai_limits')
         + (('listening_generation_requests', 'listening_generation_limits') if generation else ()),
         'UPDATE': ('listening_spoken', 'listening_jobs', 'listening_ai_limits') + (('listening_generation_requests', 'listening_generation_limits') if generation else ())}

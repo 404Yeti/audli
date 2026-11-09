@@ -125,7 +125,7 @@ $audli$;"""]
 DAILY_SELECT = ('listening_lessons', 'listening_lesson_versions', 'listening_audio_variants', 'listening_exercises', 'listening_exercise_keys',
                 'listening_exercise_rubrics', 'listening_lesson_owners', 'listening_generation_requests', 'listening_generation_limits', 'listening_jobs',
                 'listening_ai_limits', 'listening_library_entries', 'listening_daily_challenges', 'listening_daily_control')
-DAILY_INSERT = ('listening_generation_requests', 'listening_generation_limits', 'listening_jobs', 'listening_library_entries', 'listening_daily_challenges',
+DAILY_INSERT = ('listening_generation_requests', 'listening_generation_limits', 'listening_ai_limits', 'listening_jobs', 'listening_library_entries', 'listening_daily_challenges',
                 'listening_daily_control')
 DAILY_UPDATE = ('listening_generation_requests', 'listening_generation_limits', 'listening_jobs', 'listening_library_entries', 'listening_daily_challenges',
                 'listening_daily_control')

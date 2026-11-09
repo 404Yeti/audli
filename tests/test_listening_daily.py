@@ -885,6 +885,8 @@ def test_migration_015_and_the_daily_role_sql_are_the_checked_in_files_and_are_a
     assert 'INSERT INTO schema_migrations' not in sql
     assert 'VALUES (15, now())' in sql and 'REVOKE ALL ON TABLE' in sql
     assert DAILY_DELETE == ('listening_lesson_owners',)
+    from app.listening.roles import DAILY_INSERT, DAILY_UPDATE
+    assert 'listening_ai_limits' in DAILY_INSERT and 'listening_ai_limits' not in DAILY_UPDATE        # the kill-switch row is created on first read; the daily process never changes it
     private = {'listening_attempts', 'listening_responses', 'listening_answers', 'listening_spoken', 'users'}
     assert not private & set(DAILY_SELECT)                                                              # the daily role never sees learner data
 

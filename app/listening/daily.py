@@ -601,7 +601,7 @@ def main(argv: list[str]) -> int:
             print('The daily challenge is off (AUDLI_LISTENING_ENABLED and AUDLI_LISTENING_DAILY_ENABLED); nothing to run.', file=sys.stderr)
             return 1
         from app.listening.api import prepare
-        prepare(engine, generation=True)
+        prepare(engine, daily=True)
         daily = build(settings, engine)
         log.info('daily challenge scheduler started: publish=%s timezone=%s generate_from=%02d:00', settings.listening_daily_publish, settings.listening_daily_timezone,
                  settings.listening_daily_generate_hour)

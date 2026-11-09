@@ -3,7 +3,7 @@
 BEGIN;
 GRANT USAGE ON SCHEMA public TO audli_listening_daily;
 GRANT SELECT ON listening_lessons, listening_lesson_versions, listening_audio_variants, listening_exercises, listening_exercise_keys, listening_exercise_rubrics, listening_lesson_owners, listening_generation_requests, listening_generation_limits, listening_jobs, listening_ai_limits, listening_library_entries, listening_daily_challenges, listening_daily_control TO audli_listening_daily;
-GRANT INSERT ON listening_generation_requests, listening_generation_limits, listening_jobs, listening_library_entries, listening_daily_challenges, listening_daily_control TO audli_listening_daily;
+GRANT INSERT ON listening_generation_requests, listening_generation_limits, listening_ai_limits, listening_jobs, listening_library_entries, listening_daily_challenges, listening_daily_control TO audli_listening_daily;
 GRANT UPDATE ON listening_generation_requests, listening_generation_limits, listening_jobs, listening_library_entries, listening_daily_challenges, listening_daily_control TO audli_listening_daily;
 GRANT DELETE ON listening_lesson_owners TO audli_listening_daily;
 DROP POLICY IF EXISTS audli_listening_daily_select ON listening_lessons;
@@ -38,6 +38,8 @@ DROP POLICY IF EXISTS audli_listening_daily_insert ON listening_generation_reque
 CREATE POLICY audli_listening_daily_insert ON listening_generation_requests FOR INSERT TO audli_listening_daily WITH CHECK (true);
 DROP POLICY IF EXISTS audli_listening_daily_insert ON listening_generation_limits;
 CREATE POLICY audli_listening_daily_insert ON listening_generation_limits FOR INSERT TO audli_listening_daily WITH CHECK (true);
+DROP POLICY IF EXISTS audli_listening_daily_insert ON listening_ai_limits;
+CREATE POLICY audli_listening_daily_insert ON listening_ai_limits FOR INSERT TO audli_listening_daily WITH CHECK (true);
 DROP POLICY IF EXISTS audli_listening_daily_insert ON listening_jobs;
 CREATE POLICY audli_listening_daily_insert ON listening_jobs FOR INSERT TO audli_listening_daily WITH CHECK (true);
 DROP POLICY IF EXISTS audli_listening_daily_insert ON listening_library_entries;

@@ -287,3 +287,19 @@ def test_pilot_fits_the_one_dollar_cap_when_run_one_at_a_time():
     assert 4 * observed_settled + max(worst) <= budget          # the fifth lesson still fits after four settle at the observed cost
     # and the bound is enforced for real: a stage that has already used almost everything refuses to reserve another
     assert sum(worst) > budget                  # so the check cannot be the naive sum; it is cumulative-settled + one worst case (see build_plan)
+
+
+def test_wait_runs_the_whole_stage_in_order_with_one_command(lab):
+    s = curator_settings(lab.owner)
+    m = manifest()
+    code, out = run(c.submit, lab.engine, s, m, 'pilot', lab.owner, '1.0', limit=3, wait=60, sleep=lambda _: work(lab, s))
+    assert code == 0 and out.count('submitted') == 3, out
+    for key in ('k1', 'k2', 'k3'):
+        assert count_requests(lab, key) == 1
+
+
+def test_wait_gives_up_and_submits_nothing_more_when_the_lesson_never_finishes(lab):
+    s = curator_settings(lab.owner)
+    code, out = run(c.submit, lab.engine, s, manifest(), 'pilot', lab.owner, '1.0', limit=3, wait=0.01, sleep=lambda _: None)
+    assert code == 0 and out.count('submitted') == 1 and 'waiting' in out
+    assert count_requests(lab, 'k2') == 0

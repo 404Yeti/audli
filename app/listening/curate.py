@@ -21,6 +21,7 @@ import argparse
 import json
 import re
 import sys
+import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -248,7 +249,7 @@ def print_plan(plan: dict, out=print) -> None:
 
 
 def submit(engine, settings, manifest: Manifest, stage: str, curator: str, approve: str, limit: int = 1, only: str | None = None, retry: str | None = None,
-           out=print) -> int:
+           out=print, wait: float = 0, sleep=time.sleep) -> int:
     """0 = done or waiting; 2 = refused before anything was spent; 3 = stopped by a refusal or failure after possibly queuing some lessons."""
     try:
         approved = Decimal(approve)
@@ -295,6 +296,17 @@ def submit(engine, settings, manifest: Manifest, stage: str, curator: str, appro
         for entry in selected:
             with engine.connect() as db:
                 rows = stage_rows(db, manifest, stage)
+            if wait and new:                                          # --wait: let the lesson just queued finish (bounded) before the next one, so one command runs the stage in order
+                deadline = time.monotonic() + wait
+                while any(r.phase in LIVE for r in rows) and time.monotonic() < deadline:
+                    sleep(10)
+                    with engine.connect() as db:
+                        rows = stage_rows(db, manifest, stage)
+                for done in entries:
+                    last = (attempts_for(rows, done.key, manifest, stage) or [None])[-1]
+                    if last is not None and last.phase in TERMINAL_BAD and retry != done.key:
+                        out(f'STOP {done.key}: attempt {_attempt_no(last)} {last.phase} ({last.failure_code}). Nothing is retried automatically; investigate, then use --retry {done.key}')
+                        return 3
             attempts = attempts_for(rows, entry.key, manifest, stage)
             latest = attempts[-1] if attempts else None
             if latest is not None and latest.phase in TERMINAL_BAD and retry != entry.key:
@@ -382,6 +394,7 @@ def main(argv: list[str]) -> int:
     sub_p.add_argument('--approve-usd', required=True, help='must equal the stage budget in the manifest')
     sub_p.add_argument('--limit', type=int, default=1, help='new submissions this run (default 1: incremental)')
     sub_p.add_argument('--only')
+    sub_p.add_argument('--wait', type=int, default=0, metavar='SECONDS', help='after each submission wait up to SECONDS for it to finish before the next (use with --limit)')
     sub_p.add_argument('--retry', help='retry ONE failed lesson (a new attempt; the failed one still counts against the budget)')
     st = sub.add_parser('status')
     st.add_argument('--stage')
@@ -399,7 +412,7 @@ def main(argv: list[str]) -> int:
         print_plan(plan)
         return 0 if not plan['blockers'] and not any(i['blocked'] for i in plan['items']) else 2
     if args.action == 'submit':
-        return submit(engine, settings, manifest, args.stage, args.curator, args.approve_usd, max(args.limit, 1), args.only, args.retry)
+        return submit(engine, settings, manifest, args.stage, args.curator, args.approve_usd, max(args.limit, 1), args.only, args.retry, wait=args.wait)
     return status(engine, settings, manifest, args.stage)
 
 

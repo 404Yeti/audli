@@ -36,8 +36,23 @@ GENERATOR_PASS_THROUGH = (
     'AUDLI_LISTENING_GEN_PER_LEARNER_DAILY', 'AUDLI_LISTENING_GEN_USD_PER_1K_CREDITS', 'AUDLI_LISTENING_GEN_VOICES', 'AUDLI_DATA_DIR',
     # The generator re-checks the accent/format the same way the API does (spec_problem), so it must see the same two switches or it fails every non-original accent.
     'AUDLI_LISTENING_FORMATS_ENABLED', 'AUDLI_LISTENING_FORMAT_ACCENTS')
+# The DAILY CHALLENGE scheduler (third process, own role): it publishes through the curator workflow, so it alone holds the DELETE-on-owners grant. It receives the
+# AI key (semantic review, topic proposals) but neither the speech key, nor any bucket credential, nor the recordings credentials, nor the signing secret.
+DAILY_URL = 'AUDLI_LISTENING_DAILY_DATABASE_URL'
+DAILY_PASS_THROUGH = (
+    'PATH', 'LANG', 'PYTHONUNBUFFERED', 'AUDLI_ENVIRONMENT', 'AUDLI_PERSISTENCE', 'AUDLI_AUTH_MODE', 'AUDLI_SUPABASE_URL', 'AUDLI_SUPABASE_PUBLISHABLE_KEY',
+    'AUDLI_LISTENING_ENABLED', 'AUDLI_LISTENING_GENERATION_ENABLED', 'AUDLI_LISTENING_PROVIDER', 'OPENAI_API_KEY', 'AUDLI_LISTENING_GENERATION_MODEL',
+    'AUDLI_LISTENING_AI_ENABLED', 'AUDLI_LISTENING_AI_DAILY_BUDGET_USD', 'AUDLI_LISTENING_PROVIDER_TIMEOUT_SECONDS', 'AUDLI_LISTENING_GEN_SPEECH_MODEL',
+    'AUDLI_LISTENING_GEN_MAX_MINUTES', 'AUDLI_LISTENING_GEN_DAILY_BUDGET_USD', 'AUDLI_LISTENING_GEN_MONTHLY_CREDITS', 'AUDLI_LISTENING_GEN_PER_LEARNER_DAILY',
+    'AUDLI_LISTENING_GEN_CURATOR_DAILY', 'AUDLI_LISTENING_GEN_USD_PER_1K_CREDITS', 'AUDLI_LISTENING_GEN_VOICES', 'AUDLI_LISTENING_FORMATS_ENABLED',
+    'AUDLI_LISTENING_FORMAT_ACCENTS', 'AUDLI_LISTENING_CURATOR_IDS', 'AUDLI_DATA_DIR', 'AUDLI_LISTENING_DAILY_ENABLED', 'AUDLI_LISTENING_DAILY_PUBLISH',
+    'AUDLI_LISTENING_DAILY_SERVICE_ID', 'AUDLI_LISTENING_DAILY_TIMEZONE', 'AUDLI_LISTENING_DAILY_GENERATE_HOUR', 'AUDLI_LISTENING_DAILY_MAX_ATTEMPTS',
+    'AUDLI_LISTENING_DAILY_MAX_USD', 'AUDLI_LISTENING_DAILY_REVIEW_MAX_USD', 'AUDLI_LISTENING_DAILY_REVIEW_MODEL', 'AUDLI_LISTENING_DAILY_MINUTES',
+    'AUDLI_LISTENING_DAILY_LEVELS', 'AUDLI_LISTENING_DAILY_POOL_LOW', 'AUDLI_LISTENING_DAILY_ALERT_WEBHOOK')
 ROLES = {'worker': ('app.listening.worker', WORKER_URL, PASS_THROUGH, 'worker'),
-         'generator': ('app.listening.generator', GENERATOR_URL, GENERATOR_PASS_THROUGH, 'generator')}
+         'generator': ('app.listening.generator', GENERATOR_URL, GENERATOR_PASS_THROUGH, 'generator'),
+         'daily': ('app.listening.daily', DAILY_URL, DAILY_PASS_THROUGH, 'daily')}
+ARGS = {'daily': ('run',)}
 MIN_PAUSE, MAX_PAUSE, HEALTHY_AFTER = 5.0, 120.0, 60.0
 
 
@@ -66,7 +81,7 @@ def main(source=None, run=subprocess.run, sleep=time.sleep, clock=time.monotonic
     while not stopping[0] and (rounds is None or count < rounds):
         count += 1
         started = clock()
-        result = run([sys.executable, '-m', module], env=env, check=False)
+        result = run([sys.executable, '-m', module, *ARGS.get(role, ())], env=env, check=False)
         pause = next_pause(pause, clock() - started)
         print(f'listening {role} exited with status {result.returncode}; restarting in {pause:.0f}s', file=sys.stderr, flush=True)
         sleep(pause)

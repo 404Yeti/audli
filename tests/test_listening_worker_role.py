@@ -132,10 +132,10 @@ def test_the_guard_still_fails_closed_under_the_restricted_role_when_the_ceiling
 
 def test_the_api_role_sql_covers_every_listening_table_and_never_deletes():
     from app.listening.roles import API_TABLES, EXAMPLE_API_ROLE, api_role_sql
-    from app.listening.schema import metadata, NAMES_014
+    from app.listening.schema import metadata, NAMES_014, NAMES_015
     assert (ROOT / 'docs/postgres-listening-api-role.sql').read_text() == api_role_sql(EXAMPLE_API_ROLE)
     # The curated-library workflow table (migration 014) is operator-written: the API role may only READ it (lesson categories), through a conditional block.
-    assert set(API_TABLES) == {name for name in metadata.tables if name.startswith('listening_')} - set(NAMES_014)
+    assert set(API_TABLES) == {name for name in metadata.tables if name.startswith('listening_')} - set(NAMES_014) - set(NAMES_015)
     text = api_role_sql(EXAMPLE_API_ROLE)
     assert NAMES_014 == ('listening_library_entries',) and 'GRANT SELECT ON listening_library_entries TO' in text and "to_regclass('public.listening_library_entries')" in text
     block = text.split('DO $audli$')[1].upper()

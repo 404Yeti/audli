@@ -190,3 +190,30 @@ test('the landing cutover needs BOTH flags and is otherwise completely inert', (
     assert.deepEqual([cutoverRedirects(env), cutoverBeforeFiles(env), cutoverAfterFiles(env)], [[], [], []]);          // never move 1.x unless fully enabled
   }
 });
+
+import { dailyView, dailyButton, dailyHref, untilNext, streakLine } from '../web/lib/daily-core.ts';
+
+const lesson = (status, extra = {}) => ({ lesson_id: 'L1', status, title: 't', cefr: 'A2', accents: ['american'], duration_ms: 90_000, ...extra });
+
+test('the daily card shows start, resume, completed or unavailable and never a lesson on an unavailable day', () => {
+  assert.equal(dailyView({ status: 'unavailable', lesson: null, completed_today: false }), 'unavailable');
+  assert.equal(dailyView({ status: 'unavailable', lesson: lesson('new'), completed_today: false }), 'unavailable');
+  assert.equal(dailyView({ status: 'ready', lesson: lesson('new'), completed_today: false }), 'start');
+  assert.equal(dailyView({ status: 'ready', lesson: lesson('in_progress'), completed_today: false }), 'resume');
+  assert.equal(dailyView({ status: 'ready', lesson: lesson('completed'), completed_today: true }), 'completed');
+  assert.deepEqual(['start', 'resume', 'completed'].map(dailyButton), ['Start challenge', 'Resume challenge', 'Review results']);
+  assert.equal(dailyHref({ lesson: lesson('new') }), '/listening/L1');
+  assert.equal(dailyHref({ lesson: null }), null);
+});
+
+test('the countdown and streak lines are plain and never negative', () => {
+  const now = Date.parse('2026-11-10T10:00:00Z');
+  assert.equal(untilNext('2026-11-10T13:20:00Z', now), '3 h 20 min');
+  assert.equal(untilNext('2026-11-10T13:00:00Z', now), '3 h');
+  assert.equal(untilNext('2026-11-10T10:25:00Z', now), '25 min');
+  assert.equal(untilNext('2026-11-10T09:00:00Z', now), '0 min');
+  assert.equal(streakLine({ current: 0, longest: 0, days_completed: 0 }), 'Finish today’s challenge to start a streak');
+  assert.equal(streakLine({ current: 3, longest: 3, days_completed: 3 }), '3-day streak');
+  assert.equal(streakLine({ current: 2, longest: 5, days_completed: 9 }), '2-day streak · best 5');
+  assert.equal(streakLine({ current: 0, longest: 4, days_completed: 4 }), 'Best streak 4 days');
+});

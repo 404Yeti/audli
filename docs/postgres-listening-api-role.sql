@@ -49,4 +49,24 @@ BEGIN
     END IF;
 END
 $audli$;
+DO $audli$
+BEGIN
+    IF to_regclass('public.listening_daily_challenges') IS NOT NULL THEN
+        GRANT SELECT ON listening_daily_challenges TO audli_api_runtime;
+        REVOKE ALL ON listening_daily_challenges FROM anon, authenticated, service_role;
+        DROP POLICY IF EXISTS audli_api_runtime_listening_read ON listening_daily_challenges;
+        CREATE POLICY audli_api_runtime_listening_read ON listening_daily_challenges FOR SELECT TO audli_api_runtime USING (true);
+    END IF;
+END
+$audli$;
+DO $audli$
+BEGIN
+    IF to_regclass('public.listening_daily_control') IS NOT NULL THEN
+        GRANT SELECT ON listening_daily_control TO audli_api_runtime;
+        REVOKE ALL ON listening_daily_control FROM anon, authenticated, service_role;
+        DROP POLICY IF EXISTS audli_api_runtime_listening_read ON listening_daily_control;
+        CREATE POLICY audli_api_runtime_listening_read ON listening_daily_control FOR SELECT TO audli_api_runtime USING (true);
+    END IF;
+END
+$audli$;
 COMMIT;

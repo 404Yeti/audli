@@ -46,6 +46,23 @@ class CatalogItem(BaseModel):
     completed_count: int = 0
 
 
+class DailyStreak(BaseModel):
+    current: int
+    longest: int
+    days_completed: int
+
+
+class DailyOut(BaseModel):
+    """Today's Daily Challenge for this learner. `unavailable` means a genuinely new lesson is not ready yet: it is never an older lesson standing in."""
+    status: Literal['ready', 'unavailable']
+    date: str                              # the challenge day in the schedule time zone (same boundary for every learner)
+    next_at: datetime                      # the next boundary (UTC)
+    lesson: CatalogItem | None = None      # title, level, topic, accents, length and THIS learner's status / attempt / progress
+    category: str | None = None
+    completed_today: bool = False
+    streak: DailyStreak
+
+
 class RecentOut(BaseModel):
     attempt_id: str
     lesson_id: str
@@ -298,7 +315,7 @@ def prepare(engine, worker: bool = False, generation: bool = False, generator: b
     with engine.connect() as db:
         present = set(inspect(db).get_table_names(schema='public'))
     generation = generation or generator
-    required = tuple(n for n in schema.NAMES if n not in schema.NAMES_014 and (generation or n not in schema.NAMES_012))      # 014 (curated library) is operator-only: the API never reads it
+    required = tuple(n for n in schema.NAMES if n not in schema.NAMES_014 and n not in schema.NAMES_015 and (generation or n not in schema.NAMES_012))      # 014 (curated library) is operator-only: the API never reads it; 015 (daily) is read defensively and only when the feature is on
     if not set(required) <= present:
         raise RuntimeError('Audli listening lessons need migrations 009, 010 and 011' + (' (and 012 for lesson generation)' if generation else '')
                            + '. Apply docs/postgres-009.sql, docs/postgres-010.sql and docs/postgres-011.sql' + (' and docs/postgres-012.sql' if generation else '') + ' as the backend database owner.')
@@ -436,7 +453,23 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
     @router.get('/lessons', response_model=list[CatalogItem])
     def catalog():
         with repo.read() as db:
-            return store.list_catalog(db, repo.learner_id)
+            hide = None
+            if settings.listening_daily_enabled:
+                from app.listening import daily_read
+                hide = daily_read.hidden_lesson_ids(db, settings)          # today's challenge joins Discover when its day is over
+            return store.list_catalog(db, repo.learner_id, hide=hide)
+
+    if settings.listening_daily_enabled:
+        from app.listening import daily_read
+
+        @router.get('/daily', response_model=DailyOut)
+        def daily_challenge():
+            """Today's Daily Challenge. Read-only: completions and streaks are derived from the learner's own finished attempts, so nothing is written here."""
+            user_id = repo.learner_id
+            with repo.read() as db:
+                def item_for(lesson_id):
+                    return next((i for i in store.list_catalog(db, user_id) if i['lesson_id'] == lesson_id), None)
+                return daily_read.today_view(db, settings, user_id, item_for)
 
     @router.get('/progress', response_model=ProgressOut)
     def progress():

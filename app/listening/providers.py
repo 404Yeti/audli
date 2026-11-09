@@ -236,3 +236,102 @@ def build_providers(settings, guard=None, http_client=None) -> tuple[Transcriber
     client = make_client(settings.openai_api_key.get_secret_value(), plan.assessment.timeout, http_client)
     return (GuardedTranscriber(OpenAITranscriber(client, plan.transcription), guard, plan.transcription.model),
             GuardedAssessor(OpenAIAssessor(client, plan.assessment), guard, plan.assessment.model, plan.assessment.max_output_tokens))
+
+
+# ---- Daily Challenge: bounded semantic review and topic proposals ----------------------------------------------------------------------
+# Two narrow jobs for the daily scheduler (never a request handler, never learner-facing text): classify one finished candidate lesson against its nearest historical
+# neighbours, and propose new topic seeds when the reviewed pool runs low. Both are one request, strict structured output, store=False, retries off, with a fixed
+# output cap; the caller reserves the worst-case cost first (app/listening/daily.py). `last_cost_micro` is an estimate, never billing.
+REVIEW_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                 'required': ['safe', 'coherent', 'level_ok', 'same_scenario_as', 'issues'],
+                 'properties': {'safe': {'type': 'boolean'}, 'coherent': {'type': 'boolean'}, 'level_ok': {'type': 'boolean'},
+                                'same_scenario_as': {'type': ['string', 'null']},
+                                'issues': {'type': 'array', 'maxItems': 5, 'items': {'type': 'string', 'maxLength': 140}}}}
+REVIEW_SYSTEM = ('You review ONE English listening lesson for language learners before it is published. Judge only the JSON you are given. '
+                 'safe=false for hateful, sexual, violent, self-harm, drug, medical-advice, legal-advice, party-political, or real-person/brand-endorsing content, or personal data. '
+                 'coherent=false if the script does not make sense, contradicts itself, or the questions are not answerable from it. '
+                 'level_ok=false if the vocabulary or sentence length is clearly wrong for the stated CEFR level. '
+                 'same_scenario_as = the id of a neighbour lesson that tells essentially the same story, scene or situation (a rewrite with different words counts), else null. '
+                 'issues = short plain reasons, at most five. Never write anything for the learner.')
+PROPOSE_SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': ['topics'],
+                  'properties': {'topics': {'type': 'array', 'minItems': 1, 'maxItems': 4, 'items': {
+                      'type': 'object', 'additionalProperties': False, 'required': ['key', 'category', 'topic', 'scenario', 'lo', 'hi'],
+                      'properties': {'key': {'type': 'string', 'maxLength': 40}, 'category': {'type': 'string', 'maxLength': 30},
+                                     'topic': {'type': 'string', 'maxLength': 120}, 'scenario': {'type': 'string', 'maxLength': 160},
+                                     'lo': {'type': 'string', 'enum': ['A1', 'A2', 'B1', 'B2']}, 'hi': {'type': 'string', 'enum': ['A1', 'A2', 'B1', 'B2']}}}}}}
+PROPOSE_SYSTEM = ('Propose new, ordinary, safe everyday scenario seeds for English listening lessons. Each must be about a DIFFERENT situation from every title and scenario you are given, '
+                  'not a rewording of one, and must avoid the over-represented categories listed. Use a kebab-case key, one of the given category names, a short topic, and one sentence saying who is '
+                  'where and what happens. No real people, brands, politics, religion, medicine or legal advice.')
+
+
+class DailyJudge(Protocol):
+    last_cost_micro: int | None
+    def review(self, candidate: dict, neighbours: list[dict]) -> dict: ...
+
+
+class TopicProposer(Protocol):
+    last_cost_micro: int | None
+    def propose(self, context: dict) -> list[dict]: ...
+
+
+class FakeDailyJudge:
+    """Deterministic: approves unless told otherwise. `verdict` may be a dict (merged over the approving default), an Exception to raise, or a callable(candidate, neighbours)."""
+    def __init__(self, verdict=None):
+        self.verdict, self.calls, self.last_cost_micro = verdict, [], 1000
+
+    def review(self, candidate: dict, neighbours: list[dict]) -> dict:
+        self.calls.append((candidate, neighbours))
+        base = {'safe': True, 'coherent': True, 'level_ok': True, 'same_scenario_as': None, 'issues': []}
+        if isinstance(self.verdict, Exception):
+            raise self.verdict
+        if callable(self.verdict):
+            return {**base, **self.verdict(candidate, neighbours)}
+        return {**base, **(self.verdict or {})}
+
+
+class FakeTopicProposer:
+    def __init__(self, topics=None):
+        self.topics, self.calls, self.last_cost_micro = topics, [], 800
+
+    def propose(self, context: dict) -> list[dict]:
+        self.calls.append(context)
+        if isinstance(self.topics, Exception):
+            raise self.topics
+        return list(self.topics if self.topics is not None else [
+            {'key': 'ai-bakery-queue', 'category': 'community_civic', 'topic': 'Waiting in the queue at a village post van', 'scenario': 'Two neighbours wait for a mobile post van and compare news.', 'lo': 'A2', 'hi': 'B1'}])
+
+
+def _structured(client, model: str, timeout: float, instructions: str, payload: dict, name: str, schema: dict, max_output_tokens: int) -> dict:
+    try:
+        response = client.responses.create(model=model, instructions=instructions, input=json.dumps(payload), store=False, max_output_tokens=max_output_tokens, timeout=timeout,
+                                           text={'format': {'type': 'json_schema', 'name': name, 'strict': True, 'schema': schema}})
+    except Exception as error:
+        raise translate_error(error) from None
+    for item in getattr(response, 'output', None) or []:
+        for part in getattr(item, 'content', None) or []:
+            if getattr(part, 'type', None) == 'refusal':
+                raise ProviderPermanent('model refused', 'provider_refused')
+    if getattr(response, 'status', 'completed') != 'completed':
+        raise ProviderTemporary('the answer was cut off', 'provider_unavailable')
+    try:
+        return json.loads(response.output_text or '{}')
+    except ValueError:
+        raise ProviderPermanent('the answer was not JSON', 'provider_refused') from None
+
+
+class OpenAIDailyJudge:
+    def __init__(self, client, model: str, timeout: float, max_output_tokens: int = 900):
+        self.client, self.model, self.timeout, self.max_output_tokens, self.last_cost_micro = client, model, timeout, max_output_tokens, None
+
+    def review(self, candidate: dict, neighbours: list[dict]) -> dict:
+        data = _structured(self.client, self.model, self.timeout, REVIEW_SYSTEM, {'candidate': candidate, 'neighbours': neighbours}, 'daily_review', REVIEW_SCHEMA, self.max_output_tokens)
+        return {'safe': bool(data.get('safe')), 'coherent': bool(data.get('coherent')), 'level_ok': bool(data.get('level_ok')),
+                'same_scenario_as': data.get('same_scenario_as') or None, 'issues': [str(i)[:140] for i in (data.get('issues') or [])][:5]}
+
+
+class OpenAITopicProposer:
+    def __init__(self, client, model: str, timeout: float, max_output_tokens: int = 900):
+        self.client, self.model, self.timeout, self.max_output_tokens, self.last_cost_micro = client, model, timeout, max_output_tokens, None
+
+    def propose(self, context: dict) -> list[dict]:
+        return list(_structured(self.client, self.model, self.timeout, PROPOSE_SYSTEM, context, 'daily_topics', PROPOSE_SCHEMA, self.max_output_tokens).get('topics') or [])

@@ -73,6 +73,14 @@ def report_with_alerts(engine, settings=None, now: datetime | None = None) -> di
     report = collect(engine, now)
     ceiling = usd_to_micro(settings.listening_ai_daily_budget_usd) if settings is not None else None
     report['alerts'] = alerts(report, ceiling)
+    if settings is not None and getattr(settings, 'listening_daily_enabled', False):
+        try:
+            from app.listening import daily, daily_read
+            report['daily'] = daily.summary(engine, settings, now)
+            local_hour = (now or utcnow()).astimezone(daily_read.zone(settings)).hour
+            report['alerts'] += daily.alerts(report['daily'], local_hour)
+        except Exception:
+            report['alerts'].append('the daily challenge status could not be read')
     if settings is not None and not settings.listening_ai_enabled:
         report['alerts'].append('AUDLI_LISTENING_AI_ENABLED is false in this process')
     return report

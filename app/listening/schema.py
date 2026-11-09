@@ -208,12 +208,47 @@ library_entries = Table('listening_library_entries', metadata,
 Index('listening_library_by_state', library_entries.c.state)
 Index('listening_library_by_curator', library_entries.c.curator_id)       # the users foreign key is checked on every account deletion
 
+# ---- Daily challenge history (migration 015, additive) ---------------------------------------------------------------------
+# One row per ICT calendar day, kept forever: the permanent history that makes "never replay" enforceable. Unique date alone is not the safety net: the row
+# carries a lease (one scheduler at a time), an attempt counter and a state that only moves by compare-and-set, `lesson_id` and `fingerprint` are UNIQUE (the
+# same lesson or the same script can never be a second day's challenge), and `request_id` pins the one generation attempt in flight. The learner API only READS
+# this table (catalog hiding, today's card); the daily process (own role) writes it. Completions and streaks are derived from immutable attempts, not stored.
+daily_challenges = Table('listening_daily_challenges', metadata,
+    Column('challenge_date', String(10), primary_key=True),                                          # YYYY-MM-DD in the schedule time zone (default Asia/Ho_Chi_Minh)
+    Column('state', String(12), nullable=False),                  # planned generating built scheduled active failed
+    Column('attempts', Integer, nullable=False),
+    Column('plan', document),                                      # the chosen topic/category/cefr/format/accents/setting for the CURRENT attempt
+    Column('request_id', identifier),                              # the generation request in flight (listening_generation_requests.id)
+    Column('lesson_id', identifier, ForeignKey('listening_lessons.id'), unique=True),   # set when validated; no cascade: history outlives everything
+    Column('version_id', identifier),
+    Column('fingerprint', String(64), unique=True),               # sha256 of the normalised script; unique across ALL days
+    Column('topic_key', String(60)), Column('category', String(30)),
+    Column('rejected', document, nullable=False),                  # [{attempt, lesson_id, topic_key, reasons}] every rejected candidate (never published)
+    Column('gate_report', document),                               # the winning candidate's gate results
+    Column('events', document, nullable=False),                    # short audit trail: [{at, event, detail}] (capped)
+    Column('failure_code', String(40)),
+    Column('review_micro', BigInteger, nullable=False),            # semantic-check / topic-proposal spend recorded for this day (estimates, not billing)
+    Column('lease_owner', String(60)), Column('lease_until', timestamp),
+    Column('published_at', timestamp),
+    Column('created_at', timestamp, nullable=False), Column('updated_at', timestamp, nullable=False),
+    CheckConstraint("state IN ('planned','generating','built','scheduled','active','failed')", name='listening_daily_state'),
+    CheckConstraint('attempts >= 0 AND review_micro >= 0', name='listening_daily_nonnegative'),
+    CheckConstraint("state NOT IN ('scheduled','active') OR (lesson_id IS NOT NULL AND fingerprint IS NOT NULL)", name='listening_daily_validated'),
+    CheckConstraint("state <> 'active' OR published_at IS NOT NULL", name='listening_daily_published'), info={'since': 15})
+Index('listening_daily_by_state', daily_challenges.c.state)
+
+# Operator switch, one row (scope 'control'): publishing_paused stops BOTH new generation and publication without a redeploy.
+daily_control = Table('listening_daily_control', metadata,
+    Column('scope', String(10), primary_key=True), Column('paused', Boolean, nullable=False), Column('note', String(200)),
+    Column('updated_at', timestamp, nullable=False), info={'since': 15})
+
 OWNED = [t for t in metadata.sorted_tables if t is not users_ref]
 NAMES = tuple(t.name for t in OWNED)
 NAMES_010 = tuple(t.name for t in OWNED if t.info.get('since') == 10)
 NAMES_011 = tuple(t.name for t in OWNED if t.info.get('since') == 11)
 NAMES_012 = tuple(t.name for t in OWNED if t.info.get('since') == 12)
 NAMES_014 = tuple(t.name for t in OWNED if t.info.get('since') == 14)
+NAMES_015 = tuple(t.name for t in OWNED if t.info.get('since') == 15)
 PRIVATE_TABLES = ('listening_exercise_keys', 'listening_exercise_rubrics')
 
 _MSG = {'answer': 'listening answers are final', 'version': 'published listening versions are immutable', 'audio': 'listening audio variants are append-only',

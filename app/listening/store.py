@@ -184,8 +184,9 @@ def library_categories(db) -> dict[str, str]:
     return rows
 
 
-def list_catalog(db, user_id: str | None = None) -> list[dict]:
-    """Published lessons (latest version each). With a learner id, each lesson also says where that learner is with it."""
+def list_catalog(db, user_id: str | None = None, hide: frozenset | set | None = None) -> list[dict]:
+    """Published lessons (latest version each). With a learner id, each lesson also says where that learner is with it. `hide` = lesson ids kept out of Discover for now
+    (today's Daily Challenge until its day is over); they stay fully playable by id."""
     latest = (select(t.versions.c.lesson_id, func.max(t.versions.c.version_no).label('n')).where(t.versions.c.status == 'published')
               .group_by(t.versions.c.lesson_id).subquery())
     rows = db.execute(select(t.lessons.c.id.label('lesson_id'), t.lessons.c.slug, t.versions.c.id.label('version_id'), t.versions.c.title,
@@ -197,6 +198,8 @@ def list_catalog(db, user_id: str | None = None) -> list[dict]:
     result = []
     categories = library_categories(db)
     for row in rows:
+        if hide and row['lesson_id'] in hide:
+            continue
         row = dict(row)
         speakers = row.pop('speakers', None) or []
         variants = db.execute(select(t.audio.c.accent, t.audio.c.duration_ms).where(t.audio.c.version_id == row['version_id'])

@@ -76,19 +76,24 @@ def test_the_whole_scheduler_runs_under_the_restricted_daily_role(daily_role):
     assert summary['migrated'] and summary['today_state'] in ('active', 'none', 'scheduled', 'generating')
 
 
-@pytest.mark.parametrize('statement', [
+REFUSED = [
     'SELECT * FROM users', 'SELECT * FROM listening_attempts', 'SELECT * FROM listening_responses', 'SELECT * FROM listening_answers', 'SELECT * FROM listening_spoken',
     "INSERT INTO listening_attempts (id) VALUES (gen_random_uuid())",
     'DELETE FROM listening_daily_challenges',                              # history is permanent
     'DELETE FROM listening_library_entries', 'DELETE FROM listening_lessons', 'DELETE FROM listening_generation_requests', 'DELETE FROM listening_jobs',
     "UPDATE listening_lesson_versions SET title = 'x'", "UPDATE listening_audio_variants SET voice = 'x'", "UPDATE listening_exercise_keys SET explanation = 'x'",
-    "UPDATE listening_lesson_owners SET user_id = user_id", "INSERT INTO listening_lesson_owners (lesson_id, user_id, created_at) VALUES (gen_random_uuid(), gen_random_uuid(), now())",
-    'TRUNCATE listening_daily_challenges', 'TRUNCATE listening_lesson_owners', 'CREATE TABLE daily_made_this (id int)', 'ALTER TABLE listening_daily_challenges ADD COLUMN x int'])
-def test_everything_outside_the_daily_roles_remit_is_refused(daily_role, statement):
+    "UPDATE listening_ai_limits SET halted = false", "UPDATE listening_lesson_owners SET user_id = user_id",
+    "INSERT INTO listening_lesson_owners (lesson_id, user_id, created_at) VALUES (gen_random_uuid(), gen_random_uuid(), now())",
+    'TRUNCATE listening_daily_challenges', 'TRUNCATE listening_lesson_owners', 'CREATE TABLE daily_made_this (id int)', 'ALTER TABLE listening_daily_challenges ADD COLUMN x int']
+
+
+def test_everything_outside_the_daily_roles_remit_is_refused(daily_role):
     day_, name = daily_role
-    with pytest.raises(DBAPIError):
-        with as_role(day_.engine, name).begin() as db:
-            db.exec_driver_sql(statement)
+    engine = as_role(day_.engine, name)
+    for statement in REFUSED:                                              # one database, one statement per transaction
+        with pytest.raises(DBAPIError):
+            with engine.begin() as db:
+                db.exec_driver_sql(statement)
 
 
 def test_the_daily_role_can_do_exactly_what_publishing_needs(daily_role):

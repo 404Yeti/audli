@@ -62,13 +62,20 @@ class VariedWriter(FakeScriptWriter):
 
 
 class TextSpeech(FakeSpeech):
-    """The stock fake tone depends only on word count and voice, so two different scripts of the same length would share a checksum (real speech never does)."""
+    """Fast, text-dependent fake audio (one ffmpeg call, no Python sample loop). The stock fake tone depends only on word count and voice, so two different scripts of the
+    same length would share a checksum (real speech never does) and the duplicate gate would rightly refuse the second."""
     def synthesize(self, text, voice):
-        return super().synthesize(text, voice + hashlib.sha256(text.encode()).hexdigest()[:6])
+        import subprocess
+        from imageio_ffmpeg import get_ffmpeg_exe
+        self.calls.append((text, voice))
+        seconds = max(0.8, 0.22 * len(text.split()) + 0.5)
+        pitch = 180 + int(hashlib.sha256((voice + text).encode()).hexdigest()[:6], 16) % 700
+        return subprocess.run([get_ffmpeg_exe(), '-v', 'error', '-f', 'lavfi', '-i', f'sine=frequency={pitch}:sample_rate=22050:duration={seconds:.2f}', '-b:a', '64k', '-f', 'mp3', '-'],
+                              check=True, capture_output=True).stdout
 
 
 def daily_settings(owner, **over):
-    base = dict(listening_curator_ids=owner, listening_gen_curator_daily=5, listening_daily_enabled=True, listening_daily_publish=True, listening_daily_service_id=owner)
+    base = dict(listening_daily_minutes=1, listening_curator_ids=owner, listening_gen_curator_daily=5, listening_daily_enabled=True, listening_daily_publish=True, listening_daily_service_id=owner)
     return gen_settings(**{**base, **over})
 
 
@@ -78,6 +85,34 @@ class Clock:
 
     def __call__(self):
         return self.now
+
+
+# On PostgreSQL (CI's disposable postgres:17) only the tests whose behaviour depends on the database run: locking and concurrency, uniqueness, atomic publication,
+# retries and failure recovery, authorization and the roles. The pure logic and the full flow matrix run on SQLite; re-running them on PostgreSQL adds minutes and no coverage.
+PG_CORE = {
+    'test_the_evening_run_generates_validates_and_schedules_tomorrow_and_midnight_publishes_it',
+    'test_running_the_scheduler_again_and_again_creates_one_request_one_lesson_and_one_publication',
+    'test_simultaneous_schedulers_produce_a_single_attempt',
+    'test_a_crash_between_steps_resumes_without_a_second_request_or_a_second_reservation',
+    'test_the_database_itself_refuses_one_lesson_or_one_script_for_two_days',
+    'test_publication_is_one_transaction_a_failure_leaves_the_lesson_private_and_the_day_scheduled',
+    'test_when_every_attempt_fails_the_day_is_failed_the_operator_is_told_and_nothing_old_is_substituted',
+    'test_a_rejected_attempt_retries_with_a_different_topic_and_the_rejected_lesson_is_never_published',
+    'test_a_service_account_that_loses_curator_status_publishes_nothing_spends_nothing_and_the_operator_is_told',
+    'test_the_pause_switch_stops_generation_and_publication_at_once_and_resume_continues',
+    'test_an_expired_lease_is_taken_over_and_the_old_holder_cannot_write_any_more',
+    'test_a_second_scheduler_cannot_act_while_the_first_holds_the_day',
+    'test_starting_resuming_and_finishing_updates_the_card_and_credits_the_day_once',
+    'test_migration_015_is_recorded_secured_and_not_reappliable',
+}
+
+
+@pytest.fixture(autouse=True)
+def _pg_subset(request):
+    callspec = getattr(request.node, 'callspec', None)
+    backend = (callspec.params.get('make_repository') if callspec else None)
+    if backend == 'postgres' and request.node.originalname not in PG_CORE:
+        pytest.skip('covered on SQLite; the PostgreSQL run keeps to database-dependent behaviour')
 
 
 @pytest.fixture(autouse=True)

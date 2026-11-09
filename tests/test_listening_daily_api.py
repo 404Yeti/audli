@@ -10,7 +10,7 @@ from app.main import create_app
 from app.storage.repository import utcnow
 from conftest import ASGIClient, FakeProvider
 from test_listening import make_repository  # noqa: F401  (fixture)
-from test_listening_daily import Clock, day, lab, VariedWriter  # noqa: F401  (fixtures)
+from test_listening_daily import Clock, VariedWriter, _pg_subset, day, lab  # noqa: F401  (fixtures; _pg_subset keeps the PostgreSQL run to database-dependent tests)
 from test_listening_journey import by_kind
 from test_listening_library import answer_all, open_lesson
 

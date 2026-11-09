@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useState } from 'react';
 import styles from './app.module.css';
 import daily from './daily.module.css';
 import { Icon } from './Icons';
@@ -9,7 +10,8 @@ import { accentLabel } from '../../lib/home-core.ts';
 import { dailyButton, dailyHref, dailyView, streakLine, untilNext, type DailyChallenge } from '../../lib/daily-core.ts';
 
 /** The dominant element of the learner home: today's shared challenge. It never shows an older lesson in its place; "unavailable" is its own calm state. */
-export function DailyChallengeCard({ data, now = Date.now() }: { data: DailyChallenge; now?: number }) {
+export function DailyChallengeCard({ data, now }: { data: DailyChallenge; now?: number }) {
+  const [clock] = useState(() => now ?? Date.now());          // read once on mount: rendering must stay pure
   const view = dailyView(data);
   const lesson = data.lesson;
   const href = dailyHref(data);
@@ -38,6 +40,6 @@ export function DailyChallengeCard({ data, now = Date.now() }: { data: DailyChal
     <p className={daily.streak}><span aria-hidden="true">🔥</span> {streakLine(data.streak)}</p>
     {href ? <Link className={`${styles.btn} ${done ? styles.btnSecondary : styles.btnPrimary} ${daily.cta}`} href={href}>
       <Icon name={done ? 'check' : 'play'} size={18} /> {dailyButton(view)}</Link> : null}
-    <p className={daily.next}>Next challenge in {untilNext(data.next_at, now)}</p>
+    <p className={daily.next}>Next challenge in {untilNext(data.next_at, clock)}</p>
   </section>;
 }

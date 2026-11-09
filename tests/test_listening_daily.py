@@ -926,6 +926,14 @@ def test_migration_015_and_the_daily_role_sql_are_the_checked_in_files_and_are_a
     assert not private & set(DAILY_SELECT)                                                              # the daily role never sees learner data
 
 
+def test_no_listening_migration_or_role_sql_contains_a_percent_sign():
+    """psql runs a '%' literally but psycopg (the test harness and migrate_postgres) reads it as a bind placeholder; 015 once used format('%I') and only the PostgreSQL run caught it."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / 'docs'
+    for path in [*(p for p in root.glob('postgres-0*.sql') if int(p.stem.split('-')[1]) >= 9), *root.glob('postgres-listening-*.sql')]:       # the 2.0 listening migrations and roles (008 is 1.x)
+        assert '%' not in path.read_text(), path.name
+
+
 def test_the_daily_process_gets_the_ai_key_but_no_speech_bucket_recordings_or_signing_secret():
     from app.listening import sidecar
     env = sidecar.worker_environment({k: 'x' for k in (*sidecar.DAILY_PASS_THROUGH, 'ELEVENLABS_API_KEY', 'AUDLI_LISTENING_S3_SECRET_KEY', 'AUDLI_LISTENING_S3_ACCESS_KEY',

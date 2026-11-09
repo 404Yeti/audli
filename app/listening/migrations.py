@@ -240,7 +240,7 @@ END $$;""",
         lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
     # Same fail-closed pattern as 014: strip the Supabase client roles, give the API role SELECT only, then assert the resulting privilege set per table.
     lines += [f"""DO $audli$
-DECLARE client text; tbl text;
+DECLARE client text;
 BEGIN
     FOREACH client IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = client) THEN
@@ -249,9 +249,8 @@ BEGIN
     END LOOP;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'audli_api_runtime') THEN
         GRANT SELECT ON TABLE {names} TO audli_api_runtime;
-        FOREACH tbl IN ARRAY ARRAY['listening_daily_challenges', 'listening_daily_control'] LOOP
-            EXECUTE format('CREATE POLICY audli_api_runtime_listening_read ON %I FOR SELECT TO audli_api_runtime USING (true)', tbl);
-        END LOOP;
+        CREATE POLICY audli_api_runtime_listening_read ON listening_daily_challenges FOR SELECT TO audli_api_runtime USING (true);
+        CREATE POLICY audli_api_runtime_listening_read ON listening_daily_control FOR SELECT TO audli_api_runtime USING (true);
     END IF;
 END
 $audli$;""", f"""DO $audli$

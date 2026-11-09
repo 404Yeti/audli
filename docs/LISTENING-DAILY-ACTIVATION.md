@@ -20,7 +20,7 @@ Confirm the Supabase backup / PITR window covers now and note the timestamp. Als
 Verify the files, then apply **only** 015 as the database owner, in one session. Do **not** use `python -m scripts.migrate_postgres --listening` (it applies every pending listening migration).
 ```
 sha256sum docs/postgres-015.sql docs/postgres-listening-daily-role.sql docs/postgres-listening-api-role.sql
-#  60fe8c667749fcf4f2df524110f9d6e1ecff991861c8c3467067081bf5a9ec98  docs/postgres-015.sql
+#  89aa33c875eddb8f2a70301de40dd4ee67cf771d7b19d5a0133ee7ef0cbb1fb1  docs/postgres-015.sql
 #  980c821d9059cbe402e4968275b12b8ef07e5f9d93615809b7dced4ca039fe79  docs/postgres-listening-daily-role.sql
 #  58d409528d20fd0d80f5e67a2f6e47a4587501535ddeea884f84fc981ae8d13b  docs/postgres-listening-api-role.sql
 psql "$OWNER_URL" -v ON_ERROR_STOP=1 -f docs/postgres-015.sql

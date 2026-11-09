@@ -92,6 +92,7 @@ def test_009_and_the_real_008_apply_in_either_order(database, order):
     run_file(engine, 'postgres-011.sql')
     run_file(engine, 'postgres-012.sql')
     run_file(engine, 'postgres-014.sql')
+    run_file(engine, 'postgres-015.sql')                           # the daily tables apply cleanly after the whole chain, in either 008/009 order
     assert ledgers(engine) == ([1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 14, 15])
     # The claims runtime's gate reads max(schema_migrations.version); 009 must leave it exactly where 008 put it.
     with engine.connect() as db:

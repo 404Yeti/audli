@@ -29,7 +29,7 @@ The **generator process on Render must allow the same accents and formats** (`AU
 
 ## Procedure
 1. `python -m app.listening.curate plan --stage pilot --curator <id>`: read-only; lists blocked accents/formats, estimates, allowance, stage budget. Fix everything it reports first.
-2. `python -m app.listening.curate submit --stage pilot --curator <id> --approve-usd 1.00`: submits ONE lesson (`--limit N` for more) and exits. The generator process builds it.
+2. `python -m app.listening.curate submit --stage pilot --curator <id> --approve-usd 1.00 --limit 5 --wait 900`: submits the pilot lessons in order, waiting up to 900 s for each to finish before the next, and stops at the first failure or if the cumulative cap would be passed. Without `--limit`/`--wait` it submits ONE lesson and exits. The generator process builds them.
 3. `python -m app.listening.curate status --stage pilot`: wait for `ready`.
 4. Review it in the app signed in as the curator (the 10 checks in `LISTENING-LIBRARY-LAUNCH.md` section 3).
 5. Smoke and privacy check BEFORE publishing (two signed-in sessions, read-only): `python scripts/listening_smoke.py draft <lesson_id>` (see its header for the tokens).

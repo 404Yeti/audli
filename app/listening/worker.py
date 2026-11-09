@@ -12,11 +12,24 @@ import sys
 import threading
 import time
 from pathlib import Path
+from uuid import UUID
 
 from app.listening import jobs, spoken
 from app.storage.repository import utcnow
 
 log = logging.getLogger('audli.listening.worker')
+
+# Operator CLIs (library, curate) have no learner session. The 1.x rule "Postgres in local auth mode needs AUDLI_LEARNER_ID" exists for the 1.x
+# shared-learner identity, which these tools never use (nothing under app/listening reads settings.learner_id), so they supply an inert placeholder.
+# Everything else about Settings validation (database URL shape, supabase rules, production rules) still applies unchanged.
+_OPERATOR_PLACEHOLDER_LEARNER = UUID(int=0)
+
+
+def operator_settings():
+    from app.config import Settings
+    if os.environ.get('AUDLI_LEARNER_ID', '').strip() or os.environ.get('AUDLI_AUTH_MODE', 'local').strip() == 'supabase':
+        return Settings()
+    return Settings(learner_id=_OPERATOR_PLACEHOLDER_LEARNER)
 
 
 def make_engine(settings):

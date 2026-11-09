@@ -66,3 +66,30 @@ def test_supabase_mode_still_rejects_a_learner_id_and_production_rules_stand(env
     env.setenv('AUDLI_ENVIRONMENT', 'production')
     with pytest.raises(ValidationError):                     # production still refuses local identity (an earlier production rule may fire first)
         operator_settings()
+
+
+# ---- which condition rejects a database URL: the error now names it (never a value) -------------------------------------------------------
+SECRET = 'S3cr3t-synthetic'
+GOOD = f'postgresql://postgres.abcdefgh:{SECRET}@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require'
+
+
+@pytest.mark.parametrize('url, environment, problem', [
+    (GOOD + '&options=reference%3Dabc', 'development', 'options parameter'),
+    (f'mysql://u:{SECRET}@h:5432/d', 'development', 'scheme'),
+    (f'postgresql://postgres.abcdefgh:{SECRET}@aws-0-x.pooler.supabase.com:5432/', 'development', 'database'),
+    ('postgresql://postgres.abcdefgh@aws-0-x.pooler.supabase.com:5432/postgres', 'development', 'password'),
+])
+def test_the_error_names_the_failing_condition_and_never_the_password(env, url, environment, problem):
+    env.setenv('AUDLI_DATABASE_URL', url)
+    env.setenv('AUDLI_ENVIRONMENT', environment)
+    with pytest.raises(ValidationError) as failure:
+        Settings(learner_id='11111111-1111-1111-1111-111111111111')
+    text = str(failure.value)
+    assert f'Problem: ' in text and problem in text and SECRET not in text
+
+
+def test_a_good_url_passes_with_and_without_sslmode_when_not_production(env):
+    env.setenv('AUDLI_DATABASE_URL', GOOD.replace('?sslmode=require', ''))
+    assert operator_settings().persistence == 'postgres'
+    env.setenv('AUDLI_DATABASE_URL', GOOD)
+    assert operator_settings().persistence == 'postgres'

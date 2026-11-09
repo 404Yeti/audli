@@ -313,17 +313,19 @@ class Settings(BaseSettings):
         if self.persistence == 'postgres':
             if not self.database_url or (self.auth_mode == 'local' and not self.learner_id):
                 raise ValueError('Postgres requires AUDLI_DATABASE_URL; local mode also requires AUDLI_LEARNER_ID')
+            problems = []                                           # names only, never values: the URL holds a password
             try:
                 url = make_url(self.database_url.get_secret_value())
-                valid = (url.drivername in ('postgres', 'postgresql', 'postgresql+psycopg')
-                    and url.host and url.database and url.username and url.password
-                    and url.port != 0 and not url.query.get('options'))
-                if self.environment == 'production':
-                    valid = valid and url.query.get('sslmode') in ('require', 'verify-ca', 'verify-full')
-                if not valid:
-                    raise ValueError()
+                checks = (('scheme', url.drivername in ('postgres', 'postgresql', 'postgresql+psycopg')), ('host', bool(url.host)), ('database', bool(url.database)),
+                          ('username', bool(url.username)), ('password', bool(url.password)), ('port', url.port != 0),
+                          ('options parameter (not allowed)', not url.query.get('options')))
+                problems = [name for name, ok in checks if not ok]
+                if self.environment == 'production' and url.query.get('sslmode') not in ('require', 'verify-ca', 'verify-full'):
+                    problems.append('sslmode (AUDLI_ENVIRONMENT is production, so sslmode=require or stronger, with no stray characters, is mandatory)')
             except Exception:
-                raise ValueError('AUDLI_DATABASE_URL must be a complete Postgres URI; production requires sslmode=require or stronger') from None
+                problems = ['unparseable (check for stray quotes, spaces or line breaks)']
+            if problems:
+                raise ValueError('AUDLI_DATABASE_URL must be a complete Postgres URI; production requires sslmode=require or stronger. Problem: ' + '; '.join(problems))
         elif self.database_url:
             raise ValueError('Set AUDLI_PERSISTENCE=postgres to use AUDLI_DATABASE_URL')
         return self

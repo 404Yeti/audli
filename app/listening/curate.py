@@ -391,9 +391,8 @@ def main(argv: list[str]) -> int:
     except (OSError, ValueError, ValidationError) as problem:
         print(f'Refused: the manifest is not valid ({type(problem).__name__})', file=sys.stderr)
         return 2
-    from app.config import Settings
-    from app.listening.worker import make_engine
-    settings = Settings()
+    from app.listening.worker import make_engine, operator_settings
+    settings = operator_settings()
     engine = make_engine(settings)
     if args.action == 'plan':
         plan = build_plan(engine, settings, manifest, args.stage, args.curator)

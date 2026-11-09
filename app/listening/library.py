@@ -229,9 +229,8 @@ def main(argv: list[str]) -> int:
         if name == 'unpublish':
             p.add_argument('--to-user')
     args = parser.parse_args(argv)
-    from app.config import Settings
-    from app.listening.worker import make_engine
-    settings = Settings()
+    from app.listening.worker import make_engine, operator_settings
+    settings = operator_settings()
     engine = make_engine(settings)
     curators = settings.listening_curator_set
     try:

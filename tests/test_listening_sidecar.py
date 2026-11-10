@@ -141,3 +141,49 @@ def test_the_generator_sees_the_same_format_and_accent_switches_as_the_api():
     spec = Spec(topic='ordering coffee at the office', cefr='A2', accent='japanese', minutes=2, format='dialogue', scenario='office')
     assert spec_problem(spec, Settings(_env_file=None, listening_formats_enabled=True, listening_format_accents='canadian,japanese,scottish,indian')) is None
     assert spec_problem(spec, Settings(_env_file=None)) is not None                    # without the switches (what the generator saw) it is refused
+
+
+# ---- the Daily Challenge scheduler: its production environment must pass production validation (a development-only run once hid that it could not start) ----
+
+SERVICE = '1880b3a3-a095-4f0b-b959-1d421caddf8d'
+DAILY_ENV = {**GENERATOR_ENV, 'AUDLI_LISTENING_DAILY_DATABASE_URL': 'postgresql://audli_listening_daily.ref:pw@h.example.com:5432/postgres?sslmode=require',
+             'AUDLI_LISTENING_DAILY_ENABLED': 'true', 'AUDLI_LISTENING_DAILY_SERVICE_ID': SERVICE, 'AUDLI_LISTENING_CURATOR_IDS': SERVICE,
+             'AUDLI_LISTENING_DAILY_MAX_ATTEMPTS': '1', 'AUDLI_LISTENING_DAILY_PUBLISH': 'false', 'AUDLI_AUTH_MODE': 'supabase',
+             'AUDLI_SUPABASE_URL': 'https://abcdefghijklmnopqrst.supabase.co', 'AUDLI_SUPABASE_PUBLISHABLE_KEY': 'sb_publishable_x',
+             'AUDLI_LISTENING_PROVIDER': 'openai', 'AUDLI_LISTENING_STORAGE': 's3'}
+
+
+def daily_fields(**over):
+    env = {**sidecar.worker_environment(DAILY_ENV, 'daily'), **over}
+    return {k[len('AUDLI_'):].lower() if k.startswith('AUDLI_') else k.lower(): v for k, v in env.items() if k not in ('PATH', 'PYTHONUNBUFFERED')}
+
+
+def test_the_daily_scheduler_gets_the_database_ai_key_and_settings_but_no_bucket_recordings_speech_or_signing_secret():
+    env = sidecar.worker_environment(DAILY_ENV, 'daily')
+    assert env['AUDLI_DATABASE_URL'] == DAILY_ENV['AUDLI_LISTENING_DAILY_DATABASE_URL'] and env['AUDLI_LISTENING_PROCESS'] == 'daily'
+    for needed in ('OPENAI_API_KEY', 'AUDLI_LISTENING_STORAGE', 'AUDLI_LISTENING_DAILY_SERVICE_ID', 'AUDLI_LISTENING_CURATOR_IDS', 'AUDLI_LISTENING_DAILY_MAX_ATTEMPTS'):
+        assert needed in env
+    for forbidden in ('AUDLI_LISTENING_S3_ACCESS_KEY', 'AUDLI_LISTENING_S3_SECRET_KEY', 'ELEVENLABS_API_KEY', 'AUDLI_LISTENING_RECORDINGS_ACCESS_KEY', 'AUDLI_LISTENING_RECORDINGS_SECRET_KEY',
+                      'AUDLI_LISTENING_SIGNING_SECRET', 'AUDLI_LISTENING_OPS_TOKEN', 'AUDLI_LISTENING_WORKER_DATABASE_URL', 'AUDLI_LISTENING_GENERATOR_DATABASE_URL'):
+        assert forbidden not in env
+
+
+def test_the_daily_settings_validate_in_production_with_exactly_this_environment_and_refuse_any_bucket_or_speech_credential():
+    import pytest
+    from app.config import Settings
+    fields = daily_fields()
+    s = Settings(_env_file=None, **fields)
+    assert s.environment == 'production' and s.listening_process == 'daily' and s.listening_storage == 's3' and not s.listening_daily_publish
+    assert s.listening_daily_max_attempts == 1 and s.listening_curator_set == frozenset({SERVICE})
+    for secret in ({'listening_s3_access_key': 'k', 'listening_s3_secret_key': 's'}, {'listening_recordings_access_key': 'k', 'listening_recordings_secret_key': 's'}, {'elevenlabs_api_key': 'x'}):
+        with pytest.raises(Exception, match='must not hold'):
+            Settings(_env_file=None, **{**fields, **secret})
+    with pytest.raises(Exception, match='S3-compatible'):
+        Settings(_env_file=None, **{**fields, 'listening_storage': 'local'})          # production still requires lessons to live in object storage
+
+
+def test_the_daily_launcher_runs_its_run_subcommand_with_its_own_url(capsys):
+    calls = []
+    sidecar.main(DAILY_ENV, run=lambda cmd, env, check: calls.append((cmd, env['AUDLI_LISTENING_PROCESS'])) or type('R', (), {'returncode': 1})(), sleep=lambda s: None, rounds=1, role='daily')
+    assert calls == [([sys.executable, '-m', 'app.listening.daily', 'run'], 'daily')]
+    assert sidecar.main({}, rounds=1, role='daily') == 1 and 'AUDLI_LISTENING_DAILY_DATABASE_URL is not set' in capsys.readouterr().err

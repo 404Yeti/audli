@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Audli 2.0 structured listening lessons. OFF = no route, no table access. ON needs migration 009 on PostgreSQL.
     listening_enabled: bool = False
     listening_storage: Literal['local', 's3'] = 'local'
-    listening_process: Literal['api', 'worker', 'generator'] = 'api'     # 'worker' = spoken-answer worker (recordings bucket only); 'generator' = lesson generator (lesson bucket + speech key, never recordings)
+    listening_process: Literal['api', 'worker', 'generator', 'daily'] = 'api'     # 'worker' = spoken-answer worker (recordings bucket only); 'generator' = lesson generator (lesson bucket + speech key, never recordings); 'daily' = Daily Challenge scheduler (database + AI key only: no bucket, recordings or speech credentials)
     listening_signing_secret: SecretStr | None = None
     listening_s3_endpoint: str = ''
     listening_s3_bucket: str = ''
@@ -239,13 +239,19 @@ class Settings(BaseSettings):
             raise ValueError('Production listening lessons require S3-compatible object storage (AUDLI_LISTENING_STORAGE=s3)')
         worker = self.listening_process == 'worker'
         generator = self.listening_process == 'generator'
-        if self.listening_storage == 's3' and worker:
+        daily = self.listening_process == 'daily'
+        if daily:
+            # The scheduler only reads and writes database rows and makes one small review call. It must not be able to reach any bucket or the speech provider.
+            if (self.listening_s3_access_key or self.listening_s3_secret_key or self.listening_recordings_access_key or self.listening_recordings_secret_key
+                    or (self.elevenlabs_api_key is not None and self.elevenlabs_api_key.get_secret_value().strip())):
+                raise ValueError('The daily challenge scheduler must not hold lesson-audio, recordings or speech credentials')
+        elif self.listening_storage == 's3' and worker:
             if (not self.listening_recordings_endpoint.startswith('https://') or not self.listening_recordings_bucket
                     or not self.listening_recordings_access_key or not self.listening_recordings_secret_key):
                 raise ValueError('The listening worker needs the recordings bucket: an https endpoint, bucket, access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
             if self.listening_s3_access_key or self.listening_s3_secret_key:
                 raise ValueError('The listening worker must not hold lesson-audio credentials')
-        elif self.listening_storage == 's3':
+        elif self.listening_storage == 's3' and not daily:
             if (not self.listening_s3_endpoint.startswith('https://') or not self.listening_s3_bucket
                     or not self.listening_s3_access_key or not self.listening_s3_secret_key):
                 raise ValueError('S3 listening storage needs an https endpoint, bucket, access key and secret key')
@@ -254,7 +260,7 @@ class Settings(BaseSettings):
                 raise ValueError('The lesson generator must not hold recordings credentials')
             if self.elevenlabs_api_key is None or not self.elevenlabs_api_key.get_secret_value().strip():
                 raise ValueError('The lesson generator needs ELEVENLABS_API_KEY')
-        if self.listening_storage == 's3' and not worker and not generator:
+        if self.listening_storage == 's3' and not worker and not generator and not daily:
             if not self.listening_recordings_bucket or not self.listening_recordings_access_key or not self.listening_recordings_secret_key:
                 raise ValueError('S3 listening storage needs a separate recordings bucket with its own access key and secret key (AUDLI_LISTENING_RECORDINGS_*)')
             if self.listening_recordings_bucket == self.listening_s3_bucket or (

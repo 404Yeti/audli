@@ -851,6 +851,28 @@ def test_the_card_is_unavailable_before_midnight_and_ready_after_with_progress_a
     assert not ({'correct_option_id', 'explanation', 'accepted', 'object_key', 'sha256'} & set(str(view)))
 
 
+def test_pausing_the_scheduler_does_not_hide_a_challenge_that_is_already_live(day):
+    """AUD-117 acceptance bug: the pause switch stops generation and publication; it must not turn a live, published challenge into "being prepared"."""
+    d = day.build()
+    day.full_day(d, D2)
+    d.clock.now = at(D2, 0, 0)
+    dl.tick(d)
+    assert day.row(D2)['state'] == 'active'
+    dl.set_paused(day.engine, True, 'controlled publication')
+    view = day_view(day, d.settings, day.other, at(D2, 7))
+    assert view['status'] == 'ready' and view['date'] == D2 and view['lesson']['lesson_id'] == day.row(D2)['lesson_id']
+    dl.set_paused(day.engine, False)
+    assert day_view(day, d.settings, day.other, at(D2, 7))['status'] == 'ready'                          # resuming changes nothing the learner sees
+
+
+def test_a_paused_scheduler_with_nothing_live_is_still_unavailable_and_never_shows_an_older_lesson(day):
+    d = day.build()
+    day.full_day(d, D2)                                                                                     # D2 is scheduled, not live
+    dl.set_paused(day.engine, True, 'investigating')
+    view = day_view(day, d.settings, day.other, at(D2, 7))
+    assert view['status'] == 'unavailable' and view['lesson'] is None
+
+
 def test_completing_on_the_day_credits_it_once_no_matter_how_often_it_is_repeated(day):
     d = day.build()
     day.full_day(d, D2)

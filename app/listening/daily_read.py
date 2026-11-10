@@ -1,7 +1,7 @@
 """Learner-side reads for the Daily Challenge. Read-only: the API process never writes a daily table.
 
 * today's challenge is the `active` row for today's date in the schedule time zone (Asia/Ho_Chi_Minh by default), the same boundary for every learner;
-* if there is none (not generated yet, failed, paused) the answer is "unavailable". It is NEVER an older lesson: a challenge is never replayed or substituted;
+* if there is none (not generated yet, failed) the answer is "unavailable". It is NEVER an older lesson: a challenge is never replayed or substituted;
 * a challenge stays out of Discover until its day is over (`hidden_lesson_ids`), then it is simply an ordinary shared lesson, forever;
 * completion credit is DERIVED from immutable attempts: an attempt on the challenge's lesson that was completed on the challenge's own day. Nothing is written
   in the learner's request, so a retry, a refresh or two tabs cannot credit a day twice, existing sessions are untouched, and a deployment without the daily
@@ -100,7 +100,7 @@ def today_view(db, settings, user_id: str, catalog_item_for, now: datetime | Non
     now = now or utcnow()
     today = local_date(settings, now)
     base = {'date': today.isoformat(), 'next_at': next_boundary(settings, now)}
-    if not table_readable(db) or paused(db):
+    if not table_readable(db):                                  # the scheduler's pause switch is deliberately NOT read here: it stops generation and publication, not a live challenge
         return {**base, 'status': 'unavailable', 'lesson': None, 'completed_today': False, 'streak': streaks(set(), today)}
     row = db.execute(select(t.daily_challenges.c.lesson_id, t.daily_challenges.c.category, t.daily_challenges.c.published_at).where(and_(
         t.daily_challenges.c.challenge_date == today.isoformat(), t.daily_challenges.c.state == 'active'))).first()

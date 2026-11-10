@@ -242,12 +242,27 @@ def propose_topics(daily: Daily, d: str, row, history_rows: list[dict]) -> list[
 
 # ---- the state machine -----------------------------------------------------------------------------------------------------------------
 
-def _fail_attempt(daily: Daily, d: str, expected: str, reasons: list[str], lesson_id: str | None = None, now: datetime | None = None) -> str:
+def _compact_gates(gates: dict | None) -> dict | None:
+    """The gate results worth keeping with a rejected candidate: per gate ok + at most 6 problems of 200 characters, the 3 nearest neighbours, nothing else. Small and JSON-safe."""
+    if not gates:
+        return None
+    out = {}
+    for name, value in gates.items():
+        if name == 'nearest':
+            out[name] = [{'lesson_id': str(n.get('lesson_id'))[:40], 'similarity': n.get('similarity')} for n in (value or [])[:3]]
+        elif isinstance(value, dict):
+            out[name] = {'ok': bool(value.get('ok')), 'problems': [str(p)[:200] for p in (value.get('problems') or [])[:6]]}
+    return out
+
+
+def _fail_attempt(daily: Daily, d: str, expected: str, reasons: list[str], lesson_id: str | None = None, now: datetime | None = None, gates: dict | None = None) -> str:
     """Record a failed or rejected attempt. The lesson (if any) is never used again. Returns the next state."""
     now = now or daily.clock()
     with daily.engine.begin() as db:
         row = _row(db, d, lock=True)
         record = {'attempt': row['attempts'], 'lesson_id': lesson_id or row['lesson_id'], 'topic_key': (row['plan'] or {}).get('topic_key'), 'reasons': [r[:200] for r in reasons[:6]]}
+        if _compact_gates(gates):
+            record['gates'] = _compact_gates(gates)                    # the full per-gate picture survives a rejection, so the operator can see which gates passed
         exhausted = row['attempts'] >= allowed_attempts(row, daily.settings)
         values = dict(rejected=[*row['rejected'], record], plan=None, request_id=None, lesson_id=None, version_id=None, fingerprint=None, gate_report=None,
                       topic_key=None, category=None, events=_event(row['events'], 'attempt_failed', '; '.join(reasons)[:180], now))
@@ -374,14 +389,14 @@ def _step_built(daily: Daily, d: str, row, now: datetime) -> str | None:
     summary = {name: {'ok': r.ok, 'problems': r.problems} for name, r in report.items()}
     summary['nearest'] = [{'lesson_id': lid, 'similarity': round(score, 2)} for lid, score in nearest]
     if failed:
-        return _fail_attempt(daily, d, 'built', failed, lesson_id=lesson_id, now=now)
+        return _fail_attempt(daily, d, 'built', failed, lesson_id=lesson_id, now=now, gates=summary)
     # 3. The one bounded semantic review. Fail closed: if it cannot run, nothing is published; the candidate waits.
     review = _semantic(daily, d, row, snap, pj, corpus, nearest, now)
     if review is None:
         return None
     summary['semantic'] = {'ok': review.ok, 'problems': review.problems}
     if not review.ok:
-        return _fail_attempt(daily, d, 'built', [f'semantic: {p}' for p in review.problems] or ['semantic: rejected'], lesson_id=lesson_id, now=now)
+        return _fail_attempt(daily, d, 'built', [f'semantic: {p}' for p in review.problems] or ['semantic: rejected'], lesson_id=lesson_id, now=now, gates=summary)
     # 4. Approve exactly like a human reviewer (bound to a digest of script, exercises and audio) and schedule.
     note = json.dumps({'gates': {k: v['ok'] for k, v in summary.items() if isinstance(v, dict) and 'ok' in v}}, separators=(',', ':'))[:480]
     fp = gates.fingerprint(snap.sentences)

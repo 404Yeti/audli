@@ -7,12 +7,14 @@ import { AttemptRecovery } from './AttemptRecovery';
 import { AudliMascot } from '../audli-mascot';
 import { Icon } from './Icons';
 import { ApiError } from '../../lib/api.ts';
-import { getProgress, listCatalog } from '../../lib/listening.ts';
+import { getDaily, getProgress, listCatalog } from '../../lib/listening.ts';
+import { DailyChallengeCard } from './DailyChallengeCard';
+import type { DailyChallenge } from '../../lib/daily-core.ts';
 import { lengthLabel, whenLabel, type CatalogItem, type Progress } from '../../lib/listening-core.ts';
 import { accentLabel, continueItem, countLabel, greeting, recentlyCompleted, recommendedNext, stepsDone } from '../../lib/home-core.ts';
 
 const GENERATOR = process.env.NEXT_PUBLIC_AUDLI_LISTENING_GENERATOR === 'true';
-type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[]; progress: Progress | null };
+type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'unavailable' } | { kind: 'ready'; items: CatalogItem[]; progress: Progress | null; daily: DailyChallenge | null };
 
 const meta = (i: CatalogItem) => [i.cefr, i.accents[0] ? accentLabel(i.accents[0]) : null, lengthLabel(i.duration_ms)].filter(Boolean).join(' · ');
 
@@ -21,8 +23,9 @@ export function LearnerHome() {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const fetchAll = useCallback(async (): Promise<Load> => {
     try {
-      const [items, progress] = await Promise.all([listCatalog(), getProgress().catch(() => null)]);
-      return { kind: 'ready', items, progress };
+      // The daily card is optional: a 404 (feature off) or any error just means no card, never a broken home screen.
+      const [items, progress, daily] = await Promise.all([listCatalog(), getProgress().catch(() => null), getDaily().catch(() => null)]);
+      return { kind: 'ready', items, progress, daily };
     } catch (cause) { return cause instanceof ApiError && cause.status === 404 ? { kind: 'unavailable' } : { kind: 'error' }; }
   }, []);
   useEffect(() => { let live = true; void fetchAll().then(r => { if (live) setLoad(r); }); return () => { live = false; }; }, [fetchAll]);
@@ -34,7 +37,7 @@ export function LearnerHome() {
   if (load.kind === 'loading') return <AppShell active="home"><h1 className={`${styles.display} ${styles.h1}`}>{greeting(hour)}</h1>
     <div role="status" aria-live="polite" aria-busy="true"><p className={styles.srOnly}>Loading your lessons…</p><div className={styles.skeleton} style={{ minHeight: 200, marginTop: 20 }} /></div></AppShell>;
 
-  const { items, progress } = load;
+  const { items, progress, daily } = load;
   const resume = continueItem(items);
   const next = recommendedNext(items, progress?.recent ?? []);
   const done = recentlyCompleted(progress);
@@ -44,8 +47,12 @@ export function LearnerHome() {
 
   return <AppShell active="home">
     <h1 className={`${styles.display} ${styles.h1}`} style={{ marginBottom: 20 }}>{greeting(hour)}</h1>
+    {daily ? <DailyChallengeCard data={daily} /> : null}
     <div className={styles.twoCol}>
       <div>
+        {daily ? <Link href="/listening" className={styles.row} style={{ marginBottom: 20 }}><span className={`${styles.rowIcon} ${styles.c2}`}><Icon name="discover" /></span>
+          <span className={styles.rowBody}><p className={styles.rowTitle}>Discover</p><p className={styles.rowMeta}>Every earlier challenge and lesson, {countLabel(total)}</p></span>
+          <span className={styles.chev}><Icon name="chevron" /></span></Link> : null}
         <section className={`${styles.card} ${styles.continue}`} aria-labelledby="continue-title">
           <div className={styles.continueMascot}><AudliMascot small staticPose face /></div>
           {resume ? <>

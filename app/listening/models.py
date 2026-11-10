@@ -62,13 +62,15 @@ class ModelPlan:
     transcription: TranscriptionModel
     assessment: AssessmentModel
     generation: GenerationModel
+    daily: GenerationModel | None = None      # Daily Challenge semantic review and topic proposals (small, cheap model; never writes learner-facing text)
 
     @classmethod
     def from_settings(cls, settings) -> 'ModelPlan':
         timeout = settings.listening_provider_timeout_seconds
         return cls(TranscriptionModel(settings.listening_transcription_model, timeout),
                    AssessmentModel(settings.listening_assessment_model, settings.listening_assessment_api, settings.listening_assessment_reasoning, timeout),
-                   GenerationModel(settings.listening_generation_model, timeout))
+                   GenerationModel(settings.listening_generation_model, timeout),
+                   GenerationModel(settings.listening_daily_review_model, timeout, 900))
 
     def retiring(self) -> dict[str, str]:
         """Configured models with a published shutdown date, for a startup warning."""

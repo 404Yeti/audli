@@ -72,6 +72,7 @@ API_TABLES = ('listening_lessons', 'listening_lesson_versions', 'listening_audio
               'listening_exercise_rubrics', 'listening_attempts', 'listening_answers', 'listening_responses', 'listening_spoken',
               'listening_jobs', 'listening_ai_limits', 'listening_lesson_owners', 'listening_generation_requests', 'listening_generation_limits', 'listening_migrations')
 LIBRARY_TABLE = 'listening_library_entries'       # read-only for the API; written only by the operator workflow (app/listening/library.py)
+DAILY_TABLES = ('listening_daily_challenges', 'listening_daily_control')      # read-only for the API; written only by the daily process
 EXAMPLE_API_ROLE = 'audli_api_runtime'
 CLIENT_ROLES = ('anon', 'authenticated', 'service_role')
 
@@ -100,5 +101,49 @@ BEGIN
     END IF;
 END
 $audli$;"""]
+    # Same for the Daily Challenge tables (migration 015): the API only reads them (today's card, keeping a challenge out of Discover until its day is over).
+    for table in DAILY_TABLES:
+        lines += [f"""DO $audli$
+BEGIN
+    IF to_regclass('public.{table}') IS NOT NULL THEN
+        GRANT SELECT ON {table} TO {role};
+        REVOKE ALL ON {table} FROM {', '.join(CLIENT_ROLES)};
+        DROP POLICY IF EXISTS {role}_listening_read ON {table};
+        CREATE POLICY {role}_listening_read ON {table} FOR SELECT TO {role} USING (true);
+    END IF;
+END
+$audli$;"""]
+    lines.append('COMMIT;')
+    return '\n'.join(lines) + '\n'
+
+
+# ---- the DAILY CHALLENGE role -------------------------------------------------------------------------------------------------------
+# The only process allowed to publish a lesson automatically. It is the curator workflow (app/listening/library.py) run by a service account, so it needs
+# exactly what register / approve / publish need (including DELETE on lesson owners, which the API and the generator deliberately lack) plus its own two tables
+# and the generation bookkeeping used to submit one request per attempt. It has NO learner data (attempts, answers, spoken, recordings, accounts are not
+# granted) and holds neither the speech key nor any bucket credential.
+DAILY_SELECT = ('listening_lessons', 'listening_lesson_versions', 'listening_audio_variants', 'listening_exercises', 'listening_exercise_keys',
+                'listening_exercise_rubrics', 'listening_lesson_owners', 'listening_generation_requests', 'listening_generation_limits', 'listening_jobs',
+                'listening_ai_limits', 'listening_library_entries', 'listening_daily_challenges', 'listening_daily_control')
+DAILY_INSERT = ('listening_generation_requests', 'listening_generation_limits', 'listening_ai_limits', 'listening_jobs', 'listening_library_entries', 'listening_daily_challenges',
+                'listening_daily_control')
+DAILY_UPDATE = ('listening_generation_requests', 'listening_generation_limits', 'listening_jobs', 'listening_library_entries', 'listening_daily_challenges',
+                'listening_daily_control')
+DAILY_DELETE = ('listening_lesson_owners',)
+EXAMPLE_DAILY_ROLE = 'audli_listening_daily'
+
+
+def daily_role_sql(role: str = EXAMPLE_DAILY_ROLE) -> str:
+    if not role.replace('_', '').isalnum() or not role[0].isalpha() or len(role) > 40:
+        raise ValueError('Role names are letters, digits and underscores')
+    lines = ['-- Least-privilege role for the Audli 2.0 daily-challenge scheduler. Run once as the database owner AFTER migrations 012, 014 and 015.',
+             f"-- Create the role yourself first (a LOGIN role with its own password, shared with nothing else): CREATE ROLE {role} LOGIN PASSWORD '...';",
+             'BEGIN;', f'GRANT USAGE ON SCHEMA public TO {role};',
+             f'GRANT SELECT ON {", ".join(DAILY_SELECT)} TO {role};', f'GRANT INSERT ON {", ".join(DAILY_INSERT)} TO {role};',
+             f'GRANT UPDATE ON {", ".join(DAILY_UPDATE)} TO {role};', f'GRANT DELETE ON {", ".join(DAILY_DELETE)} TO {role};']
+    for verb, tables, clause in (('select', DAILY_SELECT, 'FOR SELECT TO {r} USING (true)'), ('insert', DAILY_INSERT, 'FOR INSERT TO {r} WITH CHECK (true)'),
+                                 ('update', DAILY_UPDATE, 'FOR UPDATE TO {r} USING (true) WITH CHECK (true)'), ('delete', DAILY_DELETE, 'FOR DELETE TO {r} USING (true)')):
+        for table in tables:
+            lines += [f'DROP POLICY IF EXISTS {role}_{verb} ON {table};', f'CREATE POLICY {role}_{verb} ON {table} ' + clause.format(r=role) + ';']
     lines.append('COMMIT;')
     return '\n'.join(lines) + '\n'

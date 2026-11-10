@@ -3,6 +3,8 @@ import { ApiError, api, authenticatedFetch, resolveApiUrl } from './api.ts';
 import { newRequestId, type AttemptView, type CatalogItem, type Progress } from './listening-core.ts';
 
 export const listCatalog = () => api<CatalogItem[]>('/listening/lessons');
+import type { DailyChallenge } from './daily-core.ts';
+export const getDaily = () => api<DailyChallenge>('/listening/daily');
 export const getProgress = () => api<Progress>('/listening/progress');
 export const currentAttemptId = (lessonId: string) =>
   api<{ attempt_id: string | null }>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts/current`).then(r => r.attempt_id);

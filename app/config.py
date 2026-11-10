@@ -58,6 +58,20 @@ class Settings(BaseSettings):
     listening_gen_per_learner_daily: int = Field(default=2, ge=0, le=100)            # generated lessons per learner per UTC day
     listening_gen_curator_daily: int | None = Field(default=None, ge=0, le=5)         # lessons per curator account per UTC day (ceiling 5); None = the ordinary per-learner cap. Read by whichever process reserves, i.e. the curator CLI
     listening_gen_allowed_learners: str = ''                                          # comma-separated learner ids; empty = every learner the 2.0 allow-list admits. Others get a plain 404.
+    # Daily Challenge (docs/LISTENING-DAILY-CHALLENGE-IMPL.md). Off by default; a separate process (`python -m app.listening.daily`) with its own database role.
+    listening_daily_enabled: bool = False                                             # routes + card on the learner side AND the scheduler; the scheduler additionally needs the service account
+    listening_daily_publish: bool = False                                             # autonomous publication; False = generate and validate to 'scheduled' only (dry-run), never publish
+    listening_daily_service_id: str = ''                                              # the curator-listed service account that owns daily drafts (one user id)
+    listening_daily_timezone: str = 'Asia/Ho_Chi_Minh'                                # the day boundary for every learner
+    listening_daily_generate_hour: int = Field(default=23, ge=12, le=23)              # local hour at which tomorrow's challenge starts being generated
+    listening_daily_max_attempts: int = Field(default=2, ge=1, le=3)                  # generation attempts per challenge date
+    listening_daily_max_usd: float = Field(default=0.60, ge=0, le=20)                 # generation reservations per challenge date (script + speech estimates, all attempts)
+    listening_daily_review_max_usd: float = Field(default=0.10, ge=0, le=5)           # semantic review + topic proposal estimates per challenge date
+    listening_daily_review_model: str = 'gpt-6-luna'
+    listening_daily_minutes: int = Field(default=2, ge=1, le=3)
+    listening_daily_levels: str = 'A1,A2,B1,B2'                                       # C1/C2 are refused at validation time: not supported until the pipeline is shown to validate them
+    listening_daily_pool_low: int = Field(default=14, ge=0, le=100)                   # below this many unused curated topics the scheduler asks the AI for new ones
+    listening_daily_alert_webhook: SecretStr | None = None                            # optional Slack-compatible incoming webhook; the log + ops health always report
     listening_formats_enabled: bool = False                                           # mixed-accent conversations and accents beyond the original three (off: today's behaviour exactly)
     listening_format_accents: str = ''                                                # comma-separated catalog accent ids opened for monologues and mixed-accent speakers while the flag is on
     listening_gen_voices: str = ''                                                   # JSON {"american": [id, id], ...}; '' = the verified defaults in app/listening/generation.py
@@ -207,6 +221,16 @@ class Settings(BaseSettings):
                 UUID(learner)
             except ValueError:
                 raise ValueError('AUDLI_LISTENING_ALLOWED_LEARNERS must be a comma-separated list of learner ids (UUIDs)') from None
+        for level in [l.strip() for l in self.listening_daily_levels.split(',') if l.strip()]:
+            if level not in ('A1', 'A2', 'B1', 'B2'):
+                raise ValueError('AUDLI_LISTENING_DAILY_LEVELS may only contain A1, A2, B1 and B2 (C1/C2 are not supported by the daily pipeline yet)')
+        if self.listening_daily_service_id.strip():
+            try:
+                UUID(self.listening_daily_service_id.strip())
+            except ValueError:
+                raise ValueError('AUDLI_LISTENING_DAILY_SERVICE_ID must be a user id (UUID)') from None
+        if self.listening_daily_publish and not (self.listening_daily_enabled and self.listening_daily_service_id.strip()):
+            raise ValueError('AUDLI_LISTENING_DAILY_PUBLISH needs AUDLI_LISTENING_DAILY_ENABLED and AUDLI_LISTENING_DAILY_SERVICE_ID')
         if self.listening_ops_token and len(self.listening_ops_token.get_secret_value()) < 24:
             raise ValueError('AUDLI_LISTENING_OPS_TOKEN must be at least 24 characters')
         if not self.listening_enabled:

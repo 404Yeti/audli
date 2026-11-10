@@ -13,6 +13,7 @@ _SECOND = [t for t in l.OWNED if t.info.get('since') == 10]
 _THIRD = [t for t in l.OWNED if t.info.get('since') == 11]
 _FOURTH = [t for t in l.OWNED if t.info.get('since') == 12]
 _FIFTH = [t for t in l.OWNED if t.info.get('since') == 14]
+_SIXTH = [t for t in l.OWNED if t.info.get('since') == 15]
 
 
 def postgres_listening_migration() -> str:
@@ -212,6 +213,60 @@ BEGIN
     END IF;
 END
 $audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (14, now());', 'COMMIT;']
+    return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
+
+
+def postgres_listening_migration_015() -> str:
+    """Daily challenge: the permanent per-day history and the operator pause switch (two additive tables). Alters nothing; the learner API only reads them."""
+    dialect = postgresql.dialect()
+    names = ', '.join(t.name for t in _SIXTH)
+    lines = [
+        '\n'.join(['-- Migration 015: Audli 2.0 daily challenge (two additive tables: listening_daily_challenges, listening_daily_control).',
+        '-- Requires 009-012 and 014 (recorded in listening_migrations). Leaves schema_migrations untouched and alters no existing table.']),
+        'BEGIN;', "SET LOCAL lock_timeout='5s';", 'LOCK TABLE public.listening_migrations IN EXCLUSIVE MODE;',
+        """DO $$ BEGIN
+ IF NOT (ARRAY[9, 10, 11, 12, 14] <@ ARRAY(SELECT version FROM public.listening_migrations)) THEN
+  RAISE EXCEPTION 'Expected migrations 009, 010, 011, 012 and 014 first';
+ END IF;
+ IF 15 IN (SELECT version FROM public.listening_migrations) OR to_regclass('public.listening_daily_challenges') IS NOT NULL THEN
+  RAISE EXCEPTION 'Migration 015 is already applied or partially present; review before retrying';
+ END IF;
+END $$;""",
+    ]
+    lines += [str(CreateTable(t).compile(dialect=dialect)).strip() + ';' for t in _SIXTH]
+    for table in _SIXTH:
+        lines += [str(CreateIndex(i).compile(dialect=dialect)) + ';' for i in sorted(table.indexes, key=lambda i: i.name)]
+    for table in _SIXTH:
+        lines += [f'ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY;', f'REVOKE ALL ON TABLE {table.name} FROM PUBLIC;']
+    # Same fail-closed pattern as 014: strip the Supabase client roles, give the API role SELECT only, then assert the resulting privilege set per table.
+    lines += [f"""DO $audli$
+DECLARE client text;
+BEGIN
+    FOREACH client IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = client) THEN
+            EXECUTE 'REVOKE ALL ON TABLE {names} FROM ' || quote_ident(client);
+        END IF;
+    END LOOP;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'audli_api_runtime') THEN
+        GRANT SELECT ON TABLE {names} TO audli_api_runtime;
+        CREATE POLICY audli_api_runtime_listening_read ON listening_daily_challenges FOR SELECT TO audli_api_runtime USING (true);
+        CREATE POLICY audli_api_runtime_listening_read ON listening_daily_control FOR SELECT TO audli_api_runtime USING (true);
+    END IF;
+END
+$audli$;""", f"""DO $audli$
+DECLARE bad text;
+BEGIN
+    SELECT string_agg(c.relname || '=' || coalesce(r.rolname, 'PUBLIC') || ':' || a.privilege_type, ', ') INTO bad
+      FROM pg_class c
+      CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+      LEFT JOIN pg_roles r ON r.oid = a.grantee
+     WHERE c.oid IN ('public.listening_daily_challenges'::regclass, 'public.listening_daily_control'::regclass) AND a.grantee <> c.relowner
+       AND NOT (r.rolname = 'audli_api_runtime' AND a.privilege_type = 'SELECT');
+    IF bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = 'Refusing: unexpected privileges: ' || bad;
+    END IF;
+END
+$audli$;""", 'INSERT INTO listening_migrations(version, applied_at) VALUES (15, now());', 'COMMIT;']
     return '\n'.join(line.rstrip() for line in '\n\n'.join(lines).splitlines()) + '\n'
 
 

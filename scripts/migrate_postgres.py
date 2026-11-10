@@ -5,7 +5,7 @@ from app.config import Settings
 
 
 # (version, file) applied in order, recorded in listening_migrations.
-LISTENING_MIGRATIONS = ((9, 'postgres-009.sql'), (10, 'postgres-010.sql'), (11, 'postgres-011.sql'), (12, 'postgres-012.sql'), (14, 'postgres-014.sql'))
+LISTENING_MIGRATIONS = ((9, 'postgres-009.sql'), (10, 'postgres-010.sql'), (11, 'postgres-011.sql'), (12, 'postgres-012.sql'), (14, 'postgres-014.sql'), (15, 'postgres-015.sql'))
 
 
 def migrate(settings: Settings, listening: bool = False):

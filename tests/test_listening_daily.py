@@ -628,6 +628,38 @@ def test_without_the_semantic_review_nothing_is_published_it_waits_and_alerts(da
     assert day.row(D2)['state'] == 'active'
 
 
+def test_a_rejected_candidate_keeps_the_full_gate_report_so_the_operator_can_see_what_passed_and_why_it_failed(day):
+    judge = FakeDailyJudge({'coherent': False, 'issues': ['the narrator is never named, so a question about them cannot be answered from the audio']})
+    d = day.build(settings=daily_settings(day.owner, listening_daily_max_attempts=1), judge=judge)
+    dl.tick(d)
+    day.generate(d)
+    dl.tick(d)
+    row = day.row(D2)
+    assert row['state'] == 'failed' and row['gate_report'] is None and row['lesson_id'] is None          # nothing about a rejected lesson is ever treated as accepted
+    kept = row['rejected'][0]['gates']
+    assert all(kept[name]['ok'] and kept[name]['problems'] == [] for name in ('content', 'answers', 'audio', 'safety', 'duplicates'))       # what passed is on record
+    assert kept['semantic']['ok'] is False and any('narrator is never named' in p for p in kept['semantic']['problems'])
+    assert isinstance(kept['nearest'], list) and len(kept['nearest']) <= 3
+    import json
+    assert len(json.dumps(row['rejected'])) < 4000                                                          # bounded: it lives in an existing JSONB column
+
+
+def test_a_candidate_rejected_by_a_deterministic_gate_records_that_gate_and_never_reached_the_review(day):
+    class Unsafe(VariedWriter):
+        def write(self, spec, max_chars, feedback):
+            raw = super().write(spec, max_chars, feedback)
+            raw['sentences'][0]['text'] = 'They planned to kill the engine of the old boat before supper today.'
+            return raw
+    judge = FakeDailyJudge()
+    d = day.build(settings=daily_settings(day.owner, listening_daily_max_attempts=1), judge=judge)
+    dl.tick(d)
+    day.generate(d, Unsafe())
+    dl.tick(d)
+    kept = day.row(D2)['rejected'][0]['gates']
+    assert kept['safety']['ok'] is False and any('kill' in p for p in kept['safety']['problems'])
+    assert kept['content']['ok'] and kept['audio']['ok'] and 'semantic' not in kept and judge.calls == []        # failed before any model call
+
+
 def test_a_reviewer_that_refuses_rejects_the_candidate(day):
     d = day.build(judge=FakeDailyJudge(ProviderPermanent('refused')))
     dl.tick(d)

@@ -234,3 +234,39 @@ def ground_assessment(raw: list[dict], point_ids: list[str], transcript: str) ->
             quote = None
         verdicts.append({'id': item['id'], 'state': state, 'quote': quote})
     return verdicts
+
+
+# ---- audio-first grounding: a name the exercises use must be a name the learner can actually hear --------------------------------------------------
+_TITLES = frozenset({'dr', 'mr', 'mrs', 'ms', 'miss', 'mx', 'prof', 'professor', 'sir', 'madam'})
+
+
+def _name_tokens(name: str) -> list[str]:
+    """The parts of a speaker's name worth matching: letters only, at least three of them, no honorifics."""
+    return [t for t in re.findall(r"[^\W\d_]+", name or '') if len(t) >= 3 and t.casefold() not in _TITLES]
+
+
+def unspoken_speaker_names(names: list[str], spoken: list[str], exercise_texts: list[str]) -> list[str]:
+    """Speaker names that the exercises USE but that no spoken sentence SAYS.
+
+    Learners listen first and a speaker's name lives only in the lesson's metadata, so a question like "What colour boat did Alex pick?" is unanswerable when
+    nobody in the audio ever says "Alex". A name counts as established when any part of it (at least three letters, ignoring Dr/Mr/...) occurs in a spoken sentence;
+    it counts as used when that part occurs, capitalised as written, in any exercise prompt, option, key point, event or explanation. Names of other characters
+    are not checked here (they come from the script, and wrong-answer options may name anyone). Pure: no model, no I/O. Returns the offending names, in order.
+    """
+    said = normalize_text(' '.join(spoken))
+    offending = []
+    for name in dict.fromkeys(n for n in names if n and n.strip()):
+        tokens = _name_tokens(name)
+        if not tokens or any(re.search(rf'(?<![\w]){re.escape(normalize_text(t))}(?![\w])', said) for t in tokens):
+            continue                                                 # no usable name, or it is spoken somewhere
+        used = [t for t in tokens if t[:1].isupper() and any(re.search(rf"(?<![\w]){re.escape(t)}(?![\w])", text or '') for text in exercise_texts)]
+        if used:
+            offending.append(name)
+    return offending
+
+
+def unspoken_name_message(offending: list[str]) -> str:
+    """Short, actionable text for the writer (the repair loop keeps only the first 300 characters of it)."""
+    first = offending[0]
+    return (f'the questions, keys or explanations use the speaker name "{first}" but no spoken sentence says it, and learners only hear audio. '
+            f'Either let the speaker say it aloud (for example "Hi, I\'m {first}") or write "the speaker" instead.')

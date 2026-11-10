@@ -24,7 +24,7 @@ from uuid import uuid4
 from pydantic import Field, field_validator, model_validator
 
 from app.listening import schema as t
-from app.listening.domain import (AnswerKey, FillBlank, FillKey, LessonContent, MultipleChoice, Option, Sentence, Sequencing, SequenceKey, Speaker, Spoken,
+from app.listening.domain import (unspoken_name_message, unspoken_speaker_names, AnswerKey, FillBlank, FillKey, LessonContent, MultipleChoice, Option, Sentence, Sequencing, SequenceKey, Speaker, Spoken,
                                   normalize_text)
 from app.models import StrictModel
 from app.storage.repository import utcnow
@@ -607,6 +607,12 @@ def assemble(spec: Spec, raw: dict, request_id: str, max_chars: int) -> LessonCo
     spoken = raw['spoken']
     if len(spoken['points']) != 3:
         raise ValueError('spoken needs exactly 3 key points')
+    # audio first: a speaker's name may appear in the exercises only if a spoken sentence says it (deterministic; the repair loop below tells the writer)
+    exercise_texts = [mcq['prompt'], mcq['explanation'], *(o['text'] for o in options), spoken['prompt'], *(p['text'] for p in spoken['points']),
+                      fill['explanation'], raw['sequence']['prompt'], raw['sequence']['explanation'], *(e['text'] for e in events), raw.get('listen_for') or '']
+    unspoken = unspoken_speaker_names([s.get('name', '') for s in speakers], texts, exercise_texts)
+    if unspoken:
+        raise ValueError(unspoken_name_message(unspoken))
     # the sequence is shown shuffled (deterministically per request) and never already in order
     order = [e['id'] for e in events]
     shuffled = order[:]

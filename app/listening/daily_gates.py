@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import and_, select
 
 from app.listening import schema as t
-from app.listening.domain import BLANK, normalize_text
+from app.listening.domain import BLANK, normalize_text, unspoken_name_message, unspoken_speaker_names
 
 REQUIRED_KINDS = ('multiple_choice', 'spoken', 'fill_blank', 'sequencing')
 SHINGLE = 4
@@ -172,6 +172,9 @@ def answer_consistency(snap: Snapshot) -> Result:
     r = Result()
     spoken = ' '.join(normalize_text(s) for s in snap.sentences)
     corpus_words = set(content_words(snap.text()))
+    unspoken = unspoken_speaker_names([s.get('name', '') for s in snap.speakers if isinstance(s, dict)], snap.sentences, [*snap.exercise_texts(), snap.listen_for])
+    if unspoken:                                          # defence in depth for a lesson that reached the database: same rule the writer's repair loop applies
+        r.fail(unspoken_name_message(unspoken))
     for e in snap.exercises:
         a, kind = e.get('answer') or {}, e['kind']
         if not a:

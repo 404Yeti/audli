@@ -263,6 +263,77 @@ def test_answer_consistency_catches_a_key_that_contradicts_the_lesson(mutate, fr
     assert not result.ok and any(fragment in p for p in result.problems)
 
 
+# ---- numeric and time answers (AUD-117, Nov 11 parking-fine rejection) -----------------------------------------------------------------
+
+PARKING = [f'Sentence number {n} talks about something quite different and long enough here.' for n in range(8)]
+PARKING[5] = 'The notice says it was issued at 11:45.'
+
+
+def numeric_snapshot(options, correct, sentences=None, sequencing=None):
+    """The lesson that was wrongly rejected: 'What time does the notice say the fine was issued?' with only times as options."""
+    s = snapshot(sentences=sentences or PARKING)
+    exercises = [dict(e, answer=dict(e['answer'] or {}), options=list(e['options'])) for e in s.exercises]
+    exercises[0] = {**exercises[0], 'prompt': 'What time does the notice say the fine was issued?', 'options': [{'id': k, 'text': v} for k, v in options.items()],
+                    'answer': {'correct_option_id': correct, 'explanation': 'e'}}
+    if sequencing:
+        exercises[3] = {**exercises[3], 'options': [{'id': k, 'text': v} for k, v in sequencing['items'].items()], 'answer': {'order': sequencing['order']}}
+    return gates.Snapshot(**{**s.__dict__, 'exercises': exercises})
+
+
+TIMES = {'a': '10:00', 'b': '11:45', 'c': '12:00', 'd': '12:45'}
+
+
+def test_a_time_answer_that_the_script_states_is_grounded_where_it_was_wrongly_rejected():
+    result = gates.answer_consistency(numeric_snapshot(TIMES, 'b'))
+    assert result.ok, result.problems
+
+
+@pytest.mark.parametrize('wrong', ['a', 'c', 'd'])
+def test_a_time_answer_the_script_does_not_state_is_still_rejected(wrong):
+    result = gates.answer_consistency(numeric_snapshot(TIMES, wrong))
+    assert not result.ok and any('shares no content word with the script' in p for p in result.problems)
+
+
+@pytest.mark.parametrize('text', ['11:15', '11:54', '1:45', '5'])
+def test_a_near_miss_number_is_not_accepted_as_evidence(text):
+    result = gates.answer_consistency(numeric_snapshot({'a': text, 'b': '11:45', 'c': '12:00'}, 'a'))
+    assert not result.ok
+
+
+def test_digits_split_across_two_sentences_do_not_count_as_a_stated_time():
+    split = list(PARKING)
+    split[5] = 'The queue reached number 11.'
+    split[6] = '45 people were still waiting outside.'
+    result = gates.answer_consistency(numeric_snapshot(TIMES, 'b', sentences=split))
+    assert not result.ok and any('shares no content word' in p for p in result.problems)
+
+
+def test_an_option_with_words_and_a_stated_time_is_grounded_and_one_with_an_unstated_time_is_not():
+    assert gates.answer_consistency(numeric_snapshot({'a': 'Around 11:45 sharp', 'b': 'Late'}, 'a')).ok is True
+    assert not gates.answer_consistency(numeric_snapshot({'a': 'Around 11:55 sharp', 'b': 'Late'}, 'a')).ok
+
+
+def test_a_non_numeric_option_with_no_word_in_the_script_is_still_rejected():
+    result = gates.answer_consistency(numeric_snapshot({'a': 'Zebra parachute', 'b': 'Other words'}, 'a'))
+    assert not result.ok and any('shares no content word' in p for p in result.problems)
+
+
+def test_sequencing_items_that_are_times_are_grounded_only_when_each_is_stated():
+    script = list(PARKING)
+    script[4], script[5], script[6], script[7] = 'We met at 8:00.', 'Then the bus came at 9:30.', 'Finally we left at 10:15.', 'The notice says it was issued at 11:45.'
+    items = {'x': '10:15', 'y': '8:00', 'z': '9:30'}
+    ok = gates.answer_consistency(numeric_snapshot(TIMES, 'b', sentences=script, sequencing={'items': items, 'order': ['y', 'z', 'x']}))
+    assert not [p for p in ok.problems if 'sequencing' in p]
+    missing = gates.answer_consistency(numeric_snapshot(TIMES, 'b', sentences=PARKING, sequencing={'items': items, 'order': ['y', 'z', 'x']}))
+    assert any('a sequencing item shares no content word' in p for p in missing.problems)
+
+
+def test_digit_runs_keep_a_time_together_and_separate_unrelated_numbers():
+    assert gates.digit_runs('11:45') == [['11', '45']]
+    assert gates.digit_runs('Bus 5 at 8:30 for 20 minutes') == [['5'], ['8', '30'], ['20']]
+    assert gates.digit_runs('no numbers here') == []
+
+
 def test_audio_readiness_rejects_missing_misaligned_untimed_or_unnatural_audio():
     assert not gates.audio_readiness(snapshot(audio=[]), PLAN).ok
     bad = snapshot().audio[0]

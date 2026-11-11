@@ -45,6 +45,30 @@ def content_words(text: str) -> list[str]:
     return [w for w in words(text) if w not in STOP and len(w) > 2]
 
 
+def digit_runs(text: str) -> list[list[str]]:
+    """Runs of consecutive numeric tokens: '11:45' -> [['11', '45']], '3.5 hours' -> [['3', '5']]. Content words drop tokens of two characters or fewer, so a time or
+    a small number carries no content word at all; these runs are how such an answer is checked against the transcript instead."""
+    runs, run = [], []
+    for w in words(text):
+        if w.isdigit():
+            run.append(w)
+        elif run:
+            runs.append(run)
+            run = []
+    if run:
+        runs.append(run)
+    return runs
+
+
+def grounded(text: str, corpus_words: set, sentence_words: list[list[str]]) -> bool:
+    """An option or item is grounded in the script when it shares a content word with it (unchanged), or, when it shares none, when every run of digits in it is spoken
+    contiguously inside ONE sentence of the script. Nothing else qualifies: a different time or number, or digits split across sentences, is still unsupported."""
+    if set(content_words(text)) & corpus_words:
+        return True
+    runs = digit_runs(text)
+    return bool(runs) and all(any(sw[i:i + len(run)] == run for sw in sentence_words for i in range(len(sw) - len(run) + 1)) for run in runs)
+
+
 def fingerprint(sentences: list[str]) -> str:
     """Stable hash of the script itself (case, punctuation and spacing do not matter), so a re-voiced or re-cased copy is the same fingerprint."""
     return hashlib.sha256(' '.join(w for s in sentences for w in words(s)).encode()).hexdigest()
@@ -172,6 +196,7 @@ def answer_consistency(snap: Snapshot) -> Result:
     r = Result()
     spoken = ' '.join(normalize_text(s) for s in snap.sentences)
     corpus_words = set(content_words(snap.text()))
+    sentence_words = [words(x) for x in snap.sentences]
     unspoken = unspoken_speaker_names([s.get('name', '') for s in snap.speakers if isinstance(s, dict)], snap.sentences, [*snap.exercise_texts(), snap.listen_for])
     if unspoken:                                          # defence in depth for a lesson that reached the database: same rule the writer's repair loop applies
         r.fail(unspoken_name_message(unspoken))
@@ -187,7 +212,7 @@ def answer_consistency(snap: Snapshot) -> Result:
             if len(ids) != len(set(ids)) or len({normalize_text(o.get('text', '')) for o in e['options']}) != len(ids):
                 r.fail('multiple-choice options are not distinct')
             right = next((o for o in e['options'] if o.get('id') == a.get('correct_option_id')), None)
-            if right and not (set(content_words(right.get('text', ''))) & corpus_words):
+            if right and not grounded(right.get('text', ''), corpus_words, sentence_words):
                 r.fail('the correct multiple-choice option shares no content word with the script')
         elif kind == 'fill_blank':
             prompt = e['prompt']
@@ -204,8 +229,7 @@ def answer_consistency(snap: Snapshot) -> Result:
                 r.fail('the sequencing key does not order exactly the listed items')
             elif a.get('order') == item_ids:
                 r.fail('the sequencing items are already in the correct order')
-            item_words = {o.get('id'): set(content_words(o.get('text', ''))) for o in e['options']}
-            if any(not (w & corpus_words) for w in item_words.values()):
+            if any(not grounded(o.get('text', ''), corpus_words, sentence_words) for o in e['options']):
                 r.fail('a sequencing item shares no content word with the script')
         elif kind == 'spoken':
             points = a.get('points') or []

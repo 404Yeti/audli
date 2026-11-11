@@ -43,6 +43,7 @@ log = logging.getLogger('audli.listening.daily')
 REVIEWER = 'auto:daily-gates-v1'
 LEASE_SECONDS = 300
 EVENT_CAP = 60
+NOT_LIVE_AFTER_HOUR = 1          # local hour from which a challenge that is not active counts as 'not live' (the same threshold the ops-health alert uses)
 STALL_MINUTES = 90               # a generation request that has not finished by now is abandoned (its lesson, if it ever appears, is never used)
 REVIEW_FAILURES_BEFORE_ALERT = 3
 LIVE = genjobs.LIVE_PHASES
@@ -130,25 +131,61 @@ def _cas(db, daily: Daily, d: str, expected: str, now: datetime, **values) -> No
         raise LeaseLost(d)
 
 
-def alert_once(daily: Daily, d: str, code: str, message: str) -> None:
-    """Log at ERROR and, when configured, post to the webhook - once per (date, code), so a stuck day does not page every minute."""
-    now = daily.clock()
-    with daily.engine.begin() as db:
-        row = _row(db, d)
-        if row is None or any(e['event'] == f'alert:{code}' for e in row['events']):
+def deliver(daily: Daily, message: str) -> None:
+    """Hand one operator message to the notifier or the optional webhook. Best effort and never raises: a notification problem must not stop generation or
+    publication. The message is a date, an event, a status and a safe reason; the webhook URL is a secret and is never logged or included."""
+    try:
+        if daily.notify:
+            daily.notify(message)
             return
-        db.execute(update(t.daily_challenges).where(t.daily_challenges.c.challenge_date == d).values(events=_event(row['events'], f'alert:{code}', message, now)))
-    log.error('DAILY CHALLENGE ALERT %s [%s]: %s', d, code, message)
-    hook = daily.settings.listening_daily_alert_webhook
-    if daily.notify:
-        daily.notify(f'Audli daily challenge {d}: {message}')
-    elif hook:
-        try:
-            req = urllib.request.Request(hook.get_secret_value(), data=json.dumps({'text': f'Audli daily challenge {d}: {message}'}).encode(),
-                                         headers={'Content-Type': 'application/json'}, method='POST')
+        hook = daily.settings.listening_daily_alert_webhook
+        if hook:
+            req = urllib.request.Request(hook.get_secret_value(), data=json.dumps({'text': message}).encode(), headers={'Content-Type': 'application/json'}, method='POST')
             urllib.request.urlopen(req, timeout=5).read()
-        except Exception:
-            log.warning('the alert webhook could not be reached')
+    except Exception:
+        log.warning('the daily challenge notification could not be delivered')
+
+
+def alert_once(daily: Daily, d: str, code: str, message: str) -> None:
+    """Log at ERROR and, when configured, post to the webhook - once per (date, code), so a stuck day does not page every minute. Never raises."""
+    try:
+        now = daily.clock()
+        with daily.engine.begin() as db:
+            row = _row(db, d)
+            if row is None or any(e['event'] == f'alert:{code}' for e in row['events']):
+                return
+            db.execute(update(t.daily_challenges).where(t.daily_challenges.c.challenge_date == d).values(events=_event(row['events'], f'alert:{code}', message, now)))
+    except Exception:                                       # if the once-marker cannot be written, sending anyway could repeat every minute: say nothing instead
+        log.warning('a daily challenge alert could not be recorded')
+        return
+    log.error('DAILY CHALLENGE ALERT %s [%s]: %s', d, code, message)
+    deliver(daily, f'Audli daily challenge {d}: {message}')
+
+
+def notice(daily: Daily, d: str, event: str, status: str, reason: str = '') -> None:
+    """A non-failure operator message, same channel and format: '<date>: <event> (<status>[: <reason>])'."""
+    deliver(daily, f'Audli daily challenge {d}: {event} ({status}{": " + reason if reason else ""})')
+
+
+NOT_LIVE_REASONS = {'failed': 'every attempt was rejected or failed', 'scheduled': 'validated but not published', 'planned': 'still being prepared',
+                    'generating': 'still being prepared', 'built': 'still being prepared'}
+
+
+def watch_today(daily: Daily, now: datetime) -> None:
+    """After the cut-off hour, tell the operator once if today's challenge is not active. Silent when publication is switched off on purpose (nothing is expected to
+    go live) and, because tick() returns before this when the operator has paused the scheduler, silent while paused. Safe reasons only: a state and a fixed phrase."""
+    s = daily.settings
+    if not s.listening_daily_publish:
+        return
+    local = now.astimezone(read.zone(s))
+    if local.hour < NOT_LIVE_AFTER_HOUR:
+        return
+    today = local.date().isoformat()
+    with daily.engine.connect() as db:
+        row = _row(db, today)
+    if row is None or row['state'] == 'active':
+        return
+    alert_once(daily, today, 'not_live', f'not_live ({row["state"]}: {NOT_LIVE_REASONS.get(row["state"], "not published")})')
 
 
 def generation_cost(db, daily: Daily, d: str) -> int:
@@ -455,6 +492,7 @@ def _step_scheduled(daily: Daily, d: str, row, now: datetime) -> str | None:
     except (Conflict, Invalid, NotFound) as problem:
         return _fail_attempt(daily, d, 'scheduled', [f'publish refused: {problem}'], now=now)
     log.info('daily challenge %s is live: lesson %s', d, row['lesson_id'])
+    notice(daily, d, 'published', 'live')
     return 'active'
 
 
@@ -511,9 +549,10 @@ def tick(daily: Daily, now: datetime | None = None) -> dict:
         open_dates = [r[0] for r in db.execute(select(t.daily_challenges.c.challenge_date).where(t.daily_challenges.c.state.in_(('planned', 'generating', 'built', 'scheduled'))))]
     for d in target_dates(s, now, open_dates):
         out['states'][d] = advance(daily, d, now)
-    today = read.local_date(s, now).isoformat()
-    if out['states'].get(today) == 'failed':
-        pass                                                # already alerted at the moment it failed
+    try:
+        watch_today(daily, now)
+    except Exception:
+        log.warning('the daily challenge not-live check could not run')
     return out
 
 
@@ -565,7 +604,7 @@ def alerts(report: dict, now_local_hour: int | None = None) -> list[str]:
         found.append('the daily challenge is paused by an operator')
     if report.get('today_state') in ('failed',):
         found.append("today's daily challenge failed; learners see 'unavailable'")
-    if report.get('today_state') in ('none', 'planned', 'generating', 'built', 'scheduled') and report.get('publishing') and now_local_hour is not None and now_local_hour >= 1:
+    if report.get('today_state') in ('none', 'planned', 'generating', 'built', 'scheduled') and report.get('publishing') and now_local_hour is not None and now_local_hour >= NOT_LIVE_AFTER_HOUR:
         found.append(f"today's daily challenge is not live (state {report['today_state']})")
     if report.get('pool_unused', 99) < report.get('pool_low_at', 0):
         found.append(f"only {report['pool_unused']} reviewed daily topics are unused")

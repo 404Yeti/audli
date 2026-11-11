@@ -67,7 +67,7 @@ Streaks are an explicit product requirement for this feature (AGENTS.md lists ga
 
 ## 8. Operator visibility and alerts
 
-`python -m app.listening.daily status` (and the `daily` block of `/api/listening/ops/health`): per-date state, attempts, topic, review spend, failures, last events, pool size, diversity counts. Alerts (once per date and code) go to the ERROR log and, if configured, `AUDLI_LISTENING_DAILY_ALERT_WEBHOOK` (a Slack-compatible URL): a rejected attempt, all attempts failed, per-date cap reached, generation refused, review down, authorization problem, pool low. Health also alerts when today's challenge is not live after 01:00 ICT, when it failed, or when paused.
+`python -m app.listening.daily status` (and the `daily` block of `/api/listening/ops/health`): per-date state, attempts, topic, review spend, failures, last events, pool size, diversity counts. Alerts (once per date and code) go to the ERROR log and, if configured, `AUDLI_LISTENING_DAILY_ALERT_WEBHOOK` (a Slack-compatible URL): a rejected attempt, all attempts failed, per-date cap reached, generation refused, review down, authorization problem, pool low. Health also alerts when today's challenge is not live after 01:00 ICT, when it failed, or when paused. The scheduler itself also sends one `published (live)` notice when a challenge goes live and one deduplicated `not_live (<state>: <reason>)` alert from 01:00 ICT if today's challenge is not active (never while paused, never when publication is off); delivery is best effort and never blocks the scheduler (docs/LISTENING-DAILY-ACTIVATION.md, Notifications).
 
 ## 9. Security
 

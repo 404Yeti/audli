@@ -4,6 +4,7 @@ Fake providers throughout (no paid call). Real database, jobs, ledger, library w
 AUDLI_TEST_POSTGRES_URL is set. Time is injected, so midnight, the 23:00 start and restarts are exercised without waiting.
 """
 import hashlib
+import json
 import threading
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -803,6 +804,132 @@ def test_the_pause_switch_stops_generation_and_publication_at_once_and_resume_co
     dl.set_paused(day.engine, False)
     dl.tick(d)
     assert day.row(D2)['state'] == 'active'
+
+
+# ---- operator notifications (AUD-117): one success notice, a deduplicated not_live alert, quiet while paused, never blocking ---------------------------
+
+def messages(sent, word):
+    return [m for m in sent if word in m]
+
+
+def test_a_successful_publication_sends_exactly_one_minimal_notice(day):
+    sent = []
+    d = day.build(notify=sent.append)
+    day.full_day(d, D2)
+    d.clock.now = at(D2, 0, 0)
+    for _ in range(3):                                                  # repeated ticks, a restart: the transition happens once, so the notice does too
+        dl.tick(d)
+    row = day.row(D2)
+    assert row['state'] == 'active'
+    assert messages(sent, f'{D2}: published') == [f'Audli daily challenge {D2}: published (live)']          # D1 was built and published late by the same scheduler: filter by date
+    assert not any(row['lesson_id'] in m or (row['topic_key'] or 'x') in m for m in sent)      # date, event and status only: no lesson, topic or learner detail
+
+
+def test_a_day_that_is_not_live_after_the_cutoff_is_reported_once_and_goes_quiet_when_it_goes_live(day):
+    sent = []
+    d = day.build(notify=sent.append)
+    d.clock.now = at(D2, 0, 30)
+    dl.tick(d)                                                          # created late, generating: before 01:00 ICT it is not yet an alert
+    assert day.row(D2)['state'] == 'generating' and not messages(sent, 'not_live')
+    d.clock.now = at(D2, 1, 5)
+    dl.tick(d)
+    dl.tick(d)
+    assert messages(sent, 'not_live') == [f'Audli daily challenge {D2}: not_live (generating: still being prepared)']          # deduplicated
+    day.generate(d)
+    d.clock.now = at(D2, 1, 20)
+    dl.tick(d)
+    assert day.row(D2)['state'] == 'active' and len(messages(sent, 'not_live')) == 1 and len(messages(sent, 'published')) == 1
+
+
+def test_a_failed_day_is_reported_as_not_live_with_a_safe_reason_and_nothing_else(day):
+    sent = []
+    d = day.build(notify=sent.append)
+    day.full_day(d, D2)
+    d.clock.now = at(D2, 0, 0)
+    dl.tick(d)
+    broken = FakeScriptWriter(mutate=lambda raw, n: raw.update(accepted=False, refusal_reason='no'))
+    d.clock.now = at(D2, 23, 5)
+    dl.tick(d)
+    day.generate(d, broken)
+    for _ in range(4):
+        dl.tick(d)
+        day.generate(d, broken)
+    assert day.row(D3)['state'] == 'failed'
+    d.clock.now = at(D3, 2, 0)
+    dl.tick(d)
+    dl.tick(d)
+    assert messages(sent, f'{D3}: not_live') == [f'Audli daily challenge {D3}: not_live (failed: every attempt was rejected or failed)']
+
+
+def test_an_intentionally_paused_scheduler_raises_no_not_live_alert_until_it_is_resumed(day):
+    sent = []
+    d = day.build(notify=sent.append)
+    d.clock.now = at(D2, 0, 30)
+    dl.tick(d)
+    dl.set_paused(day.engine, True, 'controlled')
+    d.clock.now = at(D2, 3, 0)
+    assert dl.tick(d) == {'paused': True, 'states': {}}
+    assert not messages(sent, 'not_live')
+    dl.set_paused(day.engine, False)
+    dl.tick(d)
+    assert len(messages(sent, 'not_live')) == 1
+
+
+def test_switching_publication_off_on_purpose_is_not_reported_as_a_missing_challenge(day):
+    sent = []
+    d = day.build(settings=daily_settings(day.owner, listening_daily_publish=False), notify=sent.append)
+    day.full_day(d, D2)
+    d.clock.now = at(D2, 3, 0)
+    dl.tick(d)
+    assert day.row(D2)['state'] == 'scheduled' and not messages(sent, 'not_live') and not messages(sent, 'published')
+
+
+@pytest.mark.parametrize('failure', ['webhook_down', 'notifier_raises'])
+def test_a_notification_failure_never_blocks_publication_or_the_scheduler(day, monkeypatch, failure):
+    calls = []
+
+    def down(*a, **k):
+        calls.append(a)
+        raise OSError('webhook unreachable')
+
+    def boom(message):
+        calls.append(message)
+        raise RuntimeError('notifier exploded')
+
+    if failure == 'webhook_down':
+        monkeypatch.setattr(dl.urllib.request, 'urlopen', down)
+        d = day.build(settings=daily_settings(day.owner, listening_daily_alert_webhook='https://hooks.example.invalid/services/T000/B000/secret-token'))
+    else:
+        d = day.build(notify=boom)
+    day.full_day(d, D2)
+    d.clock.now = at(D2, 0, 0)
+    dl.tick(d)
+    assert calls and day.row(D2)['state'] == 'active' and day.row(D2)['published_at'] is not None           # it tried, it failed, publication still happened
+    dl.alert_once(d, D2, 'extra', 'another message')                                                       # an alert path with the same failure does not raise either
+    assert any(e['event'] == 'alert:extra' for e in day.row(D2)['events'])                                 # and its once-marker was recorded, so it will not repeat
+
+
+def test_the_webhook_receives_a_slack_compatible_text_payload_without_the_secret(day, monkeypatch):
+    hook = 'https://hooks.example.invalid/services/T000/B000/secret-token'
+    seen = []
+
+    class Reply:
+        def read(self):
+            return b'ok'
+
+    def capture(request, timeout=None):
+        seen.append((request, timeout))
+        return Reply()
+
+    monkeypatch.setattr(dl.urllib.request, 'urlopen', capture)
+    d = day.build(settings=daily_settings(day.owner, listening_daily_alert_webhook=hook))
+    day.full_day(d, D2)
+    d.clock.now = at(D2, 0, 0)
+    dl.tick(d)
+    request, timeout = next((r, t_) for r, t_ in seen if f'{D2}: published' in json.loads(r.data)['text'])
+    assert request.full_url == hook and request.get_method() == 'POST' and request.get_header('Content-type') == 'application/json' and timeout == 5
+    assert json.loads(request.data) == {'text': f'Audli daily challenge {D2}: published (live)'}
+    assert 'secret-token' not in json.loads(request.data)['text']
 
 
 def test_the_global_ai_kill_switch_stops_new_generation_but_not_publishing_what_is_already_validated(day):

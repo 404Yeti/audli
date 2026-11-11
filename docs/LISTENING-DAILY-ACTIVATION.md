@@ -102,6 +102,24 @@ Pausing stops generation and publication at once, so exactly one challenge is ma
 ## Stage D: normal operation
 From 23:00 ICT the scheduler prepares tomorrow's challenge, validates it, and publishes it at 00:00 ICT. Watch for the first full cycle: `status` (state `scheduled` before midnight, `active` after), the ops-health `daily` block (`/api/listening/ops/health`), alerts in the Render log (search `DAILY CHALLENGE ALERT`) and, if you set `AUDLI_LISTENING_DAILY_ALERT_WEBHOOK`, in your channel. Add reviewed topics to `app/listening/daily_taxonomy.py` before fewer than 14 remain unused (it alerts).
 
+## Notifications (optional, `AUDLI_LISTENING_DAILY_ALERT_WEBHOOK`)
+Nothing is sent unless this variable is set; the log (`DAILY CHALLENGE ALERT`, ERROR) and the ops-health `daily` block always report. No new service or credential is involved: the existing daily scheduler posts the message itself.
+
+**Format.** One HTTPS `POST` with `Content-Type: application/json` and the body `{"text": "<message>"}` (a Slack incoming-webhook payload), 5 second timeout, no retries. Set the variable to the webhook URL:
+* Slack: `https://hooks.slack.com/services/T…/B…/…` (a Slack "Incoming Webhook"; success is HTTP 200 with body `ok`).
+* Discord: the channel's webhook URL with `/slack` appended: `https://discord.com/api/webhooks/<id>/<token>/slack`.
+* Mattermost / Rocket.Chat incoming webhooks accept the same `{"text": ...}` body.
+The URL is a secret (`SecretStr`): it is passed only to the daily scheduler process, never logged and never part of a message. Set it on the Render API service; the scheduler restarts with the redeploy.
+
+**Messages** (`Audli daily challenge <date>: <event> (<status>[: <reason>])`; a date, an event, a status and a fixed safe reason; no lesson, topic, learner or secret):
+* `published (live)`: once, when the day's challenge goes live. No message by about 00:05 ICT means look.
+* `not_live (<state>: <reason>)`: once per date, from 01:00 ICT, if today's challenge is not active (`failed: every attempt was rejected or failed`, `scheduled: validated but not published`, `planned|generating|built: still being prepared`).
+* the existing alerts: a rejected attempt, all attempts failed, a cap reached, generation refused, review down, authorization problem, low topic pool.
+
+**What stays quiet.** `not_live` is never sent while the scheduler is paused (a paused scheduler does nothing, so nothing is checked) or while `AUDLI_LISTENING_DAILY_PUBLISH` is false (nothing is expected to go live).
+
+**What it cannot do.** Delivery is best effort: an unreachable webhook is logged as a warning and never blocks generation or publication. A dead scheduler cannot send anything, so a missing `published` message is itself the signal.
+
 ## Rollback and recovery
 * **Stop everything now:** `python -m app.listening.daily pause` (generation and publication stop; a challenge that is already live stays visible to learners, because the pause switch only governs the scheduler. To withdraw a live challenge use `python -m app.listening.library unpublish <lesson_id>`: learners then see the unavailable card). Or set `AUDLI_LISTENING_DAILY_PUBLISH=false` / `AUDLI_LISTENING_DAILY_ENABLED=false` and redeploy.
 * **Withdraw a published challenge:** `python -m app.listening.library unpublish <lesson_id>` (it becomes private to the service account; learners' past attempts are kept).

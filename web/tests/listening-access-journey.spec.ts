@@ -46,11 +46,12 @@ async function arrange(page: Page) {                    // chicken, bread, water
 }
 
 
-test('the whole lesson works on a slow, laggy connection: load, audio, all four exercises, summary', async ({ page }) => {
+test('the whole lesson works on a slow, laggy connection: load, audio, all four exercises, summary', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'network throttling uses the Chrome DevTools Protocol');
   test.setTimeout(175_000);
   await page.goto('/listening');
   await lessonCard(page, new RegExp(TITLE)).click();
-  await expect(page.getByRole('heading', { name: TITLE })).toBeVisible({ timeout: 120_000 });     // first visit compiles the route in the dev server
+  await expect(page.getByRole('heading', { name: TITLE }).first()).toBeVisible({ timeout: 120_000 });     // first visit compiles the route in the dev server
   await freshAttempt(page);                                                                         // settle state at full speed, then slow down
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Network.enable');

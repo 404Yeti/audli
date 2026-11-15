@@ -14,10 +14,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.accent_catalog import ACCENT_IDS
 from app.listening import spoken, store
+from app.listening.diagnostics import ERROR_CODE_HEADER, reference_of, short_hash
 from app.listening.ai_budget import AiGuard
 from app.listening.recordings import RecordingRejected, validate_recording
 from app.listening.domain import Cue
 from app.listening.objects import LocalObjectStore
+from app.storage.repository import learner_tag
 
 SIGNED_URL_SECONDS = 300
 REQUEST_ID = r'^[A-Za-z0-9_-]{8,64}$'
@@ -283,7 +285,7 @@ def _guard(call):
     except store.NotFound as error:
         raise HTTPException(404, str(error)) from None
     except store.Conflict as error:
-        raise HTTPException(409, str(error)) from None
+        raise HTTPException(409, str(error), headers={ERROR_CODE_HEADER: error.code}) from None
     except store.Invalid as error:
         raise HTTPException(422, str(error)) from None
 
@@ -483,13 +485,20 @@ def register_listening_routes(app, repo, settings, objects, recordings=None, eng
             return CurrentAttempt(attempt_id=store.current_attempt_id(db, repo.learner_id, _uuid(lesson_id)))
 
     @router.post('/lessons/{lesson_id}/attempts', response_model=AttemptView)
-    def start_attempt(lesson_id: str, body: StartAttempt):
+    def start_attempt(lesson_id: str, body: StartAttempt, request: Request):
         lesson_id, user_id = _uuid(lesson_id), repo.learner_id
 
         def write():
             with repo.transaction() as db:
                 return _guard(lambda: store.create_attempt(db, user_id, lesson_id, body.client_request_id, body.accent))[0]
-        attempt_id = _retry_once(write)
+        try:
+            attempt_id = _retry_once(write)
+        except HTTPException as error:
+            if error.status_code == 409:
+                # AUD-120: enough to tell a poisoned request id from anything else, without logging the id, a token or any content.
+                log.warning('attempt_start_conflict ref=%s kind=%s lesson=%s learner=%s request=%s', reference_of(request),
+                            (error.headers or {}).get(ERROR_CODE_HEADER, 'conflict'), lesson_id[:8], learner_tag(user_id), short_hash(body.client_request_id))
+            raise
         with repo.read() as db:
             return _view(db, user_id, attempt_id)
 

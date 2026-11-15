@@ -159,7 +159,9 @@ export async function audioBlobUrl(url: string, signal?: AbortSignal, operation?
 
 /** The proxy answered with something that is not the API's JSON (an HTML gateway page): the request did not reach the API. */
 export class UnreachableError extends Error {
-  constructor() { super('Audli could not reach the server. Check that FastAPI is running and try again.'); this.name = 'UnreachableError'; }
+  status: number | null;
+  reference: string | null;
+  constructor(status: number | null = null, reference: string | null = null) { super('Audli could not reach the server. Check that FastAPI is running and try again.'); this.name = 'UnreachableError'; this.status = status; this.reference = reference; }
 }
 
 /** Structured daily-limit refusal (HTTP 429): a stable code, never a generic failure. */
@@ -168,7 +170,12 @@ export class ApiError extends Error {
   status: number;
   uncertain: boolean;
   limit?: LimitInfo;
-  constructor(message: string, status: number, uncertain = false, limit?: LimitInfo) { super(message); this.status = status; this.uncertain = uncertain; this.limit = limit; }
+  /** AUD-120: the server's support reference (X-Audli-Reference) and closed-vocabulary error code (X-Audli-Error-Code), when a response arrived. */
+  reference: string | null;
+  code: string | null;
+  constructor(message: string, status: number, uncertain = false, limit?: LimitInfo, reference: string | null = null, code: string | null = null) {
+    super(message); this.status = status; this.uncertain = uncertain; this.limit = limit; this.reference = reference; this.code = code;
+  }
 }
 export function limitFrom(data: unknown): LimitInfo | undefined {
   const error = data && typeof data === 'object' && 'error' in data ? (data as { error: unknown }).error : null;
@@ -200,13 +207,14 @@ export async function api<T>(url: string, init?: RequestInit, onResponse?: (stat
     init?.signal?.throwIfAborted();
     operation?.assertCurrent();
     // The Next.js proxy can return HTML/plain text when FastAPI is unreachable.
-    throw new UnreachableError();
+    throw new UnreachableError(response.status, response.headers.get('X-Audli-Reference'));
   }
   operation?.assertCurrent();
   if (!response.ok) {
     const detail = data && typeof data === 'object' && 'detail' in data ? data.detail : null;
     throw new ApiError(typeof detail === 'string' ? detail : 'Please check your input and try again.', response.status,
-      !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true), response.status === 429 ? limitFrom(data) : undefined);
+      !!(data && typeof data === 'object' && 'uncertain' in data && data.uncertain === true), response.status === 429 ? limitFrom(data) : undefined,
+      response.headers.get('X-Audli-Reference'), response.headers.get('X-Audli-Error-Code'));
   }
   // Existing Review coaching has its own non-durable 202 contract. Upload
   // callers defer processing explicitly, so malformed acknowledgments fail closed.

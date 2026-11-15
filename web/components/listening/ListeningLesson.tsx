@@ -16,10 +16,11 @@ import { AudliMascot } from '../audli-mascot';
 import { ApiError } from '../../lib/api.ts';
 import { successPath } from '../../lib/success-core.ts';
 import { useLearnerSettings } from '../../lib/use-settings.ts';
-import { currentAttemptId, getAttempt, rememberStarted, retrySpoken, sendRecording, skipSpoken, startAttempt, submitAnswer, wasStarted, type AnswerBody } from '../../lib/listening.ts';
+import { accessDeps, getAttempt, rememberStarted, retrySpoken, sendRecording, skipSpoken, submitAnswer, wasStarted, type AnswerBody } from '../../lib/listening.ts';
+import { loadLesson, newClientReference, type LoadFailure } from '../../lib/lesson-access.ts';
 import { firstUndecided, hasPendingAssessment, newRequestId, phaseOf, pollDelayMs, resumePosition, type AttemptView, type Exercise } from '../../lib/listening-core.ts';
 
-type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; view: AttemptView; resumed: boolean };
+type Load = { kind: 'loading' } | { kind: 'error'; failure: LoadFailure } | { kind: 'ready'; view: AttemptView; resumed: boolean };
 
 export function ListeningLesson({ lessonId }: { lessonId: string }) {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
@@ -34,24 +35,36 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
   const uploads = useRef(new WeakMap<Blob, string>());                // one id per recording, so sending it again is never a second answer
   const player = useRef<PlayerHandle>(null);
 
-  // Find the saved attempt for this lesson, or start one. Pure async: callers decide when to show "loading".
-  const find = useCallback(async (fresh: boolean): Promise<Load> => {
+  // Find the saved attempt for this lesson, or start one (lib/lesson-access.ts: deadlines, bounded retry, conflict recovery).
+  // Pure async: callers decide when to show "loading". Leaving the page, or asking again, cancels the request still in flight.
+  const running = useRef<AbortController | null>(null);
+  const find = useCallback(async (fresh: boolean): Promise<Load | null> => {
+    running.current?.abort();
+    const controller = new AbortController();
+    running.current = controller;
     try {
-      const existing = fresh ? null : await currentAttemptId(lessonId);
-      const view = existing ? await getAttempt(existing) : await startAttempt(lessonId, fresh);
+      const result = await loadLesson(lessonId, fresh, accessDeps, controller.signal);
+      if (result.kind === 'error') {
+        console.warn('[Audli] lesson load failed', { kind: result.failure.kind, status: result.failure.status, reference: result.failure.reference });
+        return result;
+      }
       // "Welcome back" only for work saved by an earlier visit, not for the attempt this very load created.
-      const resumed = !!existing && view.attempt.status === 'in_progress' && Date.now() - Date.parse(view.attempt.created_at) > 10_000;
-      return { kind: 'ready', view, resumed };
-    } catch { return { kind: 'error' }; }
+      const resumed = result.existing && result.view.attempt.status === 'in_progress' && Date.now() - Date.parse(result.view.attempt.created_at) > 10_000;
+      return { kind: 'ready', view: result.view, resumed };
+    } catch {
+      if (controller.signal.aborted) return null;          // superseded or left the page: never show an error for work nobody is waiting on
+      return { kind: 'error', failure: { kind: 'network', status: null, reference: newClientReference(), transient: true } };
+    }
   }, [lessonId]);
-  const apply = useCallback((result: Load) => {
+  const apply = useCallback((result: Load | null) => {
+    if (!result) return;
     if (result.kind === 'ready') setStarted(wasStarted(result.view.attempt.id) || resumePosition(result.view.exercises).started);   // saved answers mean we skip the intro
     setLoad(result);
   }, []);
   useEffect(() => {
     let live = true;
     void find(false).then(result => { if (live) apply(result); });
-    return () => { live = false; };
+    return () => { live = false; running.current?.abort(); };
   }, [find, apply]);
   const open = async (fresh = false) => { setLoad({ kind: 'loading' }); setError(null); setActive(null); setReviewing(null); apply(await find(fresh)); };
 
@@ -83,7 +96,7 @@ export function ListeningLesson({ lessonId }: { lessonId: string }) {
   const onPlaying = useCallback((value: boolean) => setPlaying(value), []);
 
   if (load.kind === 'loading') return <LessonShell phase={null}><AttemptRecovery state="loading" /></LessonShell>;
-  if (load.kind === 'error') return <LessonShell phase={null}><AttemptRecovery state="error" onRetry={() => void open()} /></LessonShell>;
+  if (load.kind === 'error') return <LessonShell phase={null}><AttemptRecovery state="error" failure={load.failure} onRetry={() => void open()} /></LessonShell>;
 
   const { view, resumed } = load;
   const phase = reviewing ? 'question' : phaseOf(view.attempt.status, started);

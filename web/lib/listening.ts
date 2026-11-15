@@ -1,14 +1,15 @@
 // API calls for the 2.0 listening lesson. Authentication comes from the shared token provider behind api().
 import { ApiError, api, authenticatedFetch, resolveApiUrl } from './api.ts';
 import { newRequestId, type AttemptView, type CatalogItem, type Progress } from './listening-core.ts';
+import { newClientReference, type AccessDeps } from './lesson-access.ts';
 
 export const listCatalog = () => api<CatalogItem[]>('/listening/lessons');
 import type { DailyChallenge } from './daily-core.ts';
 export const getDaily = () => api<DailyChallenge>('/listening/daily');
 export const getProgress = () => api<Progress>('/listening/progress');
-export const currentAttemptId = (lessonId: string) =>
-  api<{ attempt_id: string | null }>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts/current`).then(r => r.attempt_id);
-export const getAttempt = (attemptId: string) => api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}`);
+export const currentAttemptId = (lessonId: string, signal?: AbortSignal) =>
+  api<{ attempt_id: string | null }>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts/current`, { signal }).then(r => r.attempt_id);
+export const getAttempt = (attemptId: string, signal?: AbortSignal) => api<AttemptView>(`/listening/attempts/${encodeURIComponent(attemptId)}`, { signal });
 /** One answer: `{ option_id }` (multiple choice), `{ text }` (fill in the blank) or `{ order }` (sequencing). */
 export type AnswerBody = { option_id: string } | { text: string } | { order: string[] };
 export const submitAnswer = (attemptId: string, exerciseId: string, answer: AnswerBody) =>
@@ -32,7 +33,7 @@ export async function sendRecording(attemptId: string, exerciseId: string, blob:
 const requestKey = (lessonId: string) => `audli.listening.request.${lessonId}`;
 
 /** Creates (or resumes) the attempt. The request id survives a refresh mid-request, so the server never makes two. */
-export async function startAttempt(lessonId: string, fresh = false): Promise<AttemptView> {
+export async function startAttempt(lessonId: string, fresh = false, signal?: AbortSignal): Promise<AttemptView> {
   let id: string | null = null;
   try { id = fresh ? null : sessionStorage.getItem(requestKey(lessonId)); } catch { /* storage can be unavailable; the id then lives only for this call */ }
   if (!id) {
@@ -40,10 +41,13 @@ export async function startAttempt(lessonId: string, fresh = false): Promise<Att
     try { sessionStorage.setItem(requestKey(lessonId), id); } catch { /* ignore */ }
   }
   const view = await api<AttemptView>(`/listening/lessons/${encodeURIComponent(lessonId)}/attempts`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_request_id: id }) });
-  try { sessionStorage.removeItem(requestKey(lessonId)); } catch { /* ignore */ }
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_request_id: id }), signal });
+  forgetRequestId(lessonId);
   return view;
 }
+
+/** Drops the stored request id for this lesson (after success, or when the server says it belongs to another lesson). */
+export function forgetRequestId(lessonId: string) { try { sessionStorage.removeItem(requestKey(lessonId)); } catch { /* ignore */ } }
 
 /** A short-lived signed link. Absolute (object storage) links are used as given; API paths honour the configured API origin. */
 export async function signedAudioUrl(attemptId: string): Promise<{ url: string; durationMs: number }> {
@@ -54,3 +58,13 @@ export async function signedAudioUrl(attemptId: string): Promise<{ url: string; 
 const startedKey = (attemptId: string) => `audli.listening.started.${attemptId}`;
 export function rememberStarted(attemptId: string) { try { sessionStorage.setItem(startedKey(attemptId), '1'); } catch { /* per-viewer convenience only */ } }
 export function wasStarted(attemptId: string): boolean { try { return sessionStorage.getItem(startedKey(attemptId)) === '1'; } catch { return false; } }
+
+/** The real dependencies for lib/lesson-access.ts. */
+export const accessDeps: AccessDeps = {
+  currentAttemptId, getAttempt, startAttempt, forgetRequestId, newReference: () => newClientReference(),
+  sleep: (ms, signal) => new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { signal.removeEventListener('abort', stop); resolve(); }, ms);
+    const stop = () => { clearTimeout(timer); reject(signal.reason ?? new DOMException('Aborted', 'AbortError')); };
+    if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true });
+  }),
+};

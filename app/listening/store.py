@@ -21,7 +21,11 @@ class NotFound(Exception):
 
 
 class Conflict(Exception):
-    pass
+    code = 'conflict'                 # a closed vocabulary sent as X-Audli-Error-Code and logged (app/listening/diagnostics.py)
+
+
+class RequestIdConflict(Conflict):
+    code = 'request_id_conflict'
 
 
 class Invalid(Exception):
@@ -391,7 +395,7 @@ def create_attempt(db, user_id: str, lesson_id: str, client_request_id: str, acc
         .where(and_(t.attempts.c.user_id == user_id, t.attempts.c.client_request_id == client_request_id))).first()
     if prior:
         if prior.lesson_id != lesson_id:
-            raise Conflict('This request id was already used for a different lesson.')
+            raise RequestIdConflict('This request id was already used for a different lesson.')
         return prior.id, False
     version = db.execute(_latest_published(lesson_id)).mappings().first()
     if not version or not lesson_visible(db, user_id, lesson_id):          # another learner's generated lesson answers exactly like an unknown one
